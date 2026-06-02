@@ -5,9 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 
 **Language: Python** (chosen in Phase 0). Stack: `alpaca-py`, `python-dotenv`; `pytest` +
-`ruff` for dev. **Phases 0–1 are complete** (setup + Alpaca connection/market data, both
-verified live against the paper account); Phase 2 (indicator engine) is next. Build
-progresses through the phases in [todo.md](todo.md) (Phase 0 → 10).
+`ruff` for dev. **Phases 0–2 are complete** (setup, Alpaca connection/market data —
+both verified live against the paper account — and the indicator engine); Phase 3
+(signal + confidence score / state machine) is next. Build progresses through the
+phases in [todo.md](todo.md) (Phase 0 → 10).
 
 Source-of-truth documents — read both before writing code:
 
@@ -47,12 +48,25 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   the IEX trade WebSocket, feeds ticks to the aggregator, and reconnects with backoff
   (`_BackoffStockDataStream` + a supervisor loop). Trading-client and stream factories are
   injectable so tests run without a network.
-- [bot/candles.py](bot/candles.py) — `CandleAggregator`: rolls trade ticks into 1-minute
-  OHLCV `Candle`s per symbol, keeps a bounded rolling window, and only ever emits **closed**
-  candles (`flush(now)` closes a bar once its minute has fully elapsed). Pure / no I/O.
+- [bot/candles.py](bot/candles.py) — `CandleAggregator`: rolls **trade** ticks (we aggregate
+  ourselves rather than subscribing to Alpaca's minute bars) into 1-minute OHLCV `Candle`s
+  per symbol, keeps a bounded rolling window, and only ever emits **closed** candles. Pure /
+  no I/O. **Close timing is activity-driven:** `flush(now)` uses the freshest incoming tick's
+  timestamp as the clock, so a bar closes only when a later tick proves its minute elapsed —
+  an idle market leaves the last bar open until the next tick. A wall-clock flush will likely
+  arrive with the Phase 3 state machine; don't assume a bar closes the instant its minute ends.
+- [bot/indicators.py](bot/indicators.py) — `IndicatorEngine` (Phase 2). Feed it each
+  **closed** candle (`update(candle)`); it returns an `IndicatorSnapshot` of fast/slow EMA
+  (9/21), trend SMA (50), Wilder RSI (14), and a trailing `avg_volume`. **Incremental, not
+  windowed:** EMAs/RSI are carried forward from inception so they don't drift as bars age out
+  of the aggregator window; each field is `None` until it has enough history to seed. The
+  snapshot also carries `prev_fast_ema`/`prev_slow_ema` so Phase 3 can detect a *fresh* cross
+  from one snapshot. `avg_volume` is the mean of the *preceding* bars (current bar excluded).
+  Pure / no I/O, per-symbol state. Wire it via `MarketDataClient(on_candle=...)`.
 - [bot/main.py](bot/main.py) — entrypoint: loads config, sets up logging, checks the
-  account, then runs the data stream. The `WAITING → EVALUATING → EXECUTING → MANAGING`
-  state machine will live here.
+  account, builds the `IndicatorEngine`, then runs the data stream feeding each closed candle
+  through the engine. The `WAITING → EVALUATING → EXECUTING → MANAGING` state machine will
+  live here.
 - [tests/](tests/) — pytest suite.
 - `.env` (gitignored, holds real paper keys) ← copy from [.env.example](.env.example).
 

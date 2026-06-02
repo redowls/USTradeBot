@@ -29,11 +29,13 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 ## Phase 2 — Indicator engine
 
-- [ ] Fast & slow EMAs (9 / 21).
-- [ ] Trend MA (50) for the higher-timeframe filter.
-- [ ] RSI (14).
-- [ ] Rolling average volume.
-- [ ] Recompute on each **closed** candle only; unit-test the math.
+- [x] Fast & slow EMAs (9 / 21). → `bot/indicators.py` `_Ema` (SMA-seeded, k=2/(n+1))
+- [x] Trend MA (50) for the higher-timeframe filter. → `_Sma` (`trend_ma`)
+- [x] RSI (14). → `_Rsi` (Wilder smoothing)
+- [x] Rolling average volume. → `_TrailingMean` (`avg_volume`, trailing/self-exclusive)
+- [x] Recompute on each **closed** candle only; unit-test the math.
+      → `IndicatorEngine.update` wired to `MarketDataClient(on_candle=...)`;
+      `tests/test_indicators.py` (16 tests, hand-checked math)
 
 ## Phase 3 — Buy logic + confidence score
 

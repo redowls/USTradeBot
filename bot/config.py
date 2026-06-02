@@ -100,6 +100,7 @@ class Config:
     slow_ma_period: int
     trend_ma_period: int
     rsi_period: int
+    volume_ma_period: int
     entry_threshold: float
 
     # Sizing
@@ -138,6 +139,7 @@ class Config:
             slow_ma_period=_int("SLOW_MA_PERIOD", 21),
             trend_ma_period=_int("TREND_MA_PERIOD", 50),
             rsi_period=_int("RSI_PERIOD", 14),
+            volume_ma_period=_int("VOLUME_MA_PERIOD", 20),
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
             min_alloc=_float("MIN_ALLOC", 0.10),
             max_alloc=_float("MAX_ALLOC", 0.40),
@@ -174,3 +176,5 @@ class Config:
                 raise ConfigError(f"{fld.upper()} must be a fraction in (0, 1).")
         if self.rsi_period <= 1:
             raise ConfigError("RSI_PERIOD must be > 1.")
+        if self.volume_ma_period <= 0:
+            raise ConfigError("VOLUME_MA_PERIOD must be positive.")
