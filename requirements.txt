@@ -1,0 +1,3 @@
+# Runtime dependencies. Pinned loosely; tighten before VPS deploy (Phase 9).
+alpaca-py>=0.30
+python-dotenv>=1.0
