@@ -1,8 +1,9 @@
 """Entrypoint.
 
-Phase 0 scaffold: load config, set up logging, and confirm the environment is wired
-correctly. The data feed, indicator engine, executor, and risk manager arrive in
-later phases (see todo.md). The full state machine will live here:
+Loads config, sets up logging, confirms the paper account responds, then holds
+the market-data WebSocket and aggregates ticks into candles (Phase 1). The
+indicator engine, executor, and risk manager arrive in later phases (see
+todo.md). The full state machine will live here:
 
     WAITING -> EVALUATING -> EXECUTING -> MANAGING
 """
@@ -12,6 +13,9 @@ from __future__ import annotations
 import logging
 
 from bot.config import Config, ConfigError
+from bot.market_data import MarketDataClient
+
+log = logging.getLogger("ustradebot")
 
 
 def setup_logging(level: str) -> None:
@@ -30,7 +34,6 @@ def main() -> int:
         return 1
 
     setup_logging(cfg.log_level)
-    log = logging.getLogger("ustradebot")
     log.info("USTradeBot starting (paper). Watchlist: %s", ", ".join(cfg.watchlist))
     log.info(
         "Strategy: EMA %d/%d, trend %d, RSI %d, entry>=%.0f%%",
@@ -40,7 +43,21 @@ def main() -> int:
         cfg.rsi_period,
         cfg.entry_threshold,
     )
-    log.info("Config loaded and validated. (Data feed not yet implemented — Phase 1.)")
+
+    data = MarketDataClient(cfg)
+    try:
+        data.check_account()
+    except Exception:
+        log.exception("could not reach the Alpaca paper account — aborting.")
+        return 1
+
+    try:
+        data.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        data.stop()
+    log.info("USTradeBot stopped.")
     return 0
 
 

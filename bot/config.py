@@ -18,8 +18,10 @@ from zoneinfo import ZoneInfo
 try:
     from dotenv import load_dotenv
 except ImportError:  # dotenv is optional at runtime (env may be set directly)
+
     def load_dotenv(*_args, **_kwargs) -> bool:  # type: ignore[misc]
         return False
+
 
 EASTERN = ZoneInfo("America/New_York")
 
@@ -29,6 +31,7 @@ class ConfigError(RuntimeError):
 
 
 # --- typed env-var readers -------------------------------------------------
+
 
 def _req(name: str) -> str:
     val = os.environ.get(name, "").strip()

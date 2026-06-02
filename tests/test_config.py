@@ -16,8 +16,15 @@ _VALID_ENV = {
 
 def _set_env(monkeypatch, **overrides):
     for k in list(_VALID_ENV) + [
-        "ALPACA_BASE_URL", "FAST_MA_PERIOD", "SLOW_MA_PERIOD", "TREND_MA_PERIOD",
-        "ENTRY_THRESHOLD", "MIN_ALLOC", "MAX_ALLOC", "WATCHLIST", "MARKET_OPEN",
+        "ALPACA_BASE_URL",
+        "FAST_MA_PERIOD",
+        "SLOW_MA_PERIOD",
+        "TREND_MA_PERIOD",
+        "ENTRY_THRESHOLD",
+        "MIN_ALLOC",
+        "MAX_ALLOC",
+        "WATCHLIST",
+        "MARKET_OPEN",
     ]:
         monkeypatch.delenv(k, raising=False)
     for k, v in {**_VALID_ENV, **overrides}.items():

@@ -13,16 +13,19 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 - [x] Create a config layer (env vars or config file) for all tunables. → `bot/config.py`
 - [x] Put `ALPACA_KEY_ID`, `ALPACA_SECRET`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
       in env vars (simplest place — you just need them somewhere). → `.env.example` (copy to `.env`)
-- [ ] Create an Alpaca account and grab the **paper** API keys. → **you do this** (see notes below)
+- [x] Create an Alpaca account and grab the **paper** API keys. → keys in `.env`, verified live (account `PA34DFFLTHRT`)
 
 ## Phase 1 — Alpaca connection & market data
 
-- [ ] Hit the paper REST endpoint (`paper-api.alpaca.markets`) and confirm the
-      account responds.
-- [ ] Open the market-data WebSocket (IEX feed) and subscribe to the watchlist.
-- [ ] Auto-reconnect with backoff on dropped connections.
-- [ ] Aggregate ticks/quotes into 1-minute candles per symbol (or subscribe to
+- [x] Hit the paper REST endpoint (`paper-api.alpaca.markets`) and confirm the
+      account responds. → `MarketDataClient.check_account()` (live: status ACTIVE, equity $10k)
+- [x] Open the market-data WebSocket (IEX feed) and subscribe to the watchlist.
+      → `MarketDataClient.run_forever()` (live: connected + subscribed to NFLX/BIRD/WPM)
+- [x] Auto-reconnect with backoff on dropped connections. → `_BackoffStockDataStream`
+      (per-connect backoff) + supervisor restart loop in `run_forever`
+- [x] Aggregate ticks/quotes into 1-minute candles per symbol (or subscribe to
       bar data), keeping a rolling window long enough for the indicators.
+      → `bot/candles.py` `CandleAggregator` (rolling window, closed-candle only)
 
 ## Phase 2 — Indicator engine
 
