@@ -8,12 +8,12 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 ## Phase 0 — Setup
 
-- [ ] Choose the language (C#/.NET or Python) and create the repo.
-- [ ] Set up the VS Code workspace (runtime, linter, debugger).
-- [ ] Create a config layer (env vars or config file) for all tunables.
-- [ ] Put `ALPACA_KEY_ID`, `ALPACA_SECRET`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
-      in env vars (simplest place — you just need them somewhere).
-- [ ] Create an Alpaca account and grab the **paper** API keys.
+- [x] Choose the language (C#/.NET or Python) and create the repo. → **Python**, pushed to github.com/redowls/USTradeBot
+- [x] Set up the VS Code workspace (runtime, linter, debugger). → `.vscode/`, ruff, debugpy
+- [x] Create a config layer (env vars or config file) for all tunables. → `bot/config.py`
+- [x] Put `ALPACA_KEY_ID`, `ALPACA_SECRET`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
+      in env vars (simplest place — you just need them somewhere). → `.env.example` (copy to `.env`)
+- [ ] Create an Alpaca account and grab the **paper** API keys. → **you do this** (see notes below)
 
 ## Phase 1 — Alpaca connection & market data
 
