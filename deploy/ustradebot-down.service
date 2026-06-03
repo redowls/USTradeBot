@@ -1,0 +1,14 @@
+# "Bot down" alert (Phase 10). Triggered by OnFailure= on ustradebot.service, so it
+# fires once when the bot gives up (crash-loops past StartLimitBurst -> failed).
+# Not enabled directly. Install alongside ustradebot.service.
+
+[Unit]
+Description=USTradeBot down alert (OnFailure handler)
+
+[Service]
+Type=oneshot
+User=ustradebot
+Group=ustradebot
+WorkingDirectory=/opt/ustradebot
+EnvironmentFile=/opt/ustradebot/.env
+ExecStart=/opt/ustradebot/.venv/bin/python -m bot.notify "🔴 USTradeBot entered the failed state on %H — check: journalctl -u ustradebot -n 50"

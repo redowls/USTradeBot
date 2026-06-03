@@ -30,6 +30,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -53,6 +54,32 @@ _GO_SEPARATOR = re.compile(r"(?im)^[ \t]*GO[ \t]*$")
 def _sub(breakdown: ConfidenceBreakdown | None, field: str) -> float | None:
     """Pull one 0–1 sub-score off the breakdown, or ``None`` when we don't have it."""
     return getattr(breakdown, field) if breakdown is not None else None
+
+
+@dataclass(frozen=True)
+class PerfBand:
+    """One confidence-band row of ``dbo.vw_confidence_outcome`` (all-time)."""
+
+    band: str
+    trades: int
+    wins: int
+    win_rate: float
+    avg_pnl: float
+    total_pnl: float
+
+
+@dataclass(frozen=True)
+class PerformanceSummary:
+    """Aggregate trading performance for the Phase 10 daily/weekly report."""
+
+    days: int  # window for the headline figures
+    trades: int
+    wins: int
+    win_rate: float
+    total_pnl: float
+    avg_pnl: float
+    open_positions: int
+    bands: list[PerfBand]  # all-time, by confidence band
 
 
 class TradeStore:
@@ -227,6 +254,64 @@ class TradeStore:
         except Exception:
             log.exception("failed to persist exit for %s", result.symbol)
             self._reset()
+
+    # --- reads (Phase 10 reporting) ---------------------------------------
+
+    def performance_summary(self, days: int = 1) -> PerformanceSummary | None:
+        """Aggregate closed-trade stats over the last ``days`` + all-time by band.
+
+        Read-only and wrapped like the writes: a DB error logs, resets the
+        connection, and returns ``None`` (the report just won't send).
+        """
+        try:
+            conn = self._connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT COUNT(*), SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), "
+                "SUM(pnl), AVG(pnl) "
+                "FROM dbo.trades "
+                "WHERE status = 'CLOSED' AND pnl IS NOT NULL "
+                "AND exit_time_utc >= DATEADD(day, -?, SYSUTCDATETIME())",
+                (days,),
+            )
+            row = cur.fetchone() or (0, 0, None, None)
+            trades = int(row[0] or 0)
+            wins = int(row[1] or 0)
+            total_pnl = float(row[2] or 0.0)
+            avg_pnl = float(row[3] or 0.0)
+
+            cur.execute("SELECT COUNT(*) FROM dbo.positions")
+            open_positions = int((cur.fetchone() or (0,))[0] or 0)
+
+            cur.execute(
+                "SELECT confidence_band, trades, wins, win_rate, avg_pnl, total_pnl "
+                "FROM dbo.vw_confidence_outcome ORDER BY confidence_band DESC"
+            )
+            bands = [
+                PerfBand(
+                    band=str(b[0]),
+                    trades=int(b[1] or 0),
+                    wins=int(b[2] or 0),
+                    win_rate=float(b[3] or 0.0),
+                    avg_pnl=float(b[4] or 0.0),
+                    total_pnl=float(b[5] or 0.0),
+                )
+                for b in (cur.fetchall() or [])
+            ]
+            return PerformanceSummary(
+                days=days,
+                trades=trades,
+                wins=wins,
+                win_rate=(wins / trades) if trades else 0.0,
+                total_pnl=total_pnl,
+                avg_pnl=avg_pnl,
+                open_positions=open_positions,
+                bands=bands,
+            )
+        except Exception:
+            log.exception("failed to build performance summary")
+            self._reset()
+            return None
 
 
 class TradeRecorder:

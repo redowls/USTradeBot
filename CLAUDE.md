@@ -15,10 +15,13 @@ verified live against the `USBot` database; and Telegram alerts: a direct `POST`
 against the real Bot API). **Phase 8** added a one-command preflight connectivity check
 (`bot/preflight.py`); **Phase 9** is done — the bot is **deployed live** as the
 `ustradebot` systemd service on an Ubuntu 24.04 VPS (`/opt/ustradebot`), running on the
-paper account with SQL Server + Telegram both live (preflight all-PASS). Remaining: the
-operator side of Phase 8 (observe paper results, re-tune the confidence weights/threshold)
-and **Phase 10** (monitoring & maintenance — "bot down" alert, daily SQL summary, log
-rotation, flatten-all kill switch). Build progresses through the phases in
+paper account with SQL Server + Telegram both live (preflight all-PASS). **Phase 10**
+(monitoring & maintenance) is built and deployed: a "bot down" `OnFailure` alert, a
+15-min health-check timer, a daily performance report (`bot/report.py`) on a systemd
+timer, journald log-size caps, and a flatten-all kill switch (`bot/flatten.py` +
+`deploy/kill-switch.sh`). **All 10 phases are now complete.** The remaining work is
+operational, not a phase: observe paper results over time and re-tune the confidence
+weights / `ENTRY_THRESHOLD` (the open Phase 8 item). Build history is in
 [todo.md](todo.md) (Phase 0 → 10).
 
 **Strategy note:** the entry design is a **multi-timeframe triple-MA ribbon** — a
@@ -166,6 +169,20 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   message verbatim. `format_entry`/`format_exit` are pure. `open_notifier(cfg)` returns
   `None` if the token/chat id are unset (the bot trades on); config currently *requires*
   both, so it normally returns a live notifier.
+- [bot/notify.py](bot/notify.py) — Phase 10 one-line Telegram CLI (`python -m bot.notify
+  "msg"`): a thin wrapper over `open_notifier` so the systemd `OnFailure` / health-check
+  units (and you) can alert using the same token/chat id as the bot.
+- [bot/flatten.py](bot/flatten.py) — Phase 10 kill switch (`python -m bot.flatten --yes`).
+  `flatten_all` cancels all open orders + closes all positions via Alpaca's
+  `close_all_positions(cancel_orders=True)`, **always** alerts (even on a read/close
+  error — it's the emergency path), and never raises. `--yes` guard prevents an accidental
+  run; the operator wrapper `deploy/kill-switch.sh` stops the service first. Client +
+  notifier injectable for tests.
+- [bot/report.py](bot/report.py) — Phase 10 performance summary (`python -m bot.report
+  --days N`). Pure `format_summary` digests a `PerformanceSummary` (from
+  `TradeStore.performance_summary`: windowed trades/win-rate/P&L + all-time
+  confidence-band breakdown off `dbo.vw_confidence_outcome`) and pushes it to Telegram +
+  stdout. Read-only; exits non-zero (no trading impact) if persistence is off.
 - [bot/preflight.py](bot/preflight.py) — Phase 8 preflight connectivity check
   (`python -m bot.preflight`). Runs four checks — Alpaca paper account (**critical**:
   reports status/equity/buying-power/open-positions), SQL Server persistence, Telegram

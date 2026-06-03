@@ -203,10 +203,25 @@ systemd service.
 
 ## Phase 10 — Monitoring & maintenance
 
-- [ ] Log rotation and a periodic process-health check.
-- [ ] A daily/weekly performance summary from SQL Server.
-- [ ] A "bot down" / repeated-restart alert.
-- [ ] A manual kill switch / flatten-all-positions procedure.
+CLIs in `bot/` (unit-tested), wired to systemd timers/handlers in [`deploy/`](deploy/);
+install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
+
+- [x] Log rotation and a periodic process-health check. → journald cap
+      (`deploy/journald-ustradebot.conf`, `SystemMaxUse=500M`/1-month) for rotation;
+      `ustradebot-health.timer` (every 15 min) runs `deploy/healthcheck.sh`, which
+      alerts via Telegram only when the unit is `failed` (no maintenance spam).
+- [x] A daily/weekly performance summary from SQL Server. → `bot/report.py`
+      (`python -m bot.report --days N`): headline trades/win-rate/P&L over the window
+      + all-time confidence-band breakdown (reads `dbo.vw_confidence_outcome` via
+      `TradeStore.performance_summary`), pushed to Telegram + journal.
+      `ustradebot-report.timer` fires it Mon–Fri 21:30 UTC (after the US close).
+- [x] A "bot down" / repeated-restart alert. → `OnFailure=ustradebot-down.service`
+      on the main unit sends a Telegram alert when the bot crash-loops to `failed`
+      (`bot/notify.py` is the generic Telegram CLI it uses).
+- [x] A manual kill switch / flatten-all-positions procedure. → `bot/flatten.py`
+      (`python -m bot.flatten --yes`: cancel all orders + close all positions, always
+      alerts) and the operator wrapper `deploy/kill-switch.sh` (stops the service first,
+      then flattens).
 
 ---
 

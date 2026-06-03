@@ -1,0 +1,11 @@
+# Run the health check every 15 minutes (and 5 min after boot).
+
+[Unit]
+Description=Periodic USTradeBot health check
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+
+[Install]
+WantedBy=timers.target

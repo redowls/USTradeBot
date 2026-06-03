@@ -1,0 +1,13 @@
+# Fire the performance report on trading days after the US close. The VPS clock is
+# UTC; 21:30 UTC is after 16:00 ET in both EDT (20:00 UTC) and EST (21:00 UTC).
+# Persistent=true => a missed run (VPS off) fires on next boot.
+
+[Unit]
+Description=Daily USTradeBot performance report (after the US close)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 21:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

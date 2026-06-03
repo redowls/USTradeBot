@@ -237,5 +237,88 @@ def test_open_store_returns_none_when_conn_unset(monkeypatch):
     assert open_store(Config.load(dotenv=False)) is None
 
 
+# --- performance_summary (Phase 10 reads) ----------------------------------
+
+
+class _ReadCursor:
+    """Returns scripted rows keyed by a substring of the query."""
+
+    def __init__(self, scalars, bands):
+        self._scalars = scalars
+        self._bands = bands
+        self._mode = None
+
+    def execute(self, sql, params=()):
+        joined = " ".join(sql.split())
+        if "vw_confidence_outcome" in joined:
+            self._mode = "bands"
+        elif "FROM dbo.positions" in joined:
+            self._mode = "positions"
+        else:
+            self._mode = "headline"
+        return self
+
+    def fetchone(self):
+        if self._mode == "headline":
+            return self._scalars["headline"]
+        if self._mode == "positions":
+            return self._scalars["positions"]
+        return None
+
+    def fetchall(self):
+        return self._bands if self._mode == "bands" else []
+
+
+class _ReadConn:
+    def __init__(self, scalars, bands):
+        self._scalars = scalars
+        self._bands = bands
+        self.closed = False
+
+    def cursor(self):
+        return _ReadCursor(self._scalars, self._bands)
+
+    def commit(self):
+        pass
+
+    def close(self):
+        self.closed = True
+
+
+def test_performance_summary_aggregates_window_and_bands():
+    conn = _ReadConn(
+        scalars={"headline": (4, 3, 120.5, 30.125), "positions": (2,)},
+        bands=[("80-89", 2, 2, 1.0, 50.0, 100.0), ("60-69", 2, 1, 0.5, 10.25, 20.5)],
+    )
+    summary = TradeStore(lambda: conn).performance_summary(days=7)
+    assert summary is not None
+    assert summary.days == 7
+    assert (summary.trades, summary.wins) == (4, 3)
+    assert summary.win_rate == 0.75
+    assert summary.total_pnl == 120.5
+    assert summary.open_positions == 2
+    assert [b.band for b in summary.bands] == ["80-89", "60-69"]
+    assert summary.bands[0].total_pnl == 100.0
+
+
+def test_performance_summary_handles_empty_window():
+    conn = _ReadConn(scalars={"headline": (0, None, None, None), "positions": (0,)}, bands=[])
+    summary = TradeStore(lambda: conn).performance_summary(days=1)
+    assert summary is not None
+    assert summary.trades == 0 and summary.win_rate == 0.0
+    assert summary.total_pnl == 0.0 and summary.bands == []
+
+
+def test_performance_summary_returns_none_on_error():
+    class _BoomConn:
+        def cursor(self):
+            raise RuntimeError("db down")
+
+        def close(self):
+            pass
+
+    assert TradeStore(lambda: _BoomConn()).performance_summary() is None
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

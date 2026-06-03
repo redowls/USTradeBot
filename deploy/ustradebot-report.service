@@ -1,0 +1,13 @@
+# Daily performance report (Phase 10). Run by ustradebot-report.timer; pushes the
+# digest to Telegram and the journal. Read-only against SQL Server.
+
+[Unit]
+Description=USTradeBot performance report
+
+[Service]
+Type=oneshot
+User=ustradebot
+Group=ustradebot
+WorkingDirectory=/opt/ustradebot
+EnvironmentFile=/opt/ustradebot/.env
+ExecStart=/opt/ustradebot/.venv/bin/python -m bot.report --days 1

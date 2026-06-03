@@ -21,6 +21,8 @@ Wants=network-online.target
 # 5 minutes, stop restarting and enter "failed" so it doesn't crash-loop forever.
 StartLimitIntervalSec=300
 StartLimitBurst=5
+# On failure, fire the "bot down" Telegram alert (Phase 10).
+OnFailure=ustradebot-down.service
 
 [Service]
 Type=simple

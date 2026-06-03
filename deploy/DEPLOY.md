@@ -147,4 +147,48 @@ bad `.env` or unreachable account), systemd stops retrying and the unit goes
 `failed`. Check why with `systemctl status ustradebot` / `journalctl -u ustradebot`,
 fix, then `sudo systemctl reset-failed ustradebot && sudo systemctl start ustradebot`.
 
-A "bot down" / repeated-restart alert and a flatten-all kill switch are Phase 10.
+---
+
+## 8. Monitoring & maintenance (Phase 10)
+
+Install the monitoring units (alongside `ustradebot.service`), the journald cap,
+and make the scripts executable:
+
+```bash
+cd /opt/ustradebot
+sudo cp deploy/ustradebot-down.service \
+        deploy/ustradebot-report.service deploy/ustradebot-report.timer \
+        deploy/ustradebot-health.service deploy/ustradebot-health.timer \
+        /etc/systemd/system/
+sudo cp deploy/journald-ustradebot.conf /etc/systemd/journald.conf.d/ustradebot.conf
+sudo chmod +x deploy/healthcheck.sh deploy/kill-switch.sh
+sudo systemctl daemon-reload
+sudo systemctl restart systemd-journald
+sudo systemctl enable --now ustradebot-report.timer ustradebot-health.timer
+systemctl list-timers 'ustradebot-*'        # confirm both are scheduled
+```
+
+What you get:
+
+| Feature | How |
+|---------|-----|
+| **Bot-down alert** | `OnFailure=ustradebot-down.service` on the main unit → Telegram message when the bot enters `failed`. |
+| **Periodic health check** | `ustradebot-health.timer` (every 15 min) runs `healthcheck.sh`; alerts if the unit is `failed` (backstop to OnFailure; no spam on a clean stop). |
+| **Daily performance report** | `ustradebot-report.timer` (Mon–Fri 21:30 UTC, after the US close) runs `python -m bot.report` → trades / win rate / P&L + the confidence-band breakdown, to Telegram + journal. |
+| **Log rotation** | journald capped at `SystemMaxUse=500M` / 1-month retention via the drop-in. |
+
+Manual reports any time:
+
+```bash
+sudo -u ustradebot ./.venv/bin/python -m bot.report --days 1     # today
+sudo -u ustradebot ./.venv/bin/python -m bot.report --days 7     # last week
+```
+
+**🛑 Kill switch (flatten everything):** stops the bot, then cancels all open
+orders and closes all positions on the paper account (with a Telegram alert):
+
+```bash
+sudo /opt/ustradebot/deploy/kill-switch.sh
+# re-arm when ready:
+sudo systemctl start ustradebot
+```

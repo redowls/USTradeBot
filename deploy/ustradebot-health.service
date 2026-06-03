@@ -1,0 +1,12 @@
+# Periodic health check (Phase 10). Run by ustradebot-health.timer.
+
+[Unit]
+Description=USTradeBot health check
+
+[Service]
+Type=oneshot
+User=ustradebot
+Group=ustradebot
+WorkingDirectory=/opt/ustradebot
+EnvironmentFile=/opt/ustradebot/.env
+ExecStart=/opt/ustradebot/deploy/healthcheck.sh
