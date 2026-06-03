@@ -20,6 +20,7 @@ import logging
 from bot.config import Config, ConfigError
 from bot.executor import ExecutionResult, OrderExecutor
 from bot.market_data import MarketDataClient
+from bot.risk import ExitResult, RiskManager
 from bot.strategy import StrategyEngine, TradeSignal
 
 log = logging.getLogger("ustradebot")
@@ -54,6 +55,21 @@ def _on_execution(result: ExecutionResult) -> None:
     )
 
 
+def _on_exit(result: ExitResult) -> None:
+    """Early-exit sink (Phase 5). Phases 6/7 persist this and alert on it."""
+    log.info(
+        "EXITED %s @ %.4f (%s)",
+        result.symbol,
+        result.exit_price,
+        result.reason,
+    )
+
+
+def _on_feed_alert(message: str) -> None:
+    """Feed-loss/restore alert sink (Phase 5). Phase 7 pushes this to Telegram."""
+    log.warning("FEED ALERT: %s", message)
+
+
 def main() -> int:
     try:
         cfg = Config.load()
@@ -75,11 +91,14 @@ def main() -> int:
     )
 
     executor = OrderExecutor(cfg, on_result=_on_execution)
-    strategy = StrategyEngine(cfg, on_signal=_on_signal, executor=executor)
+    risk = RiskManager(cfg, executor=executor, on_exit=_on_exit, on_feed_alert=_on_feed_alert)
+    strategy = StrategyEngine(cfg, on_signal=_on_signal, executor=executor, risk=risk)
     data = MarketDataClient(
         cfg,
         on_candle=strategy.on_short_candle,
         on_long_candle=strategy.on_long_candle,
+        on_feed_lost=risk.notify_feed_lost,
+        on_feed_restored=risk.notify_feed_restored,
     )
     try:
         _account, positions = data.check_account()

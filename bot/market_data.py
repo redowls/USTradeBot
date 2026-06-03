@@ -92,6 +92,8 @@ class MarketDataClient:
         *,
         on_candle: Callable[[Candle], None] | None = None,
         on_long_candle: Callable[[Candle], None] | None = None,
+        on_feed_lost: Callable[[], None] | None = None,
+        on_feed_restored: Callable[[], None] | None = None,
         window: int = DEFAULT_WINDOW,
         long_window: int = DEFAULT_WINDOW,
         trading_factory: Callable[[], TradingClient] | None = None,
@@ -100,6 +102,9 @@ class MarketDataClient:
         self._cfg = cfg
         self._on_candle = on_candle
         self._on_long_candle = on_long_candle
+        self._on_feed_lost = on_feed_lost
+        self._on_feed_restored = on_feed_restored
+        self._feed_down = False
         # Two timeframes off the same trade stream: a 1-min trigger ribbon and a
         # 5-min gate ribbon (see summary.md). Each trade feeds both aggregators.
         self.aggregator = CandleAggregator(
@@ -169,6 +174,10 @@ class MarketDataClient:
 
     async def _on_trade(self, trade) -> None:
         """Async handler invoked by the stream for each incoming trade tick."""
+        # A tick arriving proves the feed is alive: clear any latched feed-loss
+        # fail-safe (the first tick after a reconnect is our "back online" signal).
+        if self._feed_down:
+            self._mark_feed_restored()
         symbol, ts = trade.symbol, trade.timestamp
         price, size = float(trade.price), float(trade.size)
         for agg in (self.aggregator, self.long_aggregator):
@@ -176,6 +185,31 @@ class MarketDataClient:
             # The freshest tick's timestamp is our wall clock: use it to close any
             # other symbol's candle whose interval has fully elapsed.
             agg.flush(ts)
+
+    # --- feed-loss fail-safe (Phase 5) ------------------------------------
+
+    def _mark_feed_lost(self) -> None:
+        """Latch feed-down and notify once (the supervisor calls this on a crash)."""
+        if self._feed_down:
+            return
+        self._feed_down = True
+        self._fire_feed_callback(self._on_feed_lost, "on_feed_lost")
+
+    def _mark_feed_restored(self) -> None:
+        """Clear feed-down and notify once (first tick after a reconnect)."""
+        if not self._feed_down:
+            return
+        self._feed_down = False
+        self._fire_feed_callback(self._on_feed_restored, "on_feed_restored")
+
+    @staticmethod
+    def _fire_feed_callback(callback: Callable[[], None] | None, name: str) -> None:
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception:  # a downstream alert bug must not kill ingestion
+            log.exception("%s callback failed", name)
 
     def _handle_closed(self, candle: Candle) -> None:
         self._emit(candle, self._cfg.candle_interval, self._on_candle)
@@ -231,6 +265,7 @@ class MarketDataClient:
                 break
             except Exception:
                 log.exception("market-data stream crashed")
+                self._mark_feed_lost()  # halt new entries until ticks resume
             else:
                 # A clean return means an intentional stop or a fatal error the
                 # SDK won't retry (e.g. bad subscription) — don't reconnect.

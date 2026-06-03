@@ -309,6 +309,24 @@ class RibbonSnapshot:
         pf, pm, _ps = self.prev_ribbon
         return pf <= pm and f > m and f > s and m > s  # type: ignore[operator]
 
+    @property
+    def bearish_cross(self) -> bool:
+        """A fresh bearish cross of the fast EMA *below* the mid EMA — the Phase 5
+        early-exit trigger (risk manager).
+
+        Mirror of :attr:`fresh_cross`: ``prev_fast >= prev_mid`` (was not yet
+        bearish) and now ``fast < mid``. Unlike the entry, the exit deliberately
+        does **not** require the whole ribbon to invert (``fast < mid < slow``):
+        the first fast/mid inversion is the earliest reversal warning, and bailing
+        on it is the point of an *early* exit. Fires once per cross, not every
+        candle the fast stays below the mid.
+        """
+        if not self.ribbon_ready:
+            return False
+        f, m, _s = self.ribbon
+        pf, pm, _ps = self.prev_ribbon
+        return pf >= pm and f < m  # type: ignore[operator]
+
 
 # --- per-symbol state + engine ---------------------------------------------
 

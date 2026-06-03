@@ -15,9 +15,15 @@ EXECUTING → MANAGING``: the executor sizes the position and submits an Alpaca
 bracket order; on success the symbol is held as MANAGING (the bracket's stop/target
 live broker-side), and a skip/reject falls back to EVALUATING. Without an executor
 the machine cycles ``WAITING ↔ EVALUATING`` and merely reports signals (Phase 3
-behavior). ``MANAGING`` exits — early-exit on a bearish cross — are the Phase 5 risk
-manager's job. ``on_signal`` fires on every qualifying entry (Phase 7 Telegram hook);
-the executor's own ``on_result`` carries the fill/size details for Phase 6/7.
+behavior).
+
+When a ``risk`` manager is wired (Phase 5), a ``MANAGING`` symbol is risk-managed
+rather than re-evaluated: a fresh bearish 1-min cross flattens the position and
+drops it back to ``WAITING``. The risk manager's feed-loss fail-safe also gates new
+entries — while the feed is down the machine stays ``WAITING`` and opens nothing.
+``on_signal`` fires on every qualifying entry (Phase 7 Telegram hook); the
+executor's ``on_result`` and the risk manager's ``on_exit`` carry the fill/exit
+details for Phase 6/7.
 """
 
 from __future__ import annotations
@@ -32,6 +38,7 @@ from bot.candles import Candle
 from bot.config import Config
 from bot.executor import ExecutionResult, OrderExecutor
 from bot.indicators import RibbonEngine, RibbonSnapshot
+from bot.risk import RiskManager
 from bot.signals import (
     ConfidenceBreakdown,
     EntryDecision,
@@ -74,6 +81,7 @@ class StrategyEngine:
         on_signal: OnSignal | None = None,
         weights: ScoreWeights | None = None,
         executor: OrderExecutor | None = None,
+        risk: RiskManager | None = None,
         trigger_engine: RibbonEngine | None = None,
         gate_engine: RibbonEngine | None = None,
     ) -> None:
@@ -81,6 +89,7 @@ class StrategyEngine:
         self._on_signal = on_signal
         self._weights = weights or ScoreWeights()
         self._executor = executor
+        self._risk = risk
         self._trigger = trigger_engine or RibbonEngine.trigger(cfg)
         self._gate = gate_engine or RibbonEngine.gate(cfg)
         self._state: dict[str, BotState] = {}
@@ -122,13 +131,25 @@ class StrategyEngine:
         """Evaluate one closed trigger-timeframe candle; emit a signal on entry."""
         trigger = self._trigger.update(candle)
         symbol = candle.symbol
+        state = self.state(symbol)
 
-        # Phase 4/5 own these states; ingestion does not re-evaluate while a
-        # position is being opened or managed.
-        if self.state(symbol) in (BotState.EXECUTING, BotState.MANAGING):
+        # An order is in flight: don't re-evaluate or touch the position.
+        if state is BotState.EXECUTING:
+            return None
+
+        # Holding a position: the Phase 5 risk manager owns it — check for an
+        # early-exit reversal instead of evaluating a (re-)entry.
+        if state is BotState.MANAGING:
+            self._manage(symbol, trigger)
             return None
 
         if not market_is_open(candle.start, self._cfg.market_open, self._cfg.market_close):
+            self._set(symbol, BotState.WAITING)
+            return None
+
+        # Phase 5 fail-safe: while the feed is down we can't trust the indicators,
+        # so refuse to open new positions (existing ones keep their broker bracket).
+        if self._risk is not None and not self._risk.entries_allowed:
             self._set(symbol, BotState.WAITING)
             return None
 
@@ -194,3 +215,24 @@ class StrategyEngine:
             return
         self._positions[symbol] = result
         self._set(symbol, BotState.MANAGING)
+
+    def _manage(self, symbol: str, trigger: RibbonSnapshot) -> None:
+        """Risk-manage an open position (Phase 5): early-exit on a reversal.
+
+        Without a risk manager wired, a ``MANAGING`` symbol simply rides its
+        broker-side bracket. With one, a fresh bearish 1-min cross flattens the
+        position; on a successful close the symbol drops back to ``WAITING`` so it
+        can re-qualify later. A failed close keeps it ``MANAGING`` to retry next
+        candle.
+        """
+        if self._risk is None:
+            return
+        reason = self._risk.check_exit(trigger)
+        if reason is None:
+            return
+        result = self._risk.exit_position(
+            symbol, trigger.close, reason, self._positions.get(symbol)
+        )
+        if result is not None:
+            self._positions.pop(symbol, None)
+            self._set(symbol, BotState.WAITING)

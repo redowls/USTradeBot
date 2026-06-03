@@ -16,6 +16,7 @@ from bot.candles import Candle
 from bot.config import Config
 from bot.executor import ExecutionResult
 from bot.indicators import RibbonSnapshot
+from bot.risk import RiskManager
 from bot.strategy import BotState, StrategyEngine
 
 # A Tuesday, 14:00 UTC == 10:00 EDT -> inside the regular session.
@@ -229,6 +230,75 @@ def test_managing_symbol_is_not_re_evaluated(cfg):
     assert sig is None
     assert ex.calls == []  # never tried to execute
     assert eng.state("NFLX") is BotState.MANAGING
+
+
+class _FakeCloser:
+    """A minimal executor exposing close_position for the risk manager."""
+
+    def __init__(self, order_id="close-1"):
+        self._order_id = order_id
+        self.closed = []
+
+    def close_position(self, symbol):
+        self.closed.append(symbol)
+        return self._order_id
+
+
+def _bearish_trigger() -> RibbonSnapshot:
+    # prev fast >= mid, now fast < mid -> fresh bearish cross
+    return _ribbon_snap((99.9, 100.1, 100.0), (100.2, 100.1, 100.0))
+
+
+def _stacked_trigger() -> RibbonSnapshot:
+    # fast above mid both bars -> no inversion, nothing to exit on
+    return _ribbon_snap((102.0, 101.0, 100.0), (101.0, 100.5, 100.0))
+
+
+def test_managing_exits_on_bearish_cross(cfg):
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([_bearish_trigger()]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    assert closer.closed == ["NFLX"]
+    assert eng.state("NFLX") is BotState.WAITING  # flattened -> can re-qualify
+    assert "NFLX" not in eng._positions
+
+
+def test_managing_holds_without_reversal(cfg):
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([_stacked_trigger()]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng.on_short_candle(_candle())
+    assert closer.closed == []  # no reversal -> ride the bracket
+    assert eng.state("NFLX") is BotState.MANAGING
+
+
+def test_feed_loss_halts_new_entries(cfg):
+    risk = RiskManager(cfg, executor=_FakeCloser())
+    risk.notify_feed_lost()
+    ex = _FakeExecutor(_exec_result())
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        risk=risk,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    assert ex.calls == []  # never evaluated/executed while the feed is down
+    assert eng.state("NFLX") is BotState.WAITING
 
 
 def test_signal_callback_error_is_swallowed(cfg):

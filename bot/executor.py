@@ -189,3 +189,25 @@ class OrderExecutor:
             except Exception:  # a downstream alert/DB bug must not kill execution
                 log.exception("on_result callback failed for %s", symbol)
         return result
+
+    # --- exit (Phase 5) ----------------------------------------------------
+
+    def close_position(self, symbol: str) -> str | None:
+        """Liquidate ``symbol`` and cancel its open bracket (Phase 5 early-exit).
+
+        Alpaca's ``close_position`` (``DELETE /v2/positions/{symbol}``) submits a
+        market order to flatten the position and cancels the associated bracket's
+        unfilled legs in one call. Returns the close order's id on success (an empty
+        string is still success — some responses omit the id), or ``None`` on any
+        error so the risk manager can leave the symbol in ``MANAGING`` and retry on
+        the next reversal candle.
+        """
+        try:
+            client = self._client_or_build()
+            order = client.close_position(symbol)
+        except Exception:
+            log.exception("could not close position for %s", symbol)
+            return None
+        order_id = str(getattr(order, "id", "") or "")
+        log.info("CLOSE %s submitted (order=%s)", symbol, order_id or "?")
+        return order_id

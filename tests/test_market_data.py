@@ -187,3 +187,52 @@ def test_stop_marks_stopped_and_stops_stream(cfg):
     client.stop()
     assert client._stop is True
     assert stream.stopped is True
+
+
+# --- feed-loss fail-safe (Phase 5) ---------------------------------------
+
+
+def test_crash_fires_feed_lost_once(cfg, monkeypatch):
+    monkeypatch.setattr("bot.market_data.time.sleep", lambda _s: None)
+    events = []
+    client = MarketDataClient(
+        cfg,
+        stream_factory=lambda: _FakeStream("crash"),
+        on_feed_lost=lambda: events.append("lost"),
+        on_feed_restored=lambda: events.append("restored"),
+    )
+    client.run_forever(max_restarts=2)
+    assert events == ["lost"]  # latched once across the repeated crashes
+    assert client._feed_down is True
+
+
+def test_clean_run_does_not_fire_feed_lost(cfg):
+    events = []
+    client = MarketDataClient(
+        cfg,
+        stream_factory=lambda: _FakeStream("clean"),
+        on_feed_lost=lambda: events.append("lost"),
+    )
+    client.run_forever()
+    assert events == []
+    assert client._feed_down is False
+
+
+def test_first_tick_after_loss_fires_feed_restored(cfg):
+    events = []
+    client = MarketDataClient(
+        cfg,
+        on_feed_lost=lambda: events.append("lost"),
+        on_feed_restored=lambda: events.append("restored"),
+    )
+    client._feed_down = True  # simulate a prior crash having latched the halt
+    asyncio.run(client._on_trade(_trade("NFLX", 30, 1, 100.0, 5)))
+    assert events == ["restored"]
+    assert client._feed_down is False
+
+
+def test_ticks_while_healthy_do_not_fire_restored(cfg):
+    events = []
+    client = MarketDataClient(cfg, on_feed_restored=lambda: events.append("restored"))
+    asyncio.run(client._on_trade(_trade("NFLX", 30, 1, 100.0, 5)))
+    assert events == []  # feed was never down -> nothing to restore

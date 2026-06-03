@@ -5,11 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 
 **Language: Python** (chosen in Phase 0). Stack: `alpaca-py`, `python-dotenv`; `pytest` +
-`ruff` for dev. **Phases 0–4 are complete** (setup; Alpaca connection/market data —
+`ruff` for dev. **Phases 0–5 are complete** (setup; Alpaca connection/market data —
 verified live against the paper account; the indicator engine; the signal + confidence
-scorer / state machine; and position sizing + bracket-order execution). Phase 5 (risk
-manager: early-exit on a 1-min bearish cross + feed-loss fail-safe) is next. Build
-progresses through the phases in [todo.md](todo.md) (Phase 0 → 10).
+scorer / state machine; position sizing + bracket-order execution; and the risk manager:
+early-exit on a 1-min bearish cross + feed-loss fail-safe). Phase 6 (persistence: SQL
+Server tables for orders/fills/positions/confidence/P&L) is next. Build progresses through
+the phases in [todo.md](todo.md) (Phase 0 → 10).
 
 **Strategy note:** the entry design is a **multi-timeframe triple-MA ribbon** — a
 1-minute **8/10/20** EMA ribbon is the *trigger*, gated by a 5-minute **21/34/55** EMA
@@ -61,7 +62,9 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   the IEX trade WebSocket, feeds each tick into **two** `CandleAggregator`s (the trigger
   interval and the longer gate interval) and reconnects with backoff (`_BackoffStockDataStream`
   + a supervisor loop). Closed candles fan out to `on_candle` (trigger) and `on_long_candle`
-  (gate). Trading-client and stream factories are injectable so tests run without a network.
+  (gate). (Phase 5) a stream crash fires `on_feed_lost` and the first tick after reconnect
+  fires `on_feed_restored` (latched, idempotent) — the risk manager's feed-loss fail-safe.
+  Trading-client and stream factories are injectable so tests run without a network.
 - [bot/candles.py](bot/candles.py) — `CandleAggregator`: rolls **trade** ticks (we aggregate
   ourselves rather than subscribing to Alpaca's minute bars) into fixed-interval OHLCV
   `Candle`s per symbol (interval set per instance — 60s and 300s), keeps a bounded rolling
@@ -74,8 +77,9 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   `RibbonSnapshot`. Build the two instances via `RibbonEngine.trigger(cfg)` (short ribbon +
   Wilder RSI(14) + trailing `avg_volume` + ATR(14)) and `RibbonEngine.gate(cfg)` (long ribbon
   only). The snapshot exposes the strategy helpers: `stacked`, `sloping_up`/`bullish`,
-  `fast_rising`, `gate_open`, and `fresh_cross` (a *fresh* bullish cross of fast over mid with
-  the full stack above slow). **Incremental, not windowed:** EMAs/RSI/ATR are carried forward
+  `fast_rising`, `gate_open`, `fresh_cross` (a *fresh* bullish cross of fast over mid with the
+  full stack above slow), and `bearish_cross` (Phase 5 early-exit: a fresh cross of fast *below*
+  mid). **Incremental, not windowed:** EMAs/RSI/ATR are carried forward
   from inception so they don't drift as bars age out of the aggregator window; each field is
   `None` until seeded (`ribbon_ready` once the ribbon and its `prev` are filled). `avg_volume`
   is the mean of the *preceding* bars (current bar excluded). Pure / no I/O, per-symbol state.
@@ -98,21 +102,34 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   confidence)` reads the live account (buying power / equity), sizes via `bot.sizing` (model
   per `cfg.sizing_model`), and submits a **market bracket** order (`OrderClass.BRACKET`,
   `TimeInForce.DAY`, `TakeProfitRequest` + `StopLossRequest`). Returns an `ExecutionResult` or
-  `None` on a skip/reject/error (swallowed, never kills the strategy). Trading-client factory
-  is injectable for tests. Handles the submit **ack + reject**; fill/partial-fill tracking
-  needs the trade-updates stream and lands in Phase 6.
+  `None` on a skip/reject/error (swallowed, never kills the strategy). `close_position(symbol)`
+  (Phase 5) flattens a holding via Alpaca's `close_position` (which also cancels the live
+  bracket) and returns the close order id (or `None` on error). Trading-client factory is
+  injectable for tests. Handles the submit **ack + reject**; fill/partial-fill tracking needs
+  the trade-updates stream and lands in Phase 6.
+- [bot/risk.py](bot/risk.py) — `RiskManager` (Phase 5). Owns an open position. `check_exit`
+  (pure) flags a **fresh bearish 1-min cross** (`RibbonSnapshot.bearish_cross` — fast crosses
+  *below* mid; deliberately not requiring the full ribbon to invert, so the exit is *early*);
+  `exit_position` then flattens via `executor.close_position` and reports an `ExitResult` to
+  `on_exit`. The **feed-loss fail-safe** lives here too: `notify_feed_lost`/`notify_feed_restored`
+  latch the `entries_allowed` flag and alert via `on_feed_alert` (Phase 7 wires Telegram). The
+  bracket's stop/target are still the broker-side backstop — the risk manager only adds the
+  discretionary early exit and the new-entry halt.
 - [bot/strategy.py](bot/strategy.py) — `StrategyEngine`: the per-symbol `WAITING → EVALUATING
   → EXECUTING → MANAGING` state machine (`BotState`). `on_long_candle` refreshes the gate
   ribbon; `on_short_candle` updates the trigger ribbon, checks market hours, evaluates the
   entry, emits a `TradeSignal` via `on_signal`, then (Phase 4) calls the injected `executor`:
   a qualifying entry drives `EVALUATING → EXECUTING → MANAGING` on a filled bracket, falling
-  back to `EVALUATING` on a skip/reject. `reconcile(positions)` marks watchlist names already
-  held at Alpaca as `MANAGING` on startup so the bot won't double-enter. A `MANAGING`/`EXECUTING`
-  symbol is not re-evaluated. `MANAGING` *exits* (early-exit on a 1-min bearish cross) are the
-  Phase 5 risk manager's job; `on_signal` is where Phase 7 hooks Telegram.
+  back to `EVALUATING` on a skip/reject. (Phase 5) a `MANAGING` symbol is risk-managed via the
+  injected `risk` manager — a bearish-cross exit flattens it and drops it back to `WAITING` —
+  and while `risk.entries_allowed` is `False` (feed down) it opens nothing, staying `WAITING`.
+  `reconcile(positions)` marks watchlist names already held at Alpaca as `MANAGING` on startup
+  so the bot won't double-enter. An `EXECUTING` symbol is not touched. `on_signal` is where
+  Phase 7 hooks Telegram.
 - [bot/main.py](bot/main.py) — entrypoint: loads config, sets up logging, checks + reconciles
-  the account, builds the `OrderExecutor` and `StrategyEngine`, then wires
-  `MarketDataClient(on_candle=…, on_long_candle=…)` to feed both timeframes through it.
+  the account, builds the `OrderExecutor`, `RiskManager`, and `StrategyEngine`, then wires
+  `MarketDataClient(on_candle=…, on_long_candle=…, on_feed_lost=…, on_feed_restored=…)` to feed
+  both timeframes and the feed-loss signals through them.
 - [tests/](tests/) — pytest suite (one file per `bot/` module).
 - `.env` (gitignored, holds real paper keys) ← copy from [.env.example](.env.example).
 

@@ -33,8 +33,9 @@ class _FakeTrading:
     def __init__(self, *, buying_power="10000", equity="10000", status="accepted", raise_on=None):
         self.account = SimpleNamespace(buying_power=buying_power, equity=equity)
         self.submitted = []
+        self.closed = []
         self._status = status
-        self._raise_on = raise_on  # "account" | "submit" | None
+        self._raise_on = raise_on  # "account" | "submit" | "close" | None
 
     def get_account(self):
         if self._raise_on == "account":
@@ -46,6 +47,12 @@ class _FakeTrading:
             raise RuntimeError("rejected by API")
         self.submitted.append(order_data)
         return SimpleNamespace(id="order-1", status=self._status)
+
+    def close_position(self, symbol):
+        if self._raise_on == "close":
+            raise RuntimeError("no position")
+        self.closed.append(symbol)
+        return SimpleNamespace(id="close-1", status="accepted")
 
 
 def _exec(cfg, fake, **kw):
@@ -107,3 +114,15 @@ def test_model_b_path(cfg, monkeypatch):
     assert result is not None
     assert result.model == "B"
     assert result.qty == 40  # capped by max_alloc (see test_sizing)
+
+
+def test_close_position_returns_order_id(cfg):
+    fake = _FakeTrading()
+    order_id = _exec(cfg, fake).close_position("NFLX")
+    assert order_id == "close-1"
+    assert fake.closed == ["NFLX"]
+
+
+def test_close_position_error_returns_none(cfg):
+    fake = _FakeTrading(raise_on="close")
+    assert _exec(cfg, fake).close_position("NFLX") is None

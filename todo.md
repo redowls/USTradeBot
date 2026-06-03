@@ -90,10 +90,23 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 ## Phase 5 — Risk management
 
-- [ ] Rely on the bracket's stop/target (they execute broker-side even if the bot
-      is down).
-- [ ] Add an early-exit on a reversal signal (bearish cross in the 1-min 8/10/20 ribbon).
-- [ ] Fail safe on feed loss / errors: stop opening new positions and alert.
+- [x] Rely on the bracket's stop/target (they execute broker-side even if the bot
+      is down). → unchanged from Phase 4: `OrderExecutor.execute` attaches the
+      `TakeProfitRequest`/`StopLossRequest`; the risk manager only adds a
+      discretionary early exit on top.
+- [x] Add an early-exit on a reversal signal (bearish cross in the 1-min 8/10/20 ribbon).
+      → `RibbonSnapshot.bearish_cross` (mirror of `fresh_cross`: fast crosses below
+      mid) + `bot/risk.py` `RiskManager.check_exit`/`exit_position`, which flattens
+      via `OrderExecutor.close_position` (cancels the live bracket). `StrategyEngine`
+      checks it for `MANAGING` symbols and drops them back to `WAITING` on a close.
+- [x] Fail safe on feed loss / errors: stop opening new positions and alert.
+      → `MarketDataClient` fires `on_feed_lost` on a stream crash and `on_feed_restored`
+      on the first tick after reconnect; `RiskManager.notify_feed_lost/restored` latch
+      `entries_allowed`, and `StrategyEngine` refuses new entries (stays `WAITING`)
+      while down. Alerts go through `on_feed_alert` (Phase 7 wires Telegram).
+- [~] Post-reconnect re-reconcile (carried over from Phase 4): the `on_feed_restored`
+      seam now exists, but re-reading positions from Alpaca on reconnect is still TODO
+      (folds in with the trade-updates stream / persistence in Phase 6).
 
 ## Phase 6 — Persistence (SQL Server)
 

@@ -157,6 +157,35 @@ def test_stacked_and_fresh_cross_detection():
     assert snap.fresh_cross  # prev fast<=mid, now stacked above slow
 
 
+def test_bearish_cross_fires_on_fast_dropping_below_mid():
+    eng = _engine()
+    # Climb so the fast EMA sits above the mid, then a sharp drop pulls the fast
+    # back below the mid -> a fresh bearish cross.
+    closes = [12.0, 14.0, 16.0, 18.0, 20.0, 4.0]
+    snap = None
+    for i, c in enumerate(closes):
+        snap = eng.update(_candle(i, c))
+    assert snap.ribbon_ready
+    assert snap.bearish_cross  # prev fast>=mid, now fast < mid
+    assert not snap.fresh_cross  # the two crosses are mutually exclusive
+
+
+def test_bearish_cross_quiet_while_stacked_bullish():
+    eng = _engine()
+    snap = None
+    for i, c in enumerate([10.0, 11.0, 12.0, 13.0, 14.0, 15.0]):
+        snap = eng.update(_candle(i, c))
+    assert snap.stacked  # steadily rising -> fast above mid, no inversion
+    assert not snap.bearish_cross
+
+
+def test_bearish_cross_needs_ready_ribbon():
+    eng = _engine()
+    snap = eng.update(_candle(0, 100.0))  # only one candle in -> not seeded
+    assert not snap.ribbon_ready
+    assert not snap.bearish_cross
+
+
 def test_gate_open_requires_stacked_and_rising():
     eng = RibbonEngine((2, 3, 4), interval_seconds=300)
     snap = None
