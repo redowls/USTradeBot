@@ -22,6 +22,7 @@ from typing import TypeVar
 from bot.config import Config, ConfigError
 from bot.executor import ExecutionResult, OrderExecutor
 from bot.market_data import MarketDataClient
+from bot.notifier import AlertReporter, open_notifier
 from bot.persistence import TradeRecorder, open_store
 from bot.risk import ExitResult, RiskManager
 from bot.strategy import StrategyEngine, TradeSignal
@@ -85,7 +86,7 @@ def _on_exit(result: ExitResult) -> None:
 
 
 def _on_feed_alert(message: str) -> None:
-    """Feed-loss/restore alert sink (Phase 5). Phase 7 pushes this to Telegram."""
+    """Feed-loss/restore alert sink (Phase 5); also pushed to Telegram (Phase 7)."""
     log.warning("FEED ALERT: %s", message)
 
 
@@ -118,12 +119,21 @@ def main() -> int:
     rec_result = recorder.on_result if recorder else None
     rec_exit = recorder.on_exit if recorder else None
 
-    executor = OrderExecutor(cfg, on_result=_chain(_on_execution, rec_result))
+    # Telegram alerts (Phase 7): an AlertReporter rides the same callbacks, fanned
+    # in via _chain. open_notifier returns None if Telegram isn't configured, and a
+    # failed POST is swallowed — alerts are a side-channel, never the trading path.
+    notifier = open_notifier(cfg)
+    reporter = AlertReporter(notifier) if notifier is not None else None
+    alert_result = reporter.on_result if reporter else None
+    alert_exit = reporter.on_exit if reporter else None
+    alert_feed = reporter.on_feed_alert if reporter else None
+
+    executor = OrderExecutor(cfg, on_result=_chain(_on_execution, rec_result, alert_result))
     risk = RiskManager(
         cfg,
         executor=executor,
-        on_exit=_chain(_on_exit, rec_exit),
-        on_feed_alert=_on_feed_alert,
+        on_exit=_chain(_on_exit, rec_exit, alert_exit),
+        on_feed_alert=_chain(_on_feed_alert, alert_feed),
     )
     strategy = StrategyEngine(
         cfg, on_signal=_chain(_on_signal, rec_signal), executor=executor, risk=risk

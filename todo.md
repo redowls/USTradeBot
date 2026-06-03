@@ -131,11 +131,23 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 ## Phase 7 — Telegram alerts (direct, no n8n)
 
-- [ ] Create the bot via **@BotFather**, get the token.
-- [ ] Get your chat id (`getUpdates` after messaging the bot).
-- [ ] On entry/exit/error, `POST` to
-      `https://api.telegram.org/bot<TOKEN>/sendMessage`.
-- [ ] Include confidence %, size, and P/L in the messages; test end to end.
+- [ ] Create the bot via **@BotFather**, get the token. → **user action**: put the
+      token in `TELEGRAM_TOKEN` in `.env` (required by config).
+- [ ] Get your chat id (`getUpdates` after messaging the bot). → **user action**:
+      put it in `TELEGRAM_CHAT_ID`.
+- [x] On entry/exit/error, `POST` to
+      `https://api.telegram.org/bot<TOKEN>/sendMessage`. → `bot/notifier.py`
+      `TelegramNotifier.send` (direct JSON POST via stdlib `urllib`, injectable
+      `poster` for tests; the token stays in the URL, never logged). Errors are
+      swallowed — alerts are a side-channel, never the trading path.
+- [x] Include confidence %, size, and P/L in the messages. → `format_entry`
+      (size + bracket levels + confidence%) / `format_exit` (reason + realized
+      P/L from the cached entry). `AlertReporter` rides the executor's `on_result`,
+      the risk manager's `on_exit` + `on_feed_alert` (wired in `bot/main.py` via
+      `_chain`, alongside the log + DB sinks).
+- [~] Test end to end → unit-tested with a fake poster (`tests/test_notifier.py`);
+      live round-trip against the real Bot API is part of Phase 8 (needs the real
+      token/chat id).
 
 ## Phase 8 — Run on paper & validate
 

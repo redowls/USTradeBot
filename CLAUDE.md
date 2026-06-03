@@ -8,11 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `pytest` + `ruff` for dev. **Phases 0–6 are complete** (setup; Alpaca connection/market
 data — verified live against the paper account; the indicator engine; the signal +
 confidence scorer / state machine; position sizing + bracket-order execution; the risk
-manager: early-exit on a 1-min bearish cross + feed-loss fail-safe; and persistence: SQL
+manager: early-exit on a 1-min bearish cross + feed-loss fail-safe; persistence: SQL
 Server tables for orders/positions/confidence/P&L plus an outcome-vs-confidence view,
-verified live against the `USBot` database). Phase 7 (Telegram alerts: direct `POST` to
-`sendMessage` on entry/exit/error) is next. Build progresses through the phases in
-[todo.md](todo.md) (Phase 0 → 10).
+verified live against the `USBot` database; and Telegram alerts: a direct `POST` to
+`sendMessage` on entry/exit/feed-loss, unit-tested with a fake poster — the live Bot-API
+round-trip is deferred to Phase 8 with the real token). Phase 8 (run on paper & validate)
+is next. Build progresses through the phases in [todo.md](todo.md) (Phase 0 → 10).
 
 **Strategy note:** the entry design is a **multi-timeframe triple-MA ribbon** — a
 1-minute **8/10/20** EMA ribbon is the *trigger*, gated by a 5-minute **21/34/55** EMA
@@ -146,12 +147,24 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   trade-updates stream — created, not yet populated), and `dbo.vw_confidence_outcome` (buckets
   closed trades by confidence band → win rate / avg P/L; answers "do higher-confidence trades
   pay off?"). Single source of truth — the runtime bootstrap executes this same file.
+- [bot/notifier.py](bot/notifier.py) — Telegram alerts (Phase 7). `TelegramNotifier.send`
+  does a **direct** JSON `POST` to the Bot API's `sendMessage` (stdlib `urllib` — no new
+  dependency; the bot token stays in the URL and is never logged); the HTTP `poster` is
+  injectable so tests run network-free, and a failed send is logged + swallowed (**alerts
+  are a side-channel, never the trading critical path** — same rule as persistence).
+  `AlertReporter` is the glue onto the existing callbacks: `on_result` fires the entry alert
+  (size + bracket levels + confidence%), `on_exit` fires the exit alert (reason + realized
+  P/L — it caches the entry per symbol to compute it, off the same reversal-candle close
+  persistence uses), and `on_feed_alert` forwards the risk manager's feed-loss/restore
+  message verbatim. `format_entry`/`format_exit` are pure. `open_notifier(cfg)` returns
+  `None` if the token/chat id are unset (the bot trades on); config currently *requires*
+  both, so it normally returns a live notifier.
 - [bot/main.py](bot/main.py) — entrypoint: loads config, sets up logging, checks + reconciles
-  the account, opens the `TradeStore`/`TradeRecorder` (Phase 6), builds the `OrderExecutor`,
-  `RiskManager`, and `StrategyEngine` — fanning each event to both the log sink and the
-  recorder via `_chain` — then wires `MarketDataClient(on_candle=…, on_long_candle=…,
-  on_feed_lost=…, on_feed_restored=…)` to feed both timeframes and the feed-loss signals
-  through them.
+  the account, opens the `TradeStore`/`TradeRecorder` (Phase 6) and the `TelegramNotifier`/
+  `AlertReporter` (Phase 7), builds the `OrderExecutor`, `RiskManager`, and `StrategyEngine`
+  — fanning each event to the log sink, the DB recorder, and the Telegram reporter via
+  `_chain` — then wires `MarketDataClient(on_candle=…, on_long_candle=…, on_feed_lost=…,
+  on_feed_restored=…)` to feed both timeframes and the feed-loss signals through them.
 - [tests/](tests/) — pytest suite (one file per `bot/` module).
 - `.env` (gitignored, holds real paper keys) ← copy from [.env.example](.env.example).
 
