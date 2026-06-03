@@ -10,11 +10,14 @@ evaluation on each closed candle:
   — if the market is open and indicators are seeded — evaluates the gate+trigger
   rule and the confidence score. A qualifying entry emits a :class:`TradeSignal`.
 
-Phase 3 stops at the signal: there is no order executor yet, so the machine cycles
-``WAITING ↔ EVALUATING`` and reports entry signals. The ``EXECUTING`` and
-``MANAGING`` states exist in the enum and transition table; Phase 4 (executor) and
-Phase 5 (risk manager) will drive them. The ``on_signal`` callback is where Phase 7
-will hook Telegram alerts.
+When an ``executor`` is wired (Phase 4), a qualifying entry drives ``EVALUATING →
+EXECUTING → MANAGING``: the executor sizes the position and submits an Alpaca
+bracket order; on success the symbol is held as MANAGING (the bracket's stop/target
+live broker-side), and a skip/reject falls back to EVALUATING. Without an executor
+the machine cycles ``WAITING ↔ EVALUATING`` and merely reports signals (Phase 3
+behavior). ``MANAGING`` exits — early-exit on a bearish cross — are the Phase 5 risk
+manager's job. ``on_signal`` fires on every qualifying entry (Phase 7 Telegram hook);
+the executor's own ``on_result`` carries the fill/size details for Phase 6/7.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from enum import StrEnum
 
 from bot.candles import Candle
 from bot.config import Config
+from bot.executor import ExecutionResult, OrderExecutor
 from bot.indicators import RibbonEngine, RibbonSnapshot
 from bot.signals import (
     ConfidenceBreakdown,
@@ -69,16 +73,36 @@ class StrategyEngine:
         *,
         on_signal: OnSignal | None = None,
         weights: ScoreWeights | None = None,
+        executor: OrderExecutor | None = None,
         trigger_engine: RibbonEngine | None = None,
         gate_engine: RibbonEngine | None = None,
     ) -> None:
         self._cfg = cfg
         self._on_signal = on_signal
         self._weights = weights or ScoreWeights()
+        self._executor = executor
         self._trigger = trigger_engine or RibbonEngine.trigger(cfg)
         self._gate = gate_engine or RibbonEngine.gate(cfg)
         self._state: dict[str, BotState] = {}
         self._gate_snap: dict[str, RibbonSnapshot] = {}
+        self._positions: dict[str, ExecutionResult] = {}
+
+    def reconcile(self, positions) -> None:
+        """Mark symbols already held at Alpaca as MANAGING (startup / post-reconnect).
+
+        Prevents re-entering a name the broker still holds — e.g. after a restart
+        mid-trade, where the bracket from a prior run is live broker-side. Accepts
+        the position objects returned by ``MarketDataClient.check_account``.
+        """
+        for p in positions:
+            symbol = getattr(p, "symbol", None)
+            if symbol in self._cfg.watchlist:
+                self._set(symbol, BotState.MANAGING)
+                log.info(
+                    "reconcile: %s held at Alpaca (qty=%s) -> MANAGING",
+                    symbol,
+                    getattr(p, "qty", "?"),
+                )
 
     def state(self, symbol: str) -> BotState:
         return self._state.get(symbol, BotState.WAITING)
@@ -146,5 +170,27 @@ class StrategyEngine:
                 self._on_signal(signal)
             except Exception:  # a downstream alert bug must not kill the strategy
                 log.exception("on_signal callback failed for %s", symbol)
-        # Phase 4 will submit the order and transition to EXECUTING here.
+
+        if self._executor is not None:
+            self._execute(signal)
         return signal
+
+    def _execute(self, signal: TradeSignal) -> None:
+        """Submit the bracket entry and advance the state machine.
+
+        Success → MANAGING (position open, bracket live broker-side). A skip/reject
+        (executor returns ``None``) falls back to EVALUATING so the next qualifying
+        candle can retry. The executor swallows its own errors, so this won't raise.
+        """
+        symbol = signal.symbol
+        self._set(symbol, BotState.EXECUTING)
+        result = self._executor.execute(
+            symbol=symbol,
+            entry_price=signal.close,
+            confidence=signal.confidence.total,
+        )
+        if result is None:
+            self._set(symbol, BotState.EVALUATING)  # nothing opened; keep evaluating
+            return
+        self._positions[symbol] = result
+        self._set(symbol, BotState.MANAGING)

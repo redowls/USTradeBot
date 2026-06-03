@@ -5,10 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 
 **Language: Python** (chosen in Phase 0). Stack: `alpaca-py`, `python-dotenv`; `pytest` +
-`ruff` for dev. **Phases 0–3 are complete** (setup; Alpaca connection/market data —
-verified live against the paper account; the indicator engine; and the signal +
-confidence scorer / state machine). Phase 4 (position sizing + bracket-order execution)
-is next. Build progresses through the phases in [todo.md](todo.md) (Phase 0 → 10).
+`ruff` for dev. **Phases 0–4 are complete** (setup; Alpaca connection/market data —
+verified live against the paper account; the indicator engine; the signal + confidence
+scorer / state machine; and position sizing + bracket-order execution). Phase 5 (risk
+manager: early-exit on a 1-min bearish cross + feed-loss fail-safe) is next. Build
+progresses through the phases in [todo.md](todo.md) (Phase 0 → 10).
 
 **Strategy note:** the entry design is a **multi-timeframe triple-MA ribbon** — a
 1-minute **8/10/20** EMA ribbon is the *trigger*, gated by a 5-minute **21/34/55** EMA
@@ -35,6 +36,12 @@ phase** (remote: `github.com/redowls/USTradeBot`, branch `main`). Git author is
 .venv\Scripts\python.exe -m pytest tests/test_config.py::test_loads_defaults  # single test
 .venv\Scripts\python.exe -m ruff check .              # lint
 .venv\Scripts\python.exe -m ruff format .             # format
+```
+
+Commit with the project author (it is not configured globally — set it per commit):
+
+```powershell
+git -c user.name=redowls -c user.email=lukitowisley@gmail.com commit -m "..."
 ```
 
 Run via the venv interpreter directly (`.venv\Scripts\python.exe`) — the global `python`
@@ -79,17 +86,34 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   (candidate? scored? enter?). `market_is_open()` converts UTC → US Eastern (zoneinfo, EST/EDT
   safe, Mon–Fri). Volatility is an **ATR/price proxy** — the IEX trade feed gives no bid/ask
   spread. Weights/thresholds are module constants, meant to be tuned on paper (Phase 8).
+- [bot/sizing.py](bot/sizing.py) — position sizing + bracket levels (Phase 4), all pure.
+  `plan_model_a` (default, `SIZING_MODEL=A`): `alloc_fraction` scales `MIN_ALLOC`→`MAX_ALLOC`
+  over the confidence range above the threshold → notional → **floored to whole shares** at
+  the entry price. `plan_model_b` (`SIZING_MODEL=B`): risk-budget shares from the stop
+  distance, capped by `MAX_ALLOC × buying_power`. Both return a `SizePlan` (qty + bracket
+  stop/target via `bracket_prices`) or `None` if it rounds below 1 share. **Whole shares, not
+  notional:** Alpaca rejects brackets on notional/fractional orders, so the bracket (required
+  for Phase 5's broker-side stop/target) wins over sub-share precision.
+- [bot/executor.py](bot/executor.py) — `OrderExecutor` (Phase 4). `execute(symbol, entry_price,
+  confidence)` reads the live account (buying power / equity), sizes via `bot.sizing` (model
+  per `cfg.sizing_model`), and submits a **market bracket** order (`OrderClass.BRACKET`,
+  `TimeInForce.DAY`, `TakeProfitRequest` + `StopLossRequest`). Returns an `ExecutionResult` or
+  `None` on a skip/reject/error (swallowed, never kills the strategy). Trading-client factory
+  is injectable for tests. Handles the submit **ack + reject**; fill/partial-fill tracking
+  needs the trade-updates stream and lands in Phase 6.
 - [bot/strategy.py](bot/strategy.py) — `StrategyEngine`: the per-symbol `WAITING → EVALUATING
   → EXECUTING → MANAGING` state machine (`BotState`). `on_long_candle` refreshes the gate
   ribbon; `on_short_candle` updates the trigger ribbon, checks market hours, evaluates the
-  entry, and emits a `TradeSignal` via `on_signal` when confidence clears the threshold.
-  **Phase 3 stops at the signal** — there's no executor, so it cycles WAITING↔EVALUATING;
-  `EXECUTING`/`MANAGING` are reserved for the Phase 4 executor / Phase 5 risk manager, and
-  `on_signal` is where Phase 7 hooks Telegram.
-- [bot/main.py](bot/main.py) — entrypoint: loads config, sets up logging, checks the account,
-  builds the `StrategyEngine`, then wires `MarketDataClient(on_candle=…, on_long_candle=…)` to
-  feed both timeframes through it.
-- [tests/](tests/) — pytest suite.
+  entry, emits a `TradeSignal` via `on_signal`, then (Phase 4) calls the injected `executor`:
+  a qualifying entry drives `EVALUATING → EXECUTING → MANAGING` on a filled bracket, falling
+  back to `EVALUATING` on a skip/reject. `reconcile(positions)` marks watchlist names already
+  held at Alpaca as `MANAGING` on startup so the bot won't double-enter. A `MANAGING`/`EXECUTING`
+  symbol is not re-evaluated. `MANAGING` *exits* (early-exit on a 1-min bearish cross) are the
+  Phase 5 risk manager's job; `on_signal` is where Phase 7 hooks Telegram.
+- [bot/main.py](bot/main.py) — entrypoint: loads config, sets up logging, checks + reconciles
+  the account, builds the `OrderExecutor` and `StrategyEngine`, then wires
+  `MarketDataClient(on_candle=…, on_long_candle=…)` to feed both timeframes through it.
+- [tests/](tests/) — pytest suite (one file per `bot/` module).
 - `.env` (gitignored, holds real paper keys) ← copy from [.env.example](.env.example).
 
 ## What this is
@@ -156,6 +180,10 @@ Discrete components to build (each is a `todo.md` phase):
   `alloc_fraction` scales from `MIN_ALLOC` to `MAX_ALLOC` over the confidence range above
   the threshold) is the default; Model B (risk-budget / stop-distance) is optional and must
   cap both per-position notional and total open exposure.
+- **Brackets need whole shares.** Alpaca refuses `order_class=bracket` on notional/fractional
+  orders. Since the broker-side bracket stop/target is required (Phase 5), sizing computes a
+  dollar amount then **floors to an integer `qty`** at the entry price and submits a `qty`
+  bracket — never a notional one. Sub-1-share plans are skipped, not rounded up.
 - **Paper account only.** Always use `https://paper-api.alpaca.markets`. Never wire the live
   endpoint.
 - **Timezone.** Run the server clock on UTC; convert to US Eastern for the 09:30–16:00

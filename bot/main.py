@@ -5,9 +5,10 @@ the market-data WebSocket. Each trade is aggregated into 1-min (trigger) and 5-m
 (gate) candles; closed candles feed the :class:`~bot.strategy.StrategyEngine`,
 which runs the dual-timeframe ribbon strategy and emits entry signals.
 
-The executor (Phase 4), risk manager (Phase 5), persistence (Phase 6), and
-Telegram alerts (Phase 7) hook into the ``on_signal`` callback and the strategy's
-``EXECUTING``/``MANAGING`` states. The state machine is:
+The executor (Phase 4) sizes a qualifying signal and submits an Alpaca bracket
+order, driving the symbol into ``MANAGING``. The risk manager (Phase 5),
+persistence (Phase 6), and Telegram alerts (Phase 7) hook into the ``on_signal`` /
+``on_result`` callbacks and the ``MANAGING`` state. The state machine is:
 
     WAITING -> EVALUATING -> EXECUTING -> MANAGING
 """
@@ -17,6 +18,7 @@ from __future__ import annotations
 import logging
 
 from bot.config import Config, ConfigError
+from bot.executor import ExecutionResult, OrderExecutor
 from bot.market_data import MarketDataClient
 from bot.strategy import StrategyEngine, TradeSignal
 
@@ -31,12 +33,24 @@ def setup_logging(level: str) -> None:
 
 
 def _on_signal(signal: TradeSignal) -> None:
-    """Phase 3 sink for entry signals. Phases 4/6/7 add execution, DB, Telegram."""
+    """Entry-signal sink. Phases 6/7 add DB persistence and Telegram alerts here."""
     log.info(
-        "TRADE SIGNAL %s @ %.4f conf=%.1f%% (executor not wired yet — Phase 4)",
+        "TRADE SIGNAL %s @ %.4f conf=%.1f%%",
         signal.symbol,
         signal.close,
         signal.confidence.total,
+    )
+
+
+def _on_execution(result: ExecutionResult) -> None:
+    """Bracket-submission sink. Phases 6/7 persist this and alert on it."""
+    log.info(
+        "EXECUTED %s: %d sh, $%.2f notional, conf=%.1f%% (%s)",
+        result.symbol,
+        result.qty,
+        result.notional,
+        result.confidence,
+        result.status,
     )
 
 
@@ -60,17 +74,19 @@ def main() -> int:
         cfg.entry_threshold,
     )
 
-    strategy = StrategyEngine(cfg, on_signal=_on_signal)
+    executor = OrderExecutor(cfg, on_result=_on_execution)
+    strategy = StrategyEngine(cfg, on_signal=_on_signal, executor=executor)
     data = MarketDataClient(
         cfg,
         on_candle=strategy.on_short_candle,
         on_long_candle=strategy.on_long_candle,
     )
     try:
-        data.check_account()
+        _account, positions = data.check_account()
     except Exception:
         log.exception("could not reach the Alpaca paper account — aborting.")
         return 1
+    strategy.reconcile(positions)  # don't re-enter names the broker already holds
 
     try:
         data.run_forever()

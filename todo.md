@@ -64,15 +64,29 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 ## Phase 4 — Position sizing + execution
 
-- [ ] Implement **Model A** sizing: `alloc_fraction` from confidence →
-      `notional = buying_power × alloc_fraction`.
-- [ ] (Optional) Implement **Model B**: confidence → fraction of `MAX_RISK_PER_TRADE`
-      → shares from the stop distance; cap notional and total exposure.
-- [ ] Submit the entry as an Alpaca **bracket order** (`order_class=bracket`) with
-      the stop-loss and take-profit attached.
-- [ ] Use **notional** orders for Model A (fractional shares).
-- [ ] Handle order lifecycle: acks, fills, partial fills, rejects.
-- [ ] Reconcile internal state vs Alpaca on startup and after reconnect.
+- [x] Implement **Model A** sizing: `alloc_fraction` from confidence →
+      `notional = buying_power × alloc_fraction`. → `bot/sizing.py` `plan_model_a`
+      (`SIZING_MODEL=A`, default); `alloc_fraction` scales MIN→MAX over the
+      confidence range above the threshold.
+- [x] (Optional) Implement **Model B**: confidence → fraction of `MAX_RISK_PER_TRADE`
+      → shares from the stop distance; cap notional and total exposure. → `plan_model_b`
+      (`SIZING_MODEL=B`); risk-budget shares capped by `MAX_ALLOC × buying_power`.
+- [x] Submit the entry as an Alpaca **bracket order** (`order_class=bracket`) with
+      the stop-loss and take-profit attached. → `bot/executor.py` `OrderExecutor.execute`
+      (market entry + `TakeProfitRequest`/`StopLossRequest`, `TimeInForce.DAY`).
+- [~] ~~Use **notional** orders for Model A (fractional shares).~~ **Changed:**
+      Alpaca rejects brackets on notional/fractional orders, and the broker-side
+      bracket (Phase 5) is non-negotiable — so Model A sizes to a dollar notional,
+      then **floors to whole shares** at the entry price. Sub-share precision is the
+      cost of keeping the bracket.
+- [~] Handle order lifecycle: acks, fills, partial fills, rejects. → submit **ack**
+      and **reject** handled (`execute` returns `None` + logs on raise/`rejected`);
+      **fill / partial-fill** tracking needs the trade-updates stream and is wired
+      with persistence in **Phase 6**.
+- [~] Reconcile internal state vs Alpaca on startup and after reconnect. → startup
+      done (`StrategyEngine.reconcile` marks held watchlist names `MANAGING` so we
+      don't double-enter); **post-reconnect** re-reconcile deferred to Phase 5
+      (fail-safe on feed loss) where the supervisor loop already lives.
 
 ## Phase 5 — Risk management
 

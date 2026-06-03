@@ -139,6 +139,7 @@ class Config:
     entry_threshold: float
 
     # Sizing
+    sizing_model: str  # "A" (% of buying power) or "B" (risk budget)
     min_alloc: float
     max_alloc: float
     max_risk_per_trade: float
@@ -184,6 +185,7 @@ class Config:
             volume_ma_period=_int("VOLUME_MA_PERIOD", 20),
             atr_period=_int("ATR_PERIOD", 14),
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
+            sizing_model=_str("SIZING_MODEL", "A").upper(),
             min_alloc=_float("MIN_ALLOC", 0.10),
             max_alloc=_float("MAX_ALLOC", 0.40),
             max_risk_per_trade=_float("MAX_RISK_PER_TRADE", 0.02),
@@ -216,6 +218,8 @@ class Config:
             raise ConfigError("LONG_CANDLE_INTERVAL must be longer than CANDLE_INTERVAL.")
         if not 0 <= self.entry_threshold <= 100:
             raise ConfigError("ENTRY_THRESHOLD must be in [0, 100].")
+        if self.sizing_model not in ("A", "B"):
+            raise ConfigError(f"SIZING_MODEL must be 'A' or 'B', got {self.sizing_model!r}.")
         if not 0 < self.min_alloc <= self.max_alloc <= 1:
             raise ConfigError("Require 0 < MIN_ALLOC <= MAX_ALLOC <= 1.")
         if not 0 < self.max_risk_per_trade <= 1:

@@ -8,11 +8,13 @@ indicator history.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
 from bot.candles import Candle
 from bot.config import Config
+from bot.executor import ExecutionResult
 from bot.indicators import RibbonSnapshot
 from bot.strategy import BotState, StrategyEngine
 
@@ -148,6 +150,85 @@ def test_executing_state_is_not_re_evaluated(cfg):
     sig = eng.on_short_candle(_candle())
     assert sig is None
     assert eng.state("NFLX") is BotState.EXECUTING  # unchanged
+
+
+class _FakeExecutor:
+    """Records execute() calls; returns a scripted result (or None for a skip)."""
+
+    def __init__(self, result):
+        self._result = result
+        self.calls = []
+
+    def execute(self, *, symbol, entry_price, confidence):
+        self.calls.append((symbol, entry_price, confidence))
+        return self._result
+
+
+def _exec_result(symbol="NFLX"):
+    return ExecutionResult(
+        symbol=symbol,
+        order_id="o1",
+        qty=10,
+        notional=1000.0,
+        entry_price=100.0,
+        stop_price=98.0,
+        take_profit_price=104.0,
+        confidence=75.0,
+        status="accepted",
+        model="A",
+    )
+
+
+def test_successful_execution_drives_managing(cfg):
+    ex = _FakeExecutor(_exec_result())
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    sig = eng.on_short_candle(_candle())
+    assert sig is not None
+    assert len(ex.calls) == 1 and ex.calls[0][0] == "NFLX"
+    assert eng.state("NFLX") is BotState.MANAGING
+
+
+def test_failed_execution_falls_back_to_evaluating(cfg):
+    ex = _FakeExecutor(None)  # skip/reject
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    eng.on_short_candle(_candle())
+    assert len(ex.calls) == 1
+    assert eng.state("NFLX") is BotState.EVALUATING
+
+
+def test_reconcile_marks_held_symbols_managing(cfg):
+    eng = StrategyEngine(cfg)
+    held = SimpleNamespace(symbol="NFLX", qty="5")
+    unknown = SimpleNamespace(symbol="ZZZZ", qty="1")  # not on the watchlist
+    eng.reconcile([held, unknown])
+    assert eng.state("NFLX") is BotState.MANAGING
+    assert eng.state("ZZZZ") is BotState.WAITING  # ignored, off-watchlist
+
+
+def test_managing_symbol_is_not_re_evaluated(cfg):
+    ex = _FakeExecutor(_exec_result())
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING  # already holding
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    assert ex.calls == []  # never tried to execute
+    assert eng.state("NFLX") is BotState.MANAGING
 
 
 def test_signal_callback_error_is_swallowed(cfg):
