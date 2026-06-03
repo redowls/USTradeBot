@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project status
 
 **Language: Python** (chosen in Phase 0). Stack: `alpaca-py`, `python-dotenv`, `pyodbc`;
-`pytest` + `ruff` for dev. **Phases 0–6 are complete** (setup; Alpaca connection/market
+`pytest` + `ruff` for dev. **Phases 0–7 are complete** (setup; Alpaca connection/market
 data — verified live against the paper account; the indicator engine; the signal +
 confidence scorer / state machine; position sizing + bracket-order execution; the risk
 manager: early-exit on a 1-min bearish cross + feed-loss fail-safe; persistence: SQL
@@ -36,6 +36,7 @@ phase** (remote: `github.com/redowls/USTradeBot`, branch `main`). Git author is
 ```powershell
 .\.venv\Scripts\Activate.ps1                          # activate venv (Windows dev)
 .venv\Scripts\python.exe -m bot.main                  # run the bot
+.venv\Scripts\python.exe -m bot.preflight             # Phase 8 connectivity check (run before a live session)
 .venv\Scripts\python.exe -m pytest                    # run all tests
 .venv\Scripts\python.exe -m pytest tests/test_config.py::test_loads_defaults  # single test
 .venv\Scripts\python.exe -m ruff check .              # lint
@@ -159,6 +160,14 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   message verbatim. `format_entry`/`format_exit` are pure. `open_notifier(cfg)` returns
   `None` if the token/chat id are unset (the bot trades on); config currently *requires*
   both, so it normally returns a live notifier.
+- [bot/preflight.py](bot/preflight.py) — Phase 8 preflight connectivity check
+  (`python -m bot.preflight`). Runs four checks — Alpaca paper account (**critical**:
+  reports status/equity/buying-power/open-positions), SQL Server persistence, Telegram
+  alerts (sends a **real** test message), and whether the session is open now (EST/EDT
+  aware) — and prints a PASS/WARN/FAIL summary. Exits non-zero only when a *critical*
+  check fails; a WARN means a side-channel (DB/Telegram) is off but the trading path is
+  ready. Each `check_*` helper takes its dependency directly so they unit-test with fakes;
+  `run_preflight` builds them from config in production. Run it before any live session.
 - [bot/main.py](bot/main.py) — entrypoint: loads config, sets up logging, checks + reconciles
   the account, opens the `TradeStore`/`TradeRecorder` (Phase 6) and the `TelegramNotifier`/
   `AlertReporter` (Phase 7), builds the `OrderExecutor`, `RiskManager`, and `StrategyEngine`

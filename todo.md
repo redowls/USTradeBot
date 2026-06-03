@@ -151,12 +151,27 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 ## Phase 8 — Run on paper & validate
 
-- [ ] Run the full system live against the Alpaca paper account.
-- [ ] Watch entries/exits arrive in Telegram and land in SQL Server.
-- [ ] Exercise edge cases: partial fills, rejects, disconnect + reconnect, restart
-      mid-trade.
-- [ ] Confirm market-hours gating behaves across an EST/EDT boundary.
-- [ ] Review logged results and re-tune the confidence weights and threshold.
+- [x] **Preflight connectivity check** — `python -m bot.preflight` verifies the three
+      external systems in one command (Alpaca paper account = critical, SQL Server +
+      Telegram = side-channels) and reports whether the session is open now. Run it
+      before any live session. → `bot/preflight.py` (`tests/test_preflight.py`).
+- [ ] Run the full system live against the Alpaca paper account. → **operator task**
+      (long-running, market hours): `.venv\Scripts\python.exe -m bot.main`.
+- [ ] Watch entries/exits arrive in Telegram and land in SQL Server. → **operator task**
+      (observe over a live session; signals are infrequent).
+- [~] Exercise edge cases: partial fills, rejects, disconnect + reconnect, restart
+      mid-trade. → rejects (`test_executor`), disconnect+reconnect / feed-loss
+      (`test_market_data`), and restart-mid-trade reconcile (`test_strategy::
+      test_reconcile_marks_held_symbols_managing`) are covered by unit tests;
+      **partial fills** need the broker trade-updates stream (deferred — see Phase 4/6),
+      so there is no code path to exercise yet. Live re-exercise is an operator task.
+- [x] Confirm market-hours gating behaves across an EST/EDT boundary. → unit-tested
+      (`test_signals::test_market_hours_handle_est_edt_shift`, zoneinfo-based, not a
+      hardcoded offset); live confirmation across a real Mar/Nov boundary is an
+      operator follow-up.
+- [ ] Review logged results and re-tune the confidence weights and threshold. → **operator
+      task**: needs real trades in `dbo.trades` / `dbo.vw_confidence_outcome` to tune
+      `ScoreWeights` + `ENTRY_THRESHOLD`.
 
 ## Phase 9 — VPS deployment
 
