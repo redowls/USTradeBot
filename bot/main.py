@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import replace
 from typing import TypeVar
 
 from bot.config import Config, ConfigError
@@ -99,7 +100,29 @@ def main() -> int:
         return 1
 
     setup_logging(cfg.log_level)
-    log.info("USTradeBot starting (paper). Watchlist: %s", ", ".join(cfg.watchlist))
+
+    # Persistence (Phase 6): a TradeRecorder logs entries/exits + confidence to SQL
+    # Server. It rides alongside the existing log sinks via _chain; if SQLSERVER_CONN
+    # is unset or the DB is unreachable, open_store returns None and the bot trades on.
+    store = open_store(cfg)
+
+    # The watchlist is sourced from dbo.watchlist when the DB is available and the
+    # table is non-empty; otherwise we keep the WATCHLIST env var (cfg.watchlist), so
+    # the DB stays an optional side-channel even though the watchlist is critical-path.
+    watchlist_source = "WATCHLIST env"
+    if store is not None:
+        db_watchlist = store.load_watchlist()
+        if db_watchlist:
+            cfg = replace(cfg, watchlist=db_watchlist)
+            watchlist_source = "dbo.watchlist"
+        else:
+            log.info("dbo.watchlist empty or unavailable — using WATCHLIST env var")
+
+    log.info(
+        "USTradeBot starting (paper). Watchlist (%s): %s",
+        watchlist_source,
+        ", ".join(cfg.watchlist),
+    )
     log.info(
         "Strategy: %s ribbon %s (trigger) gated by %s ribbon %s, RSI %d, entry>=%.0f%%",
         cfg.candle_interval,
@@ -110,10 +133,6 @@ def main() -> int:
         cfg.entry_threshold,
     )
 
-    # Persistence (Phase 6): a TradeRecorder logs entries/exits + confidence to SQL
-    # Server. It rides alongside the existing log sinks via _chain; if SQLSERVER_CONN
-    # is unset or the DB is unreachable, open_store returns None and the bot trades on.
-    store = open_store(cfg)
     recorder = TradeRecorder(store) if store is not None else None
     rec_signal = recorder.on_signal if recorder else None
     rec_result = recorder.on_result if recorder else None

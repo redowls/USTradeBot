@@ -151,12 +151,19 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   `on_exit` closes the trade out, with realized P/L computed **in SQL** from the stored entry
   price (the exit prices off the reversal candle's close — no fills stream yet). `open_store(cfg)`
   returns `None` when `SQLSERVER_CONN` is unset or the DB is unreachable (the bot trades on).
+  `load_watchlist()` reads the enabled symbols from `dbo.watchlist` (returns `()` on
+  error/empty); `bot.main` prefers it over the `WATCHLIST` env var but **falls back to the env
+  var** when the DB is off/unreachable or the table is empty, so the watchlist (critical-path)
+  doesn't make the DB (side-channel) a hard dependency. Loaded once at startup — edit the
+  table then restart to change symbols.
 - [sql/schema.sql](sql/schema.sql) — idempotent SQL Server DDL (Phase 6): `dbo.trades`
   (round-trip + confidence breakdown + realized P/L, the analytical core), `dbo.orders`
   (append-only submit log), `dbo.positions` (open holdings), `dbo.fills` (reserved for the
-  trade-updates stream — created, not yet populated), and `dbo.vw_confidence_outcome` (buckets
-  closed trades by confidence band → win rate / avg P/L; answers "do higher-confidence trades
-  pay off?"). Single source of truth — the runtime bootstrap executes this same file.
+  trade-updates stream — created, not yet populated), `dbo.watchlist` (the traded symbols,
+  `enabled` flag to park one without deleting — read at startup, falls back to the `WATCHLIST`
+  env var when empty), and `dbo.vw_confidence_outcome` (buckets closed trades by confidence
+  band → win rate / avg P/L; answers "do higher-confidence trades pay off?"). Single source of
+  truth — the runtime bootstrap executes this same file.
 - [bot/notifier.py](bot/notifier.py) — Telegram alerts (Phase 7). `TelegramNotifier.send`
   does a **direct** JSON `POST` to the Bot API's `sendMessage` (stdlib `urllib` — no new
   dependency; the bot token stays in the URL and is never logged); the HTTP `poster` is

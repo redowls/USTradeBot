@@ -80,6 +80,19 @@ CREATE TABLE dbo.positions (
 );
 GO
 
+-- The trading watchlist: which symbols the bot subscribes to and may enter. Read
+-- once at startup (bot.main) in preference to the WATCHLIST env var; an empty table
+-- (or an unreachable DB) falls back to that env var, so the DB stays optional. Flip
+-- `enabled` to 0 to park a symbol without losing its row.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'watchlist' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.watchlist (
+    symbol      VARCHAR(16)  NOT NULL PRIMARY KEY,
+    enabled     BIT          NOT NULL DEFAULT 1,
+    note        VARCHAR(128) NULL,
+    added_at_utc DATETIME2(0) NOT NULL DEFAULT SYSUTCDATETIME()
+);
+GO
+
 -- Reserved for the broker trade-updates stream (real fill prices / partial fills).
 -- Created now so the schema is complete; populated in a later phase.
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'fills' AND schema_id = SCHEMA_ID('dbo'))

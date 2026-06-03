@@ -255,6 +255,29 @@ class TradeStore:
             log.exception("failed to persist exit for %s", result.symbol)
             self._reset()
 
+    # --- reads -------------------------------------------------------------
+
+    def load_watchlist(self) -> tuple[str, ...]:
+        """Return the enabled watchlist symbols (upper-cased), or ``()`` if none.
+
+        Read-only and wrapped like the writes: a DB error logs, resets the
+        connection, and returns ``()`` so the caller falls back to the env var.
+        """
+        try:
+            conn = self._connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT symbol FROM dbo.watchlist WHERE enabled = 1 ORDER BY symbol"
+            )
+            symbols = tuple(
+                str(r[0]).strip().upper() for r in (cur.fetchall() or []) if str(r[0]).strip()
+            )
+            return symbols
+        except Exception:
+            log.exception("failed to load watchlist from the database")
+            self._reset()
+            return ()
+
     # --- reads (Phase 10 reporting) ---------------------------------------
 
     def performance_summary(self, days: int = 1) -> PerformanceSummary | None:

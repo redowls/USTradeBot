@@ -320,5 +320,50 @@ def test_performance_summary_returns_none_on_error():
     assert TradeStore(lambda: _BoomConn()).performance_summary() is None
 
 
+# --- load_watchlist --------------------------------------------------------
+
+
+class _WatchlistCursor:
+    def __init__(self, rows, raise_it=False):
+        self._rows = rows
+        self._raise = raise_it
+
+    def execute(self, sql, params=()):
+        if self._raise:
+            raise RuntimeError("db down")
+        return self
+
+    def fetchall(self):
+        return self._rows
+
+
+class _WatchlistConn:
+    def __init__(self, rows, raise_it=False):
+        self._rows = rows
+        self._raise = raise_it
+        self.closed = False
+
+    def cursor(self):
+        return _WatchlistCursor(self._rows, self._raise)
+
+    def close(self):
+        self.closed = True
+
+
+def test_load_watchlist_returns_uppercased_symbols():
+    conn = _WatchlistConn([("nflx",), (" wpm ",), ("BIRD",)])
+    assert TradeStore(lambda: conn).load_watchlist() == ("NFLX", "WPM", "BIRD")
+
+
+def test_load_watchlist_empty_table_returns_empty_tuple():
+    assert TradeStore(lambda: _WatchlistConn([])).load_watchlist() == ()
+
+
+def test_load_watchlist_returns_empty_on_error_and_resets():
+    conn = _WatchlistConn([], raise_it=True)
+    assert TradeStore(lambda: conn).load_watchlist() == ()
+    assert conn.closed is True
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
