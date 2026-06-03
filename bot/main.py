@@ -1,10 +1,13 @@
 """Entrypoint.
 
 Loads config, sets up logging, confirms the paper account responds, then holds
-the market-data WebSocket, aggregates ticks into candles (Phase 1), and feeds
-each closed candle to the indicator engine (Phase 2). The executor and risk
-manager arrive in later phases (see todo.md). The full state machine will live
-here:
+the market-data WebSocket. Each trade is aggregated into 1-min (trigger) and 5-min
+(gate) candles; closed candles feed the :class:`~bot.strategy.StrategyEngine`,
+which runs the dual-timeframe ribbon strategy and emits entry signals.
+
+The executor (Phase 4), risk manager (Phase 5), persistence (Phase 6), and
+Telegram alerts (Phase 7) hook into the ``on_signal`` callback and the strategy's
+``EXECUTING``/``MANAGING`` states. The state machine is:
 
     WAITING -> EVALUATING -> EXECUTING -> MANAGING
 """
@@ -13,34 +16,27 @@ from __future__ import annotations
 
 import logging
 
-from bot.candles import Candle
 from bot.config import Config, ConfigError
-from bot.indicators import IndicatorEngine, IndicatorSnapshot
 from bot.market_data import MarketDataClient
+from bot.strategy import StrategyEngine, TradeSignal
 
 log = logging.getLogger("ustradebot")
-
-
-def _log_snapshot(snap: IndicatorSnapshot) -> None:
-    if not snap.ready:
-        return  # still warming up indicator history for this symbol
-    log.info(
-        "indicators %s C=%.4f fast=%.4f slow=%.4f trend=%.4f rsi=%.1f vol=%.0f avgvol=%.0f",
-        snap.symbol,
-        snap.close,
-        snap.fast_ema,
-        snap.slow_ema,
-        snap.trend_ma,
-        snap.rsi,
-        snap.volume,
-        snap.avg_volume,
-    )
 
 
 def setup_logging(level: str) -> None:
     logging.basicConfig(
         level=getattr(logging, level, logging.INFO),
         format="%(asctime)s %(levelname)-8s %(name)s | %(message)s",
+    )
+
+
+def _on_signal(signal: TradeSignal) -> None:
+    """Phase 3 sink for entry signals. Phases 4/6/7 add execution, DB, Telegram."""
+    log.info(
+        "TRADE SIGNAL %s @ %.4f conf=%.1f%% (executor not wired yet — Phase 4)",
+        signal.symbol,
+        signal.close,
+        signal.confidence.total,
     )
 
 
@@ -55,20 +51,21 @@ def main() -> int:
     setup_logging(cfg.log_level)
     log.info("USTradeBot starting (paper). Watchlist: %s", ", ".join(cfg.watchlist))
     log.info(
-        "Strategy: EMA %d/%d, trend %d, RSI %d, entry>=%.0f%%",
-        cfg.fast_ma_period,
-        cfg.slow_ma_period,
-        cfg.trend_ma_period,
+        "Strategy: %s ribbon %s (trigger) gated by %s ribbon %s, RSI %d, entry>=%.0f%%",
+        cfg.candle_interval,
+        "/".join(map(str, cfg.short_ma_periods)),
+        cfg.long_candle_interval,
+        "/".join(map(str, cfg.long_ma_periods)),
         cfg.rsi_period,
         cfg.entry_threshold,
     )
 
-    engine = IndicatorEngine.from_config(cfg)
-
-    def on_candle(candle: Candle) -> None:
-        _log_snapshot(engine.update(candle))
-
-    data = MarketDataClient(cfg, on_candle=on_candle)
+    strategy = StrategyEngine(cfg, on_signal=_on_signal)
+    data = MarketDataClient(
+        cfg,
+        on_candle=strategy.on_short_candle,
+        on_long_candle=strategy.on_long_candle,
+    )
     try:
         data.check_account()
     except Exception:

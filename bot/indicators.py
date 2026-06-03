@@ -1,27 +1,27 @@
-"""Indicator engine (Phase 2).
+"""Indicator engine (Phase 2 → generalized in Phase 3).
 
 Turns the stream of *closed* candles from :class:`~bot.candles.CandleAggregator`
-into the technical indicators the signal/confidence scorer (Phase 3) needs:
+into the technical indicators the signal/confidence scorer (Phase 3) needs. The
+strategy runs **two** engines, one per timeframe:
 
-- fast / slow **EMAs** (9 / 21) — the crossover trigger,
-- a **trend MA** (50, simple) — the higher-timeframe filter,
-- **RSI** (14, Wilder smoothing) — momentum confirmation,
-- **trailing average volume** — volume confirmation.
+- a 1-minute **trigger** engine: an 8/10/20 EMA *ribbon* plus RSI(14), trailing
+  average volume, and ATR(14) for the volatility sub-score,
+- a 5-minute **gate** engine: a 21/34/55 EMA *ribbon* only.
 
 Design notes / invariants:
 - **Closed candles only.** ``update`` is meant to be fed each *closed* candle
-  (wire it to ``MarketDataClient(on_candle=...)``). Acting on the still-forming
-  candle would repaint — see CLAUDE.md.
-- **Incremental, path-dependent.** EMAs and RSI are carried forward from the
+  (wire it via ``MarketDataClient(on_candle=..., on_long_candle=...)``). Acting on
+  the still-forming candle would repaint — see CLAUDE.md.
+- **Incremental, path-dependent.** EMAs, RSI, and ATR are carried forward from the
   series' inception rather than recomputed over a sliding window, so their values
   do not drift as old bars age out of the aggregator's rolling window. Each
-  indicator stays ``None`` until it has seen enough candles to seed (EMA/MA seed
-  from a simple average of their first ``period`` closes; RSI seeds from the first
-  ``period`` price changes, i.e. ``period + 1`` closes).
+  indicator stays ``None`` until it has seen enough candles to seed.
+- **Ribbon = stacked AND sloping.** A ribbon is bullish only when ordered
+  (``fast > mid > slow``) *and* sloping up; ``RibbonSnapshot`` exposes both the
+  state helpers and a *fresh-cross* detector (the entry trigger).
 - **Trailing volume baseline.** ``avg_volume`` is the mean of the *preceding*
   ``volume_period`` candles (the current bar is excluded), so a confirmation ratio
-  ``volume / avg_volume`` compares the new bar against its recent history rather
-  than diluting it with itself.
+  ``volume / avg_volume`` compares the new bar against its recent history.
 - Pure / no I/O. State is per symbol; symbols are independent.
 """
 
@@ -34,9 +34,6 @@ from datetime import datetime
 
 from bot.candles import Candle
 from bot.config import Config
-
-DEFAULT_VOLUME_PERIOD = 20
-
 
 # --- incremental primitives ------------------------------------------------
 
@@ -140,6 +137,40 @@ class _Rsi:
         return 100.0 - 100.0 / (1.0 + rs)
 
 
+class _Atr:
+    """Wilder's ATR(period) from (high, low, close). ``None`` until seeded.
+
+    The first bar has no prior close, so its true range is just ``high - low``;
+    subsequent bars use the full true-range definition. Seeds from the simple
+    average of the first ``period`` true ranges, then Wilder-smooths.
+    """
+
+    __slots__ = ("period", "_prev_close", "_seed", "value")
+
+    def __init__(self, period: int) -> None:
+        if period <= 0:
+            raise ValueError("ATR period must be positive")
+        self.period = period
+        self._prev_close: float | None = None
+        self._seed: list[float] = []
+        self.value: float | None = None
+
+    def update(self, high: float, low: float, close: float) -> float | None:
+        if self._prev_close is None:
+            tr = high - low
+        else:
+            tr = max(high - low, abs(high - self._prev_close), abs(low - self._prev_close))
+        self._prev_close = close
+
+        if self.value is None:
+            self._seed.append(tr)
+            if len(self._seed) == self.period:
+                self.value = sum(self._seed) / self.period
+        else:
+            self.value = (self.value * (self.period - 1) + tr) / self.period
+        return self.value
+
+
 class _TrailingMean:
     """Mean of the most recent ``period`` pushed values, read *before* the current
     value is added so it reflects the preceding bars only."""
@@ -161,131 +192,223 @@ class _TrailingMean:
         self._buf.append(value)
 
 
+# --- ribbon ----------------------------------------------------------------
+
+_Triple = tuple[float | None, float | None, float | None]
+_NONE3: _Triple = (None, None, None)
+
+
+class Ribbon:
+    """Three EMAs (fast < mid < slow periods) carried forward together.
+
+    Tracks the current and previous closed-candle values so callers can test for
+    a *fresh cross* and rising slope from a single snapshot.
+    """
+
+    __slots__ = ("_emas", "values", "prev")
+
+    def __init__(self, periods: tuple[int, int, int]) -> None:
+        fast, mid, slow = periods
+        if not 0 < fast < mid < slow:
+            raise ValueError("ribbon periods must be increasing positive (fast<mid<slow)")
+        self._emas = (_Ema(fast), _Ema(mid), _Ema(slow))
+        self.values: _Triple = _NONE3
+        self.prev: _Triple = _NONE3
+
+    def update(self, price: float) -> _Triple:
+        self.prev = self.values
+        self.values = tuple(e.update(price) for e in self._emas)  # type: ignore[assignment]
+        return self.values
+
+
 # --- snapshot --------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class IndicatorSnapshot:
-    """Indicator values as of one closed candle. ``None`` fields are not yet seeded.
+class RibbonSnapshot:
+    """Indicator values for one symbol as of one closed candle on one timeframe.
 
-    ``prev_fast_ema`` / ``prev_slow_ema`` are the EMA values from the *previous*
-    closed candle so the Phase 3 scorer can detect a *fresh* cross
-    (``prev_fast <= prev_slow and fast > slow``) from a single snapshot — see the
-    "crossover = the cross, not the state" invariant in CLAUDE.md.
+    ``ribbon`` / ``prev_ribbon`` are ``(fast, mid, slow)`` EMA tuples (the current
+    and previous closed candle). ``rsi`` / ``avg_volume`` / ``atr`` are only
+    populated on the trigger (1-min) timeframe; on the gate timeframe they are
+    ``None``. Fields are ``None`` until they have enough history to seed.
     """
 
     symbol: str
     candle_start: datetime
+    interval_seconds: int
     close: float
     volume: float
-    fast_ema: float | None
-    slow_ema: float | None
-    trend_ma: float | None
+    ribbon: _Triple
+    prev_ribbon: _Triple
     rsi: float | None
+    prev_rsi: float | None
     avg_volume: float | None
-    prev_fast_ema: float | None
-    prev_slow_ema: float | None
+    atr: float | None
 
     @property
-    def ready(self) -> bool:
-        """True once every indicator has enough history to produce a value."""
-        return None not in (
-            self.fast_ema,
-            self.slow_ema,
-            self.trend_ma,
-            self.rsi,
-            self.avg_volume,
-        )
+    def fast(self) -> float | None:
+        return self.ribbon[0]
+
+    @property
+    def mid(self) -> float | None:
+        return self.ribbon[1]
+
+    @property
+    def slow(self) -> float | None:
+        return self.ribbon[2]
+
+    @property
+    def ribbon_ready(self) -> bool:
+        """True once all three EMAs (this candle and the previous) are seeded."""
+        return None not in self.ribbon and None not in self.prev_ribbon
+
+    @property
+    def stacked(self) -> bool:
+        """Ribbon ordered bullishly: ``fast > mid > slow``."""
+        if None in self.ribbon:
+            return False
+        f, m, s = self.ribbon
+        return f > m > s  # type: ignore[operator]
+
+    @property
+    def fast_rising(self) -> bool:
+        """The fast EMA is above its previous closed-candle value."""
+        f, pf = self.ribbon[0], self.prev_ribbon[0]
+        return f is not None and pf is not None and f > pf
+
+    @property
+    def sloping_up(self) -> bool:
+        """Every EMA is above its previous value (the whole ribbon rising)."""
+        if not self.ribbon_ready:
+            return False
+        pairs = zip(self.ribbon, self.prev_ribbon, strict=True)
+        return all(c > p for c, p in pairs)  # type: ignore[operator]
+
+    @property
+    def bullish(self) -> bool:
+        """Stacked *and* sloping up — the strong-ribbon condition (CLAUDE.md)."""
+        return self.stacked and self.sloping_up
+
+    @property
+    def gate_open(self) -> bool:
+        """Gate state: stacked bullishly with the fast EMA rising (summary.md)."""
+        return self.stacked and self.fast_rising
+
+    @property
+    def fresh_cross(self) -> bool:
+        """A fresh bullish cross of fast over mid, with the full stack above slow.
+
+        ``prev_fast <= prev_mid`` (was not yet bullish) and now ``fast > mid``,
+        and the whole ribbon is stacked above the slow anchor. The ``prev`` term
+        makes this fire **once** per cross, not every candle it stays stacked.
+        """
+        if not self.ribbon_ready:
+            return False
+        f, m, s = self.ribbon
+        pf, pm, _ps = self.prev_ribbon
+        return pf <= pm and f > m and f > s and m > s  # type: ignore[operator]
 
 
 # --- per-symbol state + engine ---------------------------------------------
 
 
-class _SymbolState:
-    __slots__ = ("fast", "slow", "trend", "rsi", "volume", "last")
+class _RibbonState:
+    __slots__ = ("ribbon", "rsi", "volume", "atr", "last")
 
-    def __init__(self, *, fast: int, slow: int, trend: int, rsi: int, volume: int) -> None:
-        self.fast = _Ema(fast)
-        self.slow = _Ema(slow)
-        self.trend = _Sma(trend)
-        self.rsi = _Rsi(rsi)
-        self.volume = _TrailingMean(volume)
-        self.last: IndicatorSnapshot | None = None
+    def __init__(
+        self,
+        periods: tuple[int, int, int],
+        *,
+        rsi_period: int,
+        volume_period: int,
+        atr_period: int,
+    ) -> None:
+        self.ribbon = Ribbon(periods)
+        self.rsi = _Rsi(rsi_period) if rsi_period else None
+        self.volume = _TrailingMean(volume_period) if volume_period else None
+        self.atr = _Atr(atr_period) if atr_period else None
+        self.last: RibbonSnapshot | None = None
 
-    def update(self, candle: Candle) -> IndicatorSnapshot:
+    def update(self, candle: Candle, interval_seconds: int) -> RibbonSnapshot:
         prev = self.last
-        avg_volume = self.volume.current()  # preceding bars, before adding this one
-        self.volume.push(candle.volume)
+        avg_volume = self.volume.current() if self.volume else None  # preceding bars only
+        if self.volume:
+            self.volume.push(candle.volume)
 
-        snap = IndicatorSnapshot(
+        ribbon_vals = self.ribbon.update(candle.close)
+        snap = RibbonSnapshot(
             symbol=candle.symbol,
             candle_start=candle.start,
+            interval_seconds=interval_seconds,
             close=candle.close,
             volume=candle.volume,
-            fast_ema=self.fast.update(candle.close),
-            slow_ema=self.slow.update(candle.close),
-            trend_ma=self.trend.update(candle.close),
-            rsi=self.rsi.update(candle.close),
+            ribbon=ribbon_vals,
+            prev_ribbon=self.ribbon.prev,
+            rsi=self.rsi.update(candle.close) if self.rsi else None,
+            prev_rsi=prev.rsi if prev else None,
             avg_volume=avg_volume,
-            prev_fast_ema=prev.fast_ema if prev else None,
-            prev_slow_ema=prev.slow_ema if prev else None,
+            atr=self.atr.update(candle.high, candle.low, candle.close) if self.atr else None,
         )
         self.last = snap
         return snap
 
 
-class IndicatorEngine:
-    """Maintains indicator state per symbol; ``update`` it with each closed candle."""
+class RibbonEngine:
+    """Maintains one EMA ribbon (plus optional RSI/volume/ATR) per symbol over a
+    single timeframe. Feed it each closed candle for that timeframe."""
 
     def __init__(
         self,
+        periods: tuple[int, int, int],
         *,
-        fast_period: int = 9,
-        slow_period: int = 21,
-        trend_period: int = 50,
-        rsi_period: int = 14,
-        volume_period: int = DEFAULT_VOLUME_PERIOD,
+        rsi_period: int = 0,
+        volume_period: int = 0,
+        atr_period: int = 0,
+        interval_seconds: int = 60,
     ) -> None:
-        if not 0 < fast_period < slow_period:
-            raise ValueError("require 0 < fast_period < slow_period")
-        if trend_period <= 0:
-            raise ValueError("trend_period must be positive")
-        self._fast = fast_period
-        self._slow = slow_period
-        self._trend = trend_period
+        Ribbon(periods)  # validate periods eagerly
+        self._periods = periods
         self._rsi = rsi_period
         self._volume = volume_period
-        self._states: dict[str, _SymbolState] = {}
+        self._atr = atr_period
+        self._interval = interval_seconds
+        self._states: dict[str, _RibbonState] = {}
 
     @classmethod
-    def from_config(cls, cfg: Config) -> IndicatorEngine:
+    def trigger(cls, cfg: Config) -> RibbonEngine:
+        """The 1-min trigger engine: short ribbon + RSI + volume + ATR."""
         return cls(
-            fast_period=cfg.fast_ma_period,
-            slow_period=cfg.slow_ma_period,
-            trend_period=cfg.trend_ma_period,
+            cfg.short_ma_periods,
             rsi_period=cfg.rsi_period,
             volume_period=cfg.volume_ma_period,
+            atr_period=cfg.atr_period,
+            interval_seconds=cfg.interval_seconds,
         )
 
-    def update(self, candle: Candle) -> IndicatorSnapshot:
-        """Fold one closed candle into ``candle.symbol``'s indicators."""
+    @classmethod
+    def gate(cls, cfg: Config) -> RibbonEngine:
+        """The 5-min gate engine: long ribbon only (no RSI/volume/ATR)."""
+        return cls(cfg.long_ma_periods, interval_seconds=cfg.long_interval_seconds)
+
+    def update(self, candle: Candle) -> RibbonSnapshot:
+        """Fold one closed candle into ``candle.symbol``'s ribbon."""
         state = self._states.get(candle.symbol)
         if state is None:
-            state = _SymbolState(
-                fast=self._fast,
-                slow=self._slow,
-                trend=self._trend,
-                rsi=self._rsi,
-                volume=self._volume,
+            state = _RibbonState(
+                self._periods,
+                rsi_period=self._rsi,
+                volume_period=self._volume,
+                atr_period=self._atr,
             )
             self._states[candle.symbol] = state
-        return state.update(candle)
+        return state.update(candle, self._interval)
 
-    def snapshot(self, symbol: str) -> IndicatorSnapshot | None:
+    def snapshot(self, symbol: str) -> RibbonSnapshot | None:
         """The most recent snapshot for ``symbol``, or ``None`` if never updated."""
         state = self._states.get(symbol)
         return state.last if state is not None else None
 
 
 # A convenience type alias for code that wires the engine as an on_candle sink.
-OnSnapshot = Callable[[IndicatorSnapshot], None]
+OnSnapshot = Callable[[RibbonSnapshot], None]

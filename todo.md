@@ -39,15 +39,28 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 ## Phase 3 — Buy logic + confidence score
 
-- [ ] Crossover trigger: fire only when `prev_fast ≤ prev_slow` **and**
-      `curr_fast > curr_slow` (detect the cross, not the state).
-- [ ] Trend filter: require price above the 50-MA.
-- [ ] Compute the 5 confidence sub-scores (crossover strength, trend, RSI,
-      volume, volatility) and the weighted total (0–100%).
-- [ ] Enter only if `confidence ≥ ENTRY_THRESHOLD` (e.g. 60%).
-- [ ] Market-hours gate: only 09:30–16:00 US Eastern (handle EST/EDT shift in a
-      timezone-aware way, not a hardcoded offset).
-- [ ] State machine: WAITING → EVALUATING → EXECUTING → MANAGING.
+- [x] Generalize the indicator engine to a 3-EMA *ribbon* (stacked/sloping helpers)
+      and run two: a 1-min 8/10/20 (trigger) and a 5-min 21/34/55 (gate). Needs a
+      second, 5-min candle stream alongside the 1-min one. → `Ribbon`/`RibbonEngine`
+      in `bot/indicators.py`; dual aggregators in `MarketDataClient`.
+- [x] Crossover trigger: fire only on a *fresh* bullish cross in the 1-min ribbon —
+      `prev_ema8 ≤ prev_ema10` **and** `ema8 > ema10`, with the full stack
+      `ema8 > ema10 > ema20` (detect the cross, not the state).
+      → `RibbonSnapshot.fresh_cross`.
+- [x] Trend gate: require the 5-min 21/34/55 ribbon stacked bullish (`21 > 34 > 55`,
+      rising) before any long; ignore the trigger otherwise.
+      → `RibbonSnapshot.gate_open`; enforced in `signals.evaluate_entry`.
+- [x] Compute the 5 confidence sub-scores (crossover strength, trend, RSI,
+      volume, volatility) and the weighted total (0–100%). → `bot/signals.py`
+      (`score_*` + `confidence`/`ScoreWeights`). Volatility = ATR/price proxy
+      (no quote feed for a real spread).
+- [x] Enter only if `confidence ≥ ENTRY_THRESHOLD` (e.g. 60%). → `evaluate_entry`.
+- [x] Market-hours gate: only 09:30–16:00 US Eastern (handle EST/EDT shift in a
+      timezone-aware way, not a hardcoded offset). → `signals.market_is_open`
+      (zoneinfo America/New_York, Mon–Fri; holidays deferred to Phase 8/10).
+- [x] State machine: WAITING → EVALUATING → EXECUTING → MANAGING. → `bot/strategy.py`
+      `StrategyEngine`. Phase 3 cycles WAITING↔EVALUATING and emits `TradeSignal`s;
+      EXECUTING/MANAGING are reserved for the Phase 4 executor / Phase 5 risk manager.
 
 ## Phase 4 — Position sizing + execution
 
@@ -65,7 +78,7 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 - [ ] Rely on the bracket's stop/target (they execute broker-side even if the bot
       is down).
-- [ ] Add an early-exit on a reversal signal (e.g. bearish 9/21 cross).
+- [ ] Add an early-exit on a reversal signal (bearish cross in the 1-min 8/10/20 ribbon).
 - [ ] Fail safe on feed loss / errors: stop opening new positions and alert.
 
 ## Phase 6 — Persistence (SQL Server)

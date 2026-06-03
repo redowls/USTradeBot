@@ -15,11 +15,12 @@ a state machine that moves between *waiting → evaluating → executing → man
 ## System Architecture
 
 A single long-lived process holds a WebSocket connection to Alpaca's market-data
-feed. Ticks are aggregated into 1-minute candles, candles feed an indicator
-engine, and the indicators feed a **signal + confidence scorer**. If confidence
-clears the threshold, the order executor sizes and submits the trade; once a
-position is open, the risk manager owns it until close. Events are written to SQL
-Server and pushed straight to Telegram.
+feed. Ticks are aggregated into candles on **two timeframes** — 1-minute (entry
+timing) and 5-minute (trend context) — which feed an indicator engine that
+maintains an EMA **ribbon** on each. The indicators feed a **signal + confidence
+scorer**. If confidence clears the threshold, the order executor sizes and submits
+the trade; once a position is open, the risk manager owns it until close. Events
+are written to SQL Server and pushed straight to Telegram.
 
 ```
 Alpaca WebSocket ──► Data Ingestion ──► Candle Aggregator ──► Indicator Engine
@@ -49,9 +50,11 @@ Alpaca WebSocket ──► Data Ingestion ──► Candle Aggregator ──► 
 behavior predictable.
 
 **2. Evaluation.** Real-time data arrives over the Alpaca WebSocket and is
-aggregated into 1-minute candles. On each **closed** candle, the indicator engine
-recomputes the moving averages, RSI, volume average, and the higher-timeframe
-trend, then produces a confidence score (below).
+aggregated into 1-minute **and** 5-minute candles. On each **closed** candle the
+indicator engine updates the relevant EMA ribbon (plus RSI and volume on the
+1-minute series). The 5-minute **21/34/55** ribbon defines the trend *gate*; a
+fresh bullish cross in the 1-minute **8/10/20** ribbon is the entry *trigger*.
+When both align, the scorer produces a confidence score (below).
 
 **3. Execution.** If confidence ≥ the entry threshold, the bot sizes the position
 from the confidence score and submits the order to Alpaca — preferably as a
@@ -59,7 +62,7 @@ from the confidence score and submits the order to Alpaca — preferably as a
 
 **4. Risk Management.** With a bracket order, the stop and target live broker-side
 and execute even if the bot disconnects. The bot still monitors for a reversal
-signal (e.g. a bearish MA cross) to exit early.
+signal (a bearish cross in the 1-minute 8/10/20 ribbon) to exit early.
 
 ---
 
@@ -78,8 +81,9 @@ That works as a starting point but has weaknesses worth fixing:
    candle while it stays above.
 3. **Act on closed candles only.** The current candle's values change until it
    closes; acting early causes repainting / phantom signals.
-4. **Add a trend filter.** Buying a 9/21 cross *against* the larger trend gets
-   chopped up. Require price above a 50-period MA (or the EMA slope to be up).
+4. **Filter with a higher-timeframe trend.** Taking a cross *against* the larger
+   trend gets chopped up. Gate entries on a slower **5-minute 21/34/55 EMA ribbon**
+   that must be stacked bullishly (`21 > 34 > 55`, rising) before any long is allowed.
 5. **Confirm with volume.** Crossovers on thin volume are unreliable; favor
    volume above its recent average.
 6. **Don't buy a falling knife on RSI.** Instead of "RSI < 30," prefer "RSI
@@ -87,9 +91,45 @@ That works as a starting point but has weaknesses worth fixing:
    healthy momentum. Penalize overbought (> 70).
 7. **Use EMAs over SMAs on 1-minute data** to reduce lag/whipsaw (optional).
 
-The improved entry: a fresh **bullish 9/21 EMA crossover on a closed candle**,
-filtered by higher-timeframe trend, and confirmed by RSI, volume, and volatility
-sanity — all rolled into a single confidence score.
+The resulting entry is **multi-timeframe**: a slow ribbon gates the trend, a fast
+ribbon times the cross, and RSI/volume/volatility confirm — all rolled into a
+single confidence score. The concrete rules follow.
+
+---
+
+## Entry Logic — Multi-Timeframe Triple-MA Ribbon
+
+Two EMA **ribbons** (three EMAs each) on two timeframes. A ribbon counts as
+"bullish" only when it is both **stacked** (`fast > mid > slow`) and **sloping up**
+(each EMA above its prior value, the gaps widening) — a stacked-but-flat tangle,
+where the three EMAs are glued together, scores low.
+
+**Gate — 5-minute 21 / 34 / 55 (a *state*, not a trigger).** Evaluated on the
+latest closed 5-minute candle:
+
+```
+gate_open = ema21 > ema34 > ema55  AND  ema21 rising
+```
+
+If the gate is closed, no long is allowed and the 1-minute trigger is ignored. The
+gate is a standing filter; it never fires an entry on its own.
+
+**Trigger — 1-minute 8 / 10 / 20 (the *cross*).** Evaluated only when the gate is
+open, comparing this closed 1-minute candle to the previous one:
+
+```
+fresh_cross = prev_ema8 ≤ prev_ema10          # was not yet bullish
+          AND ema8 > ema10                     # now bullish
+          AND ema8 > ema20 AND ema10 > ema20   # full stack above the slow anchor
+```
+
+The `prev ≤` term makes this fire **once** per cross, not every candle the ribbon
+stays stacked. Requiring the **full stack** (above the 20) rejects shallow 8×10
+crosses that haven't cleared the slow EMA — fewer, higher-quality entries on noisy
+1-minute data.
+
+**Entry.** `enter_candidate = gate_open AND fresh_cross`. Only candidates that pass
+*both* are scored; the confidence threshold and position sizing then apply as below.
 
 ---
 
@@ -100,8 +140,8 @@ confidence. Weights are illustrative — tune them on paper.
 
 | Component | Weight | 1.0 (high) → 0.0 (low) |
 |---|---:|---|
-| Crossover strength | 30 | Fresh bullish 9/21 cross with a widening gap → stale or no cross |
-| Higher-TF trend | 20 | Price above the 50-MA → below it |
+| Crossover strength | 30 | Fresh 1-min 8/10/20 cross, ribbon wide & accelerating → tight/barely-crossed or none |
+| Higher-TF trend | 20 | 5-min 21/34/55 stacked & expanding → flat or unstacked |
 | RSI / momentum | 20 | Turning up from oversold, or in the 45–65 zone → overbought (>70) |
 | Volume confirmation | 15 | ≥1.5× avg volume → well below average |
 | Volatility / spread sanity | 15 | Tight spread, clean stop distance → spike / poor fill conditions |
@@ -208,10 +248,13 @@ reviewing whether higher-confidence trades actually perform better.
 | Parameter | Example | Notes |
 |---|---|---|
 | `WATCHLIST` | `NFLX, BIRD, WPM` | Symbols to subscribe to |
-| `CANDLE_INTERVAL` | `1m` | Aggregation window |
-| `FAST_MA_PERIOD` / `SLOW_MA_PERIOD` | `9` / `21` | EMA crossover (the trigger) |
-| `TREND_MA_PERIOD` | `50` | Higher-timeframe trend filter |
-| `RSI_PERIOD` | `14` | RSI lookback |
+| `CANDLE_INTERVAL` | `1m` | Short-timeframe aggregation (trigger ribbon) |
+| `LONG_CANDLE_INTERVAL` | `5m` | Higher-timeframe aggregation (gate ribbon) |
+| `SHORT_MA_PERIODS` | `8,10,20` | 1-min trigger ribbon (fast/mid/slow EMA) |
+| `LONG_MA_PERIODS` | `21,34,55` | 5-min gate ribbon (fast/mid/slow EMA) |
+| `RSI_PERIOD` | `14` | RSI lookback (1-min) |
+| `VOLUME_MA_PERIOD` | `20` | Rolling avg-volume lookback (1-min) |
+| `ATR_PERIOD` | `14` | ATR lookback for the volatility sub-score (1-min) |
 | `ENTRY_THRESHOLD` | `60` | Min confidence % to enter |
 | `MIN_ALLOC` / `MAX_ALLOC` | `0.10` / `0.40` | Model-A wallet fraction range |
 | `MAX_RISK_PER_TRADE` | `0.02` | Model-B risk ceiling |

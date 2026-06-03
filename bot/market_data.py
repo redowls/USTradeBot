@@ -91,13 +91,27 @@ class MarketDataClient:
         cfg: Config,
         *,
         on_candle: Callable[[Candle], None] | None = None,
+        on_long_candle: Callable[[Candle], None] | None = None,
         window: int = DEFAULT_WINDOW,
+        long_window: int = DEFAULT_WINDOW,
         trading_factory: Callable[[], TradingClient] | None = None,
         stream_factory: Callable[[], StockDataStream] | None = None,
     ) -> None:
         self._cfg = cfg
         self._on_candle = on_candle
-        self.aggregator = CandleAggregator(window=window, on_close=self._handle_closed)
+        self._on_long_candle = on_long_candle
+        # Two timeframes off the same trade stream: a 1-min trigger ribbon and a
+        # 5-min gate ribbon (see summary.md). Each trade feeds both aggregators.
+        self.aggregator = CandleAggregator(
+            interval_seconds=cfg.interval_seconds,
+            window=window,
+            on_close=self._handle_closed,
+        )
+        self.long_aggregator = CandleAggregator(
+            interval_seconds=cfg.long_interval_seconds,
+            window=long_window,
+            on_close=self._handle_long_closed,
+        )
         self._trading_factory = trading_factory or self._default_trading_client
         self._stream_factory = stream_factory or self._default_stream
         self._stream: StockDataStream | None = None
@@ -155,17 +169,27 @@ class MarketDataClient:
 
     async def _on_trade(self, trade) -> None:
         """Async handler invoked by the stream for each incoming trade tick."""
-        self.aggregator.add_trade(
-            trade.symbol, trade.timestamp, float(trade.price), float(trade.size)
-        )
-        # The freshest tick's timestamp is our wall clock: use it to close any
-        # other symbol's candle whose minute has fully elapsed.
-        self.aggregator.flush(trade.timestamp)
+        symbol, ts = trade.symbol, trade.timestamp
+        price, size = float(trade.price), float(trade.size)
+        for agg in (self.aggregator, self.long_aggregator):
+            agg.add_trade(symbol, ts, price, size)
+            # The freshest tick's timestamp is our wall clock: use it to close any
+            # other symbol's candle whose interval has fully elapsed.
+            agg.flush(ts)
 
     def _handle_closed(self, candle: Candle) -> None:
+        self._emit(candle, self._cfg.candle_interval, self._on_candle)
+
+    def _handle_long_closed(self, candle: Candle) -> None:
+        self._emit(candle, self._cfg.long_candle_interval, self._on_long_candle)
+
+    def _emit(
+        self, candle: Candle, interval: str, callback: Callable[[Candle], None] | None
+    ) -> None:
         log.info(
-            "candle %s %s O=%.4f H=%.4f L=%.4f C=%.4f V=%.0f n=%d",
+            "candle %s [%s] %s O=%.4f H=%.4f L=%.4f C=%.4f V=%.0f n=%d",
             candle.symbol,
+            interval,
             candle.start.isoformat(),
             candle.open,
             candle.high,
@@ -174,11 +198,11 @@ class MarketDataClient:
             candle.volume,
             candle.trades,
         )
-        if self._on_candle is not None:
+        if callback is not None:
             try:
-                self._on_candle(candle)
+                callback(candle)
             except Exception:  # a downstream bug must not kill ingestion
-                log.exception("on_candle callback failed for %s", candle.symbol)
+                log.exception("candle callback failed for %s", candle.symbol)
 
     def _build_stream(self) -> StockDataStream:
         stream = self._stream_factory()

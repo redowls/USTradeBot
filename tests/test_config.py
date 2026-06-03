@@ -17,9 +17,10 @@ _VALID_ENV = {
 def _set_env(monkeypatch, **overrides):
     for k in list(_VALID_ENV) + [
         "ALPACA_BASE_URL",
-        "FAST_MA_PERIOD",
-        "SLOW_MA_PERIOD",
-        "TREND_MA_PERIOD",
+        "SHORT_MA_PERIODS",
+        "LONG_MA_PERIODS",
+        "CANDLE_INTERVAL",
+        "LONG_CANDLE_INTERVAL",
         "ENTRY_THRESHOLD",
         "MIN_ALLOC",
         "MAX_ALLOC",
@@ -35,8 +36,10 @@ def test_loads_defaults(monkeypatch):
     _set_env(monkeypatch)
     cfg = Config.load(dotenv=False)
     assert cfg.watchlist == ("NFLX", "BIRD", "WPM")
-    assert cfg.fast_ma_period == 9
-    assert cfg.slow_ma_period == 21
+    assert cfg.short_ma_periods == (8, 10, 20)
+    assert cfg.long_ma_periods == (21, 34, 55)
+    assert cfg.interval_seconds == 60
+    assert cfg.long_interval_seconds == 300
     assert cfg.entry_threshold == 60.0
     assert "paper" in cfg.alpaca_base_url
 
@@ -54,10 +57,29 @@ def test_rejects_live_endpoint(monkeypatch):
         Config.load(dotenv=False)
 
 
-def test_rejects_bad_ma_ordering(monkeypatch):
-    _set_env(monkeypatch, FAST_MA_PERIOD="21", SLOW_MA_PERIOD="9")
+def test_rejects_bad_ribbon_ordering(monkeypatch):
+    _set_env(monkeypatch, SHORT_MA_PERIODS="20,10,8")  # must be fast<mid<slow
     with pytest.raises(ConfigError):
         Config.load(dotenv=False)
+
+
+def test_rejects_wrong_ribbon_length(monkeypatch):
+    _set_env(monkeypatch, SHORT_MA_PERIODS="8,10")  # needs exactly 3
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+
+
+def test_rejects_long_interval_not_longer(monkeypatch):
+    _set_env(monkeypatch, CANDLE_INTERVAL="5m", LONG_CANDLE_INTERVAL="1m")
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+
+
+def test_interval_parsing(monkeypatch):
+    _set_env(monkeypatch, CANDLE_INTERVAL="30s", LONG_CANDLE_INTERVAL="2m")
+    cfg = Config.load(dotenv=False)
+    assert cfg.interval_seconds == 30
+    assert cfg.long_interval_seconds == 120
 
 
 def test_watchlist_parsing(monkeypatch):

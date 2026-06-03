@@ -105,6 +105,18 @@ def test_on_trade_aggregates_and_closes_via_flush(cfg):
     assert seen[0].symbol == "NFLX" and seen[0].volume == 10
 
 
+def test_on_trade_feeds_both_timeframes(cfg):
+    short_seen, long_seen = [], []
+    client = MarketDataClient(cfg, on_candle=short_seen.append, on_long_candle=long_seen.append)
+    # minute 30 (5-min bucket 14:30), then minute 35 closes both the 1-min bar
+    # for minute 30 and the 5-min bar for 14:30.
+    asyncio.run(client._on_trade(_trade("NFLX", 30, 1, 100.0, 5)))
+    asyncio.run(client._on_trade(_trade("NFLX", 35, 1, 105.0, 3)))
+    assert len(short_seen) == 1 and short_seen[0].start.minute == 30
+    assert len(long_seen) == 1 and long_seen[0].start.minute == 30
+    assert long_seen[0].volume == 5  # only the minute-30 trade fell in the 14:30 bar
+
+
 def test_on_candle_callback_error_does_not_propagate(cfg):
     def boom(_candle):
         raise RuntimeError("downstream bug")

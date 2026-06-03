@@ -1,4 +1,4 @@
-"""Tests for the indicator engine (Phase 2).
+"""Tests for the indicator engine (Phase 2, generalized to ribbons in Phase 3).
 
 The indicator math is asserted against hand-computed values on small periods so
 the expectations are checkable by eye.
@@ -12,7 +12,9 @@ import pytest
 
 from bot.candles import Candle
 from bot.indicators import (
-    IndicatorEngine,
+    Ribbon,
+    RibbonEngine,
+    _Atr,
     _Ema,
     _Rsi,
     _Sma,
@@ -22,14 +24,22 @@ from bot.indicators import (
 _START = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
 
 
-def _candle(i: int, close: float, *, volume: float = 100.0, symbol: str = "NFLX") -> Candle:
-    """A closed candle at minute ``i`` with a flat O/H/L = close (only close/volume matter here)."""
+def _candle(
+    i: int,
+    close: float,
+    *,
+    high: float | None = None,
+    low: float | None = None,
+    volume: float = 100.0,
+    symbol: str = "NFLX",
+) -> Candle:
+    """A closed candle at minute ``i``; O/H/L default to close unless given."""
     return Candle(
         symbol=symbol,
         start=_START + timedelta(minutes=i),
         open=close,
-        high=close,
-        low=close,
+        high=close if high is None else high,
+        low=close if low is None else low,
         close=close,
         volume=volume,
         trades=1,
@@ -78,6 +88,17 @@ def test_rsi_rejects_degenerate_period():
         _Rsi(1)
 
 
+def test_atr_seeds_then_wilder_smooths():
+    atr = _Atr(2)
+    # bar1: no prev close -> TR = high-low = 2
+    assert atr.update(11.0, 9.0, 10.0) is None
+    # bar2: TR = max(12-11, |12-10|, |11-10|) = 2 -> seed = mean(2,2) = 2
+    assert atr.update(12.0, 11.0, 11.5) == pytest.approx(2.0)
+    # bar3: TR = max(13-12, |13-11.5|, |12-11.5|) = 1.5
+    # Wilder: (2*(2-1) + 1.5)/2 = 1.75
+    assert atr.update(13.0, 12.0, 12.5) == pytest.approx(1.75)
+
+
 def test_trailing_mean_excludes_current_value():
     tm = _TrailingMean(2)
     assert tm.current() is None
@@ -89,49 +110,64 @@ def test_trailing_mean_excludes_current_value():
     assert tm.current() == pytest.approx(25.0)  # mean(20, 30), 10 aged out
 
 
-# --- engine ----------------------------------------------------------------
+# --- ribbon ----------------------------------------------------------------
 
 
-def test_snapshot_not_ready_until_all_indicators_seeded():
-    eng = IndicatorEngine(
-        fast_period=2, slow_period=3, trend_period=4, rsi_period=2, volume_period=2
-    )
-    snaps = [eng.update(_candle(i, 100.0 + i)) for i in range(4)]
-    # trend(4) is the longest -> ready on the 4th candle (index 3)
-    assert [s.ready for s in snaps] == [False, False, False, True]
-    last = snaps[-1]
-    assert last.fast_ema is not None and last.slow_ema is not None
-    assert last.trend_ma is not None and last.rsi is not None and last.avg_volume is not None
+def test_ribbon_rejects_bad_ordering():
+    with pytest.raises(ValueError):
+        Ribbon((20, 10, 8))
 
 
-def test_snapshot_carries_previous_emas_for_crossover_detection():
-    eng = IndicatorEngine(
-        fast_period=2, slow_period=3, trend_period=3, rsi_period=2, volume_period=2
-    )
-    first = eng.update(_candle(0, 100.0))
-    assert first.prev_fast_ema is None and first.prev_slow_ema is None
-    second = eng.update(_candle(1, 101.0))
-    assert second.prev_fast_ema == first.fast_ema
-    assert second.prev_slow_ema == first.slow_ema
+def test_ribbon_tracks_current_and_previous():
+    r = Ribbon((1, 2, 3))  # period-1 EMA == price, others seed slower
+    r.update(10.0)
+    first = r.values
+    r.update(11.0)
+    assert r.prev == first
 
 
-def test_fresh_bullish_cross_is_detectable_from_one_snapshot():
-    # Fast EMA starts below slow, then a jump pushes it above: prev<=, curr>.
-    eng = IndicatorEngine(
-        fast_period=2, slow_period=3, trend_period=3, rsi_period=2, volume_period=2
-    )
-    closes = [10.0, 9.0, 8.0, 8.0, 20.0]  # decline (fast<=slow) then a spike up
+# --- engine: snapshot helpers ---------------------------------------------
+
+
+def _engine(**kw) -> RibbonEngine:
+    """Trigger-style engine with small periods for hand-checkable behavior."""
+    opts = dict(rsi_period=2, volume_period=2, atr_period=2, interval_seconds=60)
+    opts.update(kw)
+    return RibbonEngine((2, 3, 4), **opts)
+
+
+def test_ribbon_not_ready_until_seeded_with_prev():
+    eng = _engine()
+    snaps = [eng.update(_candle(i, 100.0 + i)) for i in range(6)]
+    readys = [s.ribbon_ready for s in snaps]
+    # slow EMA (period 4) seeds on candle index 3; prev-ribbon complete on index 4.
+    assert readys[3] is False
+    assert readys[4] is True
+
+
+def test_stacked_and_fresh_cross_detection():
+    eng = _engine()
+    # Decline so fast<=mid, then a sharp spike to force a fresh bullish cross.
+    closes = [20.0, 18.0, 16.0, 14.0, 12.0, 40.0]
     snap = None
     for i, c in enumerate(closes):
         snap = eng.update(_candle(i, c))
-    assert snap.prev_fast_ema <= snap.prev_slow_ema
-    assert snap.fast_ema > snap.slow_ema  # the cross happened on this candle
+    assert snap.ribbon_ready
+    assert snap.stacked  # fast > mid > slow after the spike
+    assert snap.fresh_cross  # prev fast<=mid, now stacked above slow
+
+
+def test_gate_open_requires_stacked_and_rising():
+    eng = RibbonEngine((2, 3, 4), interval_seconds=300)
+    snap = None
+    for i, c in enumerate([10.0, 11.0, 12.0, 13.0, 14.0, 15.0]):
+        snap = eng.update(_candle(i, c))
+    assert snap.gate_open  # steadily rising -> stacked and fast rising
+    assert snap.rsi is None and snap.atr is None  # gate engine has no extras
 
 
 def test_avg_volume_is_trailing_not_self_inclusive():
-    eng = IndicatorEngine(
-        fast_period=2, slow_period=3, trend_period=2, rsi_period=2, volume_period=2
-    )
+    eng = _engine()
     vols = [100.0, 200.0, 300.0, 400.0]
     snaps = [eng.update(_candle(i, 50.0 + i, volume=v)) for i, v in enumerate(vols)]
     assert snaps[0].avg_volume is None and snaps[1].avg_volume is None
@@ -140,37 +176,34 @@ def test_avg_volume_is_trailing_not_self_inclusive():
 
 
 def test_symbols_are_independent():
-    eng = IndicatorEngine(
-        fast_period=2, slow_period=3, trend_period=3, rsi_period=2, volume_period=2
-    )
-    for i in range(3):
+    eng = _engine()
+    for i in range(5):
         eng.update(_candle(i, 100.0 + i, symbol="NFLX"))
     nflx = eng.snapshot("NFLX")
     eng.update(_candle(0, 50.0, symbol="WPM"))
     wpm = eng.snapshot("WPM")
-    assert nflx.symbol == "NFLX" and nflx.fast_ema is not None
-    assert wpm.symbol == "WPM" and wpm.fast_ema is None  # WPM only one candle in
+    assert nflx.symbol == "NFLX" and nflx.ribbon_ready
+    assert wpm.symbol == "WPM" and not wpm.ribbon_ready  # WPM only one candle in
     assert eng.snapshot("BIRD") is None  # never updated
 
 
-def test_from_config_uses_config_periods():
-    eng = IndicatorEngine.from_config(_FakeConfig())
-    assert eng._fast == 9 and eng._slow == 21 and eng._trend == 50
-    assert eng._rsi == 14 and eng._volume == 20
-
-
-def test_engine_rejects_bad_periods():
-    with pytest.raises(ValueError):
-        IndicatorEngine(fast_period=21, slow_period=9)  # fast must be < slow
-    with pytest.raises(ValueError):
-        IndicatorEngine(trend_period=0)
+def test_trigger_and_gate_from_config():
+    cfg = _FakeConfig()
+    trig = RibbonEngine.trigger(cfg)
+    gate = RibbonEngine.gate(cfg)
+    assert trig._periods == (8, 10, 20) and trig._interval == 60
+    assert trig._rsi == 14 and trig._atr == 14 and trig._volume == 20
+    assert gate._periods == (21, 34, 55) and gate._interval == 300
+    assert gate._rsi == 0 and gate._atr == 0  # gate carries the ribbon only
 
 
 class _FakeConfig:
-    """Minimal stand-in exposing only the period fields the engine reads."""
+    """Minimal stand-in exposing only the fields the engine factories read."""
 
-    fast_ma_period = 9
-    slow_ma_period = 21
-    trend_ma_period = 50
+    short_ma_periods = (8, 10, 20)
+    long_ma_periods = (21, 34, 55)
     rsi_period = 14
     volume_ma_period = 20
+    atr_period = 14
+    interval_seconds = 60
+    long_interval_seconds = 300

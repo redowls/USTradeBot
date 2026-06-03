@@ -25,6 +25,8 @@ except ImportError:  # dotenv is optional at runtime (env may be set directly)
 
 EASTERN = ZoneInfo("America/New_York")
 
+_INTERVAL_UNITS = {"s": 1, "m": 60, "h": 3600}
+
 
 class ConfigError(RuntimeError):
     """Raised when required config is missing or a value is out of range."""
@@ -72,6 +74,36 @@ def _csv(name: str, default: str) -> tuple[str, ...]:
     return items
 
 
+def _periods3(name: str, default: str) -> tuple[int, int, int]:
+    """Parse a 3-period EMA ribbon spec like ``8,10,20`` (fast, mid, slow)."""
+    raw = os.environ.get(name, default)
+    try:
+        parts = tuple(int(p.strip()) for p in raw.split(",") if p.strip())
+    except ValueError as e:
+        raise ConfigError(f"{name} must be comma-separated integers, got {raw!r}.") from e
+    if len(parts) != 3:
+        raise ConfigError(f"{name} must list exactly 3 periods (fast,mid,slow), got {raw!r}.")
+    return parts  # type: ignore[return-value]
+
+
+def _interval_to_seconds(value: str, name: str) -> int:
+    """Parse a candle interval like ``1m`` / ``5m`` / ``30s`` / ``1h`` into seconds."""
+    v = value.strip().lower()
+    if not v:
+        raise ConfigError(f"{name} must not be empty.")
+    if v[-1] in _INTERVAL_UNITS:
+        num, mult = v[:-1], _INTERVAL_UNITS[v[-1]]
+    else:
+        num, mult = v, 1  # bare number = seconds
+    try:
+        n = int(num)
+    except ValueError as e:
+        raise ConfigError(f"{name} must look like '1m' / '5m' / '30s', got {value!r}.") from e
+    if n <= 0:
+        raise ConfigError(f"{name} must be positive, got {value!r}.")
+    return n * mult
+
+
 def _hhmm(name: str, default: str) -> time:
     raw = os.environ.get(name, default).strip()
     try:
@@ -93,14 +125,17 @@ class Config:
     alpaca_base_url: str
     alpaca_data_feed: str
 
-    # Strategy
+    # Strategy — dual-timeframe EMA ribbons (see summary.md)
     watchlist: tuple[str, ...]
-    candle_interval: str
-    fast_ma_period: int
-    slow_ma_period: int
-    trend_ma_period: int
+    candle_interval: str  # trigger timeframe, e.g. "1m"
+    long_candle_interval: str  # gate timeframe, e.g. "5m"
+    interval_seconds: int  # candle_interval in seconds
+    long_interval_seconds: int  # long_candle_interval in seconds
+    short_ma_periods: tuple[int, int, int]  # 1-min trigger ribbon (fast/mid/slow EMA)
+    long_ma_periods: tuple[int, int, int]  # 5-min gate ribbon (fast/mid/slow EMA)
     rsi_period: int
     volume_ma_period: int
+    atr_period: int
     entry_threshold: float
 
     # Sizing
@@ -126,6 +161,9 @@ class Config:
         if dotenv:
             load_dotenv()  # no-op if .env absent or dotenv not installed
 
+        candle_interval = _str("CANDLE_INTERVAL", "1m")
+        long_candle_interval = _str("LONG_CANDLE_INTERVAL", "5m")
+
         cfg = cls(
             alpaca_key_id=_req("ALPACA_KEY_ID"),
             alpaca_secret=_req("ALPACA_SECRET"),
@@ -134,12 +172,17 @@ class Config:
             alpaca_base_url=_str("ALPACA_BASE_URL", "https://paper-api.alpaca.markets"),
             alpaca_data_feed=_str("ALPACA_DATA_FEED", "iex"),
             watchlist=_csv("WATCHLIST", "NFLX,BIRD,WPM"),
-            candle_interval=_str("CANDLE_INTERVAL", "1m"),
-            fast_ma_period=_int("FAST_MA_PERIOD", 9),
-            slow_ma_period=_int("SLOW_MA_PERIOD", 21),
-            trend_ma_period=_int("TREND_MA_PERIOD", 50),
+            candle_interval=candle_interval,
+            long_candle_interval=long_candle_interval,
+            interval_seconds=_interval_to_seconds(candle_interval, "CANDLE_INTERVAL"),
+            long_interval_seconds=_interval_to_seconds(
+                long_candle_interval, "LONG_CANDLE_INTERVAL"
+            ),
+            short_ma_periods=_periods3("SHORT_MA_PERIODS", "8,10,20"),
+            long_ma_periods=_periods3("LONG_MA_PERIODS", "21,34,55"),
             rsi_period=_int("RSI_PERIOD", 14),
             volume_ma_period=_int("VOLUME_MA_PERIOD", 20),
+            atr_period=_int("ATR_PERIOD", 14),
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
             min_alloc=_float("MIN_ALLOC", 0.10),
             max_alloc=_float("MAX_ALLOC", 0.40),
@@ -160,10 +203,17 @@ class Config:
             raise ConfigError(
                 f"ALPACA_BASE_URL must be the paper endpoint, got {self.alpaca_base_url!r}."
             )
-        if not 0 < self.fast_ma_period < self.slow_ma_period:
-            raise ConfigError("Require 0 < FAST_MA_PERIOD < SLOW_MA_PERIOD.")
-        if self.trend_ma_period <= self.slow_ma_period:
-            raise ConfigError("TREND_MA_PERIOD should be > SLOW_MA_PERIOD.")
+        for name, periods in (
+            ("SHORT_MA_PERIODS", self.short_ma_periods),
+            ("LONG_MA_PERIODS", self.long_ma_periods),
+        ):
+            a, b, c = periods
+            if not 0 < a < b < c:
+                raise ConfigError(
+                    f"{name} must be three increasing positive periods (fast<mid<slow)."
+                )
+        if self.long_interval_seconds <= self.interval_seconds:
+            raise ConfigError("LONG_CANDLE_INTERVAL must be longer than CANDLE_INTERVAL.")
         if not 0 <= self.entry_threshold <= 100:
             raise ConfigError("ENTRY_THRESHOLD must be in [0, 100].")
         if not 0 < self.min_alloc <= self.max_alloc <= 1:
@@ -178,3 +228,5 @@ class Config:
             raise ConfigError("RSI_PERIOD must be > 1.")
         if self.volume_ma_period <= 0:
             raise ConfigError("VOLUME_MA_PERIOD must be positive.")
+        if self.atr_period <= 0:
+            raise ConfigError("ATR_PERIOD must be positive.")

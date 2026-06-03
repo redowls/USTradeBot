@@ -1,0 +1,165 @@
+"""Tests for the strategy state machine (Phase 3).
+
+The two ribbon engines are replaced with fakes that return scripted snapshots, so
+these tests exercise the state transitions and entry wiring without driving real
+indicator history.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import pytest
+
+from bot.candles import Candle
+from bot.config import Config
+from bot.indicators import RibbonSnapshot
+from bot.strategy import BotState, StrategyEngine
+
+# A Tuesday, 14:00 UTC == 10:00 EDT -> inside the regular session.
+_OPEN_TS = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
+# A Saturday -> market closed.
+_WEEKEND_TS = datetime(2026, 6, 6, 14, 0, tzinfo=UTC)
+
+_ENV = {
+    "ALPACA_KEY_ID": "k",
+    "ALPACA_SECRET": "s",
+    "TELEGRAM_TOKEN": "t",
+    "TELEGRAM_CHAT_ID": "c",
+}
+
+
+@pytest.fixture
+def cfg(monkeypatch):
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    return Config.load(dotenv=False)
+
+
+class _FakeEngine:
+    """Returns queued snapshots in order; remembers the last as ``snapshot``."""
+
+    def __init__(self, snaps):
+        self._snaps = list(snaps)
+        self.last = None
+
+    def update(self, candle):
+        self.last = self._snaps.pop(0)
+        return self.last
+
+    def snapshot(self, _symbol):
+        return self.last
+
+
+def _candle(ts=_OPEN_TS, *, close=100.0, symbol="NFLX") -> Candle:
+    return Candle(
+        symbol=symbol,
+        start=ts,
+        open=close,
+        high=close,
+        low=close,
+        close=close,
+        volume=100.0,
+        trades=1,
+    )
+
+
+def _ribbon_snap(ribbon, prev_ribbon, *, ts=_OPEN_TS, close=100.0, **extra) -> RibbonSnapshot:
+    fields = dict(
+        rsi=None, prev_rsi=None, avg_volume=None, atr=None, volume=100.0, interval_seconds=60
+    )
+    fields.update(extra)
+    return RibbonSnapshot(
+        symbol="NFLX",
+        candle_start=ts,
+        close=close,
+        ribbon=ribbon,
+        prev_ribbon=prev_ribbon,
+        **fields,
+    )
+
+
+def _open_gate() -> RibbonSnapshot:
+    return _ribbon_snap((102.0, 101.0, 100.0), (101.0, 100.5, 100.0), interval_seconds=300)
+
+
+def _fresh_strong_trigger() -> RibbonSnapshot:
+    return _ribbon_snap(
+        (101.0, 100.4, 100.0),
+        (99.9, 100.4, 100.0),
+        close=100.0,
+        rsi=55.0,
+        prev_rsi=50.0,
+        volume=200.0,
+        avg_volume=100.0,
+        atr=0.1,
+    )
+
+
+def _not_ready_trigger() -> RibbonSnapshot:
+    return _ribbon_snap((None, None, None), (None, None, None))
+
+
+def test_warming_up_stays_waiting(cfg):
+    eng = StrategyEngine(cfg, trigger_engine=_FakeEngine([_not_ready_trigger()]))
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    assert eng.state("NFLX") is BotState.WAITING
+
+
+def test_market_closed_stays_waiting(cfg):
+    eng = StrategyEngine(cfg, trigger_engine=_FakeEngine([_fresh_strong_trigger()]))
+    sig = eng.on_short_candle(_candle(ts=_WEEKEND_TS))
+    assert sig is None
+    assert eng.state("NFLX") is BotState.WAITING
+
+
+def test_entry_emits_signal_when_gate_and_trigger_align(cfg):
+    seen = []
+    eng = StrategyEngine(
+        cfg,
+        on_signal=seen.append,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())  # refresh the gate first
+    sig = eng.on_short_candle(_candle())
+    assert sig is not None
+    assert sig.symbol == "NFLX"
+    assert sig.confidence.total >= cfg.entry_threshold
+    assert seen == [sig]
+    assert eng.state("NFLX") is BotState.EVALUATING
+
+
+def test_no_signal_without_open_gate(cfg):
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([]),  # never updated -> no gate snapshot
+    )
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    assert eng.state("NFLX") is BotState.EVALUATING  # evaluated, just no candidate
+
+
+def test_executing_state_is_not_re_evaluated(cfg):
+    eng = StrategyEngine(cfg, trigger_engine=_FakeEngine([_fresh_strong_trigger()]))
+    eng._state["NFLX"] = BotState.EXECUTING  # Phase 4 would own this
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    assert eng.state("NFLX") is BotState.EXECUTING  # unchanged
+
+
+def test_signal_callback_error_is_swallowed(cfg):
+    def boom(_sig):
+        raise RuntimeError("alert down")
+
+    eng = StrategyEngine(
+        cfg,
+        on_signal=boom,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    sig = eng.on_short_candle(_candle())  # must not raise
+    assert sig is not None
