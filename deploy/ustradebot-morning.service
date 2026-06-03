@@ -1,0 +1,15 @@
+# Morning "bot is alive" ping (Phase 10 monitoring add-on). Run by
+# ustradebot-morning.timer at 09:35 ET on trading days. Pushes a status snapshot
+# (service/market/feed/trades) to Telegram so you get a proactive daily "watching N
+# symbols, market open" confirmation, complementing the post-close report.
+
+[Unit]
+Description=USTradeBot morning status ping
+
+[Service]
+Type=oneshot
+User=ustradebot
+Group=ustradebot
+WorkingDirectory=/opt/ustradebot
+EnvironmentFile=/opt/ustradebot/.env
+ExecStart=/opt/ustradebot/deploy/status.sh --telegram

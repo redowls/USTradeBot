@@ -1,0 +1,14 @@
+# Fire the morning status ping at 09:35 US Eastern, Mon-Fri (5 min after the open, so
+# the market-hours gate is up and the feed is live). The America/New_York suffix makes
+# this DST-safe (EST/EDT) per the project timezone invariant — never a hardcoded UTC
+# offset. Persistent= catches up if the box was off at the trigger time.
+
+[Unit]
+Description=USTradeBot morning status ping timer
+
+[Timer]
+OnCalendar=Mon-Fri 09:35 America/New_York
+Persistent=true
+
+[Install]
+WantedBy=timers.target
