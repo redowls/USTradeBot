@@ -16,14 +16,33 @@ persistence (Phase 6), and Telegram alerts (Phase 7) hook into the ``on_signal``
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
+from typing import TypeVar
 
 from bot.config import Config, ConfigError
 from bot.executor import ExecutionResult, OrderExecutor
 from bot.market_data import MarketDataClient
+from bot.persistence import TradeRecorder, open_store
 from bot.risk import ExitResult, RiskManager
 from bot.strategy import StrategyEngine, TradeSignal
 
 log = logging.getLogger("ustradebot")
+
+_T = TypeVar("_T")
+
+
+def _chain(*callbacks: Callable[[_T], None] | None) -> Callable[[_T], None]:
+    """Fan one event out to several sinks; one sink's failure never stops the rest."""
+    sinks = [c for c in callbacks if c is not None]
+
+    def run(arg: _T) -> None:
+        for sink in sinks:
+            try:
+                sink(arg)
+            except Exception:  # a logging/DB sink must not kill the trading path
+                log.exception("event sink %r failed", sink)
+
+    return run
 
 
 def setup_logging(level: str) -> None:
@@ -90,9 +109,25 @@ def main() -> int:
         cfg.entry_threshold,
     )
 
-    executor = OrderExecutor(cfg, on_result=_on_execution)
-    risk = RiskManager(cfg, executor=executor, on_exit=_on_exit, on_feed_alert=_on_feed_alert)
-    strategy = StrategyEngine(cfg, on_signal=_on_signal, executor=executor, risk=risk)
+    # Persistence (Phase 6): a TradeRecorder logs entries/exits + confidence to SQL
+    # Server. It rides alongside the existing log sinks via _chain; if SQLSERVER_CONN
+    # is unset or the DB is unreachable, open_store returns None and the bot trades on.
+    store = open_store(cfg)
+    recorder = TradeRecorder(store) if store is not None else None
+    rec_signal = recorder.on_signal if recorder else None
+    rec_result = recorder.on_result if recorder else None
+    rec_exit = recorder.on_exit if recorder else None
+
+    executor = OrderExecutor(cfg, on_result=_chain(_on_execution, rec_result))
+    risk = RiskManager(
+        cfg,
+        executor=executor,
+        on_exit=_chain(_on_exit, rec_exit),
+        on_feed_alert=_on_feed_alert,
+    )
+    strategy = StrategyEngine(
+        cfg, on_signal=_chain(_on_signal, rec_signal), executor=executor, risk=risk
+    )
     data = MarketDataClient(
         cfg,
         on_candle=strategy.on_short_candle,
@@ -113,6 +148,8 @@ def main() -> int:
         pass
     finally:
         data.stop()
+        if store is not None:
+            store.close()
     log.info("USTradeBot stopped.")
     return 0
 

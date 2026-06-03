@@ -4,13 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Language: Python** (chosen in Phase 0). Stack: `alpaca-py`, `python-dotenv`; `pytest` +
-`ruff` for dev. **Phases 0–5 are complete** (setup; Alpaca connection/market data —
-verified live against the paper account; the indicator engine; the signal + confidence
-scorer / state machine; position sizing + bracket-order execution; and the risk manager:
-early-exit on a 1-min bearish cross + feed-loss fail-safe). Phase 6 (persistence: SQL
-Server tables for orders/fills/positions/confidence/P&L) is next. Build progresses through
-the phases in [todo.md](todo.md) (Phase 0 → 10).
+**Language: Python** (chosen in Phase 0). Stack: `alpaca-py`, `python-dotenv`, `pyodbc`;
+`pytest` + `ruff` for dev. **Phases 0–6 are complete** (setup; Alpaca connection/market
+data — verified live against the paper account; the indicator engine; the signal +
+confidence scorer / state machine; position sizing + bracket-order execution; the risk
+manager: early-exit on a 1-min bearish cross + feed-loss fail-safe; and persistence: SQL
+Server tables for orders/positions/confidence/P&L plus an outcome-vs-confidence view,
+verified live against the `USBot` database). Phase 7 (Telegram alerts: direct `POST` to
+`sendMessage` on entry/exit/error) is next. Build progresses through the phases in
+[todo.md](todo.md) (Phase 0 → 10).
 
 **Strategy note:** the entry design is a **multi-timeframe triple-MA ribbon** — a
 1-minute **8/10/20** EMA ribbon is the *trigger*, gated by a 5-minute **21/34/55** EMA
@@ -126,10 +128,30 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   `reconcile(positions)` marks watchlist names already held at Alpaca as `MANAGING` on startup
   so the bot won't double-enter. An `EXECUTING` symbol is not touched. `on_signal` is where
   Phase 7 hooks Telegram.
+- [bot/persistence.py](bot/persistence.py) — SQL Server persistence (Phase 6), all writes
+  parameterized. `TradeStore` is the data-access layer: it owns a DB-API 2.0 connection (a
+  **pyodbc** factory via `make_pyodbc_factory`, injectable so tests run driverless), runs
+  `ensure_schema()` (executes [sql/schema.sql](sql/schema.sql), split on `GO`), and writes
+  `record_entry`/`record_exit`. **Persistence is a side-channel, never the trading critical
+  path:** every write is wrapped to log + reset the connection on error and swallow it.
+  `TradeRecorder` is the glue onto the existing callbacks — it caches the `ConfidenceBreakdown`
+  from `on_signal` and pairs it (keyed by symbol — one position per symbol) with the
+  `ExecutionResult` from `on_result` so the full sub-score breakdown lands with the entry;
+  `on_exit` closes the trade out, with realized P/L computed **in SQL** from the stored entry
+  price (the exit prices off the reversal candle's close — no fills stream yet). `open_store(cfg)`
+  returns `None` when `SQLSERVER_CONN` is unset or the DB is unreachable (the bot trades on).
+- [sql/schema.sql](sql/schema.sql) — idempotent SQL Server DDL (Phase 6): `dbo.trades`
+  (round-trip + confidence breakdown + realized P/L, the analytical core), `dbo.orders`
+  (append-only submit log), `dbo.positions` (open holdings), `dbo.fills` (reserved for the
+  trade-updates stream — created, not yet populated), and `dbo.vw_confidence_outcome` (buckets
+  closed trades by confidence band → win rate / avg P/L; answers "do higher-confidence trades
+  pay off?"). Single source of truth — the runtime bootstrap executes this same file.
 - [bot/main.py](bot/main.py) — entrypoint: loads config, sets up logging, checks + reconciles
-  the account, builds the `OrderExecutor`, `RiskManager`, and `StrategyEngine`, then wires
-  `MarketDataClient(on_candle=…, on_long_candle=…, on_feed_lost=…, on_feed_restored=…)` to feed
-  both timeframes and the feed-loss signals through them.
+  the account, opens the `TradeStore`/`TradeRecorder` (Phase 6), builds the `OrderExecutor`,
+  `RiskManager`, and `StrategyEngine` — fanning each event to both the log sink and the
+  recorder via `_chain` — then wires `MarketDataClient(on_candle=…, on_long_candle=…,
+  on_feed_lost=…, on_feed_restored=…)` to feed both timeframes and the feed-loss signals
+  through them.
 - [tests/](tests/) — pytest suite (one file per `bot/` module).
 - `.env` (gitignored, holds real paper keys) ← copy from [.env.example](.env.example).
 

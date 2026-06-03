@@ -110,10 +110,24 @@ real-capital gate. SQL Server (SSMS) is assumed available.
 
 ## Phase 6 — Persistence (SQL Server)
 
-- [ ] Tables for orders, fills, positions, **confidence score per trade**, and P/L.
-- [ ] Data-access layer with parameterized queries.
-- [ ] Write every entry/exit and its confidence to the DB.
-- [ ] A query/view that compares outcome vs confidence band.
+- [x] Tables for orders, fills, positions, **confidence score per trade**, and P/L.
+      → `sql/schema.sql`: `dbo.trades` (round-trip + confidence breakdown + realized
+      P/L), `dbo.orders` (append-only submit log), `dbo.positions` (open holdings),
+      `dbo.fills` (reserved for the trade-updates stream). Idempotent DDL; created
+      live on `USBot` (SQL Server 2022).
+- [x] Data-access layer with parameterized queries. → `bot/persistence.py`
+      `TradeStore` (pyodbc `?` placeholders; injectable connection factory; every
+      write swallows + resets on error so the DB is never on the trading critical path).
+- [x] Write every entry/exit and its confidence to the DB. → `TradeRecorder` rides the
+      existing `on_signal`/`on_result`/`on_exit` callbacks (wired in `bot/main.py` via
+      `_chain`); pairs the `ConfidenceBreakdown` from the signal with the entry, and
+      computes realized P/L in SQL from the stored entry price on exit.
+- [x] A query/view that compares outcome vs confidence band.
+      → `dbo.vw_confidence_outcome` (buckets closed trades by confidence band →
+      trades/wins/win_rate/avg_pnl/total_pnl). Verified live end-to-end.
+- [~] Real fill / partial-fill rows (`dbo.fills`) still need the broker trade-updates
+      stream — table created, population deferred (carried with Phase 4's fill-tracking
+      TODO). Exits currently price the round-trip off the reversal candle close.
 
 ## Phase 7 — Telegram alerts (direct, no n8n)
 
