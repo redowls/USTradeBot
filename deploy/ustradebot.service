@@ -1,0 +1,46 @@
+# systemd unit for USTradeBot (Phase 9).
+#
+# Install:
+#   sudo cp /opt/ustradebot/deploy/ustradebot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ustradebot
+#
+# Logs:    journalctl -u ustradebot -f
+# Status:  systemctl status ustradebot
+#
+# Assumes the layout from deploy/DEPLOY.md: repo at /opt/ustradebot, a venv at
+# /opt/ustradebot/.venv, a service account "ustradebot", and secrets in
+# /opt/ustradebot/.env (chmod 600, owned by the service account).
+
+[Unit]
+Description=USTradeBot - rule-based US-equity trading bot (Alpaca paper)
+Documentation=https://github.com/redowls/USTradeBot
+After=network-online.target
+Wants=network-online.target
+# If the bot exits non-zero (bad config / unreachable account) 5 times within
+# 5 minutes, stop restarting and enter "failed" so it doesn't crash-loop forever.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ustradebot
+Group=ustradebot
+WorkingDirectory=/opt/ustradebot
+# Secrets + tunables. EnvironmentFile takes values literally (no shell quoting /
+# no $-expansion), which is exactly what the SQLSERVER_CONN string needs.
+EnvironmentFile=/opt/ustradebot/.env
+ExecStart=/opt/ustradebot/.venv/bin/python -m bot.main
+Restart=on-failure
+RestartSec=5
+SyslogIdentifier=ustradebot
+
+# --- hardening (the bot only needs outbound network + its own dir) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ustradebot
+
+[Install]
+WantedBy=multi-user.target

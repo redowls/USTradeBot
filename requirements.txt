@@ -1,6 +1,8 @@
-# Runtime dependencies. Pinned loosely; tighten before VPS deploy (Phase 9).
-alpaca-py>=0.30
-python-dotenv>=1.0
+# Runtime dependencies. Pinned to the tested versions for the VPS deploy (Phase 9);
+# bump deliberately and re-run the suite. Compatible-release (~=) allows patch
+# updates but not minor/major jumps.
+alpaca-py~=0.43.4
+python-dotenv~=1.2.2
 # SQL Server persistence (Phase 6). Needs a system ODBC driver — "ODBC Driver 18
 # for SQL Server" on Windows dev; unixODBC + msodbcsql18 on the Ubuntu VPS.
-pyodbc>=5.1
+pyodbc~=5.3.0

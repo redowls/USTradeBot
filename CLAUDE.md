@@ -175,6 +175,11 @@ Tooling config lives in [pyproject.toml](pyproject.toml): target is **Python 3.1
   `_chain` — then wires `MarketDataClient(on_candle=…, on_long_candle=…, on_feed_lost=…,
   on_feed_restored=…)` to feed both timeframes and the feed-loss signals through them.
 - [tests/](tests/) — pytest suite (one file per `bot/` module).
+- [deploy/](deploy/) — Phase 9 VPS deployment: `ustradebot.service` (systemd unit:
+  `EnvironmentFile=.env`, `Restart=on-failure`, crash-loop cap, basic hardening),
+  `setup.sh` (no-sudo venv + pinned deps + `.env` scaffold), and `DEPLOY.md` (the
+  Ubuntu runbook — Python 3.11+, optional msodbcsql18, UTC clock, preflight, enable
+  the unit). The on-VPS steps are operator tasks.
 - `.env` (gitignored, holds real paper keys) ← copy from [.env.example](.env.example).
 
 ## What this is
@@ -267,4 +272,6 @@ invariants there too. The ribbons are configured as `SHORT_MA_PERIODS`/`LONG_MA_
 ## Deployment
 
 Ubuntu VPS, started on boot and auto-restarted on crash via `systemd`. The VPS must reach
-Alpaca, Telegram, and SQL Server.
+Alpaca, Telegram, and SQL Server. The artifacts and runbook live in [deploy/](deploy/) —
+see [deploy/DEPLOY.md](deploy/DEPLOY.md). Verify connectivity on the box with
+`python -m bot.preflight` before enabling the unit.
