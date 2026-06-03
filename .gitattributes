@@ -1,0 +1,5 @@
+# Deploy artifacts run on the Ubuntu VPS — force LF so a Windows checkout/commit
+# can't introduce CRLF (a CRLF shell script fails on Linux: "bad interpreter").
+*.sh            text eol=lf
+*.service       text eol=lf
+deploy/**       text eol=lf
