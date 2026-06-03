@@ -173,29 +173,33 @@ real-capital gate. SQL Server (SSMS) is assumed available.
       task**: needs real trades in `dbo.trades` / `dbo.vw_confidence_outcome` to tune
       `ScoreWeights` + `ENTRY_THRESHOLD`.
 
-## Phase 9 — VPS deployment
+## Phase 9 — VPS deployment ✅ (deployed live)
 
 Deployment artifacts are in [`deploy/`](deploy/); the runbook is
-[`deploy/DEPLOY.md`](deploy/DEPLOY.md). The on-VPS steps (clone, fill `.env`,
-preflight, enable the unit) are **operator tasks** — they need the VPS + secrets.
+[`deploy/DEPLOY.md`](deploy/DEPLOY.md). **Deployed live to the Ubuntu 24.04 VPS**
+(service account `ustradebot`, `/opt/ustradebot`), running as the `ustradebot`
+systemd service.
 
 - [x] Runtime pinned for deploy → `requirements.txt` (`~=` on the tested
       alpaca-py / python-dotenv / pyodbc versions); `deploy/setup.sh` builds the
       venv + installs them + scaffolds `.env` (no-sudo, idempotent).
-- [ ] Provision/access the Ubuntu VPS and install the runtime. → **operator task**;
-      commands in `deploy/DEPLOY.md` §1–§3 (Python 3.11+, optional msodbcsql18,
-      service account, venv).
-- [ ] Deploy the build; supply keys/token via env vars. → **operator task**;
-      `git clone` + `.env` (0600). The systemd unit loads it via `EnvironmentFile`.
+- [x] Provision/access the Ubuntu VPS and install the runtime. → Ubuntu 24.04 +
+      Python 3.12 + msodbcsql18 (already present); service account + venv created
+      via `deploy/setup.sh`.
+- [x] Deploy the build; supply keys/token via env vars. → `git clone` to
+      `/opt/ustradebot`; `.env` (0600, owned by `ustradebot`) loaded by the unit via
+      `EnvironmentFile`.
 - [x] Configure the process manager (`systemd`) to start on boot + auto-restart on
-      crash. → `deploy/ustradebot.service` (`Restart=on-failure`,
-      `WantedBy=multi-user.target`, crash-loop cap via `StartLimitBurst`, basic
-      hardening). Installing/enabling it is an operator task (§6).
-- [ ] Confirm the VPS reaches Alpaca, Telegram, and SQL Server. → **operator task**:
-      run `python -m bot.preflight` on the VPS (built in Phase 8); §5.
-- [ ] Set the server clock to UTC and verify the market-hours logic. → **operator
-      task**: `sudo timedatectl set-timezone UTC` (§4); the gate is EST/EDT-aware off
-      UTC (already unit-tested in Phase 8).
+      crash. → `deploy/ustradebot.service` installed + `enable --now`
+      (`Restart=on-failure`, `WantedBy=multi-user.target`, crash-loop cap via
+      `StartLimitBurst`, basic hardening). Verified `active (running)`, `enabled`.
+- [x] Confirm the VPS reaches Alpaca, Telegram, and SQL Server. → `bot.preflight`
+      on the VPS: Alpaca **PASS** (account ACTIVE), SQL Server **PASS** (local
+      mssql-server on :1433, schema ensured), Telegram **PASS** (test message
+      delivered).
+- [x] Set the server clock to UTC and verify the market-hours logic. → VPS timezone
+      set to UTC (`timedatectl`); the gate converts UTC→Eastern (EST/EDT-aware,
+      unit-tested in Phase 8). Preflight confirmed the closed-session reading.
 
 ## Phase 10 — Monitoring & maintenance
 

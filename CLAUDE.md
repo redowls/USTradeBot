@@ -12,8 +12,14 @@ manager: early-exit on a 1-min bearish cross + feed-loss fail-safe; persistence:
 Server tables for orders/positions/confidence/P&L plus an outcome-vs-confidence view,
 verified live against the `USBot` database; and Telegram alerts: a direct `POST` to
 `sendMessage` on entry/exit/feed-loss, unit-tested with a fake poster and verified live
-against the real Bot API). Phase 8 (run on paper & validate) is next. Build progresses
-through the phases in [todo.md](todo.md) (Phase 0 → 10).
+against the real Bot API). **Phase 8** added a one-command preflight connectivity check
+(`bot/preflight.py`); **Phase 9** is done — the bot is **deployed live** as the
+`ustradebot` systemd service on an Ubuntu 24.04 VPS (`/opt/ustradebot`), running on the
+paper account with SQL Server + Telegram both live (preflight all-PASS). Remaining: the
+operator side of Phase 8 (observe paper results, re-tune the confidence weights/threshold)
+and **Phase 10** (monitoring & maintenance — "bot down" alert, daily SQL summary, log
+rotation, flatten-all kill switch). Build progresses through the phases in
+[todo.md](todo.md) (Phase 0 → 10).
 
 **Strategy note:** the entry design is a **multi-timeframe triple-MA ribbon** — a
 1-minute **8/10/20** EMA ribbon is the *trigger*, gated by a 5-minute **21/34/55** EMA
