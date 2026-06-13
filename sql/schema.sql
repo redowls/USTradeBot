@@ -61,10 +61,19 @@ CREATE TABLE dbo.orders (
     order_type        VARCHAR(16)    NOT NULL,                 -- BRACKET | CLOSE
     limit_price       DECIMAL(18, 6) NULL,
     stop_price        DECIMAL(18, 6) NULL,
-    status            VARCHAR(16)    NULL,
+    status            VARCHAR(32)    NULL,                     -- Alpaca order status value
     confidence        DECIMAL(6, 2)  NULL,
     submitted_at_utc  DATETIME2(0)   NOT NULL DEFAULT SYSUTCDATETIME()
 );
+GO
+
+-- Widen dbo.orders.status on pre-existing installs (the original VARCHAR(16) was
+-- too narrow for some Alpaca status values). Idempotent: only alters if still 16.
+IF EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID('dbo.orders') AND name = 'status' AND max_length = 16
+)
+ALTER TABLE dbo.orders ALTER COLUMN status VARCHAR(32) NULL;
 GO
 
 -- Currently-open positions: one row per held symbol (inserted on entry, removed on exit).

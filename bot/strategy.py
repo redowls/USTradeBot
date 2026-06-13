@@ -18,9 +18,10 @@ the machine cycles ``WAITING ↔ EVALUATING`` and merely reports signals (Phase 
 behavior).
 
 When a ``risk`` manager is wired (Phase 5), a ``MANAGING`` symbol is risk-managed
-rather than re-evaluated: a fresh bearish 1-min cross flattens the position and
-drops it back to ``WAITING``. The risk manager's feed-loss fail-safe also gates new
-entries — while the feed is down the machine stays ``WAITING`` and opens nothing.
+rather than re-evaluated: each candle ratchets its broker stop up under a rising
+price (a trailing stop), so winners run and exit broker-side when that stop is hit.
+The risk manager's feed-loss fail-safe also gates new entries — while the feed is
+down the machine stays ``WAITING`` and opens nothing.
 ``on_signal`` fires on every qualifying entry (Phase 7 Telegram hook); the
 executor's ``on_result`` and the risk manager's ``on_exit`` carry the fill/exit
 details for Phase 6/7.
@@ -44,6 +45,7 @@ from bot.signals import (
     EntryDecision,
     ScoreWeights,
     evaluate_entry,
+    in_close_window,
     market_is_open,
 )
 
@@ -137,6 +139,19 @@ class StrategyEngine:
         if state is BotState.EXECUTING:
             return None
 
+        # End-of-day: the strategy is intraday, so in the final minutes of the
+        # session we flatten every open position and open nothing new. This is what
+        # keeps positions from carrying overnight, where the DAY bracket stop/target
+        # legs expire at the close and leave the position unprotected.
+        if in_close_window(
+            candle.start,
+            self._cfg.market_open,
+            self._cfg.market_close,
+            self._cfg.flatten_before_close_min,
+        ):
+            self._flatten_all_eod()
+            return None
+
         # Holding a position: the Phase 5 risk manager owns it — check for an
         # early-exit reversal instead of evaluating a (re-)entry.
         if state is BotState.MANAGING:
@@ -217,22 +232,49 @@ class StrategyEngine:
         self._set(symbol, BotState.MANAGING)
 
     def _manage(self, symbol: str, trigger: RibbonSnapshot) -> None:
-        """Risk-manage an open position (Phase 5): early-exit on a reversal.
+        """Risk-manage an open position (Phase 5): trail the broker stop up.
 
         Without a risk manager wired, a ``MANAGING`` symbol simply rides its
-        broker-side bracket. With one, a fresh bearish 1-min cross flattens the
-        position; on a successful close the symbol drops back to ``WAITING`` so it
-        can re-qualify later. A failed close keeps it ``MANAGING`` to retry next
-        candle.
+        broker-side bracket. With one, each candle ratchets the stop up under a rising
+        price (``RiskManager.update_trailing_stop``) so winners run and lock in profit;
+        the position then exits broker-side when that stop is hit. The symbol stays
+        ``MANAGING`` here — it returns to ``WAITING`` via the end-of-day flatten or the
+        next startup reconcile, not on a single 1-min pullback.
         """
         if self._risk is None:
             return
-        reason = self._risk.check_exit(trigger)
-        if reason is None:
-            return
-        result = self._risk.exit_position(
-            symbol, trigger.close, reason, self._positions.get(symbol)
-        )
-        if result is not None:
-            self._positions.pop(symbol, None)
-            self._set(symbol, BotState.WAITING)
+        self._risk.update_trailing_stop(trigger, self._positions.get(symbol))
+
+    def _flatten_all_eod(self) -> None:
+        """Close every open position before the session ends (intraday flatten).
+
+        Runs on each candle inside the close window; only ``MANAGING`` symbols are
+        touched and a successful close drops them to ``WAITING``, so it is idempotent
+        — already-closed names are skipped on the next candle. A symbol whose close
+        fails stays ``MANAGING`` and is retried on the following candle. Exits route
+        through the risk manager (so the ``on_exit`` persistence/alert hooks fire);
+        without one we fall back to the executor's raw close. The exit price is the
+        symbol's last trigger close (best-effort, for the P/L record only — the close
+        itself is a market order).
+        """
+        for symbol in list(self._state):
+            if self.state(symbol) is not BotState.MANAGING:
+                continue
+            snap = self._trigger.snapshot(symbol)
+            entry = self._positions.get(symbol)
+            price = (
+                snap.close
+                if snap is not None
+                else (entry.entry_price if entry is not None else 0.0)
+            )
+            reason = "end-of-day flatten"
+            if self._risk is not None:
+                ok = self._risk.exit_position(symbol, price, reason, entry) is not None
+            elif self._executor is not None:
+                ok = self._executor.close_position(symbol) is not None
+            else:
+                ok = False
+            if ok:
+                self._positions.pop(symbol, None)
+                self._set(symbol, BotState.WAITING)
+                log.info("EOD flatten: closed %s @ %.4f", symbol, price)

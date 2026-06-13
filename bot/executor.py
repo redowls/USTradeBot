@@ -20,15 +20,22 @@ persistence (Phase 6); a freshly submitted bracket entry is typically
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce
-from alpaca.trading.requests import MarketOrderRequest, StopLossRequest, TakeProfitRequest
+from alpaca.trading.enums import OrderClass, OrderSide, QueryOrderStatus, TimeInForce
+from alpaca.trading.requests import (
+    GetOrdersRequest,
+    MarketOrderRequest,
+    ReplaceOrderRequest,
+    StopLossRequest,
+    TakeProfitRequest,
+)
 
 from bot.config import Config
-from bot.sizing import SizePlan, plan_model_a, plan_model_b
+from bot.sizing import SizePlan, plan_model_a, plan_model_b, round_price
 
 log = logging.getLogger("ustradebot.executor")
 
@@ -50,6 +57,7 @@ class ExecutionResult:
     confidence: float
     status: str
     model: str
+    stop_order_id: str = ""  # the bracket's stop leg, so the trailing stop can move it
 
 
 OnResult = Callable[[ExecutionResult], None]
@@ -151,7 +159,11 @@ class OrderExecutor:
             log.exception("order submission failed for %s", symbol)
             return None
 
-        status = str(getattr(order, "status", "") or "").lower()
+        # Alpaca returns an enum; use its .value ("pending_new") not str() which
+        # yields the repr ("OrderStatus.PENDING_NEW") — the repr overflows the
+        # dbo.orders.status column and is never matched by the _REJECTED guard.
+        raw_status = getattr(order, "status", "") or ""
+        status = (getattr(raw_status, "value", None) or str(raw_status)).lower()
         if status in _REJECTED:
             log.error(
                 "order for %s was %s by Alpaca (id=%s)", symbol, status, getattr(order, "id", "?")
@@ -169,6 +181,7 @@ class OrderExecutor:
             confidence=confidence,
             status=status or "submitted",
             model=plan.model,
+            stop_order_id=self._stop_leg_id(order),
         )
         log.info(
             "BRACKET %s qty=%d notional=%.2f entry=%.4f stop=%.4f target=%.4f "
@@ -190,24 +203,107 @@ class OrderExecutor:
                 log.exception("on_result callback failed for %s", symbol)
         return result
 
+    @staticmethod
+    def _stop_leg_id(order) -> str:
+        """Pull the stop-loss leg's order id out of a submitted bracket order.
+
+        The bracket response carries its two exit legs in ``order.legs``; we want the
+        stop leg (an ``OrderType.STOP``) so the risk manager can later move it to
+        trail the price. Returns ``""`` if the legs aren't present (e.g. a fake in
+        tests, or a response shape without nested legs).
+        """
+        for leg in getattr(order, "legs", None) or []:
+            if "stop" in str(getattr(leg, "order_type", "")).lower():
+                return str(getattr(leg, "id", "") or "")
+        return ""
+
     # --- exit (Phase 5) ----------------------------------------------------
 
-    def close_position(self, symbol: str) -> str | None:
-        """Liquidate ``symbol`` and cancel its open bracket (Phase 5 early-exit).
+    def replace_stop_price(self, stop_order_id: str, new_stop_price: float) -> str | None:
+        """Move an open stop order to ``new_stop_price`` (the trailing-stop ratchet).
 
-        Alpaca's ``close_position`` (``DELETE /v2/positions/{symbol}``) submits a
-        market order to flatten the position and cancels the associated bracket's
-        unfilled legs in one call. Returns the close order's id on success (an empty
-        string is still success — some responses omit the id), or ``None`` on any
-        error so the risk manager can leave the symbol in ``MANAGING`` and retry on
-        the next reversal candle.
+        Returns the **replacement order's id** on success (Alpaca cancels the old order
+        and issues a new one with a new id — the caller MUST track it and replace that
+        next time, or the following move 422s with ``order already replaced``). Returns
+        ``None`` on any error (or a missing id) so the risk manager keeps the previous
+        stop and retries next candle — a failed move never leaves the position less
+        protected than before. The returned id may be an empty string on a success
+        whose response omitted the id; the caller then keeps using the prior id.
         """
+        if not stop_order_id:
+            return None
         try:
             client = self._client_or_build()
-            order = client.close_position(symbol)
+            order = client.replace_order_by_id(
+                stop_order_id, ReplaceOrderRequest(stop_price=round_price(new_stop_price))
+            )
         except Exception:
-            log.exception("could not close position for %s", symbol)
+            log.exception("could not move stop order %s to %.4f", stop_order_id, new_stop_price)
             return None
-        order_id = str(getattr(order, "id", "") or "")
-        log.info("CLOSE %s submitted (order=%s)", symbol, order_id or "?")
-        return order_id
+        new_id = str(getattr(order, "id", "") or "")
+        log.info(
+            "STOP moved -> %.4f (order %s -> %s)",
+            round_price(new_stop_price), stop_order_id, new_id or "?",
+        )
+        return new_id
+
+    def _cancel_open_orders(self, symbol: str) -> int:
+        """Cancel any resting orders for ``symbol`` (the bracket stop/target legs).
+
+        Single-symbol ``close_position`` does NOT cancel the bracket first, so the
+        position's whole qty stays ``held_for_orders`` and the close 403s with
+        ``insufficient qty available``. We must clear the legs ourselves before
+        liquidating. Returns the number cancelled; per-order errors are logged and
+        swallowed so one stuck leg doesn't block the rest.
+        """
+        client = self._client_or_build()
+        try:
+            orders = client.get_orders(
+                GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[symbol])
+            )
+        except Exception:
+            log.exception("could not list open orders for %s", symbol)
+            return 0
+        cancelled = 0
+        for order in orders or []:
+            order_id = str(getattr(order, "id", "") or "")
+            if not order_id:
+                continue
+            try:
+                client.cancel_order_by_id(order_id)
+                cancelled += 1
+            except Exception:
+                log.exception("could not cancel order %s for %s", order_id, symbol)
+        if cancelled:
+            log.info("cancelled %d open order(s) for %s before close", cancelled, symbol)
+        return cancelled
+
+    def close_position(self, symbol: str) -> str | None:
+        """Liquidate ``symbol``, cancelling its open bracket first (Phase 5 early-exit).
+
+        Alpaca's single-symbol ``close_position`` (``DELETE /v2/positions/{symbol}``)
+        submits a market order for the full qty but does NOT cancel the associated
+        bracket's unfilled stop/target legs — they keep the shares ``held_for_orders``
+        so the close is rejected (403 ``insufficient qty available``). We therefore
+        cancel the resting legs first, then liquidate, retrying briefly because the
+        broker frees the held qty a moment after the cancel lands. Returns the close
+        order's id on success (an empty string is still success — some responses omit
+        the id), or ``None`` on any error so the risk manager leaves the symbol in
+        ``MANAGING`` and retries on the next candle.
+        """
+        self._cancel_open_orders(symbol)
+        client = self._client_or_build()
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            if attempt:
+                time.sleep(0.4)  # give the cancel time to release held_for_orders
+            try:
+                order = client.close_position(symbol)
+            except Exception as exc:  # noqa: BLE001 — retried, then logged below
+                last_exc = exc
+                continue
+            order_id = str(getattr(order, "id", "") or "")
+            log.info("CLOSE %s submitted (order=%s)", symbol, order_id or "?")
+            return order_id
+        log.error("could not close position for %s", symbol, exc_info=last_exc)
+        return None

@@ -20,7 +20,7 @@ the IEX trade feed gives us no bid/ask spread to measure directly.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from bot.config import EASTERN
 from bot.indicators import RibbonSnapshot
@@ -190,6 +190,26 @@ def market_is_open(ts_utc: datetime, open_t: time, close_t: time) -> bool:
         return False
     now = et.time()
     return open_t.replace(tzinfo=None) <= now < close_t.replace(tzinfo=None)
+
+
+def in_close_window(
+    ts_utc: datetime, open_t: time, close_t: time, minutes_before_close: int
+) -> bool:
+    """True if ``ts_utc`` is in the open session and within ``minutes_before_close``
+    of the close — the end-of-day flatten / no-new-entries window.
+
+    ``minutes_before_close == 0`` disables the window (the strict ``< close_t`` in
+    :func:`market_is_open` means the close minute itself is already outside it).
+    """
+    if minutes_before_close <= 0:
+        return False
+    if not market_is_open(ts_utc, open_t, close_t):
+        return False
+    et = ts_utc.astimezone(EASTERN)
+    close_dt = et.replace(
+        hour=close_t.hour, minute=close_t.minute, second=0, microsecond=0
+    )
+    return et >= close_dt - timedelta(minutes=minutes_before_close)
 
 
 # --- entry decision --------------------------------------------------------

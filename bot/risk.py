@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 
 from bot.config import Config
 from bot.indicators import RibbonSnapshot
+from bot.sizing import round_price
 
 if TYPE_CHECKING:  # avoid a runtime import cycle (executor imports nothing from here)
     from bot.executor import ExecutionResult, OrderExecutor
@@ -71,6 +72,13 @@ class RiskManager:
         self._on_exit = on_exit
         self._on_feed_alert = on_feed_alert
         self._feed_ok = True
+        # Trailing-stop state, both keyed by the trade's *original* stop-leg order id
+        # (unique per trade, so values never leak across re-entries of the same symbol).
+        # `_trail_stops`: highest stop price placed so far. `_live_stop_oid`: the order
+        # id to replace next — Alpaca issues a fresh id on every replace, so the live id
+        # drifts away from the original key and must be tracked separately.
+        self._trail_stops: dict[str, float] = {}
+        self._live_stop_oid: dict[str, str] = {}
 
     # --- feed-loss fail-safe ----------------------------------------------
 
@@ -116,6 +124,39 @@ class RiskManager:
             return "bearish 1-min ribbon cross"
         return None
 
+    def update_trailing_stop(
+        self, trigger: RibbonSnapshot, entry: ExecutionResult | None
+    ) -> bool:
+        """Ratchet the broker stop up under a rising price; never lower it.
+
+        Each managed candle we compute ``close * (1 - trail_percent)`` and, when that
+        sits above the highest stop placed so far, move the bracket's stop leg up to
+        it. This replaces the old first-bearish-cross exit: a winner now runs until it
+        gives back ``trail_percent`` from its peak (the stop fills broker-side), rather
+        than being cut on the first 1-min wobble well short of its potential.
+
+        No-ops (returns ``False``) without a known stop leg — e.g. a position adopted
+        via startup reconcile, which simply keeps its original broker bracket. State is
+        keyed by the trade's original stop-leg id, so it never leaks across re-entries;
+        the *live* broker id (which Alpaca rotates on every replace) is tracked apart so
+        each move targets the current order rather than a stale, already-replaced one.
+        """
+        key = getattr(entry, "stop_order_id", "") if entry is not None else ""
+        if not key:
+            return False
+        current = self._trail_stops.get(key, entry.stop_price)
+        new_stop = round_price(trigger.close * (1.0 - self._cfg.trail_percent))
+        if new_stop <= current:
+            return False
+        live_id = self._live_stop_oid.get(key, key)  # replace the current order, not the original
+        new_id = self._executor.replace_stop_price(live_id, new_stop)
+        if new_id is None:
+            return False  # move failed; keep the old stop and retry next candle
+        self._live_stop_oid[key] = new_id or live_id  # track the replacement id for next move
+        self._trail_stops[key] = new_stop
+        log.info("trailing stop %s: %.4f -> %.4f", entry.symbol, current, new_stop)
+        return True
+
     def exit_position(
         self,
         symbol: str,
@@ -132,6 +173,10 @@ class RiskManager:
         order_id = self._executor.close_position(symbol)
         if order_id is None:
             return None  # close failed; caller keeps the symbol MANAGING and retries
+        key = getattr(entry, "stop_order_id", "") if entry is not None else ""
+        if key:  # trade is done — drop its trailing-stop state
+            self._trail_stops.pop(key, None)
+            self._live_stop_oid.pop(key, None)
         result = ExitResult(
             symbol=symbol,
             reason=reason,

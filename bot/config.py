@@ -147,10 +147,18 @@ class Config:
     # Bracket
     stop_loss: float
     take_profit: float
+    # Trailing stop: once in profit, ratchet the broker stop up to
+    # price * (1 - trail_percent) each candle (never down), so winners run and give
+    # back at most this fraction from their peak instead of being cut on a 1-min wobble.
+    trail_percent: float
 
     # Market hours (US Eastern)
     market_open: time
     market_close: time
+    # Intraday flatten: close all positions and stop opening new ones within this
+    # many minutes of the close, so nothing carries overnight (where the bracket's
+    # DAY stop/target legs would otherwise expire and leave the position naked).
+    flatten_before_close_min: int
 
     # Infra
     sqlserver_conn: str = field(repr=False)
@@ -191,8 +199,10 @@ class Config:
             max_risk_per_trade=_float("MAX_RISK_PER_TRADE", 0.02),
             stop_loss=_float("STOP_LOSS", 0.02),
             take_profit=_float("TAKE_PROFIT", 0.04),
+            trail_percent=_float("TRAIL_PERCENT", 0.02),
             market_open=_hhmm("MARKET_OPEN", "09:30"),
             market_close=_hhmm("MARKET_CLOSE", "16:00"),
+            flatten_before_close_min=_int("FLATTEN_BEFORE_CLOSE_MIN", 5),
             sqlserver_conn=_str("SQLSERVER_CONN", ""),
             log_level=_str("LOG_LEVEL", "INFO").upper(),
         )
@@ -224,10 +234,12 @@ class Config:
             raise ConfigError("Require 0 < MIN_ALLOC <= MAX_ALLOC <= 1.")
         if not 0 < self.max_risk_per_trade <= 1:
             raise ConfigError("MAX_RISK_PER_TRADE must be in (0, 1].")
-        for fld in ("stop_loss", "take_profit"):
+        for fld in ("stop_loss", "take_profit", "trail_percent"):
             v = getattr(self, fld)
             if not 0 < v < 1:
                 raise ConfigError(f"{fld.upper()} must be a fraction in (0, 1).")
+        if self.flatten_before_close_min < 0:
+            raise ConfigError("FLATTEN_BEFORE_CLOSE_MIN must be >= 0.")
         if self.rsi_period <= 1:
             raise ConfigError("RSI_PERIOD must be > 1.")
         if self.volume_ma_period <= 0:

@@ -12,6 +12,7 @@ from bot.signals import (
     ScoreWeights,
     confidence,
     evaluate_entry,
+    in_close_window,
     market_is_open,
     score_crossover,
     score_rsi,
@@ -149,6 +150,24 @@ def test_market_hours_handle_est_edt_shift():
     assert not market_is_open(datetime(2026, 1, 6, 14, 0, tzinfo=UTC), _open(), _close())
     # 15:00 UTC == 10:00 EST -> open. Same wall-clock gate, different UTC offset.
     assert market_is_open(datetime(2026, 1, 6, 15, 0, tzinfo=UTC), _open(), _close())
+
+
+def test_close_window_only_in_final_minutes():
+    # 19:54 UTC == 15:54 EDT -> 6 min to close, outside a 5-min window.
+    assert not in_close_window(datetime(2026, 6, 2, 19, 54, tzinfo=UTC), _open(), _close(), 5)
+    # 19:56 UTC == 15:56 EDT -> 4 min to close, inside it.
+    assert in_close_window(datetime(2026, 6, 2, 19, 56, tzinfo=UTC), _open(), _close(), 5)
+
+
+def test_close_window_false_when_market_closed():
+    # 21:00 UTC == 17:00 EDT -> after the close, no window.
+    assert not in_close_window(datetime(2026, 6, 2, 21, 0, tzinfo=UTC), _open(), _close(), 5)
+    # On a weekend, never.
+    assert not in_close_window(datetime(2026, 6, 6, 19, 56, tzinfo=UTC), _open(), _close(), 5)
+
+
+def test_close_window_disabled_when_zero():
+    assert not in_close_window(datetime(2026, 6, 2, 19, 59, tzinfo=UTC), _open(), _close(), 0)
 
 
 # --- entry decision --------------------------------------------------------

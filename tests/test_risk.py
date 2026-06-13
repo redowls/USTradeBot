@@ -34,15 +34,23 @@ def cfg(monkeypatch):
 
 
 class _FakeExecutor:
-    """Records close_position calls; returns a scripted id (or None for failure)."""
+    """Records close_position / replace_stop_price calls; returns scripted outcomes."""
 
-    def __init__(self, order_id="close-1"):
+    def __init__(self, order_id="close-1", replace_ok=True):
         self._order_id = order_id
+        self._replace_ok = replace_ok
         self.closed = []
+        self.moved = []
 
     def close_position(self, symbol):
         self.closed.append(symbol)
         return self._order_id
+
+    def replace_stop_price(self, stop_order_id, new_stop_price):
+        self.moved.append((stop_order_id, new_stop_price))
+        if not self._replace_ok:
+            return None
+        return stop_order_id + "-r"  # Alpaca issues a new id on each replace
 
 
 def _snap(ribbon, prev_ribbon, *, close=100.0) -> RibbonSnapshot:
@@ -71,7 +79,7 @@ def _no_cross() -> RibbonSnapshot:
     return _snap((101.0, 100.5, 100.0), (100.8, 100.4, 100.0))
 
 
-def _entry() -> ExecutionResult:
+def _entry(stop_order_id="stop-1") -> ExecutionResult:
     return ExecutionResult(
         symbol="NFLX",
         order_id="o1",
@@ -83,7 +91,13 @@ def _entry() -> ExecutionResult:
         confidence=75.0,
         status="accepted",
         model="A",
+        stop_order_id=stop_order_id,
     )
+
+
+def _rising(close) -> RibbonSnapshot:
+    return _snap((close, close - 1.0, close - 2.0), (close - 1.0, close - 1.5, close - 2.0),
+                 close=close)
 
 
 # --- early-exit decision --------------------------------------------------
@@ -102,6 +116,63 @@ def test_check_exit_holds_without_cross(cfg):
 def test_check_exit_ignores_unready_ribbon(cfg):
     rm = RiskManager(cfg, executor=_FakeExecutor())
     assert rm.check_exit(_snap((None, None, None), (None, None, None))) is None
+
+
+# --- trailing stop --------------------------------------------------------
+
+
+def test_trailing_stop_ratchets_up(cfg):
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is True
+    assert ex.moved == [("stop-1", 107.8)]  # 110 * (1 - 0.02)
+
+
+def test_trailing_stop_never_lowers(cfg):
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    rm.update_trailing_stop(_rising(110.0), _entry())  # stop -> 107.8
+    # price pulls back to 105 -> 102.9 < 107.8, so the stop is left where it is
+    assert rm.update_trailing_stop(_rising(105.0), _entry()) is False
+    assert ex.moved == [("stop-1", 107.8)]
+
+
+def test_trailing_stop_noop_without_stop_leg(cfg):
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    assert rm.update_trailing_stop(_rising(110.0), _entry(stop_order_id="")) is False
+    assert rm.update_trailing_stop(_rising(110.0), None) is False
+    assert ex.moved == []
+
+
+def test_trailing_stop_retries_after_failed_move(cfg):
+    ex = _FakeExecutor(replace_ok=False)
+    rm = RiskManager(cfg, executor=ex)
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is False
+    # the failed move isn't cached as the current stop, so it retries next candle
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is False
+    assert ex.moved == [("stop-1", 107.8), ("stop-1", 107.8)]
+
+
+def test_trailing_stop_targets_replacement_id_on_next_move(cfg):
+    # Regression for the 422 "order already replaced" loop: Alpaca rotates the order id
+    # on every replace, so the second ratchet must target the replacement ("stop-1-r"),
+    # not the now-dead original ("stop-1") which would 422 forever.
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is True  # 107.8 on stop-1
+    assert rm.update_trailing_stop(_rising(115.0), _entry()) is True  # 112.7 on stop-1-r
+    assert ex.moved == [("stop-1", 107.8), ("stop-1-r", 112.7)]
+
+
+def test_exit_clears_trailing_state(cfg):
+    # A closed trade must drop its trail state so the maps don't grow unbounded and a
+    # re-entry reusing the leg id starts fresh from its own bracket stop.
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    rm.update_trailing_stop(_rising(110.0), _entry())
+    rm.exit_position("NFLX", 105.0, "manual", _entry())
+    assert rm._trail_stops == {} and rm._live_stop_oid == {}
 
 
 # --- exit execution -------------------------------------------------------

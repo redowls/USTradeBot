@@ -23,6 +23,8 @@ from bot.strategy import BotState, StrategyEngine
 _OPEN_TS = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
 # A Saturday -> market closed.
 _WEEKEND_TS = datetime(2026, 6, 6, 14, 0, tzinfo=UTC)
+# A Tuesday, 19:56 UTC == 15:56 EDT -> inside the 5-min end-of-day flatten window.
+_CLOSE_WINDOW_TS = datetime(2026, 6, 2, 19, 56, tzinfo=UTC)
 
 _ENV = {
     "ALPACA_KEY_ID": "k",
@@ -177,6 +179,7 @@ def _exec_result(symbol="NFLX"):
         confidence=75.0,
         status="accepted",
         model="A",
+        stop_order_id="stop-1",
     )
 
 
@@ -233,54 +236,88 @@ def test_managing_symbol_is_not_re_evaluated(cfg):
 
 
 class _FakeCloser:
-    """A minimal executor exposing close_position for the risk manager."""
+    """A minimal executor exposing close_position + replace_stop_price for risk."""
 
     def __init__(self, order_id="close-1"):
         self._order_id = order_id
         self.closed = []
+        self.moved = []
 
     def close_position(self, symbol):
         self.closed.append(symbol)
         return self._order_id
 
-
-def _bearish_trigger() -> RibbonSnapshot:
-    # prev fast >= mid, now fast < mid -> fresh bearish cross
-    return _ribbon_snap((99.9, 100.1, 100.0), (100.2, 100.1, 100.0))
-
-
-def _stacked_trigger() -> RibbonSnapshot:
-    # fast above mid both bars -> no inversion, nothing to exit on
-    return _ribbon_snap((102.0, 101.0, 100.0), (101.0, 100.5, 100.0))
+    def replace_stop_price(self, stop_order_id, new_stop_price):
+        self.moved.append((stop_order_id, new_stop_price))
+        return True
 
 
-def test_managing_exits_on_bearish_cross(cfg):
+def _rising_trigger(close=110.0) -> RibbonSnapshot:
+    # price well above entry -> the trailing stop should ratchet up
+    return _ribbon_snap((close, close - 1.0, close - 2.0), (close - 1.0, close - 1.5, close - 2.0),
+                        close=close)
+
+
+def test_managing_trails_stop_up(cfg):
     closer = _FakeCloser()
     eng = StrategyEngine(
         cfg,
         risk=RiskManager(cfg, executor=closer),
-        trigger_engine=_FakeEngine([_bearish_trigger()]),
+        trigger_engine=_FakeEngine([_rising_trigger(110.0)]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()  # entry 100, stop 98, leg "stop-1"
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    # 110 * (1 - 0.02) = 107.8 > 98 -> stop moves up, position stays open (no close)
+    assert closer.moved == [("stop-1", 107.8)]
+    assert closer.closed == []
+    assert eng.state("NFLX") is BotState.MANAGING
+
+
+def test_managing_does_not_lower_stop(cfg):
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([_rising_trigger(99.0)]),  # 99*0.98=97.02 < 98 stop
     )
     eng._state["NFLX"] = BotState.MANAGING
     eng._positions["NFLX"] = _exec_result()
-    sig = eng.on_short_candle(_candle())
-    assert sig is None
-    assert closer.closed == ["NFLX"]
-    assert eng.state("NFLX") is BotState.WAITING  # flattened -> can re-qualify
-    assert "NFLX" not in eng._positions
+    eng.on_short_candle(_candle())
+    assert closer.moved == []  # never ratchets the stop down
+    assert eng.state("NFLX") is BotState.MANAGING
 
 
-def test_managing_holds_without_reversal(cfg):
+def test_eod_window_flattens_managing_position(cfg):
     closer = _FakeCloser()
     eng = StrategyEngine(
         cfg,
         risk=RiskManager(cfg, executor=closer),
-        trigger_engine=_FakeEngine([_stacked_trigger()]),
+        trigger_engine=_FakeEngine([_rising_trigger()]),  # flatten regardless of signal
     )
     eng._state["NFLX"] = BotState.MANAGING
-    eng.on_short_candle(_candle())
-    assert closer.closed == []  # no reversal -> ride the bracket
-    assert eng.state("NFLX") is BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    sig = eng.on_short_candle(_candle(ts=_CLOSE_WINDOW_TS))
+    assert sig is None
+    assert closer.closed == ["NFLX"]  # flattened despite no reversal
+    assert eng.state("NFLX") is BotState.WAITING
+    assert "NFLX" not in eng._positions
+
+
+def test_eod_window_blocks_new_entry(cfg):
+    ex = _FakeExecutor(_exec_result())
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    sig = eng.on_short_candle(_candle(ts=_CLOSE_WINDOW_TS))
+    assert sig is None
+    assert ex.calls == []  # a qualifying setup is ignored inside the close window
+    assert eng.state("NFLX") is BotState.WAITING
 
 
 def test_feed_loss_halts_new_entries(cfg):
