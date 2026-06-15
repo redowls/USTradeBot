@@ -78,3 +78,48 @@ QCOM QQQ SE SPY TSLA TSM UNH WMT XOM. Service restarted: yes — active, clean s
 shows a Jun 12 20:57 APIError "order is not open" during an exit — worth a look.)
 
 ---
+
+## 2026-06-15 — Pre-market Research
+
+### Market context
+- **US–Iran ceasefire relief rally.** Deal announced late Sunday; Nasdaq-100 futures
+  +1.9%, S&P +1.2%, Dow ~+1%. VIX ~16.8 (−14%). Risk-on: gold + Bitcoin up, dollar down.
+- **Oil crashed** on the Strait of Hormuz reopening: WTI −5.5% to ~$80, Brent ~$83
+  (3-month low). Energy is the day's laggard — direct negative for XOM.
+- Week ahead unchanged: light earnings (none of ours; ACN/KR Thu), **FOMC Wed Jun 17**
+  is the hawkish wildcard, **market closed Fri Jun 19 (Juneteenth)**. Short week.
+- Risk-on tape favors semis/AI (most of our list) and travel/airlines on cheaper fuel.
+
+### Carried from daily review
+None — memory/daily-review.md is still template-only (no daily-review entries yet).
+
+### Watchlist review
+Account ACTIVE, equity $9,416.76, **0 open positions** (no locked symbols). 24 enabled
+reviewed vs 60-day Alpaca bars (through Fri 06-12 close, pre-rally) + 14d closed-trade P&L:
+- 14d P&L leaders: MU +$83, INTC +$62, QQQ +$50, JPM +$28, QCOM +$25 — core keeps.
+- Clean uptrends, liquid: AMD (+6/+32 vs 20/50MA), INTC (+10/+30), MU (+10/+45), C
+  (+8/+10), JPM, UNH, TSM, QQQ, SPY — keeps.
+- **XOM**: oil −5% to a 3-mo low on the ceasefire; already −3.2%/−3.2% vs 20/50MA
+  (sustained mild downtrend), energy momentum flagged "fading" on 06-13. Long-only ribbon
+  bot gets no clean longs in a fresh oil-driven downtrend, and a knife-catch bounce is the
+  bad-trade risk → **PARK**.
+- **NVDA** (0/3, −$54 in 14d): poor record was the Iran-selloff regime; most liquid name
+  ($1.1B IEX $vol) and today's risk-on semis rally directly favors it → KEEP (regime, not
+  symbol). On notice.
+- **AVGO** (−$74 worst P&L, −8.8% vs 20MA weakest trend, 6.7% ATR): on notice since 06-13,
+  but parking a semi right as semis rip on a relief rally is poor timing → KEEP, on notice
+  one more session.
+- SE/ABNB/BABA lowest IEX liquidity but all traded fine recently; no churn.
+- No watchlist name reports earnings today; only binary event this week is FOMC Wed.
+
+### Changes applied to dbo.watchlist
+- PARK XOM (enabled=0): oil −5% to 3-mo low (Iran ceasefire), broken downtrend, no longs.
+- No adds — list already broad and semi/index-heavy into a risk-on tape; no high-conviction
+  new name (one-day ceasefire pops in airlines/travel aren't durable trends). FOMC Wed.
+
+### Final watchlist
+23 enabled: AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QCOM
+QQQ SE SPY TSLA TSM UNH WMT. Service restarted: yes — active, clean startup, 23-symbol
+subscribe confirmed in journal, 0 positions reconciled.
+
+---
