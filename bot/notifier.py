@@ -55,7 +55,7 @@ def _urllib_post(url: str, payload: dict[str, Any], timeout: float) -> None:
 
 
 class TelegramNotifier:
-    """Sends plain-text messages to one Telegram chat via the Bot API."""
+    """Sends plain-text messages to one or more Telegram chats via the Bot API."""
 
     def __init__(
         self,
@@ -65,21 +65,24 @@ class TelegramNotifier:
         poster: Poster | None = None,
         timeout: float = 10.0,
     ) -> None:
-        self._chat_id = chat_id
+        # chat_id may be a comma-separated list — every recipient gets the message.
+        self._chat_ids = [c.strip() for c in str(chat_id).split(",") if c.strip()]
         self._poster = poster or _urllib_post
         self._timeout = timeout
         # The token is a secret — it lives only in the URL, never in a log line.
         self._url = _API.format(token=token)
 
     def send(self, text: str) -> bool:
-        """Post one message. Returns success; never raises into the caller."""
-        payload = {"chat_id": self._chat_id, "text": text}
-        try:
-            self._poster(self._url, payload, self._timeout)
-            return True
-        except Exception:  # a flaky alert endpoint must not kill the trading path
-            log.exception("Telegram sendMessage failed")
-            return False
+        """Post one message to every configured chat. True only if all sent; never raises."""
+        ok = True
+        for chat_id in self._chat_ids:
+            payload = {"chat_id": chat_id, "text": text}
+            try:
+                self._poster(self._url, payload, self._timeout)
+            except Exception:  # a flaky alert endpoint must not kill the trading path
+                log.exception("Telegram sendMessage failed (chat_id=%s)", chat_id)
+                ok = False
+        return ok
 
 
 # --- message formatting (pure) ---------------------------------------------
