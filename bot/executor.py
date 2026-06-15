@@ -42,6 +42,17 @@ log = logging.getLogger("ustradebot.executor")
 # Order statuses that mean the submission was refused outright.
 _REJECTED = {"rejected", "canceled", "expired"}
 
+# Close retry/poll budget. After we cancel the bracket's resting legs the broker
+# keeps the position's qty ``held_for_orders`` for a few seconds — the cancel settles
+# asynchronously — so an immediate close 403s with "insufficient qty available". We
+# poll the position until that held qty frees, then liquidate, all within one call.
+# 2026-06-15: today's EOD flatten 403'd through the old 3-attempt / ~0.8s budget on
+# all six open names and only closed on a *later* candle pass; on a thin close that
+# pass may never arrive, leaving the position naked (the protective legs are already
+# cancelled). The budget below (~6s) lets the first flatten pass finish on its own.
+_CLOSE_ATTEMPTS = 12
+_CLOSE_RETRY_DELAY = 0.5  # seconds between attempts
+
 
 @dataclass(frozen=True)
 class ExecutionResult:
@@ -278,6 +289,26 @@ class OrderExecutor:
             log.info("cancelled %d open order(s) for %s before close", cancelled, symbol)
         return cancelled
 
+    def _qty_released(self, symbol: str) -> bool:
+        """True once the broker has freed the qty the cancelled bracket legs held.
+
+        After ``cancel_order`` returns, Alpaca keeps the position's qty
+        ``held_for_orders`` for a moment (the cancel settles asynchronously), so
+        ``qty_available`` reads 0 until it lands; closing before then 403s. Polling
+        this lets the close fire the instant the qty frees instead of guessing with a
+        fixed sleep. On any error (no position, transient read failure) we return
+        ``True`` so the close path still runs and decides — we never block a
+        liquidation on a flaky status read.
+        """
+        try:
+            pos = self._client_or_build().get_open_position(symbol)
+        except Exception:
+            return True
+        try:
+            return float(getattr(pos, "qty_available", 0) or 0) > 0
+        except (TypeError, ValueError):
+            return True
+
     def close_position(self, symbol: str) -> str | None:
         """Liquidate ``symbol``, cancelling its open bracket first (Phase 5 early-exit).
 
@@ -285,18 +316,25 @@ class OrderExecutor:
         submits a market order for the full qty but does NOT cancel the associated
         bracket's unfilled stop/target legs — they keep the shares ``held_for_orders``
         so the close is rejected (403 ``insufficient qty available``). We therefore
-        cancel the resting legs first, then liquidate, retrying briefly because the
-        broker frees the held qty a moment after the cancel lands. Returns the close
-        order's id on success (an empty string is still success — some responses omit
-        the id), or ``None`` on any error so the risk manager leaves the symbol in
-        ``MANAGING`` and retries on the next candle.
+        cancel the resting legs first, then **poll until the broker releases the held
+        qty** (the cancel settles asynchronously) before liquidating — so the close
+        completes within this one call rather than depending on a later candle pass
+        that may never arrive before the session ends (which would leave the position
+        naked, its protective legs already cancelled). Returns the close order's id on
+        success (an empty string is still success — some responses omit the id), or
+        ``None`` on any error so the risk manager leaves the symbol in ``MANAGING``
+        and retries on the next candle.
         """
-        self._cancel_open_orders(symbol)
+        cancelled = self._cancel_open_orders(symbol)
         client = self._client_or_build()
         last_exc: Exception | None = None
-        for attempt in range(3):
+        for attempt in range(_CLOSE_ATTEMPTS):
             if attempt:
-                time.sleep(0.4)  # give the cancel time to release held_for_orders
+                time.sleep(_CLOSE_RETRY_DELAY)  # give the cancel time to release held_for_orders
+            # Don't fire the close until the cancelled legs have released the qty,
+            # otherwise it 403s on held_for_orders and burns an attempt for nothing.
+            if cancelled and not self._qty_released(symbol):
+                continue
             try:
                 order = client.close_position(symbol)
             except Exception as exc:  # noqa: BLE001 — retried, then logged below
@@ -305,5 +343,8 @@ class OrderExecutor:
             order_id = str(getattr(order, "id", "") or "")
             log.info("CLOSE %s submitted (order=%s)", symbol, order_id or "?")
             return order_id
-        log.error("could not close position for %s", symbol, exc_info=last_exc)
+        log.error(
+            "could not close position for %s after %d attempts", symbol, _CLOSE_ATTEMPTS,
+            exc_info=last_exc,
+        )
         return None

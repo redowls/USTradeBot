@@ -33,6 +33,7 @@ class _FakeTrading:
     def __init__(
         self, *, buying_power="10000", equity="10000", status="accepted",
         raise_on=None, with_legs=False, open_orders=(), held_until_cancelled=False,
+        qty_available_after=0,
     ):
         self.account = SimpleNamespace(buying_power=buying_power, equity=equity)
         self.submitted = []
@@ -47,6 +48,12 @@ class _FakeTrading:
         # When True, close_position 403s (held_for_orders) until the legs are cancelled,
         # mirroring Alpaca: the bracket reserves the whole qty until its legs are gone.
         self._held_until_cancelled = held_until_cancelled
+        # Number of get_open_position polls that still report the qty held_for_orders
+        # before the cancel "settles" and the qty frees — models Alpaca's async cancel
+        # (the cancel call returns OK but qty_available stays 0 for a few seconds).
+        self._qty_available_after = qty_available_after
+        self.poll_count = 0
+        self._released = qty_available_after == 0
 
     def get_account(self):
         if self._raise_on == "account":
@@ -74,10 +81,20 @@ class _FakeTrading:
         self.cancelled.append(order_id)
         self._open_orders = [o for o in self._open_orders if o.id != order_id]
 
+    def get_open_position(self, symbol):
+        self.poll_count += 1
+        if self.poll_count > self._qty_available_after:
+            self._released = True
+        return SimpleNamespace(
+            symbol=symbol, qty="10", qty_available=("10" if self._released else "0")
+        )
+
     def close_position(self, symbol):
         if self._raise_on == "close":
             raise RuntimeError("no position")
         if self._held_until_cancelled and self._open_orders:
+            raise RuntimeError("insufficient qty available (held_for_orders)")
+        if not self._released:
             raise RuntimeError("insufficient qty available (held_for_orders)")
         self.closed.append(symbol)
         return SimpleNamespace(id="close-1", status="accepted")
@@ -88,6 +105,13 @@ class _FakeTrading:
         self.replaced.append((order_id, float(order_data.stop_price)))
         # Alpaca cancels the old order and issues a new one with a NEW id.
         return SimpleNamespace(id=order_id + "-r", status="accepted")
+
+
+@pytest.fixture(autouse=True)
+def _no_sleep(monkeypatch):
+    # The close-position retry/poll loop sleeps between attempts; no-op it so the
+    # suite stays fast without changing the retry logic under test.
+    monkeypatch.setattr("bot.executor.time.sleep", lambda *_: None)
 
 
 def _exec(cfg, fake, **kw):
@@ -203,6 +227,19 @@ def test_close_position_cancels_bracket_legs_first(cfg):
     assert order_id == "close-1"
     assert sorted(fake.cancelled) == ["stop-leg", "tp-leg"]  # both legs cleared
     assert fake.closed == ["TSLA"]  # and the liquidation went through
+
+
+def test_close_position_waits_for_held_qty_to_release(cfg):
+    # Regression (2026-06-15 EOD flatten): cancel_order returns OK but the broker keeps
+    # the qty held_for_orders for several seconds; closing immediately 403s. All six open
+    # names 403'd through the old ~0.8s budget and only closed on a *later* candle pass,
+    # which on a thin close may never arrive — leaving the position naked (legs already
+    # cancelled). The close must now poll qty_available and liquidate within the SAME call.
+    fake = _FakeTrading(open_orders=("stop-leg",), qty_available_after=3)
+    order_id = _exec(cfg, fake).close_position("MU")
+    assert order_id == "close-1"
+    assert fake.closed == ["MU"]  # liquidation went through, not abandoned
+    assert fake.poll_count >= 3  # polled until the held qty actually released
 
 
 def test_close_position_listing_orders_error_still_attempts_close(cfg):
