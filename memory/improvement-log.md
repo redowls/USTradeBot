@@ -77,7 +77,7 @@ Entry template:
 - **Expected impact:** a failed EOD flatten is never silent again — the operator is paged to
   manually flatten (`bot.flatten`) before/at the next open. No win-rate change; closes the
   naked-overnight tail-risk hole that IMP-001 couldn't (broker-side outages).
-- **Commit:** f453a0a
+- **Commit:** 1b575a7
 - **Observed effect:** (pending — confirm the page fires if a flatten 504s again; otherwise
   confirm clean flatten at the 06-17 close)
 
