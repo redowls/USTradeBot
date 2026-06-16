@@ -103,6 +103,15 @@ class RiskManager:
         log.info("market-data feed restored — new entries re-enabled")
         self._alert("✅ market-data feed restored — entries re-enabled")
 
+    def send_alert(self, message: str) -> None:
+        """Emit an operator alert through the Telegram feed-alert channel.
+
+        Public seam for callers outside the feed-loss path (the strategy's
+        EOD-flatten escalation uses it to page when a position can't be flattened
+        and will carry naked overnight). Best-effort, like every alert here.
+        """
+        self._alert(message)
+
     def _alert(self, message: str) -> None:
         if self._on_feed_alert is None:
             return

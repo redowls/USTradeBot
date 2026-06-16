@@ -47,9 +47,21 @@ from bot.signals import (
     evaluate_entry,
     in_close_window,
     market_is_open,
+    minutes_until_close,
 )
 
 log = logging.getLogger("ustradebot.strategy")
+
+# When the EOD flatten still can't close a position this close (minutes) to the
+# session close, there's no retry runway left before the DAY bracket legs expire
+# and the position carries NAKED overnight — escalate once so a human can flatten
+# it manually. 2026-06-16 (IMP-002): Alpaca returned persistent 504 Gateway
+# Timeouts through all 12 close retries on 4 names (AAPL/ABNB/BABA/GOOG); the
+# flatten failed silently (journald ERROR only, no Telegram) and the positions
+# carried naked overnight. The threshold spans the final ~2 candles so a thin
+# close (no further candle) is still caught, while early-window transient failures
+# that self-heal on the next candle are not paged.
+_FLATTEN_ESCALATE_MIN = 2.0
 
 
 class BotState(StrEnum):
@@ -97,6 +109,9 @@ class StrategyEngine:
         self._state: dict[str, BotState] = {}
         self._gate_snap: dict[str, RibbonSnapshot] = {}
         self._positions: dict[str, ExecutionResult] = {}
+        # Symbols already paged for a failed EOD flatten this session (dedup so a
+        # naked-overnight position alerts once, not once per close-window candle).
+        self._flatten_escalated: set[str] = set()
 
     def reconcile(self, positions) -> None:
         """Mark symbols already held at Alpaca as MANAGING (startup / post-reconnect).
@@ -149,7 +164,7 @@ class StrategyEngine:
             self._cfg.market_close,
             self._cfg.flatten_before_close_min,
         ):
-            self._flatten_all_eod()
+            self._flatten_all_eod(candle.start)
             return None
 
         # Holding a position: the Phase 5 risk manager owns it — check for an
@@ -245,7 +260,7 @@ class StrategyEngine:
             return
         self._risk.update_trailing_stop(trigger, self._positions.get(symbol))
 
-    def _flatten_all_eod(self) -> None:
+    def _flatten_all_eod(self, now_utc: datetime) -> None:
         """Close every open position before the session ends (intraday flatten).
 
         Runs on each candle inside the close window; only ``MANAGING`` symbols are
@@ -256,6 +271,10 @@ class StrategyEngine:
         without one we fall back to the executor's raw close. The exit price is the
         symbol's last trigger close (best-effort, for the P/L record only — the close
         itself is a market order).
+
+        ``now_utc`` (the candle's start) drives the naked-overnight escalation: if a
+        close still fails inside the final ``_FLATTEN_ESCALATE_MIN`` minutes there is
+        no retry runway left before the DAY bracket legs expire, so we page once.
         """
         for symbol in list(self._state):
             if self.state(symbol) is not BotState.MANAGING:
@@ -277,4 +296,33 @@ class StrategyEngine:
             if ok:
                 self._positions.pop(symbol, None)
                 self._set(symbol, BotState.WAITING)
+                self._flatten_escalated.discard(symbol)  # re-arm if re-entered later
                 log.info("EOD flatten: closed %s @ %.4f", symbol, price)
+            else:
+                self._escalate_failed_flatten(symbol, now_utc)
+
+    def _escalate_failed_flatten(self, symbol: str, now_utc: datetime) -> None:
+        """Page once when a position can't be flattened with no retry runway left.
+
+        Within ``_FLATTEN_ESCALATE_MIN`` of the close, a still-failing close means the
+        position will almost certainly carry **naked overnight** (the DAY bracket
+        stop/target legs expire at the close), so we send a single critical operator
+        alert per symbol per session. Earlier-window failures are left to the next
+        candle's retry — only the runway-exhausted case escalates. See IMP-002.
+        """
+        if symbol in self._flatten_escalated:
+            return
+        if minutes_until_close(now_utc, self._cfg.market_close) > _FLATTEN_ESCALATE_MIN:
+            return  # still time for another candle to retry the close
+        self._flatten_escalated.add(symbol)
+        log.error(
+            "EOD flatten could not close %s before the session close — "
+            "NAKED OVERNIGHT risk, manual flatten required",
+            symbol,
+        )
+        if self._risk is not None:
+            self._risk.send_alert(
+                f"🚨 EOD flatten FAILED for {symbol} — position will carry NAKED "
+                "overnight (protective bracket legs expire at the close). "
+                "Manual flatten required (python -m bot.flatten --yes)."
+            )

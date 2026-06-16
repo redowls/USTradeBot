@@ -305,6 +305,68 @@ def test_eod_window_flattens_managing_position(cfg):
     assert "NFLX" not in eng._positions
 
 
+class _FailingCloser:
+    """An executor whose close_position always fails (reproduces 2026-06-16's
+    persistent Alpaca 504 Gateway Timeouts on the EOD flatten)."""
+
+    def __init__(self):
+        self.attempts = []
+
+    def close_position(self, symbol):
+        self.attempts.append(symbol)
+        return None  # 504 / timeout — close never submits
+
+    def replace_stop_price(self, stop_order_id, new_stop_price):
+        return True
+
+
+# A Tuesday, 19:59 UTC == 15:59 EDT -> 1 min to the 20:00 UTC close: inside the
+# final escalation window (_FLATTEN_ESCALATE_MIN = 2.0), no retry runway left.
+_FINAL_MINUTE_TS = datetime(2026, 6, 2, 19, 59, tzinfo=UTC)
+
+
+def test_failed_eod_flatten_escalates_once(cfg):
+    # IMP-002 regression: 2026-06-16 the EOD flatten 504'd through every retry on
+    # 4 names and left them naked overnight with NO Telegram alert. The failed
+    # flatten in the final minute must page the operator exactly once per symbol.
+    alerts: list[str] = []
+    closer = _FailingCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer, on_feed_alert=alerts.append),
+        trigger_engine=_FakeEngine([_rising_trigger(), _rising_trigger()]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+
+    eng.on_short_candle(_candle(ts=_FINAL_MINUTE_TS))
+    assert closer.attempts == ["NFLX"]  # tried to close
+    assert eng.state("NFLX") is BotState.MANAGING  # close failed -> stays held
+    assert "NFLX" in eng._positions  # not dropped — position is still live
+    assert len(alerts) == 1 and "NAKED" in alerts[0] and "NFLX" in alerts[0]
+
+    # A second close-window candle must NOT re-page (dedup per symbol per session).
+    eng.on_short_candle(_candle(ts=_FINAL_MINUTE_TS))
+    assert len(alerts) == 1
+
+
+def test_failed_eod_flatten_does_not_escalate_with_runway_left(cfg):
+    # At 19:56 UTC (4 min to close) a failed close still has retry runway on later
+    # candles, so it must NOT page yet — only the runway-exhausted case escalates.
+    alerts: list[str] = []
+    closer = _FailingCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer, on_feed_alert=alerts.append),
+        trigger_engine=_FakeEngine([_rising_trigger()]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.on_short_candle(_candle(ts=_CLOSE_WINDOW_TS))  # 19:56 == 4 min out
+    assert closer.attempts == ["NFLX"]  # still attempted the flatten
+    assert alerts == []  # but no naked-overnight page yet
+
+
 def test_eod_window_blocks_new_entry(cfg):
     ex = _FakeExecutor(_exec_result())
     eng = StrategyEngine(

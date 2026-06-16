@@ -41,6 +41,44 @@ Entry template:
 - **Expected impact:** EOD flatten (and any reversal exit) closes reliably on the first pass
   → eliminates the naked-overnight tail risk. Capital protection; no win-rate change expected.
 - **Commit:** b7f37f7
-- **Observed effect:** (pending — confirm clean single-pass flatten at tomorrow's 06-16 close)
+- **Observed effect:** 2026-06-16 — **did NOT recur** (no `held_for_orders` 403s in the
+  06-16 flatten). A *different* flatten failure hit instead: persistent Alpaca **504 Gateway
+  Timeouts** beat all 12 retries (broker-side outage, not the async-cancel race IMP-001
+  fixed). IMP-001 holds; IMP-002 addresses the new mode.
+
+---
+
+## IMP-002 — 2026-06-16
+
+- **Problem:** The 06-16 EOD flatten **failed on all 4 open names** (AAPL/ABNB/BABA/GOOG)
+  — Alpaca's paper API returned persistent **504 Gateway Timeouts** on `cancel_order` and
+  `close_position` (`code 50410000 "request timed out"`) across 20:02–20:58 UTC. All 12
+  close retries (IMP-001's budget) exhausted; `close_position` returned `None` and the bot
+  logged a journald ERROR **only — no Telegram alert**. The DAY bracket legs expired at the
+  20:00 UTC close, so 4 positions carried **naked overnight** with the operator unaware.
+- **Root cause:** the EOD flatten (`StrategyEngine._flatten_all_eod`) had **no escalation
+  on failure** — a symbol whose close failed just stayed `MANAGING` for the next candle's
+  retry. When the failure is a broker-side 504 outage (no retry beats it) and the session
+  ends, the position is silently abandoned naked. IMP-001 fixed the *held_for_orders* race;
+  it cannot help a 504 — the gap was the **silent** failure, not the retry budget.
+- **Change:** `bot/strategy.py` — `_flatten_all_eod` now takes the candle time and calls a
+  new `_escalate_failed_flatten`: when a close fails within `_FLATTEN_ESCALATE_MIN` (2.0)
+  min of the close (no retry runway before the DAY legs expire), it fires a **one-time
+  critical Telegram page per symbol per session** ("position will carry NAKED overnight…").
+  Dedup via `self._flatten_escalated`; re-armed on a later successful close. New
+  `signals.minutes_until_close` helper; new public `RiskManager.send_alert` routes the page
+  through the existing Telegram feed-alert channel. **No risk widened, no safety disabled,
+  no trading logic changed** — pure capital-protection escalation.
+- **Validation:** full suite **189 passed** (`pytest -q`, was 186 + 3 new). New regression
+  `test_failed_eod_flatten_escalates_once` reproduces today's 504 (a closer that returns
+  `None` in the final minute) and asserts the position stays held + exactly one NAKED page +
+  dedup on the next candle; `test_failed_eod_flatten_does_not_escalate_with_runway_left`
+  guards against early-window false pages; `test_minutes_until_close_counts_down_and_goes_negative`.
+- **Expected impact:** a failed EOD flatten is never silent again — the operator is paged to
+  manually flatten (`bot.flatten`) before/at the next open. No win-rate change; closes the
+  naked-overnight tail-risk hole that IMP-001 couldn't (broker-side outages).
+- **Commit:** f453a0a
+- **Observed effect:** (pending — confirm the page fires if a flatten 504s again; otherwise
+  confirm clean flatten at the 06-17 close)
 
 ---

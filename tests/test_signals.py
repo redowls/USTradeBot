@@ -14,6 +14,7 @@ from bot.signals import (
     evaluate_entry,
     in_close_window,
     market_is_open,
+    minutes_until_close,
     score_crossover,
     score_rsi,
     score_trend,
@@ -168,6 +169,13 @@ def test_close_window_false_when_market_closed():
 
 def test_close_window_disabled_when_zero():
     assert not in_close_window(datetime(2026, 6, 2, 19, 59, tzinfo=UTC), _open(), _close(), 0)
+
+
+def test_minutes_until_close_counts_down_and_goes_negative():
+    # 20:00 UTC == 16:00 EDT close. Drives the IMP-002 naked-overnight escalation.
+    assert minutes_until_close(datetime(2026, 6, 2, 19, 59, tzinfo=UTC), _close()) == pytest.approx(1.0)
+    assert minutes_until_close(datetime(2026, 6, 2, 19, 56, tzinfo=UTC), _close()) == pytest.approx(4.0)
+    assert minutes_until_close(datetime(2026, 6, 2, 20, 1, tzinfo=UTC), _close()) == pytest.approx(-1.0)
 
 
 # --- entry decision --------------------------------------------------------

@@ -212,6 +212,17 @@ def in_close_window(
     return et >= close_dt - timedelta(minutes=minutes_before_close)
 
 
+def minutes_until_close(ts_utc: datetime, close_t: time) -> float:
+    """Minutes from ``ts_utc`` to today's session close (US Eastern); negative once
+    past it. Lets the EOD-flatten escalation tell whether any retry runway remains
+    before the DAY bracket legs expire and an unclosed position carries overnight."""
+    et = ts_utc.astimezone(EASTERN)
+    close_dt = et.replace(
+        hour=close_t.hour, minute=close_t.minute, second=0, microsecond=0
+    )
+    return (close_dt - et).total_seconds() / 60.0
+
+
 # --- entry decision --------------------------------------------------------
 
 

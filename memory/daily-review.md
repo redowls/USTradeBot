@@ -105,3 +105,80 @@ All 10 exited **"end-of-day flatten"** at ~19:56 UTC (15:56 ET). Model A through
 - No symbol "never signaled" concern today; the list produced plenty of triggers.
 
 ---
+
+## 2026-06-16 — Daily Review
+
+### Stats
+- **0 closed trades** (DB realized P&L **$0.00**). **4 entries** opened today — AAPL,
+  ABNB, BABA, GOOG — **all still open at the broker** (none exited). Account **equity
+  $9,384.92** (last_equity $9,384.87 — essentially **flat** on the day; net unrealized
+  ≈ $0: AAPL −$4.47, ABNB −$3.00, BABA +$12.40, GOOG −$4.88). Cash $1,920.29.
+- **🚨 Capital-protection event: the EOD flatten FAILED — 4 positions carried NAKED
+  overnight.** Alpaca's paper API returned **persistent 504 Gateway Timeouts**
+  (`{"code":50410000,"message":"request timed out"}`) on *both* `cancel_order` and
+  `close_position` for GOOG/AAPL/BABA across ~20:02–20:58 UTC. All 12 close retries
+  (IMP-001's widened budget) exhausted against the 504s; `close_position` returned
+  `None` and the bot logged ERROR only — **no Telegram alert**. The DAY bracket legs
+  expired at the 20:00 UTC close, so the 4 positions now sit unprotected overnight.
+- **DB/report divergence:** `bot.report` shows "open positions: 11" but the broker holds
+  **4** (`/v2/positions`). `dbo.positions` carries ~7 stale rows from prior sessions that
+  the round-trip recorder never cleared — a reporting/persistence hygiene gap, not a
+  broker discrepancy. Logged for follow-up; not today's fix.
+
+### Trade-by-trade review
+All four were fresh Model-A entries, mid-to-late session, that **never got an exit** (the
+flatten couldn't close them). They were *not* stopped out and not signal failures — the
+failure is in the exit/flatten infrastructure, not entry quality:
+- **AAPL** 17:08 @ $299.43, conf 66.17 (**crossover only 0.058** — a weak cross), trend
+  1.0/rsi 1.0/vol 1.0. Open, −$4.47 unrealized.
+- **ABNB** 18:49 @ $141.21, conf 69.85 (crossover 0.125, trend 0.805). Open, −$3.00.
+- **BABA** 18:59 @ $110.32, conf 66.05 (crossover 0.097, trend 0.674). Open, **+$12.40**
+  (the lone winner-in-waiting).
+- **GOOG** 19:14 @ $371.10, conf 64.97 (**crossover only 0.034**, trend 0.698). Open, −$4.88.
+- Note: 3 of 4 fired on very weak crossover strength (xo < 0.13). One quiet day isn't
+  enough to act on, but if low-xo entries keep underperforming a crossover-strength floor
+  is the candidate (see below).
+
+### What worked / what didn't
+- **Worked:** entries themselves were benign — flat P&L, no stop-outs, no risk-limit
+  trips, FOMC-eve tape was quiet as the pre-market read expected. Service stayed `active`
+  the whole session; the websocket auto-reconnected cleanly through its drops.
+- **Didn't — the headline:** the EOD flatten has **no escalation when it fails**. IMP-001
+  fixed the *held_for_orders* async-cancel race, but today's failure mode was different —
+  a **broker-side 504 outage** that no retry budget can beat. The bot exhausted retries and
+  went silent, leaving naked overnight positions with the operator unaware. A failed
+  flatten is exactly the "F-grade system failure" the weekly rubric calls out; it must be
+  **loud**. → fixed this run (IMP-002): a one-time critical Telegram page per symbol when a
+  close still fails inside the final ~2 min before the close (no retry runway left).
+- The 504s also blocked each `close_position` for ~tens of seconds × 12 attempts, so one
+  stuck name delayed flattening the others (GOOG's failure spanned 20:02→20:28). Secondary;
+  not changed today (one change per run). Candidate: cap per-symbol close time / parallelize.
+
+### Lessons & improvement candidates
+1. **(SHIPPED — IMP-002)** Escalate a critical Telegram alert when the EOD flatten can't
+   close a position with no retry runway left (naked-overnight risk). Highest impact:
+   turns a silent capital-protection failure into an actionable operator page.
+2. *(watch)* **Weak-crossover entries:** 3 of today's 4 entries had xo < 0.13 (AAPL 0.058,
+   GOOG 0.034). None resolved today (flatten failed before any exit), so no P&L read yet.
+   If low-xo entries keep churning, add a `MIN_CROSSOVER` floor or up-weight `score_crossover`
+   in `ScoreWeights`. Needs more days — do NOT act on one inconclusive session.
+3. *(carryover)* **`dbo.positions` stale rows** inflate `bot.report`'s open-position count.
+   Have the round-trip exit recorder delete the position row on close. Reporting hygiene,
+   low risk; queue behind capital-protection work.
+4. *(carryover, watch)* 80-89 confidence band still negative all-time (−$51.38, 4 tr, 50%)
+   vs 60-79 positive — sample still too small to touch `ScoreWeights`/threshold.
+
+### Notes for pre-market research
+- **⚠️ 4 positions are OPEN/NAKED into 2026-06-17:** AAPL (7 sh), ABNB (15), BABA (16),
+  GOOG (4) — broker-confirmed, protective legs expired. Pre-market routine **must NOT park
+  any of these** (hard rule: never park a name with an open position). At tomorrow's open
+  the bot's startup reconcile will mark them MANAGING and the session will re-manage/flatten
+  them; if you want them flat sooner, `python -m bot.flatten --yes` once the market opens.
+- **FOMC decision today (Wed 06-17, 2pm ET)** — Warsh's first meeting, statement language is
+  the binary wildcard. Late-day entries into the print are extra risky; the quiet tape held
+  overnight but that can flip on the 2pm headline.
+- **No entry-quality concerns** on the watchlist — AAPL/ABNB/BABA/GOOG all signaled and
+  filled fine; today's problem was broker-side (Alpaca 504s) and exit infra, not symbols.
+- BABA traded well (the only green open, +$12.4) — lower-liquidity but behaving; keep.
+
+---
