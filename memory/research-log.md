@@ -123,3 +123,51 @@ QQQ SE SPY TSLA TSM UNH WMT. Service restarted: yes — active, clean startup, 2
 subscribe confirmed in journal, 0 positions reconciled.
 
 ---
+
+## 2026-06-16 — Pre-market Research
+
+### Market context
+- **FOMC eve.** Two-day meeting starts today; decision + projections **tomorrow Wed 06-17
+  2pm ET** — Kevin Warsh's first meeting as Fed Chair. CME FedWatch prices **no cuts in 2026**;
+  rates expected held but the statement language ("extent and timing of additional adjustments")
+  and Warsh's tone are the binary wildcard. Futures flat-to-slightly-lower (Dow ~flat) ahead of it.
+- **Monday 06-15 was a powerful risk-on rally** on the US–Iran ceasefire / Strait of Hormuz
+  reopening: Nasdaq **+3.07%**, S&P **+1.65%**, Dow +0.92%. Oil fell to ~$80 (mid-April low);
+  energy stays the laggard → XOM correctly parked, no missed longs.
+- **No watchlist name reports earnings today** (light week; ACN/KR Thu). **Market closed Fri
+  06-19 (Juneteenth)** — short, event-heavy week. AMD announced a small AI-memory acquisition
+  (MEXT) — benign for a mega-liquid name, no halt risk. SPCX +8.9% pre-market but still too new
+  for the ribbon. Gold/silver firm, dollar soft.
+
+### Carried from daily review
+06-15 daily-review "Notes for pre-market research" acted on:
+- **XOM park looks right** (energy stayed weak on the oil drop) → keep parked.
+- **GOOG over-traded** (bot stacked a 3rd low-conviction lot, −$15) — flagged as a *code/sizing*
+  note, "not a watchlist change" → no action here.
+- **Semis regime call paid off** (MU +$77 carried; AVGO behaved at +$5) → keep NVDA/AVGO/TSM.
+- No symbol "never signaled"; list produces plenty of triggers → no park-for-inactivity.
+
+### Watchlist review
+Account ACTIVE, equity $9,384.87, **0 open positions** (no locked symbols). 23 enabled reviewed
+against 14d closed-trade P&L from dbo.trades + the 06-15 risk-on/regime read:
+- **14d P&L leaders:** MU +$159 (4 tr, 3W), INTC +$62, QQQ +$50, JPM +$28, QCOM +$25, ABNB +$15
+  — core keeps; semis/index momentum intact.
+- **Laggards:** AVGO −$69 (3 tr, 2W — losses front-loaded in the Iran selloff regime),
+  NVDA −$54 (0/3), TSLA −$37, TSM −$9. NVDA/AVGO held on the explicit "regime not symbol" call
+  from 06-13/06-15 — the AI/semis regime is now *working* (MU +$77 carried, AVGO +$5 on 06-15);
+  parking the two most liquid semis the day before FOMC, mid-regime, would be poor timing → KEEP,
+  on notice. TSLA/TSM mega-liquid, single bad trades, no trend break → keep.
+- Lower-liquidity names (SE, ABNB, BABA) all traded fine recently (ABNB +$15, BABA +$7.5) → keep.
+- No earnings on any name today; only binary event is FOMC tomorrow.
+
+### Changes applied to dbo.watchlist
+**No changes.** The list is broad (23), semi/index-heavy into a regime that's confirmed working,
+carries zero earnings risk today, and the eve of a binary FOMC is the wrong time to churn or to
+chase a momentum add. XOM/WPM/ENPH/BIRD stay parked. No high-conviction new name (SPCX too new).
+
+### Final watchlist
+23 enabled (unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QCOM
+QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change — bot reads the list
+only at startup, so a restart would be pointless churn).
+
+---
