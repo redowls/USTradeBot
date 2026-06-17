@@ -171,3 +171,55 @@ QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change — 
 only at startup, so a restart would be pointless churn).
 
 ---
+
+## 2026-06-17 — Pre-market Research
+
+### Market context
+- **FOMC decision DAY.** Statement + SEP/dot-plot at **2pm ET**, Warsh's first press conference 2:30pm.
+  Hold is near-certain (CME FedWatch ~97%, range 3.50–3.75%); the binary wildcard is the **dot plot**
+  (May CPI ran hot at 4.2% y/y → the single 2026 cut likely removed; ~70% odds of ≥1 *hike* by year-end),
+  whether the **easing bias** is dropped, and Warsh's debut tone (regarded as hawkish). A hawkish print
+  is specifically negative for high-multiple semis/AI.
+- **Tape going in is split:** Tue 06-16 the **Dow closed at a record (>52,000)** while tech/Nasdaq
+  slumped — value/cyclical rotation, growth on the back foot ahead of the print. Oil extended lower to
+  **<$80 (WTI ~$78.7, first sub-$80 since March)** on the US–Iran ceasefire framework → energy stays the
+  laggard, **XOM correctly parked**. 2-yr yield ~4.06%.
+- **No watchlist name reports earnings today** (light week; ACN/KR Thu). **Market closed Fri 06-19
+  (Juneteenth)** — short, event-heavy week.
+
+### Carried from daily review
+06-16 daily-review "Notes for pre-market research" acted on:
+- **🔒 4 positions carried NAKED overnight** (EOD flatten failed on persistent Alpaca 504s): AAPL (7),
+  ABNB (15), BABA (16), GOOG (4) — **broker-confirmed still open this morning**. Hard rule honored:
+  **NOT parked**, all remain enabled. The startup reconcile will mark them MANAGING; the session will
+  re-manage/flatten them (or `python -m bot.flatten --yes` once open if sooner is wanted). IMP-002
+  shipped a critical Telegram page for a future failed flatten.
+- **No entry-quality concerns** raised — 06-16's failure was broker-side (504s) + exit infra, not symbols.
+- **BABA** the lone green open (+$12.4 at the close) — lower-liquidity but behaving; keep.
+
+### Watchlist review
+Account ACTIVE, equity **$9,347.37** (last_equity $9,392.88; the dip is the naked-overnight marks —
+AAPL −$4.75, ABNB −$8.55, BABA −$15.87, GOOG −$8.32 unrealized). **4 open positions = locked.**
+23 enabled reviewed vs 14d closed-trade P&L from dbo.trades (45 trades, net **+$201**):
+- **14d P&L leaders:** MU +$159 (4 tr, 3W), INTC +$62, QQQ +$50 (2/2), JPM +$28, QCOM +$25, ABNB +$15,
+  UNH +$9 — core keeps; semis/index momentum intact and the AI/semis regime is confirmed working.
+- **Laggards:** AVGO −$69 (3 tr, 2W — one front-loaded Iran-selloff loser), NVDA −$54 (0/3), TSLA −$37,
+  TSM −$9, C −$5.6, AMD −$4.9. All held on the standing **"regime not symbol"** call — the regime that
+  produced those losses (Iran selloff) has reversed and is now paying (MU is the top earner). Parking
+  the two most-liquid semis (NVDA/AVGO) mid-working-regime, on a binary FOMC day, is poor timing → KEEP,
+  on notice. TSLA/AMD/TSM/C mega-liquid, single bad trades, no trend break → keep.
+- Lower-liquidity names (SE +$2.5, ABNB +$15, BABA +$7.5) all traded fine recently → keep.
+- No earnings on any name today; only binary event is FOMC at 2pm ET.
+
+### Changes applied to dbo.watchlist
+**No changes.** 4 names are locked (open positions, can't be parked); the list is broad (23) and
+semi/index-heavy into a regime that's confirmed working; zero earnings risk today; and the **FOMC
+decision is exactly the binary event you don't churn or chase a momentum add into** (same discipline as
+06-15/06-16). XOM/WPM/ENPH/BIRD stay parked. No high-conviction new name.
+
+### Final watchlist
+23 enabled (unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QCOM
+QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change → restart would be pointless
+churn). 🔒 Locked: AAPL ABNB BABA GOOG (open positions).
+
+---
