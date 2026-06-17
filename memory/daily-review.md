@@ -182,3 +182,80 @@ failure is in the exit/flatten infrastructure, not entry quality:
 - BABA traded well (the only green open, +$12.4) — lower-liquidity but behaving; keep.
 
 ---
+
+## 2026-06-17 — Daily Review
+
+### Stats
+- Closed trades (DB, after today's backfill): **8** — 1W / 7L → **12.5% win rate**. Net
+  realized **−$181.06** (avg −$22.63). Account **equity $9,215.47** (cash, **0 positions at
+  broker**), vs last_equity **$9,392.88** → mark-to-market day **≈ −$177.41**. The DB net and
+  the equity delta agree to ~$4 — books are honest again after the backfill below.
+- **Two cohorts, both losers.** (a) The **4 carried naked overnight from 06-16** (IMP-002's
+  504 flatten failure *did* materialize) — AAPL/ABNB/BABA/GOOG — drifted down overnight and
+  were flattened today 19:56 via market sell: AAPL **−$28.32**, ABNB **−$14.25**,
+  BABA **−$43.60**, GOOG **−$39.68** (= −$125.85). (b) The **4 entered today** all **stopped
+  out broker-side intraday** then sat phantom-open until reconciled: TSLA **−$20.80**,
+  INTC **+$2.20**, TSM **−$21.00**, MU **−$15.61**.
+
+### Trade-by-trade review (Model A throughout)
+Carried-overnight cohort (entered 06-16, flattened 06-17 19:56):
+- **BABA** (entry $110.32, conf 66.05) → $107.595 **−$43.60** worst. Overnight drift; the
+  naked carry (no protective leg) is what made yesterday's small red a full-day loss.
+- **GOOG** (entry $371.10, conf 64.97) → $361.18 **−$39.68**. Same — gap/drift down overnight.
+- **AAPL** (entry $299.43, conf 66.17) → $295.385 **−$28.32**. Same.
+- **ABNB** (entry $141.21, conf 69.85) → $140.26 **−$14.25**. Mildest of the four.
+  → Root cause for all 4 = **the 06-16 naked-overnight hold**, not today's signal. They could
+  not be stopped out overnight because IMP-002's 504 outage left them with no live legs.
+- Today's entries (all opened 17:19–19:07, **stop filled broker-side**, NOT recorded until
+  backfilled):
+- **TSM** (entry $440.26, conf **72.83**) → stop $433.26 @19:38 **−$21.00**. Trend faded after
+  entry; the 3×ATR stop did its job — clean broker exit.
+- **TSLA** (entry $404.06, conf 61.34) → stop $397.13 @19:32 **−$20.80**. Low-conviction entry
+  (conf just over the 60 gate); chopped straight to the stop.
+- **MU** (entry $1086.11, conf **81.43** — highest of the day) → stop $1070.50 @19:38 **−$15.61**.
+  High confidence didn't save it; entered 19:07 into a fading semis tape ~1h before close.
+- **INTC** (entry $122.24, conf 66.66) → stop **$122.42** @19:20 **+$2.20** — the lone winner.
+  Stop trailed *above* entry (IMP pre-existing trailing logic) and locked a small gain. Proof
+  the trailing stop works — and proof of why recording its fills matters (it was logged as a
+  phantom-open loss-less row until today's fix).
+
+### What worked / what didn't
+- **Worked:** the **trailing/bracket stops fired correctly broker-side** on all 4 fresh names
+  (INTC even ratcheted to a win) — risk control is sound. EOD flatten of the 4 carried names
+  succeeded via market sell. Test suite green.
+- **Didn't:** (1) **The bot is blind to broker-side stop fills (today's headline bug).** The
+  trailing stop lives broker-side; when it fills, the position is gone but the bot keeps the
+  symbol MANAGING and only discovers it at EOD flatten, where `close_position` **404'd
+  'position not found' and was retried 12× per name for ~6 min** (20:11–20:17), logged ERRORs,
+  and **never recorded the exit** → 4 phantom-open rows, wrong win-rate (INTC's win invisible),
+  near-miss false naked-overnight page. **Fixed today: IMP-003.** (2) **Regime:** a fading
+  semis/megacap tape (post-FOMC digestion) + several **late, low-conviction entries** (TSLA at
+  the 60 gate; MU 1h before close) — entering thin late tapes keeps producing scratch-to-stop
+  trades. (3) The carried-overnight losses are 06-16's bill coming due.
+
+### Backfill (book correction, broker-verified)
+TSLA/INTC/TSM/MU were UPDATEd from OPEN→CLOSED at their **broker stop-fill prices** (from
+`/v2/orders`), matched on exact entry_time so the older same-symbol phantoms were untouched.
+This is what IMP-003 will now do automatically going forward.
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED IMP-003]** Reconcile broker-side stop/target fills (record the real exit, drop
+   the phantom). Highest impact — restores book integrity, win-rate accuracy, removes 404 spam
+   and the false-page risk.
+2. **Stale phantom cleanup (backlog):** **7 OPEN trade rows from 06-11/06-12** (ENPH, WPM, NFLX,
+   TSLA, QCOM, INTC, AMD) remain in the DB though the broker holds **0** — same root cause,
+   pre-IMP-003. One-off reconcile/cleanup needed; they pollute the "open positions" count (report
+   still shows 9) but not closed-trade stats. Added to todo.md.
+3. **Late-day / low-conviction entry quality:** consider a *time-of-day entry cutoff* (e.g. no
+   new entries in the final ~60–90 min) and/or lifting the 60 gate — TSLA(61)/late-MU were the
+   weak trades. Gather more days before changing the gate; flagged, not actioned.
+
+### Notes for pre-market research
+- **No naked positions into 06-18** — broker is **flat (0 positions)**, all of today's names
+  exited cleanly broker-side. Nothing to protect from parking.
+- **Semis/megacap tape faded post-FOMC** — MU/TSM/TSLA all stopped out; AMD/NVDA quiet. Don't
+  assume the early-week semis tailwind persists; watch for a fresh 5m trend before leaning in.
+- **Late-day entries keep failing** (TSLA 17:19→stop, MU 19:07→stop). Watchlist is fine; the
+  issue is *when* we enter. Nothing to park for signal quality.
+- **INTC behaved well** (trailed to a +$2.20 win) — keep; healthy stop behavior.
+- BABA/GOOG/AAPL/ABNB losses were the **overnight carry**, not the names — all signal/fill fine.

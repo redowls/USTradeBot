@@ -225,6 +225,20 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
 
 ---
 
+### Backlog (post-deploy, from daily reviews)
+
+- [ ] **Stale phantom-open cleanup (from 2026-06-17 / IMP-003).** 7 `dbo.trades` rows are
+      `status='OPEN'` from 06-11/06-12 (ENPH, WPM, NFLX, TSLA, QCOM, INTC, AMD) but the broker
+      holds **0** positions — they were stopped out broker-side before IMP-003 recorded such
+      fills. One-off: for each, pull its actual exit fill from Alpaca `/v2/orders` history and
+      UPDATE OPEN→CLOSED (match on entry_time). They inflate the report's "open positions"
+      count but don't affect closed-trade stats. IMP-003 prevents new ones.
+- [ ] **Late-day / low-conviction entry quality (watch).** 2026-06-17: TSLA (conf 61, at the 60
+      gate) and MU (entered 19:07, ~1h before close) both went straight to their stops. Consider
+      a time-of-day entry cutoff and/or a higher entry gate — needs more days of data first.
+
+---
+
 ### Suggested build order
 
 `0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10`

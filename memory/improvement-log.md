@@ -78,7 +78,52 @@ Entry template:
   manually flatten (`bot.flatten`) before/at the next open. No win-rate change; closes the
   naked-overnight tail-risk hole that IMP-001 couldn't (broker-side outages).
 - **Commit:** 1b575a7
-- **Observed effect:** (pending — confirm the page fires if a flatten 504s again; otherwise
-  confirm clean flatten at the 06-17 close)
+- **Observed effect:** 2026-06-17 — the naked-overnight it warns about **did happen on 06-16**:
+  AAPL/ABNB/BABA/GOOG carried overnight (504 flatten failure) and were flattened on 06-17 for
+  −$125.85 combined. No journald NAKED page is visible for 06-16 in today's window, so confirm
+  the page actually fired that night (or whether the 504s pre-empted it). IMP-002 logic holds;
+  the *carry* is the realized cost of that outage.
+
+---
+
+## IMP-003 — 2026-06-17
+
+- **Problem:** All 4 of today's fresh entries (TSLA/INTC/TSM/MU) **stopped out broker-side
+  intraday** (19:20–19:38) yet showed **OPEN** in the DB. At the EOD flatten the bot's
+  `close_position` **404'd `position not found`** and was retried **12× per name for ~6 min**
+  (20:11–20:17, journald ERROR spam), the **exits were never recorded**, the win-rate was
+  corrupted (INTC had trailed to a **+$2.20 win**, logged as a phantom loss-less row), and a
+  false naked-overnight page was narrowly avoided. Same mechanism produced **7 stale phantom
+  OPEN rows** from 06-11/06-12 (broker holds 0).
+- **Root cause:** the trailing stop lives **broker-side** (`update_trailing_stop` replaces the
+  bracket stop leg). When that leg **fills**, the position vanishes but the bot has **no
+  detection** — the symbol stays `MANAGING` until the EOD flatten, where the close 404s. The
+  404 was caught as a generic error and retried/abandoned (`close_position` → `None`), so
+  `exit_position` returned `None` and the exit was never persisted (no trade-updates/fills
+  stream wired). IMP-001/002 fixed the *close mechanics*; neither detects a broker-side fill.
+- **Change:** `bot/executor.py` — `_is_position_gone()` detects the already-flat 404; in
+  `close_position` that case now returns immediately (no 12× retry); new `reconcile_exit()`
+  confirms the broker holds **no** position (guards against transient errors abandoning a live
+  position) then returns the most recent **filled sell** order's `(id, avg_fill_price)`.
+  `bot/risk.py` — `exit_position()`, when the close didn't submit, calls `reconcile_exit` and
+  records the exit at the **real broker fill price** (reason tagged "stop/target filled
+  broker-side"); a genuine outage still reconciles to `None` → stays MANAGING + IMP-002 page.
+  **No risk widened, no safety disabled.** Today's 4 phantom rows were also backfilled from
+  broker-verified `/v2/orders` fills (book correction; IMP-003 automates this going forward).
+- **Validation:** full suite **194 passed** (`pytest -q`, was 189 + 5 new). New regressions:
+  `test_close_position_already_flat_returns_none_without_retry`,
+  `test_reconcile_exit_returns_broker_side_fill`,
+  `test_reconcile_exit_none_when_position_still_open` (safety guard),
+  `test_reconcile_exit_none_when_no_filled_exit`,
+  `test_exit_position_reconciles_broker_side_stop_fill` (exit recorded at the real fill, not the
+  price passed in). `bot.preflight` PASS (broker flat, equity $9,215.47). Service restarted
+  clean, 0 positions.
+- **Expected impact:** broker-side stop/target fills are recorded at their true price → win-rate
+  & P&L become trustworthy, no more phantom-open rows, no 404 retry-storm at EOD, no false
+  naked-overnight pages. Capital protection + data integrity; the win-rate *metric* this routine
+  optimizes is now correct (it was understating wins).
+- **Commit:** 9ec528f
+- **Observed effect:** (pending — confirm at the next session that an intraday stop-out is
+  recorded as CLOSED in the DB at its broker fill, with no `could not close position` ERRORs.)
 
 ---
