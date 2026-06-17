@@ -36,15 +36,21 @@ def cfg(monkeypatch):
 class _FakeExecutor:
     """Records close_position / replace_stop_price calls; returns scripted outcomes."""
 
-    def __init__(self, order_id="close-1", replace_ok=True):
+    def __init__(self, order_id="close-1", replace_ok=True, reconciled=None):
         self._order_id = order_id
         self._replace_ok = replace_ok
+        self._reconciled = reconciled  # (order_id, price) of a broker-side fill, or None
         self.closed = []
         self.moved = []
+        self.reconcile_calls = []
 
     def close_position(self, symbol):
         self.closed.append(symbol)
         return self._order_id
+
+    def reconcile_exit(self, symbol):
+        self.reconcile_calls.append(symbol)
+        return self._reconciled
 
     def replace_stop_price(self, stop_order_id, new_stop_price):
         self.moved.append((stop_order_id, new_stop_price))
@@ -191,9 +197,27 @@ def test_exit_position_closes_and_reports(cfg):
 
 
 def test_exit_position_returns_none_when_close_fails(cfg):
-    ex = _FakeExecutor(order_id=None)  # close didn't submit
+    ex = _FakeExecutor(order_id=None)  # close didn't submit AND nothing to reconcile
     rm = RiskManager(cfg, executor=ex)
     assert rm.exit_position("NFLX", 99.0, "reason") is None
+    assert ex.reconcile_calls == ["NFLX"]  # tried to reconcile, found no broker-side fill
+
+
+def test_exit_position_reconciles_broker_side_stop_fill(cfg):
+    # Regression (2026-06-17): the trailing stop filled broker-side, so close_position
+    # 404'd (returns None). exit_position must reconcile the real fill from order
+    # history, record the exit at THAT price (not the price passed in), tag the reason,
+    # and release the symbol — instead of leaving a phantom-open position.
+    ex = _FakeExecutor(order_id=None, reconciled=("stop-leg", 397.13))
+    seen = []
+    rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
+    result = rm.exit_position("TSLA", 410.0, "end-of-day flatten", _entry())
+    assert result is not None
+    assert result.exit_price == 397.13  # the real broker-side fill, not the 410.0 passed in
+    assert "broker-side" in result.reason
+    assert result.order_id == "stop-leg"
+    assert ex.reconcile_calls == ["TSLA"]
+    assert seen == [result]  # on_exit fired → the exit is persisted
 
 
 def test_exit_position_without_entry_has_no_qty(cfg):

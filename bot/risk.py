@@ -181,7 +181,17 @@ class RiskManager:
         """
         order_id = self._executor.close_position(symbol)
         if order_id is None:
-            return None  # close failed; caller keeps the symbol MANAGING and retries
+            # The close didn't submit. It may be that a broker-side stop/target leg
+            # already filled (the trailing stop lives broker-side) — reconcile the real
+            # exit from order history so we record it at its true fill price and release
+            # the symbol, rather than leaving a phantom-open position (the 2026-06-17
+            # bug). A genuine close failure (transient/outage) reconciles to None → the
+            # caller keeps the symbol MANAGING and retries on the next candle.
+            reconciled = self._executor.reconcile_exit(symbol)
+            if reconciled is None:
+                return None
+            order_id, exit_price = reconciled
+            reason = f"{reason} (stop/target filled broker-side)"
         key = getattr(entry, "stop_order_id", "") if entry is not None else ""
         if key:  # trade is done — drop its trailing-stop state
             self._trail_stops.pop(key, None)

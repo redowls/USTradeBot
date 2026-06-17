@@ -42,6 +42,20 @@ log = logging.getLogger("ustradebot.executor")
 # Order statuses that mean the submission was refused outright.
 _REJECTED = {"rejected", "canceled", "expired"}
 
+
+def _is_position_gone(exc: Exception) -> bool:
+    """True when an Alpaca error means the position no longer exists (already flat).
+
+    A broker-side bracket stop/target leg fills *outside* the bot's control; a later
+    close then 404s with ``code 40410000 "position not found"``. That is the outcome
+    we wanted (flat), not a retryable failure — so the close path treats it as
+    already-closed and the exit is reconciled from order history, rather than being
+    retried 12× and abandoned as a phantom-open position (the 2026-06-17 bug).
+    """
+    text = str(exc).lower()
+    return "position not found" in text or "40410000" in text
+
+
 # Close retry/poll budget. After we cancel the bracket's resting legs the broker
 # keeps the position's qty ``held_for_orders`` for a few seconds — the cancel settles
 # asynchronously — so an immediate close 403s with "insufficient qty available". We
@@ -338,6 +352,14 @@ class OrderExecutor:
             try:
                 order = client.close_position(symbol)
             except Exception as exc:  # noqa: BLE001 — retried, then logged below
+                if _is_position_gone(exc):
+                    # Already flat: a broker-side stop/target leg filled before this
+                    # close (the trailing stop lives broker-side). No position will
+                    # ever come back, so stop retrying — the caller reconciles the real
+                    # exit from order history rather than spamming 12 errors and leaving
+                    # a phantom-open row (the 2026-06-17 EOD-flatten bug).
+                    log.info("CLOSE %s: already flat (closed broker-side)", symbol)
+                    return None
                 last_exc = exc
                 continue
             order_id = str(getattr(order, "id", "") or "")
@@ -347,4 +369,46 @@ class OrderExecutor:
             "could not close position for %s after %d attempts", symbol, _CLOSE_ATTEMPTS,
             exc_info=last_exc,
         )
+        return None
+
+    def reconcile_exit(self, symbol: str) -> tuple[str, float] | None:
+        """Recover an exit the bot didn't drive: a broker-side stop/target fill.
+
+        The trailing stop lives broker-side; when it fills, the position vanishes and
+        the bot's own close 404s (:func:`_is_position_gone`). To still record the exit
+        — at its **real** fill price, so P/L and the win/loss flag are correct — and
+        release the symbol from ``MANAGING`` instead of leaving a phantom-open row, this
+        returns the most recent **filled sell** order's ``(id, avg_fill_price)``.
+
+        Safety: it first confirms the broker holds **no** position for ``symbol``. A
+        transient read error (the position may still be open) returns ``None`` so a
+        flaky call is never mistaken for a fill — abandoning a live position. Returns
+        ``None`` when a position remains or no filled exit can be found.
+        """
+        client = self._client_or_build()
+        try:
+            client.get_open_position(symbol)
+            return None  # still holding — not an already-flat case
+        except Exception as exc:  # noqa: BLE001
+            if not _is_position_gone(exc):
+                return None  # couldn't confirm flat (transient) — leave MANAGING, retry
+        try:
+            orders = client.get_orders(
+                GetOrdersRequest(
+                    status=QueryOrderStatus.CLOSED,
+                    side=OrderSide.SELL,
+                    symbols=[symbol],
+                )
+            )
+        except Exception:
+            log.exception("reconcile_exit: could not list closed orders for %s", symbol)
+            return None
+        for order in orders or []:  # Alpaca returns most-recent first
+            price = getattr(order, "filled_avg_price", None)
+            if price:
+                oid = str(getattr(order, "id", "") or "")
+                log.info(
+                    "reconcile_exit %s: broker-side fill @ %s (order %s)", symbol, price, oid
+                )
+                return oid, float(price)
         return None

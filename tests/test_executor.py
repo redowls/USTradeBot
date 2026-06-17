@@ -9,7 +9,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from alpaca.trading.enums import OrderClass, OrderSide, OrderType, TimeInForce
+from alpaca.trading.enums import (
+    OrderClass,
+    OrderSide,
+    OrderType,
+    QueryOrderStatus,
+    TimeInForce,
+)
 
 from bot.config import Config
 from bot.executor import OrderExecutor
@@ -33,7 +39,8 @@ class _FakeTrading:
     def __init__(
         self, *, buying_power="10000", equity="10000", status="accepted",
         raise_on=None, with_legs=False, open_orders=(), held_until_cancelled=False,
-        qty_available_after=0,
+        qty_available_after=0, close_position_gone=False, position_open=True,
+        closed_sell_orders=(),
     ):
         self.account = SimpleNamespace(buying_power=buying_power, equity=equity)
         self.submitted = []
@@ -54,6 +61,13 @@ class _FakeTrading:
         self._qty_available_after = qty_available_after
         self.poll_count = 0
         self._released = qty_available_after == 0
+        # 2026-06-17: a broker-side stop/target fill closed the position before the
+        # bot's close ran, so close_position 404s "position not found" and
+        # get_open_position raises the same — and the exit must be reconciled from the
+        # most recent filled sell in order history.
+        self._close_position_gone = close_position_gone
+        self._position_open = position_open
+        self._closed_sell_orders = list(closed_sell_orders)
 
     def get_account(self):
         if self._raise_on == "account":
@@ -75,6 +89,8 @@ class _FakeTrading:
     def get_orders(self, filter=None):
         if self._raise_on == "list_orders":
             raise RuntimeError("orders unreachable")
+        if getattr(filter, "status", None) == QueryOrderStatus.CLOSED:
+            return list(self._closed_sell_orders)
         return list(self._open_orders)
 
     def cancel_order_by_id(self, order_id):
@@ -82,6 +98,8 @@ class _FakeTrading:
         self._open_orders = [o for o in self._open_orders if o.id != order_id]
 
     def get_open_position(self, symbol):
+        if not self._position_open:
+            raise RuntimeError(f'{{"code":40410000,"message":"position not found: {symbol}"}}')
         self.poll_count += 1
         if self.poll_count > self._qty_available_after:
             self._released = True
@@ -90,6 +108,8 @@ class _FakeTrading:
         )
 
     def close_position(self, symbol):
+        if self._close_position_gone:
+            raise RuntimeError(f'{{"code":40410000,"message":"position not found: {symbol}"}}')
         if self._raise_on == "close":
             raise RuntimeError("no position")
         if self._held_until_cancelled and self._open_orders:
@@ -248,3 +268,38 @@ def test_close_position_listing_orders_error_still_attempts_close(cfg):
     fake = _FakeTrading(raise_on="list_orders")
     assert _exec(cfg, fake).close_position("NFLX") == "close-1"
     assert fake.closed == ["NFLX"]
+
+
+def test_close_position_already_flat_returns_none_without_retry(cfg):
+    # Regression (2026-06-17 EOD flatten): the broker-side trailing stop filled before
+    # this close ran, so close_position 404s "position not found". The old code retried
+    # it 12× and logged an ERROR, leaving the trade phantom-open. It must now detect the
+    # already-flat case and bail immediately so the caller reconciles the real exit.
+    fake = _FakeTrading(close_position_gone=True)
+    assert _exec(cfg, fake).close_position("TSLA") is None
+    assert fake.closed == []  # nothing to liquidate — already flat broker-side
+
+
+def test_reconcile_exit_returns_broker_side_fill(cfg):
+    # The trailing stop fills broker-side; reconcile recovers the real exit (order id +
+    # fill price) from the most recent filled sell so the exit is recorded at its true
+    # price — TSLA's stop filled @397.13 on 2026-06-17, not left phantom-open.
+    fill = SimpleNamespace(id="stop-leg", filled_avg_price="397.13", status="filled")
+    fake = _FakeTrading(position_open=False, closed_sell_orders=(fill,))
+    assert _exec(cfg, fake).reconcile_exit("TSLA") == ("stop-leg", 397.13)
+
+
+def test_reconcile_exit_none_when_position_still_open(cfg):
+    # Safety: if the broker still reports a position, a transient close error must NOT
+    # be mistaken for a fill — that would abandon a live position. Reconcile returns None.
+    fill = SimpleNamespace(id="stop-leg", filled_avg_price="397.13", status="filled")
+    fake = _FakeTrading(position_open=True, closed_sell_orders=(fill,))
+    assert _exec(cfg, fake).reconcile_exit("TSLA") is None
+
+
+def test_reconcile_exit_none_when_no_filled_exit(cfg):
+    # Flat at the broker but no filled sell to attribute the exit to → None (caller
+    # leaves the symbol MANAGING rather than inventing an exit price).
+    unfilled = SimpleNamespace(id="x", filled_avg_price=None, status="canceled")
+    fake = _FakeTrading(position_open=False, closed_sell_orders=(unfilled,))
+    assert _exec(cfg, fake).reconcile_exit("TSLA") is None

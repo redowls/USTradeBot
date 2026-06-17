@@ -247,6 +247,9 @@ class _FakeCloser:
         self.closed.append(symbol)
         return self._order_id
 
+    def reconcile_exit(self, symbol):
+        return None  # close succeeds here, so reconcile is never consulted
+
     def replace_stop_price(self, stop_order_id, new_stop_price):
         self.moved.append((stop_order_id, new_stop_price))
         return True
@@ -315,6 +318,9 @@ class _FailingCloser:
     def close_position(self, symbol):
         self.attempts.append(symbol)
         return None  # 504 / timeout — close never submits
+
+    def reconcile_exit(self, symbol):
+        return None  # genuine outage, not an already-flat position — escalation must fire
 
     def replace_stop_price(self, stop_order_id, new_stop_price):
         return True
