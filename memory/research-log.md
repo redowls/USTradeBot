@@ -223,3 +223,55 @@ QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change → 
 churn). 🔒 Locked: AAPL ABNB BABA GOOG (open positions).
 
 ---
+
+## 2026-06-18 — Pre-market Research
+
+### Market context
+- **Post-FOMC rebound, semis leading.** Wed 06-17's hawkish surprise (dot plot median to 3.8%,
+  ~half the committee pencils a 2026 *hike*, Warsh's price-stability emphasis) sold stocks off
+  (S&P −1.21%, Nasdaq −1.34%, worst new-chair "Fed day" since 1994). This morning futures
+  **rebound**: S&P +0.9%, Nasdaq-100 **+1.6%**, Dow +0.6%. 2-yr yield ~4.22% (jumped +16bp Wed).
+- **Chips rip on an Intel–Apple headline.** Trump said INTC will partner with AAPL on US chip
+  design → **INTC +9% pre**, MU **+4.7%**, NVDA +1.2%, **SOXX +3.9%**. Directly favors our
+  semi/AI-heavy list and AAPL — clean trending longs for the long-only ribbon if it holds.
+- **No watchlist name reports earnings today.** Today's earnings are **ACN, KR** (neither ours).
+  **Market closed Fri 06-19 (Juneteenth)** — today is the last session of a short, event-heavy week.
+
+### Carried from daily review
+06-17 daily-review "Notes for pre-market research" acted on:
+- **No naked positions into 06-18** — broker confirmed **flat (0 positions)** this morning
+  (equity $9,215.44 = last_equity, all 06-17 names exited cleanly broker-side). Nothing locked.
+- **"Semis/megacap tape faded post-FOMC; watch for a fresh 5m trend before leaning in"** — noted,
+  but this morning's tape has *reversed* bullishly on the INTC–AAPL news; the gate ribbon will
+  confirm a real trend before any entry, so no symbol action needed.
+- **"Late-day entries keep failing… Watchlist is fine; the issue is *when* we enter. Nothing to
+  park for signal quality."** — explicit: no watchlist parks indicated. INTC kept (behaved well,
+  trailed to a +$2.20 win). BABA/GOOG/AAPL/ABNB losses were the overnight carry, not the names.
+
+### Watchlist review
+Account ACTIVE, equity **$9,215.44**, **0 open positions** (no locked symbols). 23 enabled
+reviewed vs 12d closed-trade P&L from dbo.trades (net **+$19.95**):
+- **Leaders:** MU +$144 (5 tr, 3W), INTC +$64 (3 tr, 2W), QQQ +$50 (2/2), JPM +$28, QCOM +$25,
+  UNH +$9, SPY +$6 — core keeps; semis/index momentum intact and *re-igniting* on today's tape.
+- **Laggards:** AVGO −$69, TSLA −$57, NVDA −$54 (0/3, still never won), BABA −$36, GOOG −$33,
+  TSM −$30, AAPL −$21. Every one is explained by the daily reviews as **regime (Iran selloff /
+  FOMC fade) or the 06-16 naked-overnight carry — not signal quality.** All are mega-liquid (NVDA
+  the most liquid name on the list) and today's semis rebound directly favors the AI/semi cohort;
+  parking them into a bullish chip reversal would be exactly the bad timing prior runs warned of
+  → KEEP, on notice. Single-bad-trade megacaps (TSLA/TSM/AAPL/C/AMD) show no trend break → keep.
+- Lower-liquidity names (SE +$2.5, ABNB +$0.4, BABA) traded fine recently → keep.
+- No earnings on any watchlist name today; FOMC (the week's binary event) is resolved.
+
+### Changes applied to dbo.watchlist
+**No changes.** The list is broad (23), carries zero earnings risk today, the binary FOMC event is
+behind us, and the morning tape favors our semi/index-heavy roster (INTC–AAPL chip news). Every
+laggard's losses are regime/overnight-carry per the daily reviews, none is a signal-quality or
+liquidity park candidate, and no name "never signals." No high-conviction non-semi add, and we're
+already heavily exposed to the leading sector — no churn for activity. XOM/WPM/ENPH/BIRD stay parked.
+
+### Final watchlist
+23 enabled (unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QCOM
+QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change → bot reads the list
+only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
+
+---
