@@ -118,7 +118,7 @@ Entry template:
   rate). Capital protection + data integrity. Does **not** by itself prevent a late flatten from
   carrying naked — that's candidate #2 (widen `FLATTEN_BEFORE_CLOSE_MIN` so the flatten runs in
   liquid RTH); IMP-004 is the reliable detection/escalation half.
-- **Commit:** (filled below)
+- **Commit:** 5825b4b
 - **Observed effect:** (pending — confirm Monday 06-22 that any unfilled close logs a failed-close
   ERROR + NAKED page and writes NO CLOSED row, and that a normal RTH exit still records cleanly.)
 
