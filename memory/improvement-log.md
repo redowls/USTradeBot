@@ -86,6 +86,44 @@ Entry template:
 
 ---
 
+## IMP-004 — 2026-06-18
+
+- **Problem:** The EOD flatten "closed" **7 positions that were still OPEN at the broker**
+  (GOOG/INTC/MU/QQQ/SE/TSLA/TSM) → they carried **NAKED into the Juneteenth long weekend**, and
+  the DB recorded 7 fake CLOSED exits (a fictitious +$199.06 day vs ≈ +$47 real unrealized). The
+  flatten fired ~16:00–16:05 ET — *after* the 16:00 close — on a laggy feed (websocket drops + an
+  Alpaca 504 storm); the bracket DAY legs had expired and the flatten's **market DAY sells were
+  `accepted` but never filled**. IMP-002's naked-overnight page **never fired**.
+- **Root cause:** `OrderExecutor.close_position` returned the order id on the **submit ack** — it
+  never confirmed the position actually went flat. A market DAY order placed after the close is
+  accepted but unfilled, so the bot read "submitted" as "closed," recorded the exit, released the
+  symbol, and bypassed IMP-002 (the close looked successful). IMP-001/002/003 fixed the close
+  *mechanics* and broker-side-fill reconciliation; none verified the bot's **own** close filled.
+- **Change:** `bot/executor.py` — new `_confirm_flat(symbol)` polls `get_open_position` (reusing
+  the `_CLOSE_ATTEMPTS`/`_CLOSE_RETRY_DELAY` budget) until the broker 404s (`_is_position_gone`).
+  `close_position` now submits **once**, then requires `_confirm_flat` before returning the order
+  id; if the position is still open when the budget is spent it returns **`None`**. Downstream
+  (`risk.exit_position`): `None` → `reconcile_exit` (returns `None` while the position is still
+  open) → no exit recorded, symbol stays MANAGING, and `strategy._escalate_failed_flatten` fires
+  the IMP-002 NAKED page. **No risk widened, no safety disabled, no entry logic touched** — closes
+  the "submit-ack ≠ fill" gap. Fails closed (a transient read that never clears → report not-flat).
+- **Validation:** full suite **196 passed** (`pytest -q`, was 194 + 2 new). New regressions:
+  `test_close_position_unfilled_after_close_returns_none` (today's exact scenario: close submitted
+  but position stays open → `None`, not a fake success) and
+  `test_close_position_confirms_flat_before_reporting_success` (happy path still returns the id once
+  the broker confirms flat). `bot.preflight` PASS (Alpaca ACTIVE, equity $9,253; 1 WARN = market
+  closed). Service restarted clean.
+- **Expected impact:** a flatten/exit that doesn't truly close is never again logged as a success —
+  the operator is paged (IMP-002) and the books stay honest (no fictitious exits, no inflated win
+  rate). Capital protection + data integrity. Does **not** by itself prevent a late flatten from
+  carrying naked — that's candidate #2 (widen `FLATTEN_BEFORE_CLOSE_MIN` so the flatten runs in
+  liquid RTH); IMP-004 is the reliable detection/escalation half.
+- **Commit:** (filled below)
+- **Observed effect:** (pending — confirm Monday 06-22 that any unfilled close logs a failed-close
+  ERROR + NAKED page and writes NO CLOSED row, and that a normal RTH exit still records cleanly.)
+
+---
+
 ## IMP-003 — 2026-06-17
 
 - **Problem:** All 4 of today's fresh entries (TSLA/INTC/TSM/MU) **stopped out broker-side

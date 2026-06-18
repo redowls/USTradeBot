@@ -303,6 +303,33 @@ class OrderExecutor:
             log.info("cancelled %d open order(s) for %s before close", cancelled, symbol)
         return cancelled
 
+    def _confirm_flat(self, symbol: str) -> bool:
+        """True once the broker confirms ``symbol`` holds no position.
+
+        ``close_position`` only acks the **submission** of a market order — not its
+        fill. After the regular session closes Alpaca *accepts* a market DAY order but
+        never fills it, so the position lingers open while the bot believes it closed
+        (the 2026-06-18 EOD-flatten bug: the flatten fired a few minutes late on a
+        quiet/laggy feed + a 504 storm, submitted seven market sells past 16:00 ET, and
+        recorded seven fake exits while the positions carried NAKED into the weekend).
+        We poll until the position is gone (``_is_position_gone`` → 404) and return
+        ``True``; if it is still open when the budget is spent we return ``False`` so the
+        close is treated as failed. A transient read error is inconclusive — we keep
+        polling and, if it never clears, fail closed (report not-flat), the
+        capital-protective choice (the caller keeps the symbol MANAGING and the
+        naked-overnight escalation fires).
+        """
+        for attempt in range(_CLOSE_ATTEMPTS):
+            if attempt:
+                time.sleep(_CLOSE_RETRY_DELAY)
+            try:
+                self._client_or_build().get_open_position(symbol)
+            except Exception as exc:  # noqa: BLE001
+                if _is_position_gone(exc):
+                    return True
+                # transient read error — keep polling; never assume flat on a flaky read
+        return False
+
     def _qty_released(self, symbol: str) -> bool:
         """True once the broker has freed the qty the cancelled bracket legs held.
 
@@ -342,6 +369,7 @@ class OrderExecutor:
         cancelled = self._cancel_open_orders(symbol)
         client = self._client_or_build()
         last_exc: Exception | None = None
+        order_id: str | None = None
         for attempt in range(_CLOSE_ATTEMPTS):
             if attempt:
                 time.sleep(_CLOSE_RETRY_DELAY)  # give the cancel time to release held_for_orders
@@ -364,10 +392,24 @@ class OrderExecutor:
                 continue
             order_id = str(getattr(order, "id", "") or "")
             log.info("CLOSE %s submitted (order=%s)", symbol, order_id or "?")
+            break
+        if order_id is None:
+            log.error(
+                "could not close position for %s after %d attempts", symbol, _CLOSE_ATTEMPTS,
+                exc_info=last_exc,
+            )
+            return None
+        # A submit ack is NOT a close. Confirm the position actually went flat — past the
+        # 16:00 close (e.g. a late EOD flatten on a laggy feed) Alpaca accepts the market
+        # order but never fills it, so reporting success here would record a fake exit and
+        # leave the position carrying NAKED overnight (the 2026-06-18 bug). If it didn't go
+        # flat, fail the close so the caller keeps it MANAGING and the escalation pages.
+        if self._confirm_flat(symbol):
             return order_id
         log.error(
-            "could not close position for %s after %d attempts", symbol, _CLOSE_ATTEMPTS,
-            exc_info=last_exc,
+            "CLOSE %s submitted (order=%s) but the position is still open — the close did "
+            "not fill (market likely closed); treating as a failed close",
+            symbol, order_id or "?",
         )
         return None
 

@@ -40,7 +40,7 @@ class _FakeTrading:
         self, *, buying_power="10000", equity="10000", status="accepted",
         raise_on=None, with_legs=False, open_orders=(), held_until_cancelled=False,
         qty_available_after=0, close_position_gone=False, position_open=True,
-        closed_sell_orders=(),
+        closed_sell_orders=(), close_fills=True,
     ):
         self.account = SimpleNamespace(buying_power=buying_power, equity=equity)
         self.submitted = []
@@ -68,6 +68,11 @@ class _FakeTrading:
         self._close_position_gone = close_position_gone
         self._position_open = position_open
         self._closed_sell_orders = list(closed_sell_orders)
+        # When True the close's market sell fills, so the position goes flat (the broker
+        # then 404s on a follow-up read — the confirm-flat check). When False the order is
+        # accepted but never fills (e.g. submitted after the 16:00 close), so the position
+        # lingers open — the 2026-06-18 EOD-flatten naked-carry scenario.
+        self._close_fills = close_fills
 
     def get_account(self):
         if self._raise_on == "account":
@@ -117,6 +122,8 @@ class _FakeTrading:
         if not self._released:
             raise RuntimeError("insufficient qty available (held_for_orders)")
         self.closed.append(symbol)
+        if self._close_fills:
+            self._position_open = False  # the market sell filled → position goes flat
         return SimpleNamespace(id="close-1", status="accepted")
 
     def replace_order_by_id(self, order_id, order_data):
@@ -278,6 +285,27 @@ def test_close_position_already_flat_returns_none_without_retry(cfg):
     fake = _FakeTrading(close_position_gone=True)
     assert _exec(cfg, fake).close_position("TSLA") is None
     assert fake.closed == []  # nothing to liquidate — already flat broker-side
+
+
+def test_close_position_confirms_flat_before_reporting_success(cfg):
+    # The happy path: the market sell fills, the broker confirms the position is gone,
+    # and only then does the close report success with the order id.
+    fake = _FakeTrading(close_fills=True)
+    assert _exec(cfg, fake).close_position("NFLX") == "close-1"
+    assert fake.closed == ["NFLX"]
+    assert fake._position_open is False  # confirmed flat
+
+
+def test_close_position_unfilled_after_close_returns_none(cfg):
+    # Regression (2026-06-18 EOD flatten): the flatten fired ~16:05 ET on a laggy feed,
+    # so the market sells were ACCEPTED but never filled — yet the bot reported success,
+    # recorded fake exits and carried seven positions NAKED into the weekend. A submit
+    # ack is not a close: when the position is still open after submitting, close_position
+    # must return None so the caller keeps it MANAGING and the naked-overnight page fires.
+    fake = _FakeTrading(close_fills=False)  # order accepted but never fills; stays open
+    assert _exec(cfg, fake).close_position("GOOG") is None
+    assert fake.closed == ["GOOG"]  # the close WAS submitted...
+    assert fake._position_open is True  # ...but the position never went flat
 
 
 def test_reconcile_exit_returns_broker_side_fill(cfg):

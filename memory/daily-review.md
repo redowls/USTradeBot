@@ -259,3 +259,95 @@ This is what IMP-003 will now do automatically going forward.
   issue is *when* we enter. Nothing to park for signal quality.
 - **INTC behaved well** (trailed to a +$2.20 win) — keep; healthy stop behavior.
 - BABA/GOOG/AAPL/ABNB losses were the **overnight carry**, not the names — all signal/fill fine.
+
+---
+
+## 2026-06-18 — Daily Review
+
+### Stats
+- DB **realized P&L +$199.06** across **9 "closed" rows (7W/2L, 78%)** — but the headline DB
+  number is **fictitious** (see below). **Account equity ≈ $9,253–9,263** (last_equity
+  $9,215.44) → real **mark-to-market day ≈ +$38–48**, all of it **unrealized** on positions
+  that are **still open**. Cash −$1,426.57 (7 lots held).
+- **🚨 Capital-protection event: the EOD flatten "closed" 7 positions that are STILL OPEN at
+  the broker — 7 names carrying NAKED into the Juneteenth long weekend.** Broker `/v2/positions`
+  holds **GOOG(5) INTC(16) MU(1) QQQ(1) SE(15) TSLA(4) TSM(4)** at *today's* entry prices; every
+  one was recorded `end-of-day flatten` CLOSED in the DB. The flatten fired ~**16:00–16:05 ET
+  (20:00–20:16 UTC), i.e. *after* the 16:00 close**, on a laggy/unstable feed (websocket errors
+  19:49/19:54/19:59 + an Alpaca **504 storm** on stop-replaces and GOOG's close). The DAY bracket
+  legs had already **expired** at 16:00 (cancels 422'd "order already in expired state"), and the
+  flatten's **market DAY sells were `accepted` but never filled** (regular session shut). The bot
+  read the submit-ack as success → recorded fake exits at candle-close prices → **IMP-002's NAKED
+  page never fired** (the close "succeeded").
+- **Books are corrupted for today.** The +$199.06 is dominated by a **fictitious INTC +$154.28**
+  (a phantom row entered 06-12 @ $122.20 — one of the 7 stale phantoms flagged 06-17 — "closed"
+  today @ $133.22; INTC was never actually held the whole week, broker was flat on 06-17). Strip
+  the two 06-12 phantoms (INTC +$154.28, TSLA −$3.26) and the 7 unfilled fake exits, and the real
+  day is the ≈ +$38–48 unrealized above. **Needs a Monday book correction** (backfill the 7 at
+  their real Monday exit fills, like the 06-17 backfill).
+
+### Trade-by-trade review (Model A throughout)
+Two 06-12 **phantom rows** swept up by the flatten (NOT real round-trips):
+- **INTC** (06-12 @ $122.20, conf 69.54) → "@ $133.22" **+$154.28** — fictitious; phantom-open row
+  closed at today's mark. The +9% INTC rip (Intel–Apple chip news) is real *in the tape*, but the
+  bot did **not** hold this lot from 06-12.
+- **TSLA** (06-12 @ $402.79, conf 85.94) → "@ $402.33" **−$3.26** — same; phantom row.
+Today's **7 real fresh entries** (all 17:28–19:35 UTC) — recorded CLOSED but **broker shows OPEN**:
+- **TSLA** (17:56 @ $396.72, conf 71.53, xo 0.16) — open, +$13.56 unreal. "Exit" $402.33 (+$22.42 fake).
+- **TSM** (18:01 @ $459.19, conf 73.62, xo 0.12) — open, +$14.77. Fake "+$17.10".
+- **GOOG** (17:44 @ $366.26, conf 70.04, xo 0.11) — open, +$3.65. Fake "+$8.43".
+- **MU** (17:51 @ $1136.35, conf 65.16, xo 0.22) — open, +$5.93. Fake "+$8.57".
+- **INTC** (17:28 @ $133.98, conf 68.56, **xo 0.17**) — open, +$6.55. Fake "−$12.16".
+- **QQQ** (19:35 @ $739.46, conf 64.14, **xo 0.04**) — open, +$1.39. Fake "+$1.43".
+- **SE** (19:35 @ $91.18, conf 65.35, **xo 0.07**) — open, +$1.65. Fake "+$2.25".
+- Root cause for ALL is the **exit/flatten infra**, not entry quality: the entries were green
+  (net ≈ +$47 unrealized, the bullish chip-news tape the pre-market read called). The bot just
+  never actually exited them, and lied that it did.
+
+### What worked / what didn't
+- **Worked:** entries tracked the morning thesis (semis/AI rebound on the Intel–Apple headline) —
+  7 of 7 fresh lots are green unrealized. Service stayed `active` all session; websocket
+  auto-reconnected through its drops. Trailing stops were being ratcheted (stop-replace logs).
+- **Didn't — the headline:** **`close_position` reported success on a mere submit-ack.** A market
+  DAY order placed after 16:00 is *accepted but never fills*, yet the bot recorded the exit and
+  released the symbol. Net effect: corrupted books **and** a silent naked carry — IMP-002's whole
+  escalation was bypassed because, from the bot's view, the close "worked." → **fixed this run
+  (IMP-004).** Secondary contributors (not fixed today, one change per run): (a) the **flatten
+  fires on candle-close timing**, which lags wall-clock when the feed quiets near 16:00, so the
+  flatten executed *after* the close — widening `FLATTEN_BEFORE_CLOSE_MIN` (currently 5) so it
+  runs earlier in liquid RTH is the top prevention candidate; (b) recurring **Alpaca 504 storms**
+  near the close slow every call.
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED IMP-004]** `close_position` now **confirms the position actually went flat**
+   (`_confirm_flat` polls until the broker 404s) before reporting success; an accepted-but-unfilled
+   close returns `None` → the symbol stays MANAGING and IMP-002's naked-overnight page fires, and
+   no fake CLOSED row is written. Highest impact: restores book integrity + makes the existing
+   safety page actually trigger. Capital protection + data integrity.
+2. **(candidate — strong, multi-day)** Widen `FLATTEN_BEFORE_CLOSE_MIN` 5 → ~12–15 so the flatten
+   *executes during liquid RTH* (market sells fill) instead of racing the 16:00 wire on a laggy
+   feed. Doubles as the late-day-entry cutoff flagged 06-15/06-17 (late low-conviction entries keep
+   churning). Prevention to pair with IMP-004's detection. Hold for next run (one change/run).
+3. **(book correction — Monday)** Backfill the 7 fake-closed rows to their real Monday exit fills,
+   and finally purge the 06-11/06-12 stale phantom rows (INTC/TSLA among them) that the flatten can
+   still sweep into fictitious P&L (the INTC +$154.28 today). Pre-IMP-003 residue.
+4. **(watch)** 80-89 confidence band still negative all-time (−$70.25, 6 tr, 33%) vs 70-79 (+$184,
+   61%) / 60-69 (+$106, 55%). Sample growing but today's data is unreliable (fake exits) — don't
+   touch `ScoreWeights`/threshold yet.
+
+### Notes for pre-market research
+- **🔒 7 positions are OPEN/NAKED into 2026-06-22** (Mon; **Fri 06-19 is Juneteenth, market closed**):
+  **GOOG(5) INTC(16) MU(1) QQQ(1) SE(15) TSLA(4) TSM(4)** — broker-confirmed, protective legs
+  expired. Pre-market routine **must NOT park any of these** (hard rule). They are green right now
+  (≈ +$47 unrealized) but ride the weekend with **no stops**. Monday's startup reconcile will mark
+  them MANAGING; if you want them flat at the open, `python -m bot.flatten --yes` once the market is
+  open (NOT now — orders won't fill while it's closed).
+- **DB is wrong for 06-18:** it shows these 7 (plus 2 06-12 phantoms) as CLOSED with a fake +$199.06.
+  Real day ≈ +$47 unrealized. A **Monday book correction/backfill** is needed before trusting stats.
+- **Entry quality was fine** — the Intel–Apple chip-news semis rebound played out; all 7 fresh lots
+  green. No watchlist parks indicated. INTC/MU/TSM/TSLA/GOOG/QQQ/SE all signalled and filled cleanly.
+- **Watch the late-session entries again:** QQQ (conf 64, xo 0.04) and SE (conf 65, xo 0.07) entered
+  19:35 UTC on very weak crossover — same late-day/low-xo pattern flagged all week. Candidate #2
+  (wider flatten window = late-entry cutoff) would have blocked both.
+
+---
