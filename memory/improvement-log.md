@@ -44,7 +44,9 @@ Entry template:
 - **Observed effect:** 2026-06-16 — **did NOT recur** (no `held_for_orders` 403s in the
   06-16 flatten). A *different* flatten failure hit instead: persistent Alpaca **504 Gateway
   Timeouts** beat all 12 retries (broker-side outage, not the async-cancel race IMP-001
-  fixed). IMP-001 holds; IMP-002 addresses the new mode.
+  fixed). IMP-001 holds; IMP-002 addresses the new mode. **Weekly (06-19):** held all week —
+  the `held_for_orders` async-cancel race never reappeared; every later flatten failure was a
+  different mode (504 06-16, submit-ack 06-18, candle-timing 06-18). IMP-001 confirmed good.
 
 ---
 
@@ -82,7 +84,10 @@ Entry template:
   AAPL/ABNB/BABA/GOOG carried overnight (504 flatten failure) and were flattened on 06-17 for
   −$125.85 combined. No journald NAKED page is visible for 06-16 in today's window, so confirm
   the page actually fired that night (or whether the 504s pre-empted it). IMP-002 logic holds;
-  the *carry* is the realized cost of that outage.
+  the *carry* is the realized cost of that outage. **Weekly (06-19):** still NOT proven to fire
+  in production — 06-18's 7-name naked carry **bypassed the page entirely** (the close faked
+  success via submit-ack, IMP-004's gap, so the flatten never "failed" from the bot's view).
+  IMP-002's first real proof is owed Monday 06-22, now that IMP-004 forces a true-fail path.
 
 ---
 
@@ -119,8 +124,10 @@ Entry template:
   carrying naked — that's candidate #2 (widen `FLATTEN_BEFORE_CLOSE_MIN` so the flatten runs in
   liquid RTH); IMP-004 is the reliable detection/escalation half.
 - **Commit:** 5825b4b
-- **Observed effect:** (pending — confirm Monday 06-22 that any unfilled close logs a failed-close
-  ERROR + NAKED page and writes NO CLOSED row, and that a normal RTH exit still records cleanly.)
+- **Observed effect:** **Weekly (06-19): unvalidated** — shipped 06-18 EOD, no trading session
+  since (06-19 Juneteenth). First test **Monday 06-22**: confirm an accepted-but-unfilled close
+  writes NO CLOSED row + fires the IMP-002 NAKED page, and a normal RTH exit still records cleanly.
+  Until proven, this remains the single most important fix of the week (it is what makes IMP-002 fire).
 
 ---
 
@@ -161,8 +168,11 @@ Entry template:
   naked-overnight pages. Capital protection + data integrity; the win-rate *metric* this routine
   optimizes is now correct (it was understating wins).
 - **Commit:** 9ec528f
-- **Observed effect:** (pending — confirm at the next session that an intraday stop-out is
-  recorded as CLOSED in the DB at its broker fill, with no `could not close position` ERRORs.)
+- **Observed effect:** **Weekly (06-19): not yet validated by clean data.** The only post-ship
+  session (06-18) was corrupted by the *submit-ack* failure (IMP-004's domain), so no broker-side
+  stop-fill was cleanly reconciled to test this path; and the **5 stale 06-11/06-12 phantom OPEN
+  rows** (ENPH/WPM/NFLX/QCOM/AMD) remain in the DB (IMP-003 reconciles *going-forward* but doesn't
+  purge pre-existing residue — still on the backlog). First real test Monday 06-22.
 
 ---
 
@@ -196,8 +206,9 @@ Entry template:
   before 16:00 ET → no more `accepted`-but-unfilled flattens carrying naked overnight; fewer weak
   late-day entries. Capital protection (overnight gap risk) is the headline.
 - **Commit:** 99ea33d
-- **Observed effect:** (pending — confirm Monday 06-22 that the EOD flatten fires by ~15:45–15:55 ET
-  with all close market orders FILLED before 16:00, the broker is flat at the close, and no position
-  carries into 06-23.)
+- **Observed effect:** **Weekly (06-19): unvalidated** — shipped 06-19 (market closed). First test
+  **Monday 06-22**: confirm the EOD flatten fires by ~15:45–15:55 ET with all close market orders
+  FILLED before 16:00, the broker flat at the close, and nothing carries into 06-23. This is the
+  *prevention* half; IMP-004 is the *detection* half — both owe their first live read Monday.
 
 ---
