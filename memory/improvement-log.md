@@ -195,7 +195,7 @@ Entry template:
 - **Expected impact:** the EOD flatten fires while RTH is still liquid → close market orders fill
   before 16:00 ET → no more `accepted`-but-unfilled flattens carrying naked overnight; fewer weak
   late-day entries. Capital protection (overnight gap risk) is the headline.
-- **Commit:** (filled below)
+- **Commit:** 99ea33d
 - **Observed effect:** (pending — confirm Monday 06-22 that the EOD flatten fires by ~15:45–15:55 ET
   with all close market orders FILLED before 16:00, the broker is flat at the close, and no position
   carries into 06-23.)
