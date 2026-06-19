@@ -158,6 +158,13 @@ class Config:
     # Intraday flatten: close all positions and stop opening new ones within this
     # many minutes of the close, so nothing carries overnight (where the bracket's
     # DAY stop/target legs would otherwise expire and leave the position naked).
+    # Default 15 (not 5): on a thin pre-close tape the flatten is driven by
+    # activity-driven candle closes that lag — on 2026-06-18 the final candles closed
+    # 5–16 min past 16:00 ET, so seven market-sell flattens landed `accepted` in a
+    # closed market, never filled, and carried NAKED over the Juneteenth long weekend
+    # (IMP-005). Opening the window at 15:45 ET gives the flatten several attempts
+    # while the tape is still liquid enough to fill before the close — and doubles as
+    # a late-entry cutoff that kills the flagged weak last-15-min entries.
     flatten_before_close_min: int
 
     # Infra
@@ -202,7 +209,7 @@ class Config:
             trail_percent=_float("TRAIL_PERCENT", 0.02),
             market_open=_hhmm("MARKET_OPEN", "09:30"),
             market_close=_hhmm("MARKET_CLOSE", "16:00"),
-            flatten_before_close_min=_int("FLATTEN_BEFORE_CLOSE_MIN", 5),
+            flatten_before_close_min=_int("FLATTEN_BEFORE_CLOSE_MIN", 15),
             sqlserver_conn=_str("SQLSERVER_CONN", ""),
             log_level=_str("LOG_LEVEL", "INFO").upper(),
         )

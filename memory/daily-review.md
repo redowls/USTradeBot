@@ -351,3 +351,67 @@ Today's **7 real fresh entries** (all 17:28–19:35 UTC) — recorded CLOSED but
   (wider flatten window = late-entry cutoff) would have blocked both.
 
 ---
+
+## 2026-06-19 — Daily Review
+
+### Stats
+- **No trades today — US market CLOSED (Juneteenth, Fri 06-19).** 0 entries, 0 exits, P&L
+  **$0.00**. Service **active & healthy** all day (only benign IEX websocket keepalive
+  reconnects in journald, no errors/restarts). Account **equity $9,248.81** (last_equity
+  $9,248.81; cash **−$1,426.58** = margin from the held lots, BP $22,903).
+- This is a correct no-trade day: `market_is_open` gated everything off; the bot idled,
+  streaming ticks for warmup but opening nothing. Nothing to root-cause on the signal side.
+
+### The real finding — 06-18 EOD flatten silently failed; 7 positions NAKED over the long weekend
+The reviewable evidence today is **broker/DB desync from the 06-18 close**, surfaced by the
+audit (report shows "open positions: 5" — itself wrong; see below):
+- **Broker holds 7 positions right now:** GOOG(5 @366.26) INTC(16 @133.98) MU(1 @1136.38)
+  QQQ(1 @739.49) SE(15 @91.19) TSLA(4 @396.56) TSM(4 @459.27) — ≈ **+$33 unrealized**, **no
+  protective stops** (all bracket legs cancelled at the 06-18 close), riding the **3-day
+  Juneteenth weekend** (reopens Mon 06-22 09:30 ET).
+- **DB recorded all 7 as "end-of-day flatten" CLOSED at 06-18 20:05–20:16 UTC with P&L** —
+  **fake exits.** The exact qtys/prices still sit open at the broker.
+- **Root cause (definitive, from `/v2/orders`):** every 06-18 flatten market-sell was
+  **submitted after the 16:00 ET close** (20:05–20:16 UTC) and is stuck **`accepted`,
+  `filled 0`**. The flatten is driven by **activity-driven candle closes**, which lagged on a
+  thin pre-close tape (GOOG candle events: 15:49, 15:54, then a 22-min gap to 16:16). With the
+  flatten window only 5 min wide (opens 15:55 ET), no liquid-tape candle fell inside it to fire
+  a *fill-able* flatten before the close. (06-18 ran on **pre-IMP-004** code — the flatten
+  fired ~21:10 deploy *after* the 20:05 close — so it recorded the fake exits; IMP-004 now
+  detects this but doesn't prevent the carry.)
+- **Stale phantoms still present:** 5 OPEN DB rows from **06-11/06-12** (ENPH, WPM, NFLX, QCOM,
+  AMD) the broker does **not** hold — pre-IMP-003 residue, still need a one-off cleanup (todo).
+
+### What worked / what didn't
+- **Worked:** holiday handling (clean no-trade idle); IMP-004's `_confirm_flat` is now live so the
+  06-18 failure mode will be *detected & paged* (not silently faked) going forward; preflight green.
+- **Didn't:** the 06-18 flatten's **timing** — gated on laggy candle closes, it fired past 16:00
+  into a closed market. Detection (IMP-004) was the half shipped; **prevention** (fire earlier,
+  while liquid) was the missing half. Shipped today as **IMP-005**.
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED IMP-005]** Widen `FLATTEN_BEFORE_CLOSE_MIN` **5 → 15** so the EOD flatten runs in
+   liquid RTH (opens 15:45 ET) and the close market orders fill before 16:00 — the prevention half
+   IMP-004 deferred to, and a late-entry cutoff for the weak last-15-min entries. Highest impact;
+   strictly reduces overnight/gap exposure.
+2. **Monday 06-22 book correction (backlog):** after the open flattens the 7 carried lots, backfill
+   their **real** exits (the 7 fake 06-18 CLOSED rows over-state P&L by ~+$199) and one-off cleanup
+   the 5 stale 06-11/06-12 phantom OPEN rows. Until then, closed-trade stats for 06-18 are untrustworthy.
+3. **Consider a wall-clock-driven flatten (backlog, NOT actioned):** the deepest fix for a truly
+   illiquid tape (GOOG's 22-min candle gap) is a timer-driven flatten independent of ticks. Larger,
+   critical-path change — gather another occurrence with IMP-005 in place before building it.
+
+### Notes for pre-market research
+- **🔒 7 positions OPEN/NAKED into Monday 06-22:** GOOG(5) INTC(16) MU(1) QQQ(1) SE(15) TSLA(4)
+  TSM(4), no live stops. **The 7 stuck `accepted` 06-18 close orders are STILL LIVE** and will
+  **auto-flatten these at Monday's open** (09:30 ET) as market orders — leave them; do **not** cancel
+  them (cancelling strands the positions). If a clean book is wanted sooner, `python -m bot.flatten
+  --yes` after the open. Startup reconcile marks all 7 MANAGING (no double-entry). **Hard rule honored:
+  not parked, all remain enabled** — this is exit/flatten infra, not signal/symbol quality.
+- **⚠️ MU reports earnings Wed 06-24** — MU is a held lot AND watchlist name; binary risk midweek (not
+  Monday). Flag for Tue/Wed daily-review to manage/exit the MU lot before the print; can't park while held.
+- **Entry/symbol quality is NOT the issue** — all 7 lots signalled and filled cleanly on the 06-18
+  Intel–Apple semis-rebound tape. No watchlist parks indicated. Today's fix is code (flatten timing).
+- **Monday 06-22 earnings** (AREC/EBF/FRVO/ICLR/POWW) — none on the watchlist → no Monday earnings risk.
+
+---

@@ -100,3 +100,7 @@ def test_market_hours_are_eastern(monkeypatch):
     assert cfg.market_open.hour == 9
     assert cfg.market_open.minute == 30
     assert cfg.market_open.tzinfo is not None
+    # IMP-005: the EOD-flatten / no-new-entries window defaults to 15 min before the
+    # close (was 5) so the flatten runs while the tape is still liquid and the close
+    # market orders fill before 16:00 ET — preventing the 2026-06-18 naked-overnight carry.
+    assert cfg.flatten_before_close_min == 15

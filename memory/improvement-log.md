@@ -165,3 +165,39 @@ Entry template:
   recorded as CLOSED in the DB at its broker fill, with no `could not close position` ERRORs.)
 
 ---
+
+## IMP-005 — 2026-06-19
+
+- **Problem:** No trades today (Juneteenth, market closed) — but the post-close audit found
+  the **2026-06-18 EOD flatten failed to actually close 7 positions** (GOOG/INTC/MU/QQQ/SE/TSLA/
+  TSM). The DB recorded all 7 as "end-of-day flatten" exits with P&L at 20:05–20:16 UTC, yet the
+  broker **still holds all 7** (naked, stops cancelled) **over the Juneteenth long weekend**. The
+  06-18 close-orders are stuck `accepted`/`filled 0` at the broker — submitted **after** the
+  16:00 ET close, they never filled.
+- **Root cause:** the EOD flatten triggers on `in_close_window(candle.start, …, FLATTEN_BEFORE_CLOSE_MIN)`
+  and only **executes when a candle closes** — and candle closes are *activity-driven* (a bar closes
+  only when a later tick proves its interval elapsed). On a thin pre-close tape the final candles
+  closed **5–16 min past 16:00 ET** (GOOG's events: 15:49, 15:54, then a 22-min gap to 16:16), so the
+  market-sell flattens landed in a **closed market** → `accepted`, never filled. With the window only
+  5 min wide (opens 15:55 ET) too few *liquid-tape* candles fell inside it to fire a fill-able flatten.
+  IMP-004 now **detects** this (no fake exit, pages) but does **not prevent** the naked carry — this is
+  the prevention half it explicitly deferred to (improvement-log candidate #2).
+- **Change:** `bot/config.py` — `FLATTEN_BEFORE_CLOSE_MIN` default **5 → 15**. The flatten /
+  no-new-entries window now opens at **15:45 ET**, giving the flatten several attempts while the tape
+  is still liquid enough to fill before 16:00 — and doubling as a **late-entry cutoff** that kills the
+  repeatedly-flagged weak last-15-min entries (06-18 QQQ conf64/xo0.04, SE conf65/xo0.07). **No risk
+  widened, no safety disabled** — strictly *reduces* exposure (flattens earlier, enters less late).
+- **Validation:** full suite **197 passed** (`pytest -q`, was 194 + 3 new). New/updated regressions:
+  `test_close_window_15min_catches_late_thin_tape_candle` (encodes GOOG's 15:49 ET candle — outside the
+  old 5-min window, inside the new 15-min one) in `tests/test_signals.py`, and a
+  `cfg.flatten_before_close_min == 15` default assertion in `tests/test_config.py`. `bot.preflight`
+  PASS (equity $9,248.81; correctly reports the 7 still-open positions).
+- **Expected impact:** the EOD flatten fires while RTH is still liquid → close market orders fill
+  before 16:00 ET → no more `accepted`-but-unfilled flattens carrying naked overnight; fewer weak
+  late-day entries. Capital protection (overnight gap risk) is the headline.
+- **Commit:** (filled below)
+- **Observed effect:** (pending — confirm Monday 06-22 that the EOD flatten fires by ~15:45–15:55 ET
+  with all close market orders FILLED before 16:00, the broker is flat at the close, and no position
+  carries into 06-23.)
+
+---

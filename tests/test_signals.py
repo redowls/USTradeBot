@@ -160,6 +160,22 @@ def test_close_window_only_in_final_minutes():
     assert in_close_window(datetime(2026, 6, 2, 19, 56, tzinfo=UTC), _open(), _close(), 5)
 
 
+def test_close_window_15min_catches_late_thin_tape_candle():
+    """IMP-005 regression: the 2026-06-18 naked-overnight carry.
+
+    On a thin pre-close tape the flatten is driven by activity-driven candle closes
+    that lag. GOOG's last candle events that day were ~15:49 and ~15:54 ET, then a
+    22-min gap to 16:16 — so under the old 5-min window (opens 15:55) no liquid-tape
+    candle fell inside it and the flatten only fired at 16:16, past the close, landing
+    `accepted` and never filling. A 15-min window (opens 15:45 ET) puts the 15:49
+    candle *inside* the flatten window, giving it time to fill before 16:00.
+    19:49 UTC == 15:49 EDT.
+    """
+    late_candle = datetime(2026, 6, 2, 19, 49, tzinfo=UTC)
+    assert not in_close_window(late_candle, _open(), _close(), 5)   # old window missed it
+    assert in_close_window(late_candle, _open(), _close(), 15)      # IMP-005 catches it
+
+
 def test_close_window_false_when_market_closed():
     # 21:00 UTC == 17:00 EDT -> after the close, no window.
     assert not in_close_window(datetime(2026, 6, 2, 21, 0, tzinfo=UTC), _open(), _close(), 5)
