@@ -275,3 +275,63 @@ QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change → 
 only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-06-19 — Pre-market Research
+
+**Run on Juneteenth — US market CLOSED today (Fri 06-19). This entry prepares the next
+session, Monday 2026-06-22.** No restart/flatten attempted (orders can't fill while closed).
+
+### Market context
+- **Short holiday-shortened week behind us; hawkish-Fed overhang into Monday.** Warsh's
+  first FOMC (06-17) held 3.50–3.75% but the dot plot leaned to *hikes* (9 officials see
+  potential 2026 hikes), triggering a 06-17 selloff; 06-18 rebounded (Nasdaq-100 +1.6%) on
+  the INTC–AAPL chip-design headline (INTC +9%, MU +4.7%, SOXX +3.9%). Tape stabilizing on
+  lower oil (WTI <$80) + yield stabilization; 2-yr ~4.22%.
+- **Semis remain the market's support beam** — the AI/semi regime our list is built around is
+  working. Energy still the laggard (XOM correctly parked).
+- **Monday 06-22 earnings:** AREC, EBF, FRVO, ICLR, POWW — **none on our watchlist** → no
+  Monday earnings risk. Macro week is light post-holiday; a key inflation reading lands midweek.
+- **⚠️ MU reports earnings Wed 06-24** (the week's marquee chip catalyst). MU is an **open/locked
+  position** and a watchlist name — binary event risk midweek, but **not Monday's session** and
+  cannot be parked while held. Flag for Tue/Wed daily-review to manage the MU lot before the print.
+
+### Carried from daily review
+06-18 daily-review "Notes for pre-market research" acted on:
+- **🔒 7 positions OPEN/NAKED into 2026-06-22** (protective legs expired over the long weekend):
+  **GOOG(5) INTC(16) MU(1) QQQ(1) SE(15) TSLA(4) TSM(4)** — broker-confirmed open this morning,
+  ≈ +$36 unrealized. Hard rule honored: **NOT parked**, all remain enabled. Monday's startup
+  reconcile marks them MANAGING; flatten via `python -m bot.flatten --yes` once the market opens
+  if a clean book is wanted sooner (NOT possible today — market closed).
+- **"Entry quality was fine — no watchlist parks indicated."** All 7 fresh lots signalled and
+  filled cleanly on the bullish chip-news tape; the 06-18 book is corrupted (fake exits, IMP-004
+  shipped to fix) but that is exit/flatten infra, **not** symbol/signal quality → no park action.
+- **Late-session weak-xo entries** (QQQ conf 64/xo 0.04, SE conf 65/xo 0.07 at 19:35 UTC) flagged
+  again — a *code* fix (wider flatten window = late-entry cutoff, candidate for daily-review), **not
+  a watchlist change**.
+
+### Watchlist review
+Account ACTIVE, equity **$9,248.81** (cash −$1,426.58 from the held lots, BP $22,903). **7 open
+positions = locked.** 23 enabled reviewed vs 14d closed-trade P&L from dbo.trades (NB: 06-18 rows
+are unreliable pending Monday's book correction, so P&L read is directional only):
+- **Leaders:** INTC +$207 (5 tr, 3W), MU +$152 (6 tr, 4W), QQQ +$51 (3/3), JPM +$28, QCOM +$25 —
+  core keeps; semi/index momentum intact and re-igniting on the INTC–AAPL tape.
+- **Laggards:** AVGO −$69 (2/3), NVDA −$54 (0/3, still never won), TSLA −$38, BABA −$36, GOOG −$25,
+  AAPL −$21. Every one is regime (Iran selloff / FOMC fade) or 06-16/06-18 overnight-carry per the
+  daily reviews — **not signal quality.** All mega-liquid; parking the most-liquid semis into a
+  working semi regime is the poor timing prior runs warned of → KEEP, on notice.
+- Lower-liquidity names (SE, ABNB, BABA) traded fine recently → keep.
+- No Monday earnings on any watchlist name; MU earnings Wed 06-24 is the only binary flag (locked).
+
+### Changes applied to dbo.watchlist
+**No changes.** 7 names are locked (open positions, can't be parked); the list is broad (23 ≤ 30),
+semi/index-heavy into a confirmed-working regime, carries **zero Monday earnings risk**, and the
+daily review explicitly indicates no signal-quality/liquidity parks. No high-conviction new name to
+add (and we're already heavily exposed to the leading sector — no churn for activity). XOM/WPM/ENPH/
+BIRD stay parked. MU earnings (Wed) is a midweek manage-the-lot task, not a today park.
+
+### Final watchlist
+23 enabled (unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QCOM
+QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change; market closed today
+anyway). 🔒 Locked: GOOG INTC MU QQQ SE TSLA TSM (7 open positions).
+
+---
