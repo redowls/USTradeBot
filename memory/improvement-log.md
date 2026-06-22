@@ -210,5 +210,38 @@ Entry template:
   **Monday 06-22**: confirm the EOD flatten fires by ~15:45–15:55 ET with all close market orders
   FILLED before 16:00, the broker flat at the close, and nothing carries into 06-23. This is the
   *prevention* half; IMP-004 is the *detection* half — both owe their first live read Monday.
+- **Observed 06-22:** the 7 lots carried from 06-18 (pre-IMP-005 residue) auto-flattened at the
+  Monday open (08:02:31 UTC, the stuck `accepted` orders filled); `reconcile_exit` picked the fills
+  up at 19:46 UTC but logged `DB exit … trade_id=None` (no matching OPEN row — the 06-18 fake exits
+  had already CLOSED them), so today's realized P&L is uncaptured. **IMP-005's own first clean live
+  test is 06-23** (no fresh 06-22 entries to flatten). The `trade_id=None` orphaning motivated IMP-006.
+
+---
+
+## IMP-006 — 2026-06-22
+
+- **Problem:** Report showed `open positions: 5` while the broker held **0** — 5 rows stuck
+  `status='OPEN'` in `dbo.trades` since 06-11/06-12 (ENPH/WPM/NFLX/QCOM/AMD) the broker never held.
+  Same day, `reconcile_exit` closed the 7 carried lots with `DB exit … trade_id=None` (no OPEN row to
+  match — already fake-CLOSED 06-18). Both are the recurring **DB⇄broker desync** the weekly graded D.
+- **Root cause:** `record_exit` only updates `WHERE symbol=? AND status='OPEN'`, and the strategy
+  `reconcile` only handles the broker→DB direction (adopt held names as MANAGING). **Nothing closed a
+  DB-`OPEN` row the broker was no longer holding**, so phantoms accumulated, misstated the book, and
+  could be swept into fictitious P&L by the EOD flatten (cf. 06-15 INTC +$154.28).
+- **Change:** `bot/persistence.py` — new `TradeStore.reconcile_open_positions(broker_symbols)`: closes
+  every `OPEN` row whose symbol the broker isn't holding, honestly (`exit_price=entry_price` → `pnl=0`,
+  reason `reconciled: not held at broker`) and drops its `dbo.positions` row; wired into `bot/main.py`
+  startup right after `strategy.reconcile(positions)`. **Bookkeeping only — no orders, no risk change.**
+- **Validation:** full suite **201 passed** (was 197 + 4 new persistence regressions encoding the exact
+  06-22 scenario: 5 phantoms swept, broker-held retained, no-op, DB-error-swallow). `bot.preflight` PASS.
+  **Live restart confirmed:** journald `reconciled 5 phantom OPEN row(s)… AMD, ENPH, NFLX, QCOM, WPM`;
+  DB now `OPEN trades=0, positions=0`, matching the flat broker.
+- **Expected impact:** the book stays truthful (report `open positions` == broker), phantoms self-heal
+  every startup instead of accumulating, and the EOD flatten can no longer act on positions that aren't
+  there. Restores trust in closed-trade stats; no effect on entry/exit signal logic.
+- **Commit:** 2635739
+- **Observed effect:** (await next review — book should stay broker-matched; watch for any new
+  `trade_id=None` reconcile exits, which would mean the *deeper* fix — recording the real Monday fill
+  P&L against the carried lots — is still owed.)
 
 ---

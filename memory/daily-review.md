@@ -415,3 +415,62 @@ audit (report shows "open positions: 5" — itself wrong; see below):
 - **Monday 06-22 earnings** (AREC/EBF/FRVO/ICLR/POWW) — none on the watchlist → no Monday earnings risk.
 
 ---
+
+## 2026-06-22 — Daily Review
+
+### Stats
+- **0 fresh entries, 0 DB-attributed exits today.** Closed-trade report = 0 trades / $0.00 (nothing the
+  strategy opened intraday). Account **equity $9,321.14** (cash $9,321.14, **0 open positions** at the
+  broker — flat). Equity rose from last_equity **$9,248.81 → +$72.33 today**, all of it the **7 carried
+  06-18 lots being liquidated at the Monday open** (below) — *not* captured in `dbo.trades`.
+- Real day P&L lives in **equity (+$72.33)**, not the DB: the Monday liquidation was recorded by
+  `reconcile_exit` with **`trade_id=None`** (no OPEN row to attach to — those 7 were already fake-CLOSED
+  06-18), so the trades table shows nothing for today. The 5-day report (78% / +$199) is still **inflated
+  by the 06-18 fake exits** — directional only.
+
+### Trade-by-trade review
+No bot-initiated trades to root-cause. The reviewable events were **broker/DB reconciliation**, not signals:
+- **7 carried lots (GOOG/INTC/MU/QQQ/SE/TSLA/TSM)** — held NAKED over the Juneteenth long weekend
+  (06-18 close → 06-22) on pre-IMP-005 code. The stuck `accepted` 06-18 close orders **filled at the
+  Monday open, 08:02:31 UTC** (MU 1190.60, TSLA 397.76, INTC 138.13, TSM 473.01, GOOG 355.15, SE 89.73,
+  QQQ 742.25). The weekend gap resolved **favourably** (+$72 realized vs +$33 unreal Fri) — luck, not
+  design; the exposure was real and unprotected. `reconcile_exit` caught the fills at 19:46 UTC but
+  couldn't book them (`trade_id=None`).
+- **5 phantom OPEN rows (ENPH/WPM/NFLX/QCOM/AMD, 06-11/06-12)** — broker never held them; pure DB
+  residue. **Swept clean today by IMP-006** (closed at pnl=0, positions table emptied).
+
+### What worked / what didn't
+- **Worked:** the carried-lot risk *cleared itself* at the open and the broker is now flat & matched to a
+  clean DB. The phantom desync that has dogged the book since 06-11 is **fixed at the root** (IMP-006) and
+  verified live (journald `reconciled 5 phantom OPEN row(s)… AMD, ENPH, NFLX, QCOM, WPM`).
+- **Didn't:** today's realized +$72 is **not attributed in `dbo.trades`** — `reconcile_exit` orphans a
+  fill when the twin row is already CLOSED. The book is now *consistent* (0 open) but the carried-lot P&L
+  (the 06-18 over-statement + the real Monday fills) is still unbooked — it skews closed-trade stats until
+  corrected. Lower priority now the open-side is clean.
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED IMP-006]** Startup phantom sweep — close DB-`OPEN` rows the broker doesn't hold. Done,
+   verified live (5 swept), book now broker-matched (`OPEN trades=0, positions=0`).
+2. **Backlog — book the carried-lot reality:** have `reconcile_exit` update the existing CLOSED row's exit
+   to the real Monday fill (or insert a correcting row) instead of orphaning at `trade_id=None`; pair with
+   a one-off backfill of the 06-18 fake-exit P&L (~+$199 over-stated). Care: don't double-count. Gather one
+   more `trade_id=None` occurrence before building, now that opens are clean.
+3. **[WATCH] IMP-005 still owes a clean live test** — 06-22 had no fresh entries to flatten. First real read
+   is **06-23**: confirm the EOD flatten fires ~15:45–15:55 ET with all close orders FILLED before 16:00.
+4. **[WATCH] 80-89 confidence band** still negative all-time (−$70.25, 6 tr, 33%) vs 70-79 (+$184) / 60-69
+   (+$106). Don't touch `ScoreWeights`/threshold while closed-trade stats are still skewed by uncorrected
+   06-18 rows.
+
+### Notes for pre-market research
+- **Book is CLEAN and FLAT for the first time in 11 days** — 0 broker positions, 0 DB-open rows, equity
+  $9,321.14 all cash. No carried lots, no naked exposure, no phantoms. **Nothing locked** — the full
+  watchlist is free to trade 06-23; no park/keep constraints inherited from open positions.
+- **⚠️ MU earnings Wed 06-24** — MU is a watchlist name (no longer a held lot; the carried MU was
+  liquidated today). Binary risk midweek: flag for the Tue 06-23 / Wed 06-24 routines to decide whether to
+  park MU or accept the print. **PCE Fri 06-26** also still pending.
+- **Entry/symbol quality unchanged** — no signals fired today (quiet post-holiday Monday tape, very thin
+  candle volumes all session per journald). No watchlist parks indicated on quality grounds.
+- **06-23 is the day to watch IMP-005 live** — if fresh entries are taken, confirm the EOD flatten fully
+  fills before 16:00 ET and the book is flat at the close (the prevention that 06-22 couldn't exercise).
+
+---
