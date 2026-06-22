@@ -335,3 +335,61 @@ QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change; mar
 anyway). 🔒 Locked: GOOG INTC MU QQQ SE TSLA TSM (7 open positions).
 
 ---
+
+## 2026-06-22 — Pre-market Research
+
+**Verdict day** (per weekly review): the 7 naked lots carried over the Juneteenth weekend
+should auto-flatten at the open via the still-live `accepted` 06-18 close orders, and IMP-004/
+005/002 get their first live test. That is an **exit-infra/ops** matter — no watchlist action.
+
+### Market context
+- **Risk-off open.** US futures point **lower** on **renewed US–Iran tensions** (Trump
+  threatened fresh strikes; Tehran reportedly suspended talks) → **oil higher**. First session
+  back after Juneteenth (Fri 06-19 closed).
+- **Backdrop:** hawkish Fed (06-17: 12-0 hold 3.50–3.75%, dot plot — 9/18 see ≥1 hike in 2026)
+  + **PCE inflation report Fri 06-26** is the week's macro binary. Last week Nasdaq +2.43% led
+  by semis on the **INTC–Apple chip-design** headline (INTC +10.6%, MU +8.5%, NVDA +2.8% Thu).
+- **Earnings this week:** CCL & FDX Tue, **MU Wed 06-24**, PAYX & TCOM Wed. **No watchlist name
+  reports today.** Only MU (Wed) is on our list — and it's a **locked held lot**.
+
+### Carried from daily review
+06-19 daily-review "Notes for pre-market research" acted on:
+- **🔒 7 positions OPEN/NAKED into today:** GOOG(5) INTC(16) MU(1) QQQ(1) SE(15) TSLA(4) TSM(4)
+  — broker-confirmed open this morning (equity $9,354.97 vs last_equity $9,248.81, **+$106 as
+  the carried lots marked up**; net unreal ≈ +$139: INTC +$64.5, TSM +$54.1, MU +$49.6 lead,
+  GOOG −$27.6 the laggard). **Hard rule honored: NOT parked, all remain enabled.** The live
+  06-18 `accepted` close orders should auto-flatten them at 09:30 ET — leave them, do NOT cancel.
+- **"Entry/symbol quality is NOT the issue"** — all 7 signalled/filled cleanly; the open book is
+  exit-infra residue, not signal quality → **no parks indicated.**
+- **⚠️ MU earnings Wed 06-24** flagged: MU is a held lot + watchlist name; binary risk **midweek,
+  not today**, and cannot be parked while held → carry the flag to Tue/Wed daily-review.
+
+### Watchlist review
+Account ACTIVE, equity **$9,354.97**, cash −$1,426.58 (margin from held lots), BP $23,217.51.
+**7 open positions = locked.** 23 enabled reviewed vs 14d closed-trade P&L from dbo.trades (NB:
+06-18 rows still over-state P&L pending the Monday book correction → directional read only):
+- **Leaders:** INTC +$207 (5 tr, 3W), MU +$152 (6 tr, 4W), QQQ +$51 (3/3), JPM +$28, QCOM +$25 —
+  core keeps; semi/index momentum is the regime our list is built around.
+- **Laggards:** AVGO −$69 (2/3), NVDA −$54 (0/3, still never won), TSLA −$38, BABA −$36, GOOG −$25,
+  AAPL −$21. All explained by the daily reviews as **regime (Iran selloff / FOMC fade) or
+  overnight-carry**, not signal quality; all mega-liquid. Parking the most-liquid semis mid-regime
+  on a risk-off day is the poor timing prior runs warned of → KEEP, on notice.
+- Lower-liquidity names (SE, ABNB, BABA) traded fine recently → keep.
+- **XOM (parked):** renewed Iran tensions bid oil up this morning, but that's a one-headline pop,
+  not a durable energy uptrend — same discipline as before, **stays parked** (no knife-catch long).
+- No earnings on any watchlist name today; only binary events are MU (Wed) + PCE (Fri).
+
+### Changes applied to dbo.watchlist
+**No changes.** 7 names are locked (open positions, can't be parked); the list is broad (23 ≤ 30)
+and semi/index-heavy into a confirmed-working regime; **zero earnings risk today**; and a risk-off
+open on renewed Iran tensions is the wrong tape to chase a momentum add into (oil's pop is one
+headline, not a trend → XOM stays parked). Daily reviews explicitly indicate no signal-quality/
+liquidity parks. XOM/WPM/ENPH/BIRD stay parked. MU earnings (Wed) is a midweek manage-the-lot task.
+
+### Final watchlist
+23 enabled (unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QCOM
+QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change → bot reads the list
+only at startup, so a restart would be pointless churn). 🔒 Locked: GOOG INTC MU QQQ SE TSLA TSM
+(7 open positions).
+
+---
