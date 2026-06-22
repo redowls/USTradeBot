@@ -170,6 +170,11 @@ def main() -> int:
         log.exception("could not reach the Alpaca paper account — aborting.")
         return 1
     strategy.reconcile(positions)  # don't re-enter names the broker already holds
+    if store is not None:
+        # Inverse reconcile: close DB rows left OPEN that the broker no longer holds
+        # (phantom positions). Bookkeeping only — keeps the book honest so reports and
+        # the EOD flatten don't act on positions that aren't really there.
+        store.reconcile_open_positions({p.symbol for p in positions})
 
     try:
         data.run_forever()

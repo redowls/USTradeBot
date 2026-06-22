@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -254,6 +254,55 @@ class TradeStore:
         except Exception:
             log.exception("failed to persist exit for %s", result.symbol)
             self._reset()
+
+    def reconcile_open_positions(self, broker_symbols: Iterable[str]) -> list[str]:
+        """Close DB-``OPEN`` trade rows the broker no longer holds (phantom sweep).
+
+        The strategy's ``reconcile`` handles the *other* direction (broker-held names
+        the bot re-adopts as MANAGING). This handles the gap that has bitten us
+        repeatedly: a row left ``OPEN`` in ``dbo.trades`` whose position the broker is
+        not actually holding — e.g. a stop that filled broker-side and was recorded
+        against an already-CLOSED twin (``trade_id=None`` exits), or pre-IMP-003 residue.
+        Such rows never get closed by any normal path, so they accumulate as phantom
+        "open positions" that misstate the book and can be swept into fictitious P/L.
+
+        Each phantom is closed honestly: ``exit_price = entry_price`` so realized
+        ``pnl`` is exactly **0** (we have no real fill for it and refuse to fabricate a
+        gain), reason ``reconciled: not held at broker``. Bookkeeping only — places no
+        orders, touches no risk limit. Wrapped like every other write: a DB error logs,
+        resets the connection, and returns ``[]`` rather than reaching the trading path.
+
+        Returns the list of swept symbols (empty when the book already matches).
+        """
+        held = {str(s).strip().upper() for s in broker_symbols if str(s).strip()}
+        try:
+            conn = self._connection()
+            cur = conn.cursor()
+            cur.execute("SELECT symbol FROM dbo.trades WHERE status = 'OPEN'")
+            open_syms = [str(r[0]).strip() for r in (cur.fetchall() or []) if str(r[0]).strip()]
+            phantom = [s for s in open_syms if s.upper() not in held]
+            for symbol in phantom:
+                cur.execute(
+                    "UPDATE dbo.trades SET "
+                    "status = 'CLOSED', exit_time_utc = SYSUTCDATETIME(), "
+                    "exit_price = entry_price, exit_reason = ?, "
+                    "pnl = 0, pnl_pct = 0, updated_at_utc = SYSUTCDATETIME() "
+                    "WHERE symbol = ? AND status = 'OPEN'",
+                    ("reconciled: not held at broker", symbol),
+                )
+                cur.execute("DELETE FROM dbo.positions WHERE symbol = ?", (symbol,))
+            conn.commit()
+            if phantom:
+                log.warning(
+                    "reconciled %d phantom OPEN row(s) the broker does not hold: %s",
+                    len(phantom),
+                    ", ".join(phantom),
+                )
+            return phantom
+        except Exception:
+            log.exception("failed to reconcile open positions against the broker")
+            self._reset()
+            return []
 
     # --- reads -------------------------------------------------------------
 

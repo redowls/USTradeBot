@@ -159,6 +159,80 @@ def test_record_exit_uses_open_trade_qty_for_audit_order():
     assert params == (7, "c", "NFLX", 25)  # qty came from the OUTPUT'd open trade
 
 
+# --- reconcile_open_positions (IMP-006 phantom sweep) ----------------------
+
+
+class _ReconcileCursor:
+    def __init__(self, conn: _ReconcileConn) -> None:
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        joined = " ".join(sql.split())
+        self._conn.calls.append((joined, tuple(params)))
+        if self._conn.raise_on and self._conn.raise_on in joined:
+            raise RuntimeError("db boom")
+        self._is_select = joined.startswith("SELECT symbol FROM dbo.trades")
+        return self
+
+    def fetchall(self):
+        return [(s,) for s in self._conn.open_syms] if self._is_select else []
+
+
+class _ReconcileConn:
+    def __init__(self, open_syms, raise_on=None) -> None:
+        self.open_syms = open_syms
+        self.calls: list[tuple[str, tuple]] = []
+        self.commits = 0
+        self.closed = False
+        self.raise_on = raise_on
+
+    def cursor(self):
+        return _ReconcileCursor(self)
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        self.closed = True
+
+
+def test_reconcile_closes_phantom_rows_broker_does_not_hold():
+    # The exact 2026-06-22 scenario: 5 rows stuck OPEN since 06-11/06-12, broker flat.
+    conn = _ReconcileConn(open_syms=["ENPH", "WPM", "NFLX", "QCOM", "AMD"])
+    swept = _store(conn).reconcile_open_positions(broker_symbols=set())
+
+    assert sorted(swept) == ["AMD", "ENPH", "NFLX", "QCOM", "WPM"]
+    assert conn.commits == 1
+    closes = [c for c in conn.calls if "UPDATE dbo.trades" in c[0]]
+    assert len(closes) == 5
+    update_sql, params = closes[0]
+    # Honest close: zero fabricated P/L, exit prices off the stored entry.
+    assert "pnl = 0" in update_sql and "exit_price = entry_price" in update_sql
+    assert params == ("reconciled: not held at broker", "ENPH")
+    assert sum(1 for c in conn.calls if "DELETE FROM dbo.positions" in c[0]) == 5
+
+
+def test_reconcile_keeps_rows_the_broker_still_holds():
+    conn = _ReconcileConn(open_syms=["ENPH", "AMD"])
+    # AMD is genuinely held at the broker → must NOT be swept; ENPH is phantom.
+    swept = _store(conn).reconcile_open_positions(broker_symbols={"amd"})  # case-insensitive
+
+    assert swept == ["ENPH"]
+    assert all("AMD" not in p for _s, p in conn.calls if "UPDATE dbo.trades" in _s)
+
+
+def test_reconcile_no_phantoms_is_a_noop_close():
+    conn = _ReconcileConn(open_syms=["AMD"])
+    assert _store(conn).reconcile_open_positions(broker_symbols={"AMD"}) == []
+    assert not any("UPDATE dbo.trades" in c[0] for c in conn.calls)
+
+
+def test_reconcile_swallows_db_error_and_resets():
+    conn = _ReconcileConn(open_syms=["ENPH"], raise_on="UPDATE dbo.trades")
+    assert _store(conn).reconcile_open_positions(broker_symbols=set()) == []
+    assert conn.closed is True
+
+
 # --- error handling --------------------------------------------------------
 
 
