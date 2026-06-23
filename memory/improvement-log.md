@@ -274,7 +274,7 @@ Entry template:
 - **Expected impact:** the EOD flatten fires on real time even if the candle feed dies at the close →
   the silent naked-weekend carry (06-18/06-19) cannot recur; and "why no buy today" is answerable from
   the logs. Capital protection (the *prevention* half IMP-005 only partially delivered) + observability.
-- **Commit:** (pending)
+- **Commit:** e19c4c6
 - **Observed effect:** (await next review — first live test is the 06-23 close: confirm a wall-clock
   `EOD flatten` fires and any unclosable position pages NAKED, even if no candle prints in the final
   minutes.)
