@@ -413,6 +413,29 @@ class OrderExecutor:
         )
         return None
 
+    def close_fill_price(self, order_id: str) -> float | None:
+        """Return the actual fill price of a close market order, or ``None``.
+
+        :meth:`close_position` reports only the order id; the risk manager otherwise
+        records the exit at the *candle-close estimate* its caller passed. But Alpaca
+        fills that market sell at a real price that differs from the candle close by
+        cents-to-dollars (2026-06-23 GOOG EOD flatten: recorded @ 346.72, the candle
+        close, but the broker filled @ 347.14). Once :meth:`_confirm_flat` has confirmed
+        the close, the order is filled, so we read its ``filled_avg_price`` and record
+        the exit at the **true** price — the same truth :meth:`reconcile_exit` already
+        gives the broker-side-stop path. Returns ``None`` on an empty/unknown id, an
+        unfilled order, or any read error, so the caller falls back to the price it had.
+        """
+        if not order_id:
+            return None
+        try:
+            order = self._client_or_build().get_order_by_id(order_id)
+        except Exception:
+            log.exception("could not read fill price for close order %s", order_id)
+            return None
+        price = getattr(order, "filled_avg_price", None)
+        return float(price) if price else None
+
     def reconcile_exit(self, symbol: str) -> tuple[str, float] | None:
         """Recover an exit the bot didn't drive: a broker-side stop/target fill.
 

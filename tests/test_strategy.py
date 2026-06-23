@@ -252,6 +252,9 @@ class _FakeCloser:
     def reconcile_exit(self, symbol):
         return None  # close succeeds here, so reconcile is never consulted
 
+    def close_fill_price(self, order_id):
+        return None  # no fill price scripted → exit keeps the candle-close estimate
+
     def replace_stop_price(self, stop_order_id, new_stop_price):
         self.moved.append((stop_order_id, new_stop_price))
         return True

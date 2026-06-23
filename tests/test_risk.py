@@ -36,10 +36,11 @@ def cfg(monkeypatch):
 class _FakeExecutor:
     """Records close_position / replace_stop_price calls; returns scripted outcomes."""
 
-    def __init__(self, order_id="close-1", replace_ok=True, reconciled=None):
+    def __init__(self, order_id="close-1", replace_ok=True, reconciled=None, close_fill=None):
         self._order_id = order_id
         self._replace_ok = replace_ok
         self._reconciled = reconciled  # (order_id, price) of a broker-side fill, or None
+        self._close_fill = close_fill  # actual fill price of the bot's own close, or None
         self.closed = []
         self.moved = []
         self.reconcile_calls = []
@@ -47,6 +48,9 @@ class _FakeExecutor:
     def close_position(self, symbol):
         self.closed.append(symbol)
         return self._order_id
+
+    def close_fill_price(self, order_id):
+        return self._close_fill
 
     def reconcile_exit(self, symbol):
         self.reconcile_calls.append(symbol)
@@ -194,6 +198,28 @@ def test_exit_position_closes_and_reports(cfg):
     assert result.qty == 10  # carried from the entry
     assert result.order_id == "close-9"
     assert seen == [result]  # on_exit fired
+
+
+def test_exit_position_records_actual_close_fill(cfg):
+    # Regression (2026-06-23): the bot's own EOD-flatten market sell fills at a real broker
+    # price (GOOG @347.14) that differs from the candle-close estimate passed in (346.72).
+    # exit_position must record the ACTUAL fill so P/L and the win/loss flag are exact.
+    ex = _FakeExecutor(order_id="close-9", close_fill=347.14)
+    rm = RiskManager(cfg, executor=ex)
+    result = rm.exit_position("GOOG", 346.72, "end-of-day flatten", _entry())
+    assert result is not None
+    assert result.exit_price == 347.14  # the real broker fill, not the 346.72 estimate
+    assert result.order_id == "close-9"
+
+
+def test_exit_position_falls_back_to_passed_price_when_fill_unreadable(cfg):
+    # When the close fill can't be read (empty id / unfilled / read error → None), the exit
+    # records the candle-close estimate passed in — never a fabricated 0.0 exit.
+    ex = _FakeExecutor(order_id="close-9", close_fill=None)
+    rm = RiskManager(cfg, executor=ex)
+    result = rm.exit_position("GOOG", 346.72, "end-of-day flatten", _entry())
+    assert result is not None
+    assert result.exit_price == 346.72  # fell back to the passed-in estimate
 
 
 def test_exit_position_returns_none_when_close_fails(cfg):

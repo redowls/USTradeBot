@@ -192,6 +192,15 @@ class RiskManager:
                 return None
             order_id, exit_price = reconciled
             reason = f"{reason} (stop/target filled broker-side)"
+        else:
+            # The bot's own market sell drove the exit; record it at the ACTUAL broker
+            # fill price rather than the candle-close estimate passed in — they differ by
+            # cents-to-dollars (2026-06-23 GOOG flatten: passed 346.72, filled 347.14), so
+            # P/L and the win/loss flag are exact. Falls back to the passed-in price when
+            # the fill can't be read (empty id / unfilled / read error).
+            fill_price = self._executor.close_fill_price(order_id)
+            if fill_price is not None:
+                exit_price = fill_price
         key = getattr(entry, "stop_order_id", "") if entry is not None else ""
         if key:  # trade is done — drop its trailing-stop state
             self._trail_stops.pop(key, None)

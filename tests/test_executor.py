@@ -40,7 +40,7 @@ class _FakeTrading:
         self, *, buying_power="10000", equity="10000", status="accepted",
         raise_on=None, with_legs=False, open_orders=(), held_until_cancelled=False,
         qty_available_after=0, close_position_gone=False, position_open=True,
-        closed_sell_orders=(), close_fills=True,
+        closed_sell_orders=(), close_fills=True, close_fill=None,
     ):
         self.account = SimpleNamespace(buying_power=buying_power, equity=equity)
         self.submitted = []
@@ -73,6 +73,12 @@ class _FakeTrading:
         # accepted but never fills (e.g. submitted after the 16:00 close), so the position
         # lingers open — the 2026-06-18 EOD-flatten naked-carry scenario.
         self._close_fills = close_fills
+        # filled_avg_price the close market order is reported to have filled at, read back
+        # via get_order_by_id (2026-06-23: record the real fill, not the candle estimate).
+        self._close_fill = close_fill
+
+    def get_order_by_id(self, order_id):
+        return SimpleNamespace(id=order_id, filled_avg_price=self._close_fill)
 
     def get_account(self):
         if self._raise_on == "account":
@@ -306,6 +312,24 @@ def test_close_position_unfilled_after_close_returns_none(cfg):
     assert _exec(cfg, fake).close_position("GOOG") is None
     assert fake.closed == ["GOOG"]  # the close WAS submitted...
     assert fake._position_open is True  # ...but the position never went flat
+
+
+def test_close_fill_price_returns_actual_filled_avg(cfg):
+    # Regression (2026-06-23): the bot's own EOD-flatten market sell fills at a real
+    # broker price (GOOG @347.14) that differs from the candle-close estimate the caller
+    # passed (346.72). close_fill_price reads the order's filled_avg_price so the exit can
+    # be recorded at the true fill, not the estimate.
+    fake = _FakeTrading(close_fill="347.14")
+    assert _exec(cfg, fake).close_fill_price("close-1") == 347.14
+
+
+def test_close_fill_price_none_when_unreadable(cfg):
+    # Empty id, an unfilled order (filled_avg_price None), or a read error all return None
+    # so the caller falls back to the price it already had — never a fabricated 0.0 exit.
+    fake = _FakeTrading(close_fill=None)
+    ex = _exec(cfg, fake)
+    assert ex.close_fill_price("") is None  # no id to look up
+    assert ex.close_fill_price("close-1") is None  # order present but not yet filled
 
 
 def test_reconcile_exit_returns_broker_side_fill(cfg):
