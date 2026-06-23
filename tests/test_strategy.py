@@ -7,6 +7,7 @@ indicator history.
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -17,6 +18,7 @@ from bot.config import Config
 from bot.executor import ExecutionResult
 from bot.indicators import RibbonSnapshot
 from bot.risk import RiskManager
+from bot.signals import ConfidenceBreakdown, EntryDecision
 from bot.strategy import BotState, StrategyEngine
 
 # A Tuesday, 14:00 UTC == 10:00 EDT -> inside the regular session.
@@ -419,3 +421,246 @@ def test_signal_callback_error_is_swallowed(cfg):
     eng.on_long_candle(_candle())
     sig = eng.on_short_candle(_candle())  # must not raise
     assert sig is not None
+
+
+# A Tuesday, 20:02 UTC == 16:02 EDT -> 2 min past the 20:00 UTC close, inside the
+# post-close grace sweep (_POSTCLOSE_GRACE_MIN = 3.0) the watchdog uses to catch a
+# feed-dead carry.
+_POST_CLOSE_TS = datetime(2026, 6, 2, 20, 2, tzinfo=UTC)
+
+
+def test_tick_flattens_on_wall_clock_without_any_candle(cfg):
+    # 2026-06-19 regression: the IEX feed went silent through the close window, so
+    # the candle-driven flatten never ran and positions carried NAKED over the
+    # weekend. The wall-clock watchdog must flatten with NO candle ever delivered.
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([]),  # no candle arrives -> snapshot stays None
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.tick(_CLOSE_WINDOW_TS)
+    assert closer.closed == ["NFLX"]  # flattened on wall-clock, no candle needed
+    assert eng.state("NFLX") is BotState.WAITING
+    assert "NFLX" not in eng._positions
+
+
+def test_tick_outside_close_window_is_noop(cfg):
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg, risk=RiskManager(cfg, executor=closer), trigger_engine=_FakeEngine([])
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.tick(_OPEN_TS)  # mid-session, well before the flatten window
+    assert closer.closed == []  # the watchdog only flattens near the close
+    assert eng.state("NFLX") is BotState.MANAGING
+
+
+def test_tick_post_close_grace_escalates_feed_dead_carry(cfg):
+    # The exact silent-carry gap: feed dead through the close AND the close itself
+    # fails. The post-close grace sweep must still attempt the close and page
+    # naked-overnight (vs. carrying with no alert as on 2026-06-19).
+    alerts: list[str] = []
+    closer = _FailingCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer, on_feed_alert=alerts.append),
+        trigger_engine=_FakeEngine([]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.tick(_POST_CLOSE_TS)
+    assert closer.attempts == ["NFLX"]  # attempted the close past the bell
+    assert eng.state("NFLX") is BotState.MANAGING  # failed -> stays held
+    assert len(alerts) == 1 and "NAKED" in alerts[0] and "NFLX" in alerts[0]
+
+
+def test_tick_after_candle_flatten_is_idempotent(cfg):
+    # Candle thread and watchdog thread both reach the flatten in the close window;
+    # a successful candle-driven close must not be re-closed by the next tick.
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([_rising_trigger()]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.on_short_candle(_candle(ts=_CLOSE_WINDOW_TS))  # candle path closes it
+    assert closer.closed == ["NFLX"]
+    eng.tick(_CLOSE_WINDOW_TS)  # watchdog tick must be a no-op now
+    assert closer.closed == ["NFLX"]  # still exactly one close
+    assert eng.state("NFLX") is BotState.WAITING
+
+
+def _confidence(total: float) -> ConfidenceBreakdown:
+    return ConfidenceBreakdown(
+        crossover=0.5, trend=0.5, rsi=0.5, volume=0.5, volatility=0.5, total=total
+    )
+
+
+def test_near_miss_skip_logs_at_info(cfg, caplog):
+    # A scored candidate that fell short of the threshold logs at INFO with its
+    # confidence, so "why no buy today" is answerable from the logs.
+    eng = StrategyEngine(cfg)
+    decision = EntryDecision(
+        symbol="NFLX",
+        candle_start=_OPEN_TS,
+        gate_open=True,
+        fresh_cross=True,
+        candidate=True,
+        confidence=_confidence(55.0),
+        enter=False,
+        reason="confidence 55.0 < 60",
+    )
+    with caplog.at_level(logging.INFO, logger="ustradebot.strategy"):
+        eng._log_skip("NFLX", decision)
+    hits = [r for r in caplog.records if "no entry NFLX" in r.message]
+    assert len(hits) == 1
+    assert hits[0].levelno == logging.INFO
+    assert "55.0" in hits[0].message
+
+
+def test_non_candidate_skip_logs_at_debug_not_info(cfg, caplog):
+    # The common gate-closed rejection (no scored candidate) stays at DEBUG so a
+    # ~10k-candle session doesn't flood INFO.
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([]),  # gate never opens -> not a candidate
+    )
+    with caplog.at_level(logging.DEBUG, logger="ustradebot.strategy"):
+        eng.on_short_candle(_candle())
+    skips = [r for r in caplog.records if "no entry NFLX" in r.message]
+    assert len(skips) == 1
+    assert skips[0].levelno == logging.DEBUG
+    assert "gate closed" in skips[0].message
+
+
+# --- wall-clock EOD-flatten watchdog (tick) --------------------------------
+#
+# 2026-06-19 regression: the IEX feed went silent through the close window (zero
+# candles 15:44–16:02 ET), so the candle-driven flatten never ran and 5 names
+# carried NAKED over the weekend with no Telegram page. The watchdog drives the
+# flatten on wall-clock time, independent of candle delivery.
+
+# A Tuesday, 20:02 UTC == 16:02 EDT -> 2 min PAST the 20:00 UTC close, inside the
+# _POSTCLOSE_GRACE_MIN=3 grace sweep (and past the escalation runway).
+_POST_CLOSE_TS = datetime(2026, 6, 2, 20, 2, tzinfo=UTC)
+
+
+def test_tick_flattens_on_wall_clock_without_any_candle(cfg):
+    # The core fix: a MANAGING position is flattened by the watchdog even though no
+    # candle is ever delivered (the trigger engine has none queued).
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([]),  # no candle ever arrives
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.tick(_CLOSE_WINDOW_TS)  # 19:56 UTC, inside the close window
+    assert closer.closed == ["NFLX"]
+    assert eng.state("NFLX") is BotState.WAITING
+    assert "NFLX" not in eng._positions
+
+
+def test_tick_outside_close_window_is_noop(cfg):
+    # Mid-session ticks must not touch open positions — the watchdog only flattens.
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg, risk=RiskManager(cfg, executor=closer), trigger_engine=_FakeEngine([])
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.tick(_OPEN_TS)  # 14:00 UTC, well before the close window
+    assert closer.closed == []
+    assert eng.state("NFLX") is BotState.MANAGING
+
+
+def test_tick_post_close_grace_escalates_feed_dead_carry(cfg):
+    # Feed dead through the close AND the close itself fails: the post-close grace
+    # sweep must still attempt the close and page naked-overnight — exactly the gap
+    # that carried silently on 2026-06-19.
+    alerts: list[str] = []
+    closer = _FailingCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer, on_feed_alert=alerts.append),
+        trigger_engine=_FakeEngine([]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.tick(_POST_CLOSE_TS)  # 2 min after the close, inside the grace sweep
+    assert closer.attempts == ["NFLX"]  # tried to close
+    assert eng.state("NFLX") is BotState.MANAGING  # failed -> still held
+    assert len(alerts) == 1 and "NAKED" in alerts[0] and "NFLX" in alerts[0]
+
+
+def test_tick_after_candle_flatten_is_idempotent(cfg):
+    # Candle path and watchdog both fire in the same window: the second must be a
+    # no-op (the position is already WAITING), never a double-close.
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([_rising_trigger()]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.on_short_candle(_candle(ts=_CLOSE_WINDOW_TS))  # candle path closes it
+    assert closer.closed == ["NFLX"]
+    eng.tick(_CLOSE_WINDOW_TS)  # watchdog must not re-close
+    assert closer.closed == ["NFLX"]
+    assert eng.state("NFLX") is BotState.WAITING
+
+
+# --- rejected-entry logging ------------------------------------------------
+
+
+def _breakdown(total: float) -> ConfidenceBreakdown:
+    return ConfidenceBreakdown(
+        crossover=0.5, trend=0.5, rsi=0.5, volume=0.5, volatility=0.5, total=total
+    )
+
+
+def test_near_miss_entry_logs_at_info(cfg, caplog):
+    # A scored candidate that fell short of the threshold logs at INFO with its
+    # confidence, so a flat session is diagnosable from the logs.
+    eng = StrategyEngine(cfg)
+    decision = EntryDecision(
+        symbol="NFLX",
+        candle_start=_OPEN_TS,
+        gate_open=True,
+        fresh_cross=True,
+        candidate=True,
+        confidence=_breakdown(55.0),
+        enter=False,
+        reason="confidence 55.0 < 60",
+    )
+    with caplog.at_level(logging.INFO, logger="ustradebot.strategy"):
+        eng._log_skip("NFLX", decision)
+    rec = [r for r in caplog.records if "no entry NFLX" in r.message]
+    assert len(rec) == 1
+    assert rec[0].levelno == logging.INFO
+    assert "55.0" in rec[0].message
+
+
+def test_non_candidate_skip_logs_at_debug(cfg, caplog):
+    # The common gate-closed / no-fresh-cross rejection logs at DEBUG to keep the
+    # ~10k-candle session readable; nothing is emitted at INFO.
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([]),  # no gate snapshot -> candidate fails ("gate closed")
+    )
+    with caplog.at_level(logging.DEBUG, logger="ustradebot.strategy"):
+        eng.on_short_candle(_candle())
+    skip = [r for r in caplog.records if "no entry NFLX" in r.message]
+    assert len(skip) == 1
+    assert skip[0].levelno == logging.DEBUG
+    assert not [r for r in skip if r.levelno >= logging.INFO]

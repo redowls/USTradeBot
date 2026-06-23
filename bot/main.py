@@ -16,8 +16,10 @@ persistence (Phase 6), and Telegram alerts (Phase 7) hook into the ``on_signal``
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import UTC, datetime
 from typing import TypeVar
 
 from bot.config import Config, ConfigError
@@ -31,6 +33,27 @@ from bot.strategy import StrategyEngine, TradeSignal
 log = logging.getLogger("ustradebot")
 
 _T = TypeVar("_T")
+
+# How often the EOD-flatten watchdog wakes. The flatten window is minutes wide and
+# the escalation runway is the final ~2 minutes, so a 30s tick gives several flatten
+# attempts inside it even if the candle feed is dead.
+_WATCHDOG_INTERVAL_SEC = 30.0
+
+
+def _run_flatten_watchdog(strategy: StrategyEngine, stop: threading.Event) -> None:
+    """Drive the strategy's wall-clock EOD flatten on a fixed cadence.
+
+    Decouples the safety-critical flatten from the live candle stream: even if the
+    IEX websocket goes silent through the close (observed 2026-06-19, naked weekend
+    carry), this guarantees the flatten + naked-overnight escalation still run on real
+    time. Errors are swallowed so a transient Alpaca failure can't kill the thread —
+    the next tick retries.
+    """
+    while not stop.wait(_WATCHDOG_INTERVAL_SEC):
+        try:
+            strategy.tick(datetime.now(UTC))
+        except Exception:  # a watchdog tick must never die — the next one retries
+            log.exception("EOD flatten watchdog tick failed")
 
 
 def _chain(*callbacks: Callable[[_T], None] | None) -> Callable[[_T], None]:
@@ -176,11 +199,23 @@ def main() -> int:
         # the EOD flatten don't act on positions that aren't really there.
         store.reconcile_open_positions({p.symbol for p in positions})
 
+    # Wall-clock EOD-flatten watchdog: fires the flatten on real time so a silent /
+    # stalled candle feed at the close can't leave positions naked overnight.
+    stop_watchdog = threading.Event()
+    watchdog = threading.Thread(
+        target=_run_flatten_watchdog,
+        args=(strategy, stop_watchdog),
+        name="eod-flatten-watchdog",
+        daemon=True,
+    )
+    watchdog.start()
+
     try:
         data.run_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        stop_watchdog.set()
         data.stop()
         if store is not None:
             store.close()

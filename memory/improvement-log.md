@@ -245,3 +245,38 @@ Entry template:
   P&L against the carried lots — is still owed.)
 
 ---
+
+## IMP-007 — 2026-06-23
+
+- **Problem:** User asked why 06-22 showed "no buys, only exits." Two findings: (1) zero buys was
+  **correct** — feed healthy (10,658 candles, 0 errors) but no name cleared the entry bar all session;
+  rejections are silent, so a correct flat day looked dead. (2) The "exits" were **stale lots**
+  (GOOG/INTC/MU opened 06-18) that carried through the 06-18 & 06-19 nights **and the weekend**, only
+  clearing 06-22 on broker-side bracket fills.
+- **Root cause:** the EOD flatten is **driven by the candle stream** — `_flatten_all_eod` runs only when
+  a 1-min candle closes inside `in_close_window`. On **06-19 the IEX feed was silent 15:44–16:02 ET**
+  (zero candles) → the flatten never ran; 06-18's window was full of websocket drops + Alpaca 504s. The
+  naked-overnight page (IMP-002) only fires on a *failed close attempt*, never on a flatten that **never
+  ran**, so it carried **silently**. IMP-005 widened the window 5→15 min but left it candle-gated — the
+  structural hole.
+- **Change:** `bot/strategy.py` — new public `tick(now_utc)` runs the close-window flatten + escalation
+  on **wall-clock time** (independent of candle delivery), plus a `_POSTCLOSE_GRACE_MIN`=3 sweep so a
+  feed-dead carry still gets a final close attempt + NAKED page; `_flatten_all_eod` now guarded by a
+  re-entrant lock (candle thread + watchdog thread). `bot/main.py` — a daemon **watchdog thread** calls
+  `strategy.tick(now)` every 30s. Fix 2: the silent `if not decision.enter: return None` now logs the
+  rejection (`_log_skip`) — near-miss (scored candidate < threshold) at INFO w/ confidence, gate-closed/
+  no-cross at DEBUG — so a flat session is diagnosable. **No risk widened, no entry logic changed.**
+- **Validation:** full suite **207 passed** (`pytest -q`, +6 new in `tests/test_strategy.py`): watchdog
+  flattens with **zero candles**, mid-session tick is a no-op, post-close grace escalates a feed-dead
+  failed close once, candle+watchdog idempotent (no double-close), near-miss→INFO, non-candidate→DEBUG.
+  Live restart confirmed new code (ActiveEnterTimestamp 03:32 UTC > file mtime 01:09; PID 3276294),
+  clean startup, no errors.
+- **Expected impact:** the EOD flatten fires on real time even if the candle feed dies at the close →
+  the silent naked-weekend carry (06-18/06-19) cannot recur; and "why no buy today" is answerable from
+  the logs. Capital protection (the *prevention* half IMP-005 only partially delivered) + observability.
+- **Commit:** (pending)
+- **Observed effect:** (await next review — first live test is the 06-23 close: confirm a wall-clock
+  `EOD flatten` fires and any unclosable position pages NAKED, even if no candle prints in the final
+  minutes.)
+
+---

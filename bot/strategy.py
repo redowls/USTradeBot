@@ -30,13 +30,14 @@ details for Phase 6/7.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
 from bot.candles import Candle
-from bot.config import Config
+from bot.config import EASTERN, Config
 from bot.executor import ExecutionResult, OrderExecutor
 from bot.indicators import RibbonEngine, RibbonSnapshot
 from bot.risk import RiskManager
@@ -62,6 +63,14 @@ log = logging.getLogger("ustradebot.strategy")
 # close (no further candle) is still caught, while early-window transient failures
 # that self-heal on the next candle are not paged.
 _FLATTEN_ESCALATE_MIN = 2.0
+
+# The EOD flatten is normally driven by closed candles, but the IEX feed can go
+# silent through the close window (observed 2026-06-19: zero candles 15:44–16:02 ET,
+# so the flatten never ran and 5 names carried NAKED over the weekend). A wall-clock
+# watchdog (:meth:`StrategyEngine.tick`) runs the flatten on real time instead. It
+# also sweeps this many minutes *after* the close so a feed-dead carry still gets a
+# final close attempt + naked-overnight page rather than silently riding overnight.
+_POSTCLOSE_GRACE_MIN = 3.0
 
 
 class BotState(StrEnum):
@@ -112,6 +121,11 @@ class StrategyEngine:
         # Symbols already paged for a failed EOD flatten this session (dedup so a
         # naked-overnight position alerts once, not once per close-window candle).
         self._flatten_escalated: set[str] = set()
+        # Serialises the EOD flatten: the candle thread (on_short_candle) and the
+        # wall-clock watchdog thread (tick) both call _flatten_all_eod. Both paths
+        # only ever flatten inside the close window, so this lock is the only shared
+        # mutation point — re-entrant in case a future caller nests.
+        self._flatten_lock = threading.RLock()
 
     def reconcile(self, positions) -> None:
         """Mark symbols already held at Alpaca as MANAGING (startup / post-reconnect).
@@ -195,6 +209,7 @@ class StrategyEngine:
             weights=self._weights,
         )
         if not decision.enter:
+            self._log_skip(symbol, decision)
             return None
 
         assert decision.confidence is not None  # enter implies a scored candidate
@@ -225,6 +240,49 @@ class StrategyEngine:
         if self._executor is not None:
             self._execute(signal)
         return signal
+
+    def tick(self, now_utc: datetime) -> None:
+        """Wall-clock EOD safety net, independent of the candle feed.
+
+        The candle-driven flatten in :meth:`on_short_candle` only fires when a 1-min
+        candle closes inside the window — but on a thin/stalled IEX feed no candle may
+        arrive in the final minutes (observed 2026-06-19: a silent close window left
+        positions naked over the weekend, with no Telegram page because no flatten was
+        ever *attempted*). A watchdog thread calls this on a fixed cadence so the
+        flatten runs on real time regardless of feed liveness. It also sweeps a short
+        grace period *after* the close so a feed-dead carry still gets a final close
+        attempt + naked-overnight escalation (``minutes_until_close`` is negative past
+        the close, so :meth:`_escalate_failed_flatten` pages). Opens nothing — it only
+        flattens, mirroring the close-window branch of ``on_short_candle``.
+        """
+        in_window = in_close_window(
+            now_utc,
+            self._cfg.market_open,
+            self._cfg.market_close,
+            self._cfg.flatten_before_close_min,
+        )
+        post_close = (
+            -_POSTCLOSE_GRACE_MIN <= minutes_until_close(now_utc, self._cfg.market_close) <= 0.0
+            and now_utc.astimezone(EASTERN).weekday() < 5
+        )
+        if in_window or post_close:
+            self._flatten_all_eod(now_utc)
+
+    def _log_skip(self, symbol: str, decision: EntryDecision) -> None:
+        """Explain why a closed candle did not open a position, so a flat session is
+        diagnosable from the logs. A near-miss — a scored candidate that fell short of
+        the threshold — logs at INFO; the common gate-closed / no-fresh-cross
+        rejections log at DEBUG to keep the ~10k-candle session readable.
+        """
+        if decision.confidence is not None:  # a scored candidate that missed the bar
+            log.info(
+                "no entry %s: %s (conf=%.1f%%)",
+                symbol,
+                decision.reason,
+                decision.confidence.total,
+            )
+        else:
+            log.debug("no entry %s: %s", symbol, decision.reason)
 
     def _execute(self, signal: TradeSignal) -> None:
         """Submit the bracket entry and advance the state machine.
@@ -272,34 +330,39 @@ class StrategyEngine:
         symbol's last trigger close (best-effort, for the P/L record only — the close
         itself is a market order).
 
-        ``now_utc`` (the candle's start) drives the naked-overnight escalation: if a
-        close still fails inside the final ``_FLATTEN_ESCALATE_MIN`` minutes there is
-        no retry runway left before the DAY bracket legs expire, so we page once.
+        ``now_utc`` drives the naked-overnight escalation: if a close still fails
+        inside the final ``_FLATTEN_ESCALATE_MIN`` minutes there is no retry runway
+        left before the DAY bracket legs expire, so we page once. ``now_utc`` is the
+        candle's start on the candle path and the wall clock on the watchdog path.
+
+        The lock serialises the candle thread and the watchdog thread, which both
+        reach this method inside the close window.
         """
-        for symbol in list(self._state):
-            if self.state(symbol) is not BotState.MANAGING:
-                continue
-            snap = self._trigger.snapshot(symbol)
-            entry = self._positions.get(symbol)
-            price = (
-                snap.close
-                if snap is not None
-                else (entry.entry_price if entry is not None else 0.0)
-            )
-            reason = "end-of-day flatten"
-            if self._risk is not None:
-                ok = self._risk.exit_position(symbol, price, reason, entry) is not None
-            elif self._executor is not None:
-                ok = self._executor.close_position(symbol) is not None
-            else:
-                ok = False
-            if ok:
-                self._positions.pop(symbol, None)
-                self._set(symbol, BotState.WAITING)
-                self._flatten_escalated.discard(symbol)  # re-arm if re-entered later
-                log.info("EOD flatten: closed %s @ %.4f", symbol, price)
-            else:
-                self._escalate_failed_flatten(symbol, now_utc)
+        with self._flatten_lock:
+            for symbol in list(self._state):
+                if self.state(symbol) is not BotState.MANAGING:
+                    continue
+                snap = self._trigger.snapshot(symbol)
+                entry = self._positions.get(symbol)
+                price = (
+                    snap.close
+                    if snap is not None
+                    else (entry.entry_price if entry is not None else 0.0)
+                )
+                reason = "end-of-day flatten"
+                if self._risk is not None:
+                    ok = self._risk.exit_position(symbol, price, reason, entry) is not None
+                elif self._executor is not None:
+                    ok = self._executor.close_position(symbol) is not None
+                else:
+                    ok = False
+                if ok:
+                    self._positions.pop(symbol, None)
+                    self._set(symbol, BotState.WAITING)
+                    self._flatten_escalated.discard(symbol)  # re-arm if re-entered later
+                    log.info("EOD flatten: closed %s @ %.4f", symbol, price)
+                else:
+                    self._escalate_failed_flatten(symbol, now_utc)
 
     def _escalate_failed_flatten(self, symbol: str, now_utc: datetime) -> None:
         """Page once when a position can't be flattened with no retry runway left.
