@@ -131,6 +131,40 @@ Entry template:
 
 ---
 
+## IMP-008 — 2026-06-23
+
+- **Problem:** First fully clean session in 12 days (3 trades GOOG/UNH/JPM, all EOD-flattened &
+  filled before 16:00 — IMP-005/006/007 validated live). With the exit-infra finally trustworthy,
+  the one remaining book inaccuracy stood out: the bot's **own** EOD/reversal market sells were
+  recorded at the **candle-close estimate** the caller passed, not the real broker fill — GOOG
+  recorded @ $346.72 but actually filled @ **$347.14** ($0.42/sh = $2.5 on one trade). DB day
+  −$9.13 vs equity −$6.41; the residual is exactly this gap.
+- **Root cause:** `risk.exit_position` set `exit_price` from the candle-close value passed in on the
+  happy close path; only the *broker-side-stop* reconcile branch (IMP-003) used the true fill. The
+  bot's own close order's `filled_avg_price` (available once IMP-004's `_confirm_flat` confirms it
+  filled) was never read back. So every EOD-flatten/reversal exit logged a slightly-off price → skews
+  P&L and can flip a marginal win↔loss in the win-rate metric this routine optimizes.
+- **Change:** `bot/executor.py` — new `close_fill_price(order_id)` reads the filled close order's
+  `filled_avg_price` via `get_order_by_id` (None on empty id / unfilled / read error → safe fallback).
+  `bot/risk.py` — `exit_position`, on a successful self-driven close, now records the **actual fill**
+  (`close_fill_price`) instead of the passed-in estimate, falling back to the estimate when unreadable.
+  Extends IMP-003's "record at the real fill" truth to the bot's own sells. **No risk widened, no
+  safety disabled, no entry/strategy logic touched** — pure data integrity.
+- **Validation:** full suite **213 passed** (`pytest -q`, was 207 + 6 new). New regressions:
+  `test_close_fill_price_returns_actual_filled_avg` (GOOG 347.14 read back),
+  `test_close_fill_price_none_when_unreadable` (empty id / unfilled → None),
+  `test_exit_position_records_actual_close_fill` (today's exact GOOG scenario: passed 346.72, recorded
+  347.14), `test_exit_position_falls_back_to_passed_price_when_fill_unreadable` (None → keeps estimate),
+  plus `close_fill_price` added to the strategy/risk/executor fakes. Service restarted clean.
+- **Expected impact:** EOD/reversal exits are booked at their true broker fill → P&L and win-rate are
+  exact (no candle-close drift), closing the last desync between DB realized P&L and equity. Data
+  integrity; the win-rate metric this routine optimizes is now precise. No win-rate behavior change.
+- **Commit:** f854f96
+- **Observed effect:** (await next review — confirm DB realized P&L ≈ equity mark-to-market to the
+  cent on the next trading session, and that exit prices in `dbo.trades` match `/v2/orders` fills.)
+
+---
+
 ## IMP-003 — 2026-06-17
 
 - **Problem:** All 4 of today's fresh entries (TSLA/INTC/TSM/MU) **stopped out broker-side

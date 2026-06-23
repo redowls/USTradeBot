@@ -416,6 +416,78 @@ audit (report shows "open positions: 5" — itself wrong; see below):
 
 ---
 
+## 2026-06-23 — Daily Review
+
+### Stats
+- **3 trades, 0W / 3L → 0% win rate.** Net DB realized **−$9.13** (avg −$3.04). Account
+  **equity $9,314.71** (cash, **0 open positions** at broker — flat), vs last_equity
+  **$9,321.12** → mark-to-market day **−$6.41**. **Books are HONEST** — DB −$9.13 vs equity
+  −$6.41 agree to ~$3 (the residual is the candle-close-vs-fill exit pricing IMP-008 fixes
+  this run). All losses tiny (−0.11% to −0.20%); no stop-outs, no risk-limit trips.
+- **🎉 First fully clean session in 12 days.** 3 fresh Model-A entries, all flattened by the
+  **wall-clock watchdog at 19:45:21–29 UTC (15:45 ET)**, all three market sells **FILLED**
+  before 16:00 (GOOG 347.14, UNH 407.69, JPM 334.30), real exits recorded, **0 phantom rows,
+  broker flat, no naked carry, no NAKED page** (closes all succeeded). The entire week's
+  exit-infra saga (IMP-004/005/006/007) is **proven clean on live data** at last.
+- Confidence vs outcome (all-time): 70-79 best (+$183.51, 52%), 60-69 +$96.61 (49%), 80-89
+  still negative (−$70.25, 33%, 6 tr — unchanged, no 80+ trades today).
+
+### Trade-by-trade review (Model A throughout; all exited "end-of-day flatten" 19:45 UTC)
+- **GOOG** 17:11 @ $347.41, conf 69.16 (**xo 0.14**, trend 0.85, rsi 1.0, vol 0.86, vlt 1.0) →
+  DB $346.72 / **real fill $347.14**, DB −$4.14 (real ≈ −$1.6). Held 2h34m. Entered despite the
+  −2% pre DeepMind headline; gate trend was fine (0.85) but the name churned flat all afternoon —
+  no follow-through. Regime (flat tape), not a bad signal.
+- **UNH** 18:14 @ $408.56, conf 66.47 (**xo 0.14**, trend 0.66) → DB $407.775 / real fill $407.69,
+  DB −$3.14. Held 1h31m. Mild drift; never threatened stop or target.
+- **JPM** 18:58 @ $334.43, conf 63.81 (**xo 0.06** — barely crossed, trend 0.70) → DB $334.06 /
+  real fill $334.30, DB −$1.85. Held 47m. Weakest crossover of the three, smallest loss — pure chop.
+- **Root cause (all 3):** a **news-quiet, hawkish-Fed-overhang Tuesday** with low realized
+  volatility — entries triggered on the gate+cross but the tape gave no momentum, so all three
+  drifted slightly red and were flattened. **Market regime (no-trend chop), not signal failure**;
+  losses were tightly contained. None was a stop-out.
+- **Rejections logged (new IMP-007 observability):** QQQ conf 48.3 < 60, AAPL conf 56.8 < 60 —
+  the gate correctly turned away sub-threshold candidates. A flat session is now diagnosable.
+
+### What worked / what didn't
+- **Worked — the headline:** the EOD flatten **fired on wall-clock time at 15:45 ET and FILLED
+  all 3 sells in liquid RTH** (IMP-005 window + IMP-007 watchdog), recorded real exits (IMP-004
+  confirm-flat), left **0 phantom rows** (IMP-006 sweep), broker flat at the close. After a week of
+  504s / submit-ack fakes / candle-timing carries, the exit infrastructure did its #1 job cleanly.
+  Risk sizing + bracket discipline held (worst trade −$4.14).
+- **Didn't:** entries had **no edge in a flat tape** — 0/3, all weak-momentum (xo 0.06–0.14). One
+  quiet day of tiny losses is not a strategy defect; do NOT overfit. The only *book* gap left is
+  exit-price accuracy (DB recorded the candle-close estimate, not the real fill — GOOG off $0.42/sh)
+  → **fixed this run (IMP-008)**.
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED IMP-008]** Record EOD/reversal exits at the **actual broker market-sell fill price**
+   (`close_fill_price` reads the filled order's `filled_avg_price`), not the candle-close estimate
+   the caller passes. Highest-impact justified change today: the exit-infra is finally clean, so the
+   *last* source of book inaccuracy is exit pricing — and it can flip a marginal win→loss in the
+   win-rate metric this routine optimizes. Extends IMP-003's "record at the real fill" truth to the
+   bot's own closes. No risk widened, no entry/strategy change.
+2. *(watch — multi-day)* **Weak-crossover entries:** all 3 today had xo ≤ 0.14 (JPM 0.06) and all
+   went nowhere — echoes the all-week low-xo pattern (06-16 3/4 xo<0.13, 06-18 QQQ 0.04 / SE 0.07).
+   But the 60-69 band is net **+$96.61** all-time, today's losses were tiny, and this is the *first*
+   clean-data day — **do NOT** add a `MIN_CROSSOVER` floor / up-weight `score_crossover` on one flat
+   session. Accumulate several clean days now that the book is trustworthy, then revisit.
+3. *(watch)* 80-89 band still negative all-time (−$70.25, 6 tr) — sample unchanged, don't touch weights.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 06-24** — 0 broker positions, 0 DB-open rows, equity $9,314.71 all cash.
+  No carried lots, no naked exposure, no phantoms. Nothing locked; full watchlist free.
+- **⚠️ MU earnings late Wed 06-24 (after close) — the Wed pre-market routine MUST PARK MU** before
+  Wed's open so the bot cannot hold it into the print. Today (Tue) carried zero MU risk; tomorrow is
+  the park day. (PCE Thu 06-25 also pending.)
+- **Entry/symbol quality fine** — all 3 names (GOOG/UNH/JPM) signalled and filled cleanly; the 0/3 was
+  a flat, news-quiet tape, not symbol failure. No parks indicated on quality grounds. GOOG traded
+  despite its −2% DeepMind headline — behaved (small drift), no concern.
+- **IMP-005/007 EOD flatten validated live** — fires 15:45 ET, fills before 16:00. The flatten-
+  reliability risk that dogged the whole week is closed; carrying a binary-event name (MU) is still
+  unwise, but the infra is now trustworthy.
+
+---
+
 ## 2026-06-22 — Daily Review
 
 ### Stats
