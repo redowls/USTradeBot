@@ -137,6 +137,10 @@ class Config:
     volume_ma_period: int
     atr_period: int
     entry_threshold: float
+    # Startup warmup: replay this many calendar days of historical bars through the
+    # ribbons on startup so the bot can trade from the open instead of waiting hours
+    # for the live stream to seed the 55-period 5m gate. 0 disables warmup.
+    warmup_lookback_days: int
 
     # Sizing
     sizing_model: str  # "A" (% of buying power) or "B" (risk budget)
@@ -200,6 +204,7 @@ class Config:
             volume_ma_period=_int("VOLUME_MA_PERIOD", 20),
             atr_period=_int("ATR_PERIOD", 14),
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
+            warmup_lookback_days=_int("WARMUP_LOOKBACK_DAYS", 5),
             sizing_model=_str("SIZING_MODEL", "A").upper(),
             min_alloc=_float("MIN_ALLOC", 0.10),
             max_alloc=_float("MAX_ALLOC", 0.40),

@@ -29,6 +29,7 @@ from bot.notifier import AlertReporter, open_notifier
 from bot.persistence import TradeRecorder, open_store
 from bot.risk import ExitResult, RiskManager
 from bot.strategy import StrategyEngine, TradeSignal
+from bot.warmup import alpaca_fetchers, warm_up
 
 log = logging.getLogger("ustradebot")
 
@@ -198,6 +199,14 @@ def main() -> int:
         # (phantom positions). Bookkeeping only — keeps the book honest so reports and
         # the EOD flatten don't act on positions that aren't really there.
         store.reconcile_open_positions({p.symbol for p in positions})
+
+    # Indicator warmup: replay recent history through the ribbons so the bot can trade
+    # from the open instead of waiting hours for the live stream to seed the 55-period
+    # 5m gate (the daily restart otherwise reopens that blind window every session). A
+    # warmup fetch failure is swallowed inside warm_up — the bot just starts cold.
+    if cfg.warmup_lookback_days > 0:
+        fetch_short, fetch_long = alpaca_fetchers(cfg, cfg.warmup_lookback_days)
+        warm_up(strategy, cfg.watchlist, fetch_short=fetch_short, fetch_long=fetch_long)
 
     # Wall-clock EOD-flatten watchdog: fires the flatten on real time so a silent /
     # stalled candle feed at the close can't leave positions naked overnight.

@@ -44,6 +44,13 @@ def test_loads_defaults(monkeypatch):
     assert "paper" in cfg.alpaca_base_url
 
 
+def test_warmup_lookback_days_default_and_override(monkeypatch):
+    _set_env(monkeypatch)
+    assert Config.load(dotenv=False).warmup_lookback_days == 5
+    _set_env(monkeypatch, WARMUP_LOOKBACK_DAYS="0")  # 0 disables warmup
+    assert Config.load(dotenv=False).warmup_lookback_days == 0
+
+
 def test_missing_secret_raises(monkeypatch):
     _set_env(monkeypatch)
     monkeypatch.delenv("ALPACA_KEY_ID", raising=False)

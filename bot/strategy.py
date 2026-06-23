@@ -158,6 +158,20 @@ class StrategyEngine:
         """Refresh the gate ribbon from a closed higher-timeframe candle."""
         self._gate_snap[candle.symbol] = self._gate.update(candle)
 
+    def warmup_trigger(self, candle: Candle) -> None:
+        """Fold a *historical* short-timeframe candle into the trigger ribbon
+        without evaluating or executing — the startup-warmup counterpart of
+        :meth:`on_short_candle`.
+
+        The live bot seeds its ribbons from the trade stream, so after a restart
+        it cannot trade until the slow EMAs warm up (~3.5h for the 55-period 5m
+        gate). Replaying recent history through this method (and the gate via
+        :meth:`on_long_candle`) pre-seeds the indicators so the first *live*
+        candle can already produce an entry. It must never place an order, emit a
+        signal, or advance the state machine — it only updates indicator state.
+        """
+        self._trigger.update(candle)
+
     def on_short_candle(self, candle: Candle) -> TradeSignal | None:
         """Evaluate one closed trigger-timeframe candle; emit a signal on entry."""
         trigger = self._trigger.update(candle)
