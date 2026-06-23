@@ -393,3 +393,62 @@ only at startup, so a restart would be pointless churn). 🔒 Locked: GOOG INTC 
 (7 open positions).
 
 ---
+
+## 2026-06-23 — Pre-market Research
+
+**First clean-and-flat morning in 12 sessions** — broker holds 0 positions, equity all cash.
+Nothing locked; full watchlist free to trade. IMP-007 (wall-clock EOD-flatten watchdog) gets
+its first live test at *tonight's* close — an exit-infra/ops matter, not a watchlist action.
+
+### Market context
+- **Light, news-quiet Tuesday.** No major economic releases and **no watchlist name reports
+  today.** FedEx (FDX) reports **late Tue** and Micron (**MU**) **late Wed 06-24** — both
+  after-close, neither today. **May PCE Thu 06-25** is the week's macro binary.
+- **Hawkish-Fed overhang persists.** After 06-17's hawkish hold, short-end yields kept climbing;
+  CME FedWatch now prices **~70% odds of a rate *hike* by September**. Last week S&P **+0.93%**,
+  Nasdaq **+2.4%**, led by chips on the INTC–Apple chip-design theme.
+- **Chips firm again pre-market** (Nasdaq tailwind) — directly supports our semi/AI-heavy roster.
+  Oil **<$77** (Iran–US peace-talk progress) → energy still the laggard, **XOM stays parked**.
+  **GOOGL −2% pre** on a report a DeepMind scientist is leaving for Anthropic — a mild,
+  non-binary talent-headline, not an earnings/halt event.
+
+### Carried from daily review
+06-22 daily-review "Notes for pre-market research" acted on:
+- **Book CLEAN & FLAT** (0 broker positions, 0 DB-open rows, equity $9,321.12) — **nothing
+  locked**, no carried lots, no phantoms. No park/keep constraints inherited.
+- **⚠️ MU earnings late Wed 06-24** — MU is a watchlist name (no longer a held lot). Reports
+  **after Wednesday's close**, so **today (Tue) carries zero MU earnings risk → KEEP MU today.**
+  The **Wed 06-24 pre-market routine MUST park MU** before Wed's open so the bot can't be holding
+  it into the after-close print (the recurring flatten-reliability risk makes carrying a
+  binary-event name overnight unacceptable). Flagged, not actioned today.
+- **"Entry/symbol quality unchanged; no parks indicated on quality grounds"** — honored.
+- **06-23 is IMP-005/007's first live flatten test** — ops/daily-review matter, no watchlist action.
+
+### Watchlist review
+Account ACTIVE, equity **$9,321.12** (= last_equity), all cash, **0 open positions = nothing
+locked.** 23 enabled reviewed vs 14d closed-trade P&L from dbo.trades:
+- **Leaders:** INTC +$206.5 (5 tr, 3W), MU +$152 (6 tr, 4W), QQQ +$51 (3/3), JPM +$28, QCOM +$25,
+  UNH +$9, SPY +$6 — core keeps; the semi/index regime the list is built around is working and
+  chips are firm again pre-market.
+- **Laggards:** AVGO −$69 (2/3 — winning recently), NVDA −$54 (**0/3, still never won**), TSLA −$38,
+  BABA −$36, GOOG −$25, AAPL −$21. Per the daily reviews every one is **regime (Iran selloff /
+  FOMC fade) or overnight-carry, not signal quality**; all mega-liquid. Parking the most-liquid
+  semis (NVDA/AVGO) as chips rip is the poor timing prior runs warned of → **KEEP, on notice**.
+  GOOG's −2% pre on the DeepMind headline is minor and the long-only gate simply won't trigger
+  longs in a downtrend — no park.
+- Lower-liquidity names (SE +$4.7, ABNB +$0.4, BABA) traded fine recently → keep.
+- No earnings on any watchlist name today; MU (Wed) + PCE (Thu) are the only binary flags ahead.
+
+### Changes applied to dbo.watchlist
+**No changes.** Nothing locked, but the list is broad (23 ≤ 30) and semi/index-heavy into a
+confirmed-working, chip-led tape; **zero earnings risk today** (MU is Wed, after-close); every
+laggard is regime/carry per the dailies, none a signal-quality or liquidity park; and a hawkish-Fed,
+news-quiet day is the wrong tape to chase a momentum add. XOM/WPM/ENPH/BIRD stay parked (energy
+still the laggard on <$77 oil). MU park is **tomorrow's** task, not today's.
+
+### Final watchlist
+23 enabled (unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QCOM
+QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change → bot reads the list
+only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
+
+---
