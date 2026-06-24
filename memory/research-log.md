@@ -394,6 +394,69 @@ only at startup, so a restart would be pointless churn). 🔒 Locked: GOOG INTC 
 
 ---
 
+## 2026-06-24 — Pre-market Research
+
+**MU park day.** The carried 06-19/06-22/06-23 instruction was explicit: today's pre-market
+routine **MUST park MU** before the open because MU reports earnings **after today's close**
+(binary event). Book is clean & flat (0 positions), so MU is **not locked** → free to park.
+This is the day's one decided action.
+
+### Market context
+- **Futures mixed after a Tuesday semi rout.** Tue 06-23 saw a tech/semiconductor-driven
+  selloff (S&P **−1.44%**, Nasdaq **−2.21%**) — South Korea's chip-heavy KOSPI fell ~10%, a
+  BofA rate-hike note and AI/semi-valuation fears hit the sector. This morning stabilizes:
+  S&P futures +0.1%, **Nasdaq-100 +0.5%**, Dow −0.2%. Memory/chips bounce pre-market (MU
+  +4.1% after −13% Tue, SanDisk +3%, **INTC +1%**, **QCOM +2.2%**, DRAM ETF +4%). KOSPI
+  rebounded +3% overnight.
+- **⚠️ MU reports earnings after today's close** (confirmed; consensus ~$20.2–20.8 EPS on
+  ~$33.5–35.7B rev). Options price a **~14–17% post-print move** on a name up 244% YTD past a
+  $1T cap — a textbook binary overnight event. Given the flatten-reliability history (now fixed
+  but only one clean session), **carrying MU overnight into the print is unacceptable → PARK.**
+- **Other earnings today:** PAYX, JEF, LEVI — **none on our watchlist**. Macro: May new-home
+  sales, Fed stress-test results. Oil eased again (**WTI ~$72**) on US–Iran diplomacy → energy
+  the laggard, **XOM stays parked**. May **PCE Thu 06-25** is the week's next macro binary.
+
+### Carried from daily review
+06-23 daily-review "Notes for pre-market research" acted on:
+- **Book CLEAN & FLAT into 06-24** — broker-confirmed **0 positions**, equity $9,314.69 all
+  cash, 0 DB-open rows. **Nothing locked**; MU is a watchlist name only (not a held lot) → the
+  hard "never park a held name" rule does **not** apply, MU is parkable.
+- **"The Wed pre-market routine MUST PARK MU before Wed's open so the bot cannot hold it into
+  the after-close print"** — **ACTIONED today** (the sole change this run).
+- **"Entry/symbol quality fine; no parks on quality grounds"** — honored; only MU parked, and
+  for *event* risk, not signal quality. GOOG/UNH/JPM (06-23's flat 0/3) were a news-quiet tape.
+- **IMP-005/007 EOD flatten validated live 06-23** — exit infra now trustworthy; no watchlist action.
+
+### Watchlist review
+Account ACTIVE, equity **$9,314.69** (=last_equity), all cash, **0 open positions = nothing
+locked.** 23 enabled reviewed vs 14d closed-trade P&L from dbo.trades:
+- **Leaders:** INTC +$206.5 (5 tr, 3W), MU +$152 (6 tr, 4W), QQQ +$51 (3/3), AMD +$39, JPM +$26,
+  QCOM +$25 — the semi/index regime the list is built around; chips bounce pre-market today.
+- **Laggards:** AVGO −$69 (2/3), NVDA −$54 (**0/3, still never won**), BABA −$36, GOOG −$29,
+  AAPL −$21, TSM −$13. Per the daily reviews every one is **regime (Iran selloff / FOMC fade /
+  overnight-carry), not signal quality**; all mega-liquid. The list is semi-heavy into a volatile
+  semi tape, but the long-only 5m gate simply won't fire longs in a downtrend (fewer entries, not
+  bad ones) — **no signal-quality park**, KEEP on notice. Parking the most-liquid semis as they
+  bounce off a one-day rout is the poor timing prior runs warned of.
+- Lower-liquidity names (SE +$2.25, ABNB +$0.38, BABA) traded fine recently → keep.
+- **Only MU reports earnings today** of all watchlist names → the single event-risk park.
+
+### Changes applied to dbo.watchlist
+- **PARK MU** (enabled=0, note "earnings after close today (~17% implied move), no overnight
+  binary hold"). MU is not held → parkable; this is the pre-flagged required action.
+- **No other changes.** A volatile, semi-rout-rebound tape on a binary-event day is the wrong
+  time to churn or chase a momentum add; every laggard is regime/carry per the dailies, none a
+  liquidity/signal park. XOM/WPM/ENPH/BIRD stay parked. **Re-enable MU on the 06-25 routine**
+  once the print is digested (it's a top-2 earner — park is event-driven, not a demotion).
+
+### Final watchlist
+**22 enabled** (MU parked): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT NFLX NVDA
+QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **restarted: yes** — active, clean startup 11:32 UTC,
+warmup 22/22 from history, account ACTIVE equity $9,314.69, 0 positions reconciled, 22-symbol
+subscribe confirmed in journal (no MU). 🔒 Locked: none (0 open positions).
+
+---
+
 ## 2026-06-23 — Pre-market Research
 
 **First clean-and-flat morning in 12 sessions** — broker holds 0 positions, equity all cash.
