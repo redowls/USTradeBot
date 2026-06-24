@@ -546,3 +546,81 @@ No bot-initiated trades to root-cause. The reviewable events were **broker/DB re
   fills before 16:00 ET and the book is flat at the close (the prevention that 06-22 couldn't exercise).
 
 ---
+
+## 2026-06-24 — Daily Review
+
+### Stats
+- **6 trades, 3W / 3L → 50% win rate.** Net DB realized **−$10.14** (avg −$1.69). Avg win **+$15.81**,
+  avg loss **−$19.19**, **profit factor 0.82**. Account **equity $9,299.14** (cash, **0 open positions**
+  at broker — flat), vs last_equity **$9,314.69** → mark-to-market day **−$15.55**.
+- **Book honest, residual ~$5.41.** DB −$10.14 vs equity −$15.55 differ by ~$5.41 — now that exits are
+  exact (IMP-008 validated again below), the *last* source of divergence is the **entry price**, still
+  recorded at the candle-close estimate not the broker buy fill → **fixed this run (IMP-009)**.
+- **🎉 Second consecutive fully clean session.** All exits real (3 EOD-flatten market sells filled 19:45
+  UTC / 15:45 ET via the IMP-007 wall-clock watchdog, 3 broker-side trailing-stop fills), **0 phantom
+  rows, broker flat, no naked carry, no NAKED page.** MU correctly held NONE into its after-close print
+  (parked pre-market). Exit infra is now proven clean on two straight days of live data.
+- Confidence vs outcome (all-time): 70-79 best (+$196.40, 55%), 60-69 +$73.59 (48%), 80-89 still
+  negative (−$70.25, 33%, 6 tr — unchanged, no 80+ trades today).
+
+### Trade-by-trade review (Model A throughout)
+- **ABNB** 14:11 @ $143.825, conf 71.76 (**xo 0.57** strong, trend 1.0, rsi 1.0, **vol 0.0**, vlt 0.98) →
+  EOD flatten @ $144.63 **+$12.88** (+0.56%). Earliest entry (10:11 ET), strong fresh cross + maxed gate
+  trend; held all day for a modest gain despite a thin-volume sub-score. Good signal.
+- **SE** 14:45 @ $91.98, conf 66.84 (**xo 0.47**, trend 0.66) → broker-side trailing-stop fill @ $93.65
+  19:20 **+$33.40** (+1.82%). **Best trade.** The trailing stop ratcheted *above* entry and locked a
+  +1.82% gain — exactly the IMP trailing-stop design working as intended.
+- **JPM** 19:10 @ $333.535, conf 61.94 (**xo 0.04** — barely crossed, trend 0.53) → EOD flatten @ $333.82
+  **+$1.14** (+0.09%). Late (15:10 ET), weakest crossover of the day, near-scratch chop.
+- **AMZN** 14:45 @ $238.82, conf 67.75 (**xo 0.31**, trend 1.0) → broker-side trailing-stop fill @ $237.395
+  18:37 **−$11.40** (−0.60%). Mild fade; the trailing stop contained the loss to −0.6%.
+- **SPY** 15:30 @ $739.63, conf 66.38 (**xo 0.13** weak, trend 0.62) → EOD flatten @ $731.52 **−$16.22**
+  (−1.10%). Drifted down on the broad semi-led market weakness; weak crossover, no follow-through.
+- **INTC** 16:18 @ $134.76, conf 68.61 (**xo 0.08** very weak, trend 0.82) → broker-side stop @ $132.265
+  16:47 **−$29.94** (−1.85%). **Biggest loss.** Stopped out ~30 min after a weak-crossover entry; the stop
+  did its job at −1.85% (no runaway).
+- **Root cause:** a choppy **semi-rout-rebound tape** (Tue 06-23 Nasdaq −2.21%; 06-24 mixed). The two
+  winners had **strong crossovers** (ABNB 0.57, SE 0.47); the three losers/scratch had **weak crossovers**
+  (SPY 0.13, INTC 0.08, JPM 0.04). Trailing stops contained every loss (worst −1.85%) and captured SE's
+  +1.82%. **Regime + weak-signal entries**, not a strategy or risk defect; no stop-outs were violent, no
+  risk-limit trips, book honest & flat.
+
+### What worked / what didn't
+- **Worked:** the **trailing stops** — SE ratcheted to a +1.82% locked win, AMZN/INTC losses were capped
+  at −0.6%/−1.85%. The **EOD flatten** fired on the wall-clock watchdog and filled cleanly (2nd clean day).
+  **IMP-008 validated again** — every DB exit price matches the broker fill exactly (ABNB 144.63, SE 93.65,
+  JPM 333.82, AMZN 237.395, INTC 132.265). MU park kept the bot out of a binary print.
+- **Didn't:** (1) **Entry prices are still recorded at the candle-close estimate, not the buy fill** — INTC
+  DB @134.76 vs broker @134.7817, SPY @739.63 vs @739.675, JPM @333.535 vs @333.57 — the ~$5.41 residual
+  between DB P&L and equity. → **fixed this run (IMP-009)**. (2) **Weak-crossover entries underperformed
+  again** (SPY/INTC/JPM all xo ≤ 0.13) — a strengthening multi-day pattern, but do NOT act yet (see below).
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED IMP-009]** Record entries at the **actual broker buy fill price** (`entry_fill_price` reads
+   the bracket parent order's `filled_avg_price` after the submit ack), not the candle-close estimate the
+   signal sized off. The entry-side mirror of IMP-008; closes the last DB↔equity divergence and makes the
+   win-rate metric this routine optimizes exact. No risk widened, no entry/strategy logic changed.
+2. *(watch — strengthening, do NOT act yet)* **Weak-crossover entries underperform.** Two straight clean
+   days now show it: 06-23 all 3 xo ≤ 0.14 went nowhere; 06-24 the 3 low-xo names (xo ≤ 0.13) lost/scratched
+   while the 2 high-xo (ABNB 0.57, SE 0.47) won big. Candidate: a `MIN_CROSSOVER` floor or up-weight
+   `score_crossover`. But (a) only 2 clean days, (b) the 60-69 band is still net **+$73.59** all-time, and
+   (c) **IMP-009 just made the data exact** — gather a few more clean days on now-accurate entry+exit prices,
+   THEN revisit. Acting on 2 days risks overfitting (explicitly deferred 06-16/06-18/06-23).
+3. *(watch)* 80-89 band still negative all-time (−$70.25, 6 tr) — sample unchanged, don't touch weights.
+4. *(hygiene note)* **Git has two commits both labeled IMP-008** (warmup 27e4c03 + exit-fill f854f96); the
+   warmup change never got an improvement-log entry. Documentation gap only — next number used here is IMP-009.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 06-25** — 0 broker positions, 0 DB-open rows, equity $9,299.14 all cash. No
+  carried lots, no naked exposure, no phantoms. Nothing locked; watchlist free (MU currently parked).
+- **⚠️ MU REPORTS EARNINGS AFTER TODAY'S CLOSE (06-24)** — MU was correctly **parked pre-market** so the
+  bot held nothing into the print. The **06-25 pre-market routine should RE-ENABLE MU** once the after-hours
+  move is digested (it's a top-2 earner; the park was event-driven, not a demotion). Check the post-print
+  gap before re-enabling.
+- **⚠️ May PCE Thursday 06-25** — the week's macro binary; late-day entries into it are extra risky.
+- **Entry/symbol quality fine** — ABNB and SE traded beautifully (SE's trailing stop locked +1.82%). The 3
+  weak-xo losers (SPY/INTC/JPM) reflect a choppy semi-rout-rebound tape, not symbol failure → no quality
+  parks. The weak-crossover underperformance is a **code/scoring** question (daily-review candidate once the
+  data is exact), NOT a watchlist change.
+
+---

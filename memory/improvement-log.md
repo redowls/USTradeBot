@@ -165,6 +165,41 @@ Entry template:
 
 ---
 
+## IMP-009 — 2026-06-24
+
+- **Problem:** Second straight fully clean session (6 trades, 3W/3L, all exits real — IMP-008
+  validated again, every DB exit price matches the broker fill). With exits now exact, the only
+  remaining DB↔equity divergence was the **entry** side: the bot recorded each trade's entry at the
+  **candle-close estimate the signal sized off**, not the actual broker buy fill — INTC DB @134.76
+  vs broker @134.7817, SPY @739.63 vs @739.675, JPM @333.535 vs @333.57. DB day −$10.14 vs equity
+  −$15.55; the ~$5.41 residual is exactly this entry-price gap.
+- **Root cause:** `OrderExecutor.execute` set `ExecutionResult.entry_price=plan.entry_price` (the
+  estimate passed in for sizing). A market bracket buy is only `accepted`/`pending_new` at the submit
+  ack, so its `filled_avg_price` is empty for a moment and was never read back — unlike the exit side,
+  which IMP-008 already records at the real fill via `close_fill_price`. So every entry logged a
+  slightly-off price → skews P&L and can flip a marginal win↔loss in the win-rate metric this routine
+  optimizes (and which the deferred weak-crossover tuning will rest on).
+- **Change:** `bot/executor.py` — new `entry_fill_price(order_id)` polls the bracket parent order's
+  `filled_avg_price` via `get_order_by_id` (budget `_ENTRY_FILL_ATTEMPTS`=6 × `_ENTRY_FILL_DELAY`=0.5s,
+  short so it never stalls the candle thread; `None` on empty id / unfilled-within-budget / read error).
+  `execute` now records the **actual fill** as `entry_price`, falling back to the sizing estimate when
+  unreadable. The bracket's broker-side stop/target stay at the submitted plan levels — only the
+  *recorded* entry price is corrected. Entry-side mirror of IMP-008. **No risk widened, no safety
+  disabled, no entry/strategy logic touched** — pure data integrity.
+- **Validation:** full suite **220 passed** (`pytest -q`, was 216 + 4 new). New regressions:
+  `test_execute_records_actual_entry_fill_price` (today's INTC scenario: sized 134.76, recorded
+  134.7817), `test_execute_falls_back_to_estimate_when_entry_fill_unreadable` (None → keeps estimate,
+  never a fabricated 0.0), `test_entry_fill_price_returns_actual_filled_avg`,
+  `test_entry_fill_price_none_when_unreadable`; `entry_fill` added to the executor test fake.
+- **Expected impact:** entries are booked at their true broker fill → P&L and win-rate are exact (DB
+  realized P&L should now track equity mark-to-market to the cent), and the entry+exit data future
+  strategy tuning (the weak-crossover candidate) will rest on is now accurate. No win-rate behavior change.
+- **Commit:** 0737122
+- **Observed effect:** (await next review — confirm DB realized P&L ≈ equity mark-to-market to the cent
+  on the next session, and entry prices in `dbo.trades` match `/v2/orders` buy fills.)
+
+---
+
 ## IMP-003 — 2026-06-17
 
 - **Problem:** All 4 of today's fresh entries (TSLA/INTC/TSM/MU) **stopped out broker-side
