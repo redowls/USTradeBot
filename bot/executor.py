@@ -67,6 +67,15 @@ def _is_position_gone(exc: Exception) -> bool:
 _CLOSE_ATTEMPTS = 12
 _CLOSE_RETRY_DELAY = 0.5  # seconds between attempts
 
+# Entry-fill readback budget. A market bracket buy is `accepted`/`pending_new` at the
+# submit ack and fills a moment later, so its `filled_avg_price` is empty for an instant.
+# We poll the parent order briefly for its real fill so the recorded entry is the true
+# price rather than the candle-close estimate the signal passed (2026-06-24: INTC was
+# recorded @134.76 but filled @134.7817; SPY @739.63 vs @739.675) — the entry-side
+# analogue of IMP-008's close_fill_price. Kept short so it never stalls the candle thread.
+_ENTRY_FILL_ATTEMPTS = 6
+_ENTRY_FILL_DELAY = 0.5  # seconds between polls
+
 
 @dataclass(frozen=True)
 class ExecutionResult:
@@ -195,12 +204,22 @@ class OrderExecutor:
             )
             return None
 
+        # Record the entry at the ACTUAL broker fill price, not the candle-close estimate
+        # the signal sized off — they differ by cents (2026-06-24: INTC sized @134.76,
+        # filled @134.7817). The bracket's broker-side stop/target stay at the submitted
+        # plan levels; only the recorded entry price is corrected to the truth, so P/L and
+        # the win/loss flag are exact. Falls back to the estimate when the fill can't be
+        # read (unfilled within the budget / read error). Entry-side mirror of IMP-008.
+        order_id = str(getattr(order, "id", ""))
+        fill_price = self.entry_fill_price(order_id)
+        entry_price = fill_price if fill_price is not None else plan.entry_price
+
         result = ExecutionResult(
             symbol=symbol,
-            order_id=str(getattr(order, "id", "")),
+            order_id=order_id,
             qty=plan.qty,
             notional=plan.notional,
-            entry_price=plan.entry_price,
+            entry_price=entry_price,
             stop_price=plan.stop_price,
             take_profit_price=plan.take_profit_price,
             confidence=confidence,
@@ -411,6 +430,33 @@ class OrderExecutor:
             "not fill (market likely closed); treating as a failed close",
             symbol, order_id or "?",
         )
+        return None
+
+    def entry_fill_price(self, order_id: str) -> float | None:
+        """Return the actual fill price of a bracket entry's parent order, or ``None``.
+
+        :meth:`execute` sizes off the candle-close estimate the signal passed, but the
+        bracket buy fills at a real broker price that differs by cents (2026-06-24: INTC
+        sized @134.76, filled @134.7817; SPY @739.63 vs @739.675). The parent order is
+        only ``accepted``/``pending_new`` at the submit ack, so its ``filled_avg_price``
+        is empty for a moment — we poll it a few times until it fills and report the true
+        price. Returns ``None`` on an empty id, an order that never reports a fill within
+        the budget, or any read error, so the caller falls back to the sizing estimate it
+        already had (never a fabricated price). Entry-side mirror of :meth:`close_fill_price`.
+        """
+        if not order_id:
+            return None
+        for attempt in range(_ENTRY_FILL_ATTEMPTS):
+            if attempt:
+                time.sleep(_ENTRY_FILL_DELAY)
+            try:
+                order = self._client_or_build().get_order_by_id(order_id)
+            except Exception:
+                log.exception("could not read fill price for entry order %s", order_id)
+                return None
+            price = getattr(order, "filled_avg_price", None)
+            if price:
+                return float(price)
         return None
 
     def close_fill_price(self, order_id: str) -> float | None:

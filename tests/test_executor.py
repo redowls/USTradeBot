@@ -40,7 +40,7 @@ class _FakeTrading:
         self, *, buying_power="10000", equity="10000", status="accepted",
         raise_on=None, with_legs=False, open_orders=(), held_until_cancelled=False,
         qty_available_after=0, close_position_gone=False, position_open=True,
-        closed_sell_orders=(), close_fills=True, close_fill=None,
+        closed_sell_orders=(), close_fills=True, close_fill=None, entry_fill=None,
     ):
         self.account = SimpleNamespace(buying_power=buying_power, equity=equity)
         self.submitted = []
@@ -76,9 +76,14 @@ class _FakeTrading:
         # filled_avg_price the close market order is reported to have filled at, read back
         # via get_order_by_id (2026-06-23: record the real fill, not the candle estimate).
         self._close_fill = close_fill
+        # filled_avg_price the bracket entry's parent order ("order-1") is reported to have
+        # filled at, read back via get_order_by_id (2026-06-24: record the real entry fill,
+        # not the candle-close estimate the signal sized off).
+        self._entry_fill = entry_fill
 
     def get_order_by_id(self, order_id):
-        return SimpleNamespace(id=order_id, filled_avg_price=self._close_fill)
+        fill = self._entry_fill if order_id == "order-1" else self._close_fill
+        return SimpleNamespace(id=order_id, filled_avg_price=fill)
 
     def get_account(self):
         if self._raise_on == "account":
@@ -173,6 +178,40 @@ def test_execute_submits_bracket_with_sized_qty(cfg):
     assert req.order_class == OrderClass.BRACKET
     assert req.take_profit.limit_price == 104.0
     assert req.stop_loss.stop_price == 98.0
+
+
+def test_execute_records_actual_entry_fill_price(cfg):
+    # Regression (2026-06-24, IMP-009): the bracket buy fills at a real broker price
+    # (INTC @134.7817) that differs from the candle-close estimate the signal sized off
+    # (134.76). The recorded entry must be the true fill so P/L and the win/loss flag are
+    # exact — the entry-side analogue of IMP-008's exit-fill fix.
+    fake = _FakeTrading(entry_fill="134.781667")
+    result = _exec(cfg, fake).execute(symbol="INTC", entry_price=134.76, confidence=80.0)
+    assert result is not None
+    assert result.entry_price == pytest.approx(134.781667)
+
+
+def test_execute_falls_back_to_estimate_when_entry_fill_unreadable(cfg):
+    # When the entry fill can't be read (unfilled within the budget / read error), the
+    # recorded entry falls back to the sizing estimate — never a fabricated 0.0 entry.
+    fake = _FakeTrading(entry_fill=None)
+    result = _exec(cfg, fake).execute(symbol="NFLX", entry_price=100.0, confidence=80.0)
+    assert result is not None
+    assert result.entry_price == 100.0
+
+
+def test_entry_fill_price_returns_actual_filled_avg(cfg):
+    fake = _FakeTrading(entry_fill="134.781667")
+    assert _exec(cfg, fake).entry_fill_price("order-1") == pytest.approx(134.781667)
+
+
+def test_entry_fill_price_none_when_unreadable(cfg):
+    # Empty id, or a parent order that never reports a fill within the poll budget, → None
+    # so the caller keeps the sizing estimate.
+    fake = _FakeTrading(entry_fill=None)
+    ex = _exec(cfg, fake)
+    assert ex.entry_fill_price("") is None  # no id to look up
+    assert ex.entry_fill_price("order-1") is None  # never fills within the budget
 
 
 def test_rejected_status_returns_none(cfg):
