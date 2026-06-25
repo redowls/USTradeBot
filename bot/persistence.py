@@ -214,22 +214,31 @@ class TradeStore:
             cur = conn.cursor()
             # P/L is computed in SQL from the stored entry_price/qty so we never have
             # to carry them back here. OUTPUT hands us the trade id + qty for the
-            # audit-log order row below.
+            # audit-log order row below. When the risk manager recovered a corrected
+            # entry fill (a buy whose fill landed after IMP-009's submit-time readback
+            # budget, so the row holds the candle-close estimate — 2026-06-25 AMD), we
+            # COALESCE it over the stored entry_price and recompute P/L off the truth;
+            # ``None`` keeps the existing entry_price untouched (the common case).
+            entry_fill = getattr(result, "entry_fill_price", None)
             cur.execute(
                 "UPDATE dbo.trades SET "
                 "status = 'CLOSED', exit_order_id = ?, exit_time_utc = SYSUTCDATETIME(), "
+                "entry_price = COALESCE(?, entry_price), "
                 "exit_price = ?, exit_reason = ?, "
-                "pnl = (? - entry_price) * qty, "
-                "pnl_pct = (? / entry_price - 1) * 100, "
+                "pnl = (? - COALESCE(?, entry_price)) * qty, "
+                "pnl_pct = (? / COALESCE(?, entry_price) - 1) * 100, "
                 "updated_at_utc = SYSUTCDATETIME() "
                 "OUTPUT INSERTED.id, INSERTED.qty "
                 "WHERE symbol = ? AND status = 'OPEN'",
                 (
                     result.order_id,
+                    entry_fill,
                     result.exit_price,
                     result.reason,
                     result.exit_price,
+                    entry_fill,
                     result.exit_price,
+                    entry_fill,
                     result.symbol,
                 ),
             )

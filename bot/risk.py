@@ -50,6 +50,7 @@ class ExitResult:
     exit_price: float
     qty: int | None
     order_id: str | None
+    entry_fill_price: float | None = None  # corrected entry fill, when a delayed fill needs it
 
 
 OnExit = Callable[[ExitResult], None]
@@ -201,6 +202,16 @@ class RiskManager:
             fill_price = self._executor.close_fill_price(order_id)
             if fill_price is not None:
                 exit_price = fill_price
+        # Correct the recorded entry price to the actual broker fill. IMP-009 reads the
+        # parent buy's `filled_avg_price` moments after the submit ack, but a fill delayed
+        # past that short budget falls back to the candle-close estimate and understates P/L
+        # (2026-06-25 AMD: the market buy filled ~2 min after submission, recorded @544.71 vs
+        # the real @547.873 → its loss was understated by ~$19, the exact DB↔equity gap that
+        # day). By exit time the entry order is definitively filled, so a single read recovers
+        # the true price with no candle-thread stall; ``None`` (no entry / unreadable) leaves
+        # the stored entry price untouched. Entry-side completion of IMP-008/009.
+        entry_oid = getattr(entry, "order_id", "") if entry is not None else ""
+        entry_fill = self._executor.entry_fill_price(entry_oid) if entry_oid else None
         key = getattr(entry, "stop_order_id", "") if entry is not None else ""
         if key:  # trade is done — drop its trailing-stop state
             self._trail_stops.pop(key, None)
@@ -211,6 +222,7 @@ class RiskManager:
             exit_price=exit_price,
             qty=getattr(entry, "qty", None),
             order_id=order_id or None,
+            entry_fill_price=entry_fill,
         )
         log.info(
             "EXIT %s @ %.4f (%s)%s",

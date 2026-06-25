@@ -142,11 +142,38 @@ def test_record_exit_closes_trade_with_pnl_and_drops_position():
 
     assert conn.commits == 1
     update_sql, params = next(c for c in conn.calls if "UPDATE dbo.trades" in c[0])
-    assert "pnl = (? - entry_price) * qty" in update_sql
+    assert "pnl = (? - COALESCE(?, entry_price)) * qty" in update_sql
     assert "status = 'CLOSED'" in update_sql
-    assert params == ("close-1", 101.5, "bearish 1-min ribbon cross", 101.5, 101.5, "NFLX")
+    # entry_fill_price defaults to None → COALESCE keeps the stored entry_price (common case).
+    assert params == (
+        "close-1", None, 101.5, "bearish 1-min ribbon cross", 101.5, None, 101.5, None, "NFLX",
+    )
     assert any("INSERT INTO dbo.orders" in s and "'EXIT'" in s for s in _sql(conn.calls))
     assert any("DELETE FROM dbo.positions" in s for s in _sql(conn.calls))
+
+
+def test_record_exit_corrects_entry_price_from_delayed_fill():
+    # Regression (2026-06-25): AMD's buy filled after IMP-009's submit-time readback budget, so
+    # the row held the candle-close estimate (544.71) not the real fill (547.873). The risk
+    # manager recovers the true fill at exit; record_exit must COALESCE it over entry_price and
+    # recompute P/L off the truth, so the understated loss is corrected in the books.
+    conn = _FakeConn(next_id=7, open_qty=6)
+    exit_res = ExitResult(
+        symbol="AMD",
+        reason="end-of-day flatten",
+        exit_price=538.88,
+        qty=6,
+        order_id="close-1",
+        entry_fill_price=547.873,
+    )
+    _store(conn).record_exit(exit_res)
+    update_sql, params = next(c for c in conn.calls if "UPDATE dbo.trades" in c[0])
+    assert "entry_price = COALESCE(?, entry_price)" in update_sql
+    # the corrected fill (547.873) is threaded into entry_price + both P/L formulas
+    assert params == (
+        "close-1", 547.873, 538.88, "end-of-day flatten",
+        538.88, 547.873, 538.88, 547.873, "AMD",
+    )
 
 
 def test_record_exit_uses_open_trade_qty_for_audit_order():

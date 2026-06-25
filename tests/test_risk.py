@@ -36,14 +36,19 @@ def cfg(monkeypatch):
 class _FakeExecutor:
     """Records close_position / replace_stop_price calls; returns scripted outcomes."""
 
-    def __init__(self, order_id="close-1", replace_ok=True, reconciled=None, close_fill=None):
+    def __init__(
+        self, order_id="close-1", replace_ok=True, reconciled=None, close_fill=None,
+        entry_fill=None,
+    ):
         self._order_id = order_id
         self._replace_ok = replace_ok
         self._reconciled = reconciled  # (order_id, price) of a broker-side fill, or None
         self._close_fill = close_fill  # actual fill price of the bot's own close, or None
+        self._entry_fill = entry_fill  # corrected entry buy fill (delayed fill), or None
         self.closed = []
         self.moved = []
         self.reconcile_calls = []
+        self.entry_fill_calls = []
 
     def close_position(self, symbol):
         self.closed.append(symbol)
@@ -51,6 +56,10 @@ class _FakeExecutor:
 
     def close_fill_price(self, order_id):
         return self._close_fill
+
+    def entry_fill_price(self, order_id):
+        self.entry_fill_calls.append(order_id)
+        return self._entry_fill
 
     def reconcile_exit(self, symbol):
         self.reconcile_calls.append(symbol)
@@ -220,6 +229,31 @@ def test_exit_position_falls_back_to_passed_price_when_fill_unreadable(cfg):
     result = rm.exit_position("GOOG", 346.72, "end-of-day flatten", _entry())
     assert result is not None
     assert result.exit_price == 346.72  # fell back to the passed-in estimate
+
+
+def test_exit_position_recovers_delayed_entry_fill(cfg):
+    # Regression (2026-06-25): AMD's market buy filled ~2 min after submission, past IMP-009's
+    # short submit-time readback budget, so the entry was recorded at the candle-close estimate
+    # (544.71) not the real broker fill (547.873) — understating the loss by ~$19. By exit time
+    # the entry order is filled, so exit_position re-reads it and carries the corrected price.
+    ex = _FakeExecutor(order_id="close-9", close_fill=538.88, entry_fill=547.873)
+    rm = RiskManager(cfg, executor=ex)
+    result = rm.exit_position("AMD", 539.0, "end-of-day flatten", _entry())
+    assert result is not None
+    assert result.entry_fill_price == 547.873  # the true broker buy fill, recovered at exit
+    assert ex.entry_fill_calls == ["o1"]  # re-read the entry parent order by its id
+
+
+def test_exit_position_entry_fill_none_when_unreadable_or_no_entry(cfg):
+    # No entry (reconciled position) → no re-read, no fabricated price; and an unreadable
+    # fill (None) leaves entry_fill_price None so persistence keeps the stored entry price.
+    ex = _FakeExecutor(order_id="close-9", close_fill=538.88, entry_fill=None)
+    rm = RiskManager(cfg, executor=ex)
+    no_entry = rm.exit_position("AMD", 539.0, "end-of-day flatten")
+    assert no_entry is not None and no_entry.entry_fill_price is None
+    assert ex.entry_fill_calls == []  # never called without an entry order id
+    unreadable = rm.exit_position("AMD", 539.0, "end-of-day flatten", _entry())
+    assert unreadable.entry_fill_price is None  # None → stored entry price untouched
 
 
 def test_exit_position_returns_none_when_close_fails(cfg):

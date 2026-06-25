@@ -255,6 +255,9 @@ class _FakeCloser:
     def close_fill_price(self, order_id):
         return None  # no fill price scripted → exit keeps the candle-close estimate
 
+    def entry_fill_price(self, order_id):
+        return None  # no corrected entry fill scripted → exit keeps the stored entry price
+
     def replace_stop_price(self, stop_order_id, new_stop_price):
         self.moved.append((stop_order_id, new_stop_price))
         return True
