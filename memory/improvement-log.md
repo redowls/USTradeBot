@@ -349,3 +349,42 @@ Entry template:
   minutes.)
 
 ---
+
+## IMP-010 — 2026-06-25
+
+- **Problem:** Third clean exit-infra session (5 trades, 2W/3L), but DB day −$33.61 vs equity −$52.59
+  diverged by **$18.98**. Root: **AMD's entry was recorded at the candle-close estimate (544.71), not
+  the real broker fill (547.873)** — understating its loss. The other 4 entries matched the broker to
+  the cent (IMP-009 working). So IMP-009 *mostly* works but **failed for one trade**, and the failure
+  was the whole day's book error.
+- **Root cause:** IMP-009's `entry_fill_price` polls the parent buy's `filled_avg_price` for only
+  `_ENTRY_FILL_ATTEMPTS`(6) × `_ENTRY_FILL_DELAY`(0.5s) = **~3 s** (kept short so it never stalls the
+  candle thread). **AMD's market buy filled ~2 min after submission** (submitted 13:33:34, filled
+  13:35:42 — an early-session/gap-up open delay), far past that budget, so `entry_fill_price` returned
+  `None` and `execute` fell back to the sizing estimate. Widening the budget can't fix this (a 2-min
+  synchronous poll would freeze the candle thread). The fill *is* available later — just not at submit time.
+- **Change:** `bot/risk.py` — `exit_position` now re-reads the entry parent order's fill via
+  `executor.entry_fill_price(entry.order_id)` **at exit time** (when the buy is definitively filled, so a
+  single read returns immediately — no candle-thread stall) and carries it on a new
+  `ExitResult.entry_fill_price` field (`None` when there's no entry order id or the read fails).
+  `bot/persistence.py` — `record_exit` COALESCEs that corrected fill over the stored `entry_price` and
+  recomputes `pnl`/`pnl_pct` off it (`None` → keeps the existing entry price, the common case). Completes
+  the IMP-003/008/009 "record at the real fill" thread on the entry side, robust to **any** fill delay.
+  Also a one-off broker-verified correction of today's AMD row (544.71 → 547.873, pnl −34.96 → −53.94).
+  **No risk widened, no safety disabled, no entry/strategy logic touched** — pure data integrity.
+- **Validation:** full suite **223 passed** (`pytest -q`, was 220 + 3 new). New regressions:
+  `test_exit_position_recovers_delayed_entry_fill` (today's exact AMD scenario: re-reads order "o1",
+  carries 547.873), `test_exit_position_entry_fill_none_when_unreadable_or_no_entry` (no entry → no read,
+  no fabricated price; None → stored price untouched), `test_record_exit_corrects_entry_price_from_delayed_fill`
+  (corrected fill threaded into entry_price + both P/L formulas); updated
+  `test_record_exit_closes_trade_with_pnl_and_drops_position` to the COALESCE SQL; added `entry_fill_price`
+  to the risk + strategy executor fakes. Post-fix the day's DB net (−$52.59) ties to equity to the cent.
+- **Expected impact:** entries are booked at their true broker fill even when the fill lands seconds-to-
+  minutes after submission → P/L and win-rate are exact (DB realized ≈ equity to the cent), and the
+  high-confidence-underperformance evidence the routine is accumulating rests on accurate prices. No
+  win-rate behavior change.
+- **Commit:** 9e590c6
+- **Observed effect:** (await next review — confirm any delayed-fill entry now books at the broker price,
+  and DB realized P&L continues to tie to equity to the cent.)
+
+---

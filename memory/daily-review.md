@@ -624,3 +624,90 @@ No bot-initiated trades to root-cause. The reviewable events were **broker/DB re
   data is exact), NOT a watchlist change.
 
 ---
+
+## 2026-06-25 — Daily Review
+
+### Stats
+- **5 trades, 2W / 3L → 40% win rate.** Net DB realized **−$52.59** (after the AMD book correction
+  below; avg −$10.52). Avg win **+$25.10**, avg loss **−$34.26**, **profit factor 0.49**. Account
+  **equity $9,246.52** (cash, **0 open positions** at broker — flat), vs last_equity **$9,299.11** →
+  mark-to-market day **−$52.59**. **Books are now exact** — DB net −$52.59 == equity day −$52.59 to
+  the cent (after correcting AMD; see below). No stop-outs were violent (worst −2.03%), no risk-limit trips.
+- **🎯 Data-integrity finding — IMP-009 missed AMD's delayed fill.** AMD's market buy was **submitted
+  13:33:34 but did not fill until 13:35:42 (~2 min later)** — well past IMP-009's 3 s submit-time
+  readback budget — so the entry was recorded at the candle-close estimate **544.71** instead of the
+  real broker fill **547.873**. That understated AMD's loss by **$18.98** (the **exact** DB↔equity gap:
+  pre-correction DB −$33.61 vs equity −$52.59). → **fixed this run (IMP-010)** + one-off AMD row corrected.
+- **🎉 Third consecutive clean exit-infra session.** All exits real (2 EOD-flatten market sells filled
+  19:45 UTC / 15:45 ET via the IMP-007 wall-clock watchdog; 3 broker-side stop/trailing-stop fills), **0
+  phantom rows, broker flat, no naked carry, no NAKED page.** The re-enabled MU traded beautifully.
+- Confidence vs outcome (all-time, post-correction): 70-79 best (**+$154.69, 52%**), 60-69 **+$95.75
+  (48%)**, **80-89 negative (−$49.34, 43%, 7 tr)**, **90-100 negative (−$53.94, 0%, 1 tr = AMD)**.
+
+### Trade-by-trade review (Model A throughout)
+- **AMD** 13:33 @ **$547.873** (real fill; pre-correction recorded @544.71), conf **91.73** (**xo 0.77**
+  strong, trend 1.0, rsi 1.0, vol 1.0, vlt 0.90) → broker-side **stop @ $538.883** ~13:42 (9:42 ET)
+  **−$53.94** (−1.64%). **Biggest loss.** The **highest-confidence entry the bot has ever recorded**,
+  strong on every sub-score — yet it entered **~3 min after the open** into the **MU-blowout chip gap-up
+  euphoria**, topped immediately, and stopped within ~9 min. Bought the open spike. Regime/timing, not a
+  weak signal (its crossover was the *strongest* of the day).
+- **C** 13:48 @ $145.48, conf 61.28 (**xo 0.39**, trend 0.67, **vol 0.08**) → EOD flatten @ $144.93
+  **−$7.15** (−0.38%). Weakest confidence; near-scratch chop.
+- **UNH** 13:56 @ $412.39, conf **81.67** (**xo 0.42**, trend 0.95) → EOD flatten @ $415.87 **+$20.90**
+  (+0.84%). Strong cross, held all day for a modest gain — the lone 80+ winner.
+- **JPM** 14:53 @ $342.66, conf 76.00 (**xo 0.20** weak, trend 1.0) → broker-side **stop @ $335.71**
+  ~17:32 **−$41.70** (−2.03%). Weak-ish crossover; stopped out, the 3×ATR stop did its job at −2%.
+- **MU** 15:22 @ $1182.54, conf 64.16 (**xo 0.42**, trend 1.0, **vol 0.16**) → broker-side **trailing-stop
+  @ $1211.84** ~19:05 **+$29.30** (+2.48%). **Best trade.** The trailing stop ratcheted *above* entry and
+  locked +2.48% on the re-enabled, post-earnings-blowout MU — the 06-25 pre-market re-enable paid off.
+- **Root cause:** a **chip-led risk-on but choppy/fading tape** — MU's blowout gapped semis up at the open,
+  then a hotter PCE-overhang capped the rally. The two winners ran via trailing-stop/hold (MU +2.48%, UNH
+  +0.84%); the three losers were **AMD (open-euphoria top, stopped)**, JPM (weak xo, −2% stop), C (scratch).
+  **Crossover strength did NOT predict outcome today** — AMD had the *strongest* xo (0.77) and lost the most;
+  the discriminator was **time-of-entry / regime** (AMD bought the gap-up open spike). Trailing stops +
+  brackets contained every loss (worst −2.03%); no risk-limit trips; book honest & flat.
+
+### Book correction (broker-verified)
+AMD's row UPDATEd entry_price 544.71 → **547.873333** (the real `/v2/orders` parent-buy `filled_avg_price`),
+pnl recomputed −34.96 → **−53.94**, pnl_pct → −1.6409. This is exactly what IMP-010 now does automatically.
+After the correction the day's DB net (−$52.59) ties to equity to the cent.
+
+### What worked / what didn't
+- **Worked:** the **trailing stops** (MU ratcheted to a +2.48% locked win; AMD/JPM losses capped at
+  −1.64%/−2.03%). **MU re-enable validated** (+$29.30, best trade). The **EOD flatten** fired on the
+  wall-clock watchdog and filled cleanly (3rd straight clean exit-infra day, 0 phantoms, broker flat).
+- **Didn't:** (1) **IMP-009's entry-fill capture missed AMD's delayed (~2 min) fill** → a $18.98 book
+  understatement, the exact DB↔equity gap. → **fixed this run (IMP-010)**. (2) **The highest-confidence
+  entry of the bot's life (AMD 91.73) was the worst loser** — bought the gap-up open spike; the 90-100
+  band is now 0/1 −$53.94 and 80-89 −$49.34 (3/7). High-confidence underperformance is strengthening, but
+  UNH (81.67) *won* today, so it's mixed — keep watching, do NOT act on one day.
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED IMP-010]** Re-read the entry parent-order fill at **exit time** (when the buy is definitively
+   filled) and COALESCE it over the stored entry_price, recomputing P/L — robust to a fill delayed past
+   IMP-009's short submit-time budget, with no candle-thread stall. Completes the IMP-003/008/009
+   "record at the real fill" thread on the entry side. Plus the one-off AMD book correction above. No risk
+   widened, no entry/strategy logic changed — pure data integrity (the win-rate metric this routine optimizes).
+2. *(watch — strengthening)* **High-confidence / open-spike entries underperform.** AMD (conf 91.73, the
+   highest ever) entered ~3 min after the open into a gap-up and topped; 80-89 (−$49.34, 7 tr) and 90-100
+   (−$53.94, 1 tr) are both net negative all-time. Candidates if it persists: a **first-N-minutes / open-spike
+   entry guard**, or revisiting `ScoreWeights` so a maxed-out gap-up score isn't over-trusted. But (a) one day,
+   (b) UNH (81.67) won today, (c) data only just became exact again — gather more clean days, then revisit.
+3. *(watch)* The multi-day **weak-crossover** thesis was **contradicted today** (strongest-xo AMD lost most) —
+   the signal is time-of-entry/regime, not crossover strength alone. Do not act; let the now-exact data accumulate.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 06-26** — 0 broker positions, 0 DB-open rows, equity $9,246.52 all cash. No
+  carried lots, no naked exposure, no phantoms. Nothing locked; full watchlist free.
+- **MU re-enable validated** — MU traded beautifully (trailing stop locked **+2.48%** on the earnings-blowout
+  tape); **keep enabled**, the event-driven park is fully unwound and paying.
+- **AMD — open-spike risk on gap-up mornings.** The bot's highest-ever-confidence signal (91.73) bought the
+  MU-euphoria gap-up open spike (~3 min after the bell) and stopped −1.64% within minutes. This is a
+  **regime/timing** loss (open-spike top), **not a symbol-quality** issue → keep AMD, no park; just a heads-up
+  that gap-up opens can spike-and-fade the most-confident long.
+- **JPM** (weak xo 0.20, −2% stop) and **C** (xo 0.39, scratch) reflect a choppy tape, not symbol failure →
+  no quality parks. All five names signalled and filled cleanly.
+- **PCE (06-25, 8:30 ET) was today's macro binary** — note any follow-through into Friday 06-26; check 06-26
+  pre-market for any watchlist-name earnings (none flagged as of tonight).
+
+---
