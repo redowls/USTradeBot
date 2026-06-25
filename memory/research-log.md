@@ -515,3 +515,52 @@ QQQ SE SPY TSLA TSM UNH WMT. Service **not restarted** (no watchlist change → 
 only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-06-25 — Pre-market Research
+
+### Market context
+- **Risk-on, chip-led.** Futures up on **Micron's blowout** Q3 print: S&P 500 +0.8%, Nasdaq 100 **+2.2%**,
+  Dow +0.3%. MU revived the AI trade and is dragging the whole semi complex higher.
+- **MU Q3 (after close 06-24):** rev **$41.46B** (+346% YoY) vs $35.84B est, adj EPS **$25.11** vs ~$20.2 est,
+  gross margin **84.9%**, Q4 guide **~$50B** vs $43.58B est, plus 16 take-or-pay long-term contracts
+  (~$100B floor, $22B deposits). Stock **+15% after-hours** (~$1,201 last vs $1,047.92 reg-session close;
+  ~+17% in pre-market). QCOM **+11.7%** on its own raised FY29 non-handset guidance. Sympathy bids across
+  WDC/Sandisk/Lam/KLA/AMAT — our AMD/NVDA/AVGO/TSM/INTC all carry the tailwind.
+- **⚠️ May PCE at 8:30 ET (12:30 UTC)** — Fed's preferred gauge and the day's macro binary. Consensus
+  hotter than April (headline +0.5% m/m / +4.1% y/y; **core +0.3% m/m / +3.4% y/y**). Fed turned hawkish
+  last week → a hot print could cap the AI rally. Tug-of-war: AI optimism vs sticky inflation. **Late-day
+  entries into the print are extra risky** (carried straight from the 06-24 daily review).
+- 10y yield 4.412% (+1bp). Oil still soft (Hormuz tankers exiting on the ceasefire) — energy stays the
+  laggard, XOM stays parked.
+
+### Carried from daily review (06-24)
+- **RE-ENABLE MU** once the after-hours move is digested, after checking the post-print gap → **done.**
+  The gap is a clean **+15% UP** on a blowout beat (not a chart-breaking gap down), MU is a top-2 earner
+  (+$152 / 14d), very liquid (~$1.1B daily $-vol), and trends intraday. The park was event-driven, not a
+  demotion → re-enabled. Asset re-verified on Alpaca: `tradable=true, status=active`.
+- Book was **clean & flat** into 06-25 (0 positions, 0 DB-open rows, equity all cash) — confirmed.
+- Daily review: symbol quality is otherwise fine; the weak-crossover underperformance is a code/scoring
+  question for the daily-review routine, **not a watchlist change**. No quality parks today.
+
+### Watchlist review
+- Account ACTIVE, equity **$9,299.11**, **0 open positions** → nothing locked.
+- 22 enabled names reviewed against the chip-led risk-on tape + 14d trade P&L. Semis (AMD/NVDA/AVGO/TSM/
+  INTC/QCOM) all ride the MU/QCOM rally — keep. INTC (+$176/14d) and MU (+$152) remain the two best earners;
+  QQQ (+$51, 3/3) and the mega-caps fit the trending tape. ABNB/SE/TSLA/JPM/AMD net positive. C and NFLX
+  never signaled in 14d but are liquid large-caps — leave enabled, not park candidates yet.
+- **No adds.** The list already holds 6–7 semis; piling more single-catalyst chip names (WDC/LRCX/KLAC/AMAT)
+  the morning of a possibly-hot PCE would be concentration-chasing, and the daily review requested no adds.
+  Conservative = correct.
+
+### Changes applied to dbo.watchlist
+- **Re-enabled MU** (`enabled=1`, note "re-enabled 2026-06-25: blowout Q3 earnings digested (+15% AH),
+  top-2 earner, liquid"). Only change.
+- Still parked (unchanged): BIRD (micro-cap), ENPH (10.9% ATR whipsaw), WPM (downtrend/dead-vol), XOM
+  (broken oil downtrend).
+
+### Final watchlist
+**23 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT **MU** NFLX NVDA QCOM QQQ
+SE SPY TSLA TSM UNH WMT. Service **restarted** at 11:34 UTC — `active`, warmup primed **23/23** symbols,
+subscribed to all 23 (MU present), account ACTIVE, 0 open positions. Clean startup. 🔒 Locked: none.
+
+---
