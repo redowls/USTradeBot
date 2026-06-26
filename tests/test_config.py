@@ -22,6 +22,7 @@ def _set_env(monkeypatch, **overrides):
         "CANDLE_INTERVAL",
         "LONG_CANDLE_INTERVAL",
         "ENTRY_THRESHOLD",
+        "MIN_CROSSOVER",
         "MIN_ALLOC",
         "MAX_ALLOC",
         "WATCHLIST",
@@ -49,6 +50,18 @@ def test_warmup_lookback_days_default_and_override(monkeypatch):
     assert Config.load(dotenv=False).warmup_lookback_days == 5
     _set_env(monkeypatch, WARMUP_LOOKBACK_DAYS="0")  # 0 disables warmup
     assert Config.load(dotenv=False).warmup_lookback_days == 0
+
+
+def test_min_crossover_default_and_override(monkeypatch):
+    # IMP-011: crossover floor defaults to 0.20 (the xo<0.20 chop dead zone), and 0
+    # disables it. Out-of-range values are rejected by validate().
+    _set_env(monkeypatch)
+    assert Config.load(dotenv=False).min_crossover == 0.20
+    _set_env(monkeypatch, MIN_CROSSOVER="0")  # 0 disables the floor
+    assert Config.load(dotenv=False).min_crossover == 0.0
+    _set_env(monkeypatch, MIN_CROSSOVER="1.5")  # > 1 is invalid
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
 
 
 def test_missing_secret_raises(monkeypatch):

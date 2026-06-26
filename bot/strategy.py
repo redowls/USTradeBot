@@ -220,6 +220,7 @@ class StrategyEngine:
             trigger,
             self._gate_snap.get(symbol),
             threshold=self._cfg.entry_threshold,
+            min_crossover=self._cfg.min_crossover,
             weights=self._weights,
         )
         if not decision.enter:

@@ -234,6 +234,60 @@ def test_entry_fires_when_gate_and_trigger_align_and_confident():
     assert d.confidence is not None and d.confidence.total >= 60.0
 
 
+def _weak_xo_trigger() -> RibbonSnapshot:
+    # A genuine fresh cross but a NARROW, barely-accelerating ribbon -> low crossover
+    # sub-score, while rsi/volume/volatility stay strong so the weighted total still
+    # clears 60. This is 2026-06-26's QQQ/SPY/COST/AMZN/ABNB cohort: confident total,
+    # crossover < 0.20, all of which lost. (prev fast 99.995 <= mid -> fresh cross up.)
+    return _snap(
+        ribbon=(100.02, 100.01, 100.0),
+        prev_ribbon=(99.995, 100.01, 100.0),
+        close=100.0,
+        rsi=55.0,
+        volume=200.0,
+        avg_volume=100.0,
+        atr=0.1,
+    )
+
+
+def test_weak_crossover_clears_total_but_below_floor():
+    # Sanity: the fixture is a candidate whose total >= 60 yet crossover < 0.20.
+    d = evaluate_entry(_weak_xo_trigger(), _open_gate(), threshold=60.0)
+    assert d.candidate and d.confidence is not None
+    assert d.confidence.total >= 60.0
+    assert d.confidence.crossover < 0.20
+
+
+def test_min_crossover_floor_blocks_weak_cross_chop_entry():
+    # IMP-011: with the floor active, a confident-but-weak-cross candidate is turned
+    # away even though its total clears the threshold (today's losing cohort).
+    d = evaluate_entry(
+        _weak_xo_trigger(), _open_gate(), threshold=60.0, min_crossover=0.20
+    )
+    assert d.candidate and not d.enter
+    assert d.confidence is not None and d.confidence.total >= 60.0
+    assert "crossover" in d.reason
+
+
+def test_min_crossover_floor_disabled_lets_weak_cross_enter():
+    # min_crossover=0.0 (default) preserves pre-IMP-011 threshold-only behavior.
+    d = evaluate_entry(
+        _weak_xo_trigger(), _open_gate(), threshold=60.0, min_crossover=0.0
+    )
+    assert d.candidate and d.enter
+    assert "confidence" in d.reason
+
+
+def test_min_crossover_floor_allows_strong_cross_entry():
+    # A wide, accelerating cross (MSFT/NFLX on 2026-06-26: crossover > 0.40) clears the
+    # floor and enters.
+    d = evaluate_entry(
+        _fresh_trigger(), _open_gate(), threshold=60.0, min_crossover=0.20
+    )
+    assert d.candidate and d.enter
+    assert d.confidence is not None and d.confidence.crossover >= 0.20
+
+
 def test_entry_candidate_below_threshold_does_not_enter():
     # A fresh cross but weak confirmation (thin volume, wide ATR, neutral RSI).
     weak = _snap(

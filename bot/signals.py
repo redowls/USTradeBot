@@ -245,9 +245,17 @@ def evaluate_entry(
     gate: RibbonSnapshot | None,
     *,
     threshold: float,
+    min_crossover: float = 0.0,
     weights: ScoreWeights = DEFAULT_WEIGHTS,
 ) -> EntryDecision:
     """Apply the gate+trigger candidacy rule, then score qualifying candidates.
+
+    A candidate enters only if its weighted ``confidence.total >= threshold`` **and**
+    its 1-min ``confidence.crossover >= min_crossover``. The crossover floor rejects
+    setups that clear the total bar on trend/rsi/volume weight while riding a weak,
+    non-accelerating cross — the chop-prone cohort that underperformed across the
+    clean-book sessions (see ``Config.min_crossover``). ``min_crossover == 0.0``
+    disables the floor (the threshold-only behavior prior to IMP-011).
 
     Does **not** apply the market-hours gate — the caller (state machine) owns the
     clock and checks it before evaluating.
@@ -275,12 +283,15 @@ def evaluate_entry(
         )
 
     conf = confidence(trigger, gate, weights)
-    enter = conf.total >= threshold
-    reason = (
-        f"confidence {conf.total:.1f} >= {threshold:.0f}"
-        if enter
-        else f"confidence {conf.total:.1f} < {threshold:.0f}"
-    )
+    weak_cross = conf.crossover < min_crossover
+    enter = conf.total >= threshold and not weak_cross
+    if enter:
+        reason = f"confidence {conf.total:.1f} >= {threshold:.0f}"
+    elif weak_cross and conf.total >= threshold:
+        # Cleared the total bar but the cross is too weak — the IMP-011 chop filter.
+        reason = f"crossover {conf.crossover:.2f} < {min_crossover:.2f}"
+    else:
+        reason = f"confidence {conf.total:.1f} < {threshold:.0f}"
     return EntryDecision(
         symbol=trigger.symbol,
         candle_start=trigger.candle_start,

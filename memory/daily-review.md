@@ -711,3 +711,80 @@ After the correction the day's DB net (−$52.59) ties to equity to the cent.
   pre-market for any watchlist-name earnings (none flagged as of tonight).
 
 ---
+
+## 2026-06-26 — Daily Review
+
+### Stats
+- **11 trades, 5W / 6L → 45% win rate.** Net DB realized **+$62.07** (avg +$5.64). Avg win **+$19.30**,
+  avg loss **−$5.74**, **profit factor ≈ 2.80**. Account **equity $9,308.57** (cash, **0 open positions**
+  at broker — flat), vs pre-market $9,246.50 → mark-to-market day **+$62.07**. **Books exact** — DB net
+  **+$62.07 == equity day +$62.07 to the cent** (IMP-009/010 validated a 4th straight session).
+- **🎉 Fourth consecutive fully clean exit-infra session.** All 11 exited via the **wall-clock EOD flatten
+  19:45–19:46 UTC (15:45 ET)** — every market sell FILLED in liquid RTH, 4 reconciled at the real
+  broker-side fill (NFLX/TSLA/AMZN + others tagged "stop/target filled broker-side"), **0 phantom rows,
+  broker flat, no naked carry, no NAKED page.** Notably **zero intraday stop/target/trailing exits fired**
+  today — a slow-drift tape where nothing reached the ±2–3% bracket legs, so every name rode to the flatten.
+- Confidence vs outcome (all-time): 70-79 best (**+$170.31, 58%, 26 tr**), 60-69 **+$67.47 (44%, 57 tr)**,
+  80-89 **+$25.38 (50%, 8 tr)**, 90-100 **−$53.94 (0%, 1 tr = AMD)**.
+
+### Trade-by-trade review (Model A throughout; all exited "end-of-day flatten" 19:45 UTC)
+- **MSFT** 14:05 @ $363.295, conf **85.90** (**xo 0.58** strong, trend 1.0, rsi 1.0, vol 0.94, vlt 0.95) →
+  $372.635 **+$74.72** (+2.57%). **Best trade by far.** Earliest + strongest setup; wide accelerating cross
+  + maxed gate trend, rode a clean all-day uptrend. Textbook high-conviction strong-cross winner.
+- **AAPL** 18:03 @ $279.74, conf 70.78 (**xo 0.24**, trend 0.68) → $281.59 **+$7.40** (+0.66%). Solid hold.
+- **TSLA** 14:42 @ $377.984, conf 73.82 (**xo 0.28**, trend 0.77) → $379.556 **+$7.86** (+0.42%). Mild grind up.
+- **UNH** 14:15 @ $423.67, conf 62.36 (**xo 0.25**, trend 1.0, **rsi 0.0**) → $425.723 **+$6.16** (+0.48%).
+  The lone sub-67-conf winner; xo 0.25 (above the new floor).
+- **NFLX** 14:06 @ $73.67, conf 73.31 (**xo 0.59** strong, **rsi 0.09**) → $73.682 **+$0.36** (+0.02%). Scratch-win.
+- **NVDA** 17:28 @ $194.878, conf 60.03 (**xo 0.27**, vol 0.33) → $194.78 **−$0.49** (−0.05%). Scratch.
+- **SPY** 16:51 @ $734.45, conf 63.69 (**xo 0.05** — weakest cross of the day) → $733.20 **−$1.25** (−0.17%). Chop.
+- **QQQ** 16:51 @ $713.36, conf 64.37 (**xo 0.11**) → $711.37 **−$1.99** (−0.28%). Weak-cross drift.
+- **COST** 14:54 @ $957.99, conf 61.59 (**xo 0.14**, vol 0.26) → $953.14 **−$4.85** (−0.51%). Weak-cross fade.
+- **ABNB** 17:31 @ $147.24, conf 60.10 (**xo 0.17**, **rsi 0.0**) → $146.11 **−$6.78** (−0.77%). Weak-cross fade.
+- **AMZN** 15:04 @ $231.12, conf 65.99 (**xo 0.12**, vol 0.68) → $227.942 **−$19.07** (−1.38%). **Biggest loss.**
+  Weak, non-accelerating cross into a tech-down tape; drifted all afternoon, flattened deep red.
+- **Root cause:** a **tech-led risk-off slow-drift day** (AI/memory-cost overhang, AAPL/MSFT hardware price
+  hikes). The discriminator was **crossover strength, not regime alone**: the two **strong-cross** entries
+  (MSFT 0.58, NFLX 0.59) won; the five **weak-cross** entries (xo < 0.20: COST 0.14, AMZN 0.12, SPY 0.05,
+  QQQ 0.11, ABNB 0.17) **all lost** (0W/5L); the four mid-cross (xo 0.24–0.28: AAPL/TSLA/UNH/NVDA) went 3W/1L.
+  No stop-outs (nothing hit the brackets), no risk-limit trips, book honest & flat.
+
+### What worked / what didn't
+- **Worked:** exit infra (4th clean day) — wall-clock flatten filled all 11 in liquid RTH, real fills
+  reconciled, 0 phantoms, broker flat, books exact to the cent. The **strong-cross entries carried the day**
+  (MSFT +$74.72 alone > the whole day's net). Losses were tightly contained (worst −1.38%, no stop-outs).
+- **Didn't — the clean, now-actionable pattern:** **weak-crossover entries underperformed yet again, and on
+  trustworthy data the signal is now unambiguous.** Today: xo < 0.20 went **0W/5L**. Across the four clean-book
+  sessions (06-23..26): xo < 0.20 → **1 win of 12 (8%, avg −$10.82)**; xo 0.20–0.40 → 3/6 (50%, +$0.40);
+  xo ≥ 0.40 → **6/7 (86%, +$16.80)** — a clean, monotonic relationship the muddy confidence bands don't show
+  (clean-days 65-69 is *worse* than 60-64). The deferral conditions cited every prior run (clean exit-infra
+  data + several clean days) are now met → **acted this run (IMP-011).**
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED IMP-011]** Add a **`MIN_CROSSOVER` entry floor (default 0.20)** in `evaluate_entry`, applied
+   alongside `entry_threshold`: a scored candidate must clear **both** `confidence.total >= threshold` and
+   `confidence.crossover >= 0.20`. Rejects the chop cohort that clears the total bar on trend/rsi/volume
+   weight while riding a weak, non-accelerating cross (today's COST/AMZN/SPY/QQQ/ABNB, all losses). Justified
+   by 4 clean sessions (xo<0.20 = 8% win, −$10.82 avg) + today (0/5). **Tightens entry selectivity only —
+   never widens risk; the floor is a strict capital-protection filter.** No threshold/weights/sizing changed.
+2. *(watch)* **High-confidence / open-spike** still on notice (AMD 91.73 −$53.94 on 06-25; 90-100 0/1). The
+   crossover floor does NOT target it (AMD's xo was 0.77, strong) — that's a separate time-of-entry guard;
+   gather more occurrences. UNH (81.67) won 06-25 and MSFT (85.9) won today, so the top band is mixed.
+3. *(watch)* Set the MIN_CROSSOVER floor at 0.20, not higher: the 0.20–0.40 mid-cross band is ~coin-flip
+   (50%) and produced 3 of today's winners (AAPL/TSLA/UNH) — cutting it would sacrifice real wins. Re-evaluate
+   raising toward 0.30–0.40 only if the mid band keeps net-negative over more clean days.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into the next session** — 0 broker positions, 0 DB-open rows, equity $9,308.57 all cash.
+  No carried lots, no naked exposure, no phantoms. Nothing locked; full watchlist free.
+- **Weak-cross chop names today** (xo < 0.20, all lost): **COST, AMZN, SPY, QQQ, ABNB** — these are NOT
+  watchlist parks (they're liquid large-caps; the issue was *signal strength on the day*, now filtered in code
+  by IMP-011). The strong-cross names **MSFT (+$74.72) and NFLX** traded beautifully → keep. No quality parks.
+- **Tech-led risk-off tape** (AI/memory-cost overhang; AAPL/MSFT hardware price-hike headline) — non-binary,
+  no watchlist-name earnings today. The long-only ribbon self-protected (no stop-outs); MSFT still found a
+  clean trending long. No regime-driven park action.
+- **Heads-up for next week:** IMP-011 is live from tonight's restart — expect **fewer entries** (the weak-cross
+  cohort is now filtered). Watch that entry *count* doesn't collapse and that the surviving entries' win rate
+  rises as the clean-day data predicts; the weekly review should grade IMP-011's first live sessions.
+
+---

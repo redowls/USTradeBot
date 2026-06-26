@@ -386,5 +386,49 @@ Entry template:
 - **Commit:** 9e590c6
 - **Observed effect:** (await next review — confirm any delayed-fill entry now books at the broker price,
   and DB realized P&L continues to tie to equity to the cent.)
+- **Observed 06-26:** ✅ held — 4th straight session DB net (+$62.07) ties to equity (+$62.07) **to the cent**;
+  all entry/exit prices match broker fills (the entry-fill thread IMP-009/010 is solid). Data now trustworthy
+  enough to ship the first *strategy* change (IMP-011) on top of it.
+
+---
+
+## IMP-011 — 2026-06-26
+
+- **Problem:** First **strategy** (entry-quality) change after the exit-infra saga closed. On the **4th
+  consecutive clean-book session** (11 trades, 5W/6L, +$62.07, books exact to the cent), the long-deferred
+  **weak-crossover** pattern became unambiguous on trustworthy data. Today the five entries with crossover
+  sub-score **< 0.20 all lost** (COST/AMZN/SPY/QQQ/ABNB, 0W/5L); the two **strong-cross** entries (MSFT 0.58,
+  NFLX 0.59) won, MSFT +$74.72 carrying the whole day. Across the four clean sessions (06-23..26): **xo<0.20
+  → 1 win of 12 (8%, avg −$10.82)**, xo 0.20–0.40 → 3/6 (50%, +$0.40), **xo≥0.40 → 6/7 (86%, +$16.80)** — a
+  clean monotonic relationship the (non-monotonic) confidence bands don't provide.
+- **Root cause:** `evaluate_entry` gated only on `confidence.total >= entry_threshold`. The total is a weighted
+  blend (crossover 30 / trend 20 / rsi 20 / volume 15 / volatility 15), so a candidate riding a **weak,
+  non-accelerating 1-min cross** can still clear 60 on trend/rsi/volume weight alone — exactly the chop cohort
+  flagged-but-deferred every run since 06-16 (held back pending clean exit-infra data + several clean days,
+  both now satisfied). Crossover strength is the single cleanest discriminator of outcome; nothing acted on it.
+- **Change:** `bot/signals.py` — `evaluate_entry` gains a `min_crossover` floor (default 0.0 = old behavior);
+  a candidate now enters only if `confidence.total >= threshold` **and** `confidence.crossover >= min_crossover`,
+  with a distinct diagnosable reason (`"crossover X.XX < Y.YY"`) when it clears the total but fails the floor.
+  `bot/config.py` — new `min_crossover` field, env `MIN_CROSSOVER`, **default 0.20** (the xo<0.20 dead zone),
+  validated to [0,1]. `bot/strategy.py` — passes `min_crossover=cfg.min_crossover` into `evaluate_entry`.
+  Floor set at 0.20 (not higher) so the ~coin-flip 0.20–0.40 mid band — which produced 3 of today's winners
+  (AAPL/TSLA/UNH) — is kept. **No threshold/weights/sizing/risk changed — strictly a stricter entry filter
+  (capital protection): fewer, higher-quality entries, never more exposure.**
+- **Validation:** full suite **228 passed** (`pytest -q`, was 223 + 5 new). New regressions in
+  `tests/test_signals.py`: `test_weak_crossover_clears_total_but_below_floor` (the fixture = today's QQQ/SPY/COST
+  cohort: total ≥ 60 yet crossover < 0.20), `test_min_crossover_floor_blocks_weak_cross_chop_entry` (floor
+  rejects it with the crossover reason), `test_min_crossover_floor_disabled_lets_weak_cross_enter` (0.0 =
+  pre-IMP-011 behavior), `test_min_crossover_floor_allows_strong_cross_entry` (MSFT/NFLX-style xo≥0.40 still
+  enters); `tests/test_config.py::test_min_crossover_default_and_override` (0.20 default, 0 disables, >1 raises).
+  `bot.preflight` PASS (Alpaca ACTIVE, equity $9,308.57, 0 positions; 1 WARN = market closed).
+- **Expected impact:** the weak-cross chop cohort (≈8% historical win rate) is filtered out → **higher win
+  rate and fewer churn losses** with no added risk. Expect a modest drop in entry *count*; the surviving
+  entries should win at a materially higher rate (clean-day data: 50%+ vs 8%). First win-rate change shipped
+  by this routine; everything prior was capital-protection / data-integrity.
+- **Commit:** (filled below)
+- **Observed effect:** (await next review — confirm entry count holds up [not zero-trade sessions], the
+  `"crossover < 0.20"` skip logs appear for filtered candidates, and the realized win rate on entries that DO
+  fire rises vs the 4-clean-day baseline. Watch for over-filtering on strong-trend days where width is naturally
+  tight.)
 
 ---

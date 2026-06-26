@@ -137,6 +137,16 @@ class Config:
     volume_ma_period: int
     atr_period: int
     entry_threshold: float
+    # Minimum crossover sub-score (0–1) a scored candidate must clear to enter, on
+    # top of ``entry_threshold``. The 1-min crossover strength (ribbon width + slope)
+    # is the cleanest discriminator of outcome: across the four clean-book sessions
+    # 2026-06-23..26, entries with crossover < 0.20 won just 1 of 12 (8%, avg −$10.82)
+    # while crossover >= 0.40 won 6 of 7 (86%, avg +$16.80); 2026-06-26 specifically,
+    # all five sub-0.20 entries lost. A confident *total* can still ride a weak,
+    # non-accelerating cross (large trend/rsi/vol weight) — this floor turns those
+    # chop entries away. 0.0 disables the floor (pre-IMP-011 behavior). Tightens
+    # entry selectivity only; never widens risk.
+    min_crossover: float
     # Startup warmup: replay this many calendar days of historical bars through the
     # ribbons on startup so the bot can trade from the open instead of waiting hours
     # for the live stream to seed the 55-period 5m gate. 0 disables warmup.
@@ -204,6 +214,7 @@ class Config:
             volume_ma_period=_int("VOLUME_MA_PERIOD", 20),
             atr_period=_int("ATR_PERIOD", 14),
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
+            min_crossover=_float("MIN_CROSSOVER", 0.20),
             warmup_lookback_days=_int("WARMUP_LOOKBACK_DAYS", 5),
             sizing_model=_str("SIZING_MODEL", "A").upper(),
             min_alloc=_float("MIN_ALLOC", 0.10),
@@ -240,6 +251,8 @@ class Config:
             raise ConfigError("LONG_CANDLE_INTERVAL must be longer than CANDLE_INTERVAL.")
         if not 0 <= self.entry_threshold <= 100:
             raise ConfigError("ENTRY_THRESHOLD must be in [0, 100].")
+        if not 0 <= self.min_crossover <= 1:
+            raise ConfigError("MIN_CROSSOVER must be in [0, 1].")
         if self.sizing_model not in ("A", "B"):
             raise ConfigError(f"SIZING_MODEL must be 'A' or 'B', got {self.sizing_model!r}.")
         if not 0 < self.min_alloc <= self.max_alloc <= 1:
