@@ -564,3 +564,56 @@ SE SPY TSLA TSM UNH WMT. Service **restarted** at 11:34 UTC — `active`, warmup
 subscribed to all 23 (MU present), account ACTIVE, 0 open positions. Clean startup. 🔒 Locked: none.
 
 ---
+
+## 2026-06-26 — Pre-market Research
+
+### Market context
+- **Risk-OFF, tech/semis selling off.** Futures lower on a **global tech sell-off** — investors worried
+  about mounting **AI data-center / memory-infrastructure costs** and that AI valuations have run ahead of
+  fundamentals. Asian tech sold off sharply overnight; Mag7 complex (MAGS ETF ~$60.95, −0.18% pre) under
+  pressure again.
+- **Thursday 06-25 close was mixed/lower** despite MU's blowout — S&P 500 and Nasdaq finished lower.
+  **AAPL and MSFT fell** after both announced **price increases on consumer hardware** (rising memory
+  costs) — a direct, but non-binary, headwind on those two names.
+- **No watchlist-name earnings today.** MU already reported (Wed 06-24, after close); the week's macro
+  binary (**May PCE**) printed **yesterday 06-25**. Today's follow-through is a **tech-led risk-off** drift,
+  not an event day. NKE reports around now but is not on our list.
+- 06-25's hotter-PCE/AI-cost overhang is now playing through as a tech fade. Energy still the laggard
+  (oil soft) → XOM stays parked.
+
+### Carried from daily review (06-25)
+- **Book CLEAN & FLAT into 06-26** — 0 broker positions, 0 DB-open rows, equity **$9,246.50** all cash.
+  **Nothing locked**; full watchlist free of carry/park constraints. Confirmed live this run.
+- **MU re-enable validated** (trailing stop locked +2.48% on 06-25) → **KEEP MU**, event-park fully unwound.
+- **AMD open-spike loss** (highest-ever conf 91.73 bought the MU-euphoria gap-up and stopped −1.64%) was a
+  **regime/timing** loss, **not symbol quality** → KEEP AMD, no park. Today's tech-down tape is the mirror
+  case: the long-only ribbon simply won't fire longs in a downtrend, so it self-protects on a sell-off day.
+- **JPM (weak xo) / C (scratch)** were choppy-tape outcomes, not symbol failures → no quality parks.
+
+### Watchlist review
+- Account **ACTIVE**, equity **$9,246.50**, **0 open positions → nothing locked.** 23 enabled / 4 parked
+  (BIRD, ENPH, WPM, XOM). 27 rows total, 23 ≤ 30 ✓.
+- 14d closed-trade P&L: **Leaders** INTC **+$114.38** (4 tr, 2W), MU **+$98.19** (5/3), SE +$35.65 (2/2),
+  UNH +$16.12, ABNB +$13.26, AVGO/QQQ/WMT small green. **Laggards** AMD −$53.94 (2/0, the 06-25 open-spike
+  loss), BABA −$38.26, GOOG −$29.06, AAPL −$28.32, AMZN −$18.60, TSM −$13.95, SPY/JPM/NVDA mid-single-neg.
+  Every laggard is **regime/timing or overnight-carry** per the dailies — all mega-liquid large-caps, none a
+  signal-quality or liquidity park. The core semi/index roster (INTC, MU, the two best earners) is exactly
+  the regime the list is built around.
+- **AAPL / MSFT carry today's only name-specific headline** (hardware price hikes on memory costs) — a
+  mild, non-binary negative, not an earnings/halt/binary event. The long-only gate won't chase them lower;
+  no park warranted (one-day macro/tech-cost headline, not a broken-symbol thesis).
+- **No adds.** Adding momentum/semi names into a **tech-led sell-off** would be chasing into weakness and
+  pure concentration-stacking — the wrong tape. The daily review requested no adds; conservative = correct.
+
+### Changes applied to dbo.watchlist
+- **No changes.** Book is flat (nothing locked), zero watchlist-name earnings today, all 23 enabled names
+  are liquid large-caps whose recent weakness is regime/timing (not quality), and a risk-off tech sell-off
+  is the wrong day to add momentum. The long-only ribbon self-protects by not firing longs in downtrends.
+  BIRD/ENPH/WPM/XOM stay parked (unchanged).
+
+### Final watchlist
+**23 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA
+QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change → the bot reads the list
+only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
+
+---
