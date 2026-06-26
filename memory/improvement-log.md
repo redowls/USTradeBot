@@ -425,7 +425,7 @@ Entry template:
   rate and fewer churn losses** with no added risk. Expect a modest drop in entry *count*; the surviving
   entries should win at a materially higher rate (clean-day data: 50%+ vs 8%). First win-rate change shipped
   by this routine; everything prior was capital-protection / data-integrity.
-- **Commit:** (filled below)
+- **Commit:** 0002ed9
 - **Observed effect:** (await next review — confirm entry count holds up [not zero-trade sessions], the
   `"crossover < 0.20"` skip logs appear for filtered candidates, and the realized win rate on entries that DO
   fire rises vs the 4-clean-day baseline. Watch for over-filtering on strong-trend days where width is naturally
