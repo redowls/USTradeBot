@@ -162,6 +162,9 @@ Entry template:
 - **Commit:** f854f96
 - **Observed effect:** (await next review — confirm DB realized P&L ≈ equity mark-to-market to the
   cent on the next trading session, and that exit prices in `dbo.trades` match `/v2/orders` fills.)
+  **Weekly (06-26): ✅ validated** — exit prices in `dbo.trades` match the broker fills, and DB realized
+  P&L ties to equity to the cent on every clean session (06-26 DB +$62.07 == equity +$62.07). The
+  candle-close-vs-fill exit drift is eliminated.
 
 ---
 
@@ -197,6 +200,11 @@ Entry template:
 - **Commit:** 0737122
 - **Observed effect:** (await next review — confirm DB realized P&L ≈ equity mark-to-market to the cent
   on the next session, and entry prices in `dbo.trades` match `/v2/orders` buy fills.)
+  **Weekly (06-26): ⚠️ mostly worked, one gap (completed by IMP-010).** Entries matched the broker fill
+  to the cent on 06-24 and 06-26, but on **06-25 it MISSED AMD's ~2-min-delayed fill** (submitted
+  13:33:34, filled 13:35:42 — past IMP-009's ~3 s submit-time budget) → AMD booked at the estimate,
+  the day's entire $18.98 book error. IMP-010 (re-read the fill at exit time) closed that gap; the
+  combined IMP-009/010 thread is now solid (06-26 books exact to the cent).
 
 ---
 
@@ -312,6 +320,9 @@ Entry template:
 - **Observed effect:** (await next review — book should stay broker-matched; watch for any new
   `trade_id=None` reconcile exits, which would mean the *deeper* fix — recording the real Monday fill
   P&L against the carried lots — is still owed.)
+  **Weekly (06-26): ✅ validated** — the book stayed broker-matched every session 06-23..26 (0 OPEN
+  DB rows, 0 broker positions at every close), no phantoms re-accumulated, and no new `trade_id=None`
+  reconcile orphan appeared after the 06-22 carried-lot cleanup. The DB⇄broker desync is closed.
 
 ---
 
@@ -347,6 +358,11 @@ Entry template:
 - **Observed effect:** (await next review — first live test is the 06-23 close: confirm a wall-clock
   `EOD flatten` fires and any unclosable position pages NAKED, even if no candle prints in the final
   minutes.)
+  **Weekly (06-26): ✅ validated 4× (the saga-closing fix)** — the wall-clock watchdog fired the EOD
+  flatten at ~15:45 ET on every session 06-23..26, all market sells filled in liquid RTH before 16:00,
+  broker flat every night, **0 phantom rows, no naked carry, no NAKED page**, including the 06-26
+  slow-drift tape where *zero* intraday stop/target/trailing exits fired (all 11 rode to the flatten).
+  The naked-overnight failure that earned last week's D cannot recur on this path.
 
 ---
 

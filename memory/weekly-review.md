@@ -92,3 +92,79 @@ page actually fires) on live data; purge the 5 stale phantom rows; fix the .env 
 service can't crash-loop on deploy. No new strategy/entry changes until the exit infra is proven clean.
 
 ---
+
+## Week ending 2026-06-26 — Grade: B
+
+### Stats
+- **Strategy trades (Tue 06-23 → Fri 06-26):** 25 — 10W → **40% win**, net **−$9.79**, PF **0.95**,
+  avg win **+$19.41** / avg loss **−$10.20**. Best **+$74.72** (MSFT 06-26), worst **−$53.94** (AMD
+  06-25). By day: 06-23 **−$9.13** (3, 0W) · 06-24 **−$10.14** (6, 3W) · 06-25 **−$52.59** (5, 2W) ·
+  06-26 **+$62.07** (11, 5W). (`bot.report --days 7` reads 30 / 33% / −$9.79 — the extra 5 are the
+  06-22 **IMP-006 phantom-sweep rows** booked at pnl=0, reconciliation bookkeeping, not strategy trades.)
+- **Equity: $9,321.14 (Mon 06-22 review) → $9,308.57 (now) = −$12.57 (−0.13%) — essentially flat.**
+  Measured from last Friday's close ($9,248.81) it's **+$59.76**, but that includes a **+$72.33
+  favourable weekend gap** as the 7 naked-carried 06-18 lots auto-liquidated at Monday's open (luck,
+  not design — the exposure was real and unprotected, the prior week's last bill coming due).
+- **Books are exact to the cent** — every clean session DB realized P&L == equity mark-to-market
+  (06-26 +$62.07 == +$62.07). The multi-week DB⇄broker desync that earned last week's D is closed.
+- **Crossover was the week's cleanest signal:** xo < 0.20 → 12 tr, **−$129.79, 8% win (1/12)**; xo
+  0.20–0.40 → 6 tr, +$2.38 (50%); **xo ≥ 0.40 → 12 tr, +$117.62 (50%)** — the monotonic relationship
+  that justified IMP-011, confirmed in the week's own data.
+- **Confidence vs outcome (all-time):** 70-79 best (+$170.31, 58%, 26 tr); 80-89 +$25.38 (50%, 8 tr);
+  **90-100 −$53.94 (0/1 = AMD's open-spike top)** — a *new* emerging concern.
+- **Service: healthy all week** — 0 real errors (the only journal "error" hits are the websocket
+  `cancelErrors:` field name), 3 clean scheduled restarts, **no crashes, no naked carries, no NAKED
+  pages**. A stark reversal of last week's .env crash-loop.
+
+### Grade rationale
+**The turnaround week.** Last week's D was for an exit/flatten infrastructure that failed in three
+distinct modes and rode positions naked over a long weekend with corrupted books. This week every one
+of those fixes was **proven clean on FOUR consecutive live sessions (06-23..26)**: the wall-clock
+watchdog fires the flatten at 15:45 ET, all market sells fill in liquid RTH, **0 phantom rows, broker
+flat every night, no naked carry, no silent fake-success**, and the books now tie to equity **to the
+cent**. Last week's "Focus for next week" was **fully honored** — Monday 06-22 was the verdict day (the
+7 carried lots cleared at the open, IMP-004/005/002 validated, the 5 stale phantoms purged via IMP-006,
+the .env crash-loop did not recur), and the rule *"no new strategy/entry change until the exit infra is
+proven clean"* was obeyed to the letter: IMP-008/009/010 were all pure data-integrity, and the **first
+strategy change (IMP-011) was deliberately held back until four clean-book days made the data
+trustworthy** — textbook discipline. Risk control held all week (worst trade −1.64%, no risk-limit
+trips), watchlist churn minimal and justified (MU event-park + validated re-enable, nothing else).
+It is **not an A** for two reasons: (1) **results were flat, not profitable** — strategy net −$9.79,
+equity −0.13%; and (2) a **new concern surfaced** — the highest-confidence entry the bot has ever
+recorded (AMD, conf 91.73) was the week's worst loser (open-spike top, −$53.94 → 90-100 band now 0/1),
+and IMP-011, the first win-rate change, is **unproven live**. A flat-to-positive week with exemplary,
+fully-validated process on a now-clean system is a solid **B**.
+
+### What worked / what didn't
+- **Worked:** the exit infrastructure — the entire multi-week saga is closed and proven (4 clean
+  sessions); books exact to the cent; daily root-cause → validated fix discipline (228 tests, one
+  change per run); strong-crossover entries carried the up days (MSFT +$74.72 alone > the whole week's
+  net); trailing stops captured wins (SE +1.82%, MU +2.48%) and capped every loss (worst −2.03%); the
+  MU event-park + re-enable was executed and validated cleanly.
+- **Didn't:** the strategy made no money in a choppy, regime-driven tape (40% win, PF 0.95) —
+  weak-crossover chop was the recurring drag (now filtered by IMP-011); and the high-confidence /
+  open-spike loss (AMD) is a fresh pattern the crossover floor does **not** address.
+
+### Improvements shipped this week
+- **IMP-006** (2635739) — startup phantom-sweep. **Observed: ✅ validated** — book stayed broker-matched
+  all week (0 OPEN rows every session), no phantom re-accumulation, no new `trade_id=None` orphans.
+- **IMP-007** (e19c4c6) — wall-clock EOD-flatten watchdog + skip logging. **Observed: ✅ validated 4×** —
+  flatten fired 15:45 ET on wall-clock every session, all sells filled before 16:00, even on the 06-26
+  zero-intraday-exit slow-drift tape. The naked-overnight failure cannot recur on this path.
+- **IMP-008** (f854f96) — record exits at the real broker fill. **Observed: ✅** — DB exit prices match
+  `/v2/orders`; DB P&L ties to equity to the cent.
+- **IMP-009** (0737122) — record entries at the real buy fill. **Observed: ⚠️ mostly worked but missed
+  AMD's ~2-min delayed fill (06-25), the day's whole book error — completed by IMP-010.**
+- **IMP-010** (9e590c6) — re-read the entry fill at exit time (robust to delayed fills). **Observed:
+  ✅ held** — 06-26 DB net == equity to the cent; all entry/exit prices match broker fills.
+- **IMP-011** (0002ed9) — `MIN_CROSSOVER` 0.20 entry floor (the week's first strategy change).
+  **Observed: unproven** — live from the 06-26 restart; first live read is next week.
+
+### Focus for next week
+**Prove IMP-011 on live data** — confirm the weak-cross (xo<0.20) cohort is filtered (skip logs fire),
+entry *count* doesn't collapse toward zero, and the surviving entries' win rate rises above the 40%
+baseline; do NOT raise the 0.20 floor yet. Begin watching the **90-100 confidence / open-spike** pattern
+(AMD) for a possible first-N-minutes entry guard — gather occurrences, don't act on one. Now that the
+book is clean and exact, **grade the strategy on results** (PF, win rate) — the exit-infra saga is closed.
+
+---
