@@ -788,3 +788,99 @@ After the correction the day's DB net (−$52.59) ties to equity to the cent.
   rises as the clean-day data predicts; the weekly review should grade IMP-011's first live sessions.
 
 ---
+
+## 2026-06-29 — Daily Review
+
+### Stats
+- **12 trades, 7W / 5L → 58% win rate.** Net DB realized **+$89.72** (avg +$7.48). Avg win **+$31.92**,
+  avg loss **−$26.74**, **profit factor 1.67**. Account **equity $9,398.26** (cash, **0 open positions**
+  at broker — flat), vs last_equity **$9,308.54** → mark-to-market day **+$89.72**. **Books exact** — DB
+  net **+$89.72 == equity day +$89.72 to the cent** (IMP-009/010 validated a **5th straight session**).
+- **🎉 Fifth consecutive fully clean exit-infra session.** All 12 exited via the **wall-clock EOD flatten
+  19:45–19:46 UTC (15:45 ET)** — every market sell FILLED in liquid RTH, 5 reconciled at the real
+  broker-side fill (MSFT/AMZN/COST/NFLX/ABNB, tagged "stop/target filled broker-side"), **0 phantom rows,
+  broker flat, no naked carry, no NAKED page, 0 journald errors, no restarts.**
+- **✅ IMP-011 validated live on its first full trading day** — see below.
+- Confidence vs outcome (all-time): 70-79 best (**+$206.03, 57%, 30 tr**), 60-69 **+$121.47 (46%, 65 tr)**,
+  80-89 **+$25.38 (50%, 8 tr — no 80+ trade today)**, 90-100 **−$53.94 (0%, 1 tr = AMD, unchanged)**.
+
+### Trade-by-trade review (Model A throughout; all exited "end-of-day flatten" 19:45–19:46 UTC)
+Winners (7):
+- **TSLA** 14:26 @ $393.14, conf 77.5 (**xo 0.53**, trend 1.0) → $412.26 **+$95.62** (+4.86%). **Best trade
+  by far.** Strong fresh cross + maxed gate; rode a clean all-day uptrend. Textbook strong-cross winner.
+- **TSM** 14:51 @ $439.79, conf 68.8 (**xo 0.47**, trend 1.0, **vol 0.0**) → $453.52 **+$41.19** (+3.12%).
+  Chips traded *fine* intraday despite the −6% pre-market scare; clean trend hold.
+- **GOOG** 14:08 @ $346.01, conf 68.5 (**xo 0.38**, trend 0.90) → $351.81 **+$29.00** (+1.68%). Solid grind up.
+- **QQQ** 14:51 @ $713.70, conf 70.2 (**xo 0.30**, trend 0.56, vol 1.0) → $723.35 **+$19.30** (+1.35%). Index trend.
+- **AMD** 16:35 @ $530.20, conf 68.4 (**xo 0.45**, vol 0.0) → $537.53 **+$14.67** (+1.38%). Mid-session entry,
+  trended up — *not* a gap-up open-spike like 06-25's AMD; behaved.
+- **MU** 18:03 @ $1118.89, conf 61.5 (**xo 0.24**, vol 0.0) → $1133.26 **+$14.37** (+1.28%). Re-enabled MU
+  trended despite the −6% pre-market chip-rotation noise; the re-enable keeps paying.
+- **INTC** 17:27 @ $129.78, conf 69.8 (**xo 0.35**) → $130.55 **+$9.27** (+0.60%). Modest hold.
+Losers (5):
+- **MSFT** 13:41 @ $379.10, conf 79.7 (**xo 0.66** — strongest cross of the day, trend 1.0) → $372.41
+  **−$46.84** (−1.77%). **Biggest loss.** Earliest entry (9:41 ET) + strongest signal, yet drifted down all
+  day to near its stop. Mirror of 06-25 AMD: a high-conf/strong-cross *early* entry was the worst trade.
+- **NFLX** 14:26 @ $75.95, conf 71.2 (**xo 0.50**, rsi 1.0, **vol 0.11**) → $74.48 **−$32.36** (−1.94%).
+  Strong cross but thin-volume; faded to the bracket. Strong-xo did not guarantee a winner today.
+- **ABNB** 14:53 @ $149.93, conf 62.0 (**xo 0.23** — just above the floor, **vol 0.0**) → $146.94 **−$20.93**
+  (−1.99%). Weakest surviving cross; near-stop fade.
+- **COST** 14:12 @ $966.50, conf 63.6 (**xo 0.30**, vol 0.22) → $949.11 **−$17.39** (−1.80%). Drifted down.
+- **AMZN** 14:44 @ $244.76, conf 66.8 (**xo 0.32**, vol 0.16) → $241.53 **−$16.18** (−1.32%). Mild fade.
+- **Root cause:** a **bifurcated tape** (index futures up, chips down pre-market, per the morning read) that
+  resolved as **trend dispersion** — names that trended ran (TSLA +4.86%, TSM +3.12%, GOOG/QQQ/MU/AMD/INTC
+  green); names that didn't drifted to ~−1.3% to −2% near their stops (MSFT/NFLX/ABNB/COST/AMZN). **Regime /
+  intraday follow-through, not signal failure or a risk defect** — no violent stop-outs, no risk-limit trips,
+  losses tightly contained (worst −1.99%), book honest & flat. Crossover *strength* was **not** monotonic
+  within the surviving population today (MSFT 0.66 was the worst loser) — but that is expected noise; IMP-011
+  filters only the <0.20 dead zone, not within the kept population.
+
+### IMP-011 (MIN_CROSSOVER 0.20) — first full live day, VALIDATED ✅
+- **Filtering fired exactly as designed:** journald shows weak-cross candidates rejected all session —
+  **C** (xo 0.06 / 0.08 / 0.12 / 0.07, ×4), **SPY** (0.04 / 0.03, ×2), **JPM** (0.08) — each logged
+  `no entry … crossover X.XX < 0.20`. These are precisely the ~8%-win chop cohort the floor targets; ~7
+  weak entries prevented.
+- **Entry count held** (12 — did NOT collapse toward zero, the weekly review's first worry).
+- **Win rate rose to 58%** vs the 40% four-clean-day baseline; **all 12 entries had xo ≥ 0.23** (floor
+  honored — lowest survivors ABNB 0.23 / MU 0.24). PF 1.67, +$89.72.
+- **Verdict:** IMP-011 is working as intended on day one. Per the weekly review's directive, **let it keep
+  proving out over the full week — do NOT stack another entry-logic change on top that would confound it.**
+
+### What worked / what didn't
+- **Worked:** IMP-011 (weak-cross chop filtered, win rate up, count healthy); the trending strong/mid-cross
+  longs carried the day (TSLA +$95.62 alone > the day's net); exit infra (5th clean day — wall-clock flatten,
+  all fills real, 0 phantoms, broker flat, books exact to the cent); risk control (worst −1.99%, no stop-outs).
+- **Didn't:** the day's biggest loser **MSFT** was a high-conf (79.7) / strongest-cross (0.66) **early**
+  (9:41 ET) entry that topped and drifted — a *second soft occurrence* of the "strong signal, early entry,
+  big loss" pattern (after 06-25 AMD). It is **not** an open-spike the way AMD was (~3 min vs MSFT's ~11 min),
+  TSLA (also early-ish, 10:26 ET) won big, and it is only the 2nd data point → **watch, do NOT act.**
+
+### Lessons & improvement candidates (ranked)
+1. **No code change warranted today** (a respectable outcome). The system is profitable, books are exact,
+   exit infra is clean for the 5th straight session, and **IMP-011 — live exactly one day — is doing precisely
+   its job.** The explicit weekly-review directive is to *let IMP-011 prove out over its first full week*;
+   shipping another entry-logic change now would confound its evaluation and risk overfitting to a single day.
+2. *(watch — strengthening, do NOT act)* **High-conf / strong-cross *early* entries underperform.** AMD (conf
+   91.73, xo 0.77, 06-25) and MSFT (conf 79.7, xo 0.66, today) were each the day's worst loser, both entered
+   in the first ~10 min and topped. Candidate if it persists: a **first-N-minutes / open-spike entry guard**.
+   But it's only 2 occurrences, TSLA/TSM trended fine from early entries today, and IMP-011 must be left to
+   prove out first. Gather more occurrences; revisit no sooner than IMP-011's first week is graded.
+3. *(watch)* **Do NOT raise the 0.20 floor.** Today's 0.20–0.40 mid band went **4W/3L net +$17.44** (GOOG/QQQ/
+   MU winners at xo 0.24–0.38 would be cut by a higher floor); the weekly review explicitly says hold at 0.20.
+4. *(watch)* 90-100 band still −$53.94 (0/1) and 80-89 +$25.38 (50%, 8 tr) — samples unchanged (no 80+ trade
+   today); don't touch `ScoreWeights`/threshold.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 06-30** — 0 broker positions, 0 DB-open rows, equity $9,398.26 all cash. No carried
+  lots, no naked exposure, no phantoms. Nothing locked; full watchlist free.
+- **No watchlist-name earnings this week** (carried from 06-29 pre-market — next major tech reports late July).
+  Zero binary event risk on the list near-term.
+- **Chip-rotation pre-market scare was noise intraday** — despite MU/SNDK −6%+ pre-market, **MU (+1.28%), AMD
+  (+1.38%), TSM (+3.12%)** all traded green via the long-only gate (it simply didn't fire longs until a real
+  5m trend formed). **No semis park indicated** — the regime call holds; keep the semi roster.
+- **C and SPY are persistent weak-cross chop names** (C rejected ×4, SPY ×2 today, all xo<0.20) — these are
+  **NOT** watchlist parks (liquid large-caps; IMP-011 now filters their weak crosses in code). No quality park.
+- **MSFT** was the biggest loser despite the strongest cross — a *code/timing* watch item (early high-conf
+  entry), **not** a symbol-quality issue → keep MSFT (it was +$74.72 on 06-26). No watchlist action.
+
+---
