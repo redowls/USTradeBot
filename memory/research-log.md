@@ -617,3 +617,62 @@ QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change
 only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-06-29 — Pre-market Research
+
+**First session after a flat, profitable Friday.** Book CLEAN & FLAT (0 positions, equity all cash);
+nothing locked → full watchlist free. IMP-011 (`MIN_CROSSOVER` 0.20 floor) is live from the 06-26
+restart and gets its **first full live trading week** — the weekly review's focus is to prove it
+(entry count holds, weak-cross cohort filtered, win rate rises). That is a results/ops grade, not a
+watchlist action.
+
+### Market context
+- **Bifurcated tape: index futures up, chips down again.** S&P futures +~1.1%, Nasdaq-100 +~1.3%,
+  Dow +0.6%, Russell −0.2% — but the **semiconductor rotation that ran all last week continues**:
+  **MU −6%+** and SanDisk (SNDK) −6%+ pre-market on multi-billion notionals; AI valuation / memory-cost
+  overhang persists and Apple's hardware price hikes are pressuring Asian tech (KOSPI hit trading curbs).
+  Speculative money is rotating into micro-caps (ILLR +65%, IVF +48%, SHPH +41%) — outside our liquid
+  large-cap universe, not add candidates.
+- **Quiet earnings week.** No major tech reports until late July (AAPL 07-30, META 07-29). **No watchlist
+  name reports this week** — NKE (athleisure, not ours) is the only notable. **Zero watchlist earnings
+  risk.** Busy macro week ahead (data + Fed speakers) but no binary today.
+- Energy still the laggard → **XOM stays parked**.
+
+### Carried from daily review (06-26)
+- **Book CLEAN & FLAT into today** — 0 broker positions, 0 DB-open rows, equity **$9,308.54** all cash
+  (== last_equity; confirmed live this run). Nothing locked; full watchlist free.
+- **No quality parks indicated.** The 06-26 weak-cross losers (COST/AMZN/SPY/QQQ/ABNB, all xo<0.20) are
+  **NOT** watchlist parks — they're liquid large-caps and the issue was *signal strength on the day*, now
+  filtered in code by **IMP-011**. Strong-cross **MSFT (+$74.72) / NFLX** traded beautifully → keep.
+- **AMD open-spike** (06-25, conf 91.73 −$53.94) is a regime/timing loss, not symbol quality → keep AMD.
+- **IMP-011 live** — expect fewer entries; watch count doesn't collapse + surviving win rate rises.
+
+### Watchlist review
+Account ACTIVE, equity **$9,308.54**, **0 open positions = nothing locked.** 23 enabled / 4 parked
+(BIRD, ENPH, WPM, XOM); 23 ≤ 30 ✓. Reviewed vs 12d closed-trade P&L from dbo.trades:
+- **Leaders:** INTC **+$114.38** (4 tr, 2W), MSFT **+$74.72** (1/1), SE +$35.65 (2/2), UNH +$23.92,
+  MU +$22.26 (3/2) — the semi/index regime the list is built around; all keeps.
+- **Laggards:** AMD −$53.94 (06-25 open-spike), BABA −$43.60 (overnight-carry), JPM −$42.41, GOOG −$35.40,
+  AMZN −$30.47, AAPL −$20.91, SPY −$17.47. Per the daily reviews every one is **regime / timing /
+  overnight-carry / weak-cross (now filtered by IMP-011) — not signal quality**; all mega-liquid large-caps,
+  none a liquidity or quality park → KEEP, on notice.
+- **AVGO, WMT** enabled but **no trades in 12d** — liquid large-caps the gate simply hasn't triggered;
+  consistent with keeping inactive-but-liquid names (C/NFLX) prior runs → no park-for-inactivity.
+- **MU −6% pre** is the **chip-rotation selloff, not an event** (MU already reported 06-24). The long-only
+  5m gate won't fire longs in a downtrend (fewer entries, not bad ones) — MU is a top earner, self-protects
+  → **KEEP** (regime, not symbol). ENPH/WPM `n=1` in the query are IMP-006 phantom-sweep rows (pnl=0), not
+  real trades.
+
+### Changes applied to dbo.watchlist
+**No changes.** Nothing locked, but the list is broad (23 ≤ 30) and semi/index-heavy; **zero watchlist
+earnings risk this week**; every laggard is regime/timing/carry/weak-cross per the dailies, none a
+signal-quality or liquidity park; and a **bifurcated chip-rotation/risk-off-in-semis tape** is the wrong
+day to chase a momentum add (today's gainers are speculative micro-caps outside our universe). IMP-011's
+first full live week is the time to *let it prove out*, not churn the list. BIRD/ENPH/WPM/XOM stay parked.
+
+### Final watchlist
+**23 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA
+QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change → the bot reads the list
+only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
+
+---
