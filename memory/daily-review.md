@@ -884,3 +884,84 @@ Losers (5):
   entry), **not** a symbol-quality issue → keep MSFT (it was +$74.72 on 06-26). No watchlist action.
 
 ---
+
+## 2026-06-30 — Daily Review
+
+### Stats
+- **9 trades, 7W / 2L → 78% win rate.** Net DB realized **+$61.79** (avg +$6.87). Avg win **+$18.08**,
+  avg loss **−$32.39**, **profit factor 1.95**. Account **equity $9,460.02** (cash, **0 open positions** —
+  flat), vs open/last_equity **$9,398.23** → mark-to-market day **+$61.79**. **Books exact** — DB net
+  **+$61.79 == equity day +$61.79 to the cent** (IMP-009/010 validated a **6th straight session**).
+- **All 9 exited via the wall-clock EOD flatten 19:45–19:46 UTC (15:45 ET)** — IMP-007 fired on time; the
+  3 reconciled at the real broker-side fill (AMD/SE/TSM, tagged "stop/target filled broker-side"), the rest
+  via the bot's own confirmed close. Broker flat, no naked carry, no NAKED page.
+- **IMP-011 (MIN_CROSSOVER 0.20) day 2 of its full week — still validating.** 9 entries (count healthy), all
+  xo ≥ 0.20 (GOOG entered exactly at the floor; AVGO 0.23 / TSM 0.22 just above) → no over-filtering, 78% win.
+- Confidence vs outcome (all-time): 70-79 best (**+$264.05, 60%, 35 tr**), 60-69 **+$103.25 (47%, 68 tr)**,
+  80-89 **+$47.38 (56%, 9 tr)**, 90-100 **−$53.94 (0%, 1 tr = AMD 06-25, unchanged)**.
+
+### Trade-by-trade review (Model A throughout; all exited "end-of-day flatten" 19:45–19:46 UTC)
+Winners (7):
+- **INTC** 10:24 ET @ $137.43, conf 70.2 (xo 0.42) → $140.40 **+$41.63** (+2.16%). **Best trade.** Clean grind.
+- **TSLA** 11:02 ET @ $415.80, conf 71.2 (xo 0.39) → $422.56 **+$27.05** (+1.63%). Strong all-day trend.
+- **NVDA** 9:33 ET @ $197.46, conf 81.0 (xo 0.99, **rsi 0.35**) → $199.15 **+$22.00** (+0.86%). Early entry,
+  sub-1.0 RSI, still won — RSI dip alone is not a loss predictor.
+- **TSM** 12:26 ET @ $470.33, conf 76.7 (xo 0.22) → $476.46 **+$18.40** (+1.30%). Stop filled broker-side.
+- **AVGO** 10:03 ET @ $376.80, conf 64.1 (xo 0.23) → $378.97 **+$10.85** (+0.58%). Marginal trend.
+- **AAPL** 10:53 ET @ $286.60, conf 63.1 (xo 0.34, **rsi 0.15**) → $287.70 **+$5.51** (+0.38%). Churned ~flat.
+- **GOOG** 11:56 ET @ $354.02, conf 73.6 (**xo 0.20 — exactly at the IMP-011 floor**) → $354.30 **+$1.13**
+  (+0.08%). Essentially flat; the weakest surviving cross barely paid — validates keeping the floor at 0.20.
+Losers (2):
+- **SE** 9:35 ET @ $92.82, conf 65.0 (xo 0.59, rsi 1.0, **vol 0.05**) → $91.00 **−$34.58** (−1.96%). **Worst.**
+  Decent cross but near-zero volume confirmation (thin tape); faded to its stop (filled broker-side).
+- **AMD** 9:31 ET @ $559.91, conf 77.6 (**xo 1.00** strongest cross, **rsi 0.00** = overbought extreme, vol 1.0)
+  → $552.36 **−$30.20** (−1.35%). First-minute entry on a maxed cross into an overbought RSI; topped and faded;
+  stop filled broker-side ~15:07 UTC. Third occurrence of the "strong-cross / early entry → loss" pattern.
+- **Root cause:** a low-volatility, megacap-led **drift-up** tape (Q2 close). Names that trended ran (INTC/TSLA
+  +1.6–2.2%); the 2 losers faded to their broker-side stops mid-session. Both losers carried one near-zero leg
+  (AMD rsi 0.00, SE vol 0.05) — **but that is NOT actionable**: across 06-23..30 a min sub-score < 0.10 went
+  **7W/8L (47%)** vs ≥ 0.10 **17W/14L (55%)** — low legs are not a loss discriminator (a floor would cut winners
+  ABNB +12.88, TSM +41.19, AMD +14.67, MU +14.37). **Regime / intraday follow-through, not a signal or risk defect.**
+
+### 🔧 The day's real finding — the trailing-stop 422 loop (→ IMP-012)
+- **AMD's and SE's broker-side stop legs filled mid-session** (AMD's stop order 698c6cdf "order is not open"
+  from **15:07 UTC** onward; SE's 80faa3b7 likewise) — but the bot **never detected it**. The trailing-stop
+  ratchet (`replace_stop_price`) kept trying to move those **already-filled** stop orders every candle,
+  throwing a **full 422 traceback each time — 504 ERROR lines today** (AMD's "stop" climbing to 572 while it
+  had actually exited at 552), and both symbols sat **MANAGING and un-re-enterable for ~4.5h** until the EOD
+  flatten finally reconciled them. Books stayed correct (reconcile recorded the true broker fills), but the
+  log was swamped and the state was wrong for hours. Fixed by **IMP-012** (below) — exit-infra, IMP-003's
+  family; **not** an entry-logic change, so it does not confound IMP-011's evaluation.
+
+### What worked / what didn't
+- **Worked:** profitable clean day (78%, +$61.79, books exact 6th straight, broker flat); IMP-011 floor honored
+  with no over-filtering (GOOG entered at exactly 0.20 and barely paid — the floor is correctly placed); IMP-007
+  wall-clock flatten + IMP-003 reconcile kept the books honest despite the 422 storm; risk contained (worst −1.96%).
+- **Didn't:** the trailing-stop 422 loop (504 tracebacks, two symbols stuck MANAGING ~4.5h) — diagnosed and fixed
+  as IMP-012. AMD again a loser (−$30.20) on a first-minute strong-cross entry into overbought RSI.
+
+### Lessons & improvement candidates (ranked)
+1. **IMP-012 (shipped today):** detect the broker-side stop-leg fill in the trailing path (422 "order is not
+   open" → `StopOrderGone`) and reconcile the exit + free the symbol immediately, instead of re-issuing the
+   doomed move every candle. Capital/observability + state-correctness; reuses IMP-003's reconcile.
+2. *(watch — now 3 occurrences, still do NOT act)* **strong-cross / early entry underperforms:** AMD (06-25,
+   conf 91.7), MSFT (06-29, conf 79.7), AMD (06-30, conf 77.6, 9:31 ET, **rsi 0.00 overbought**). Today adds an
+   RSI-overbought angle. Candidate: a first-N-minutes / open-spike or RSI-extreme entry guard — but TSLA/NVDA/INTC
+   early entries won, and **IMP-011 must finish proving out before any entry-logic change.** Gather more.
+3. *(disproven — do NOT build)* a "reject near-zero sub-score" entry filter: 7W/8L vs 17W/14L over 06-23..30.
+4. *(watch)* **keep the 0.20 floor** — GOOG entered at exactly 0.20 and made +$0.08; the floor is well-placed,
+   neither too high (would cut TSM/AVGO 0.22–0.23 winners) nor too low. Don't touch threshold/weights.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 07-01** — 0 broker positions, 0 DB-open rows, equity **$9,460.02** all cash. Nothing
+  locked; full watchlist free.
+- **AMD** lost again (−$30.20) on a **first-minute (9:31 ET) entry into an overbought RSI** — 2nd AMD loss in the
+  recent set (also −$53.94 on 06-25, also early), though it won +$14.67 on 06-29 from a *mid-session* entry. Not a
+  park (mega-liquid); flagged as a possible **open-spike / early-entry chopper** — a code/timing watch, not a quality issue.
+- **SE** faded to its stop on **near-zero intraday volume** (vol sub-score 0.05) — a recurring thin-tape name; watch,
+  but it won +$33.40 on 06-24, so no park.
+- **No watchlist-name earnings this week** (next major tech reports late July) → zero binary risk near-term. **Q3
+  begins 07-01**; Monday's quarter-end-rebalancing pop was a positioning distortion — don't read it as trend. The
+  week's catalyst is **Thursday's June jobs report**; bond market half-day/closed around July 4.
+
+---
