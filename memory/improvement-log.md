@@ -484,7 +484,7 @@ Entry template:
   traceback storms** (504× today), the books are reconciled at the true fill *immediately* rather than only at
   the EOD flatten, and a stopped-out symbol returns to WAITING (re-enterable on a fresh valid cross, exactly as
   the EOD-flatten path already permits). Observability + state-correctness; no win-rate behaviour change.
-- **Commit:** (filled on push)
+- **Commit:** c9fbcdc
 - **Observed effect:** (await next review — confirm an intraday broker-side stop fill now logs a single WARNING
   + a `trailing stop (stop/target filled broker-side)` exit at the real fill time, with **zero** "could not move
   stop order" tracebacks, and the symbol freed to WAITING rather than carried MANAGING to the close.)
