@@ -18,7 +18,7 @@ from alpaca.trading.enums import (
 )
 
 from bot.config import Config
-from bot.executor import OrderExecutor
+from bot.executor import OrderExecutor, StopOrderGone
 
 _ENV = {
     "ALPACA_KEY_ID": "k",
@@ -140,6 +140,8 @@ class _FakeTrading:
     def replace_order_by_id(self, order_id, order_data):
         if self._raise_on == "replace":
             raise RuntimeError("order not replaceable")
+        if self._raise_on == "replace_gone":
+            raise RuntimeError('{"code":42210000,"message":"order is not open"}')
         self.replaced.append((order_id, float(order_data.stop_price)))
         # Alpaca cancels the old order and issues a new one with a NEW id.
         return SimpleNamespace(id=order_id + "-r", status="accepted")
@@ -277,6 +279,16 @@ def test_replace_stop_price_empty_id_is_noop(cfg):
 def test_replace_stop_price_error_returns_none(cfg):
     fake = _FakeTrading(raise_on="replace")
     assert _exec(cfg, fake).replace_stop_price("stop-leg", 107.85) is None
+
+
+def test_replace_stop_price_raises_when_order_not_open(cfg):
+    # IMP-012 regression: 2026-06-30 AMD/SE stopped out broker-side, so moving the stop
+    # leg 422'd code 42210000 "order is not open". That must raise StopOrderGone (not be
+    # swallowed as a generic None) so the caller reconciles the exit once instead of
+    # re-issuing the doomed move every candle (504 tracebacks that day).
+    fake = _FakeTrading(raise_on="replace_gone")
+    with pytest.raises(StopOrderGone):
+        _exec(cfg, fake).replace_stop_price("stop-leg", 107.85)
 
 
 def test_close_position_returns_order_id(cfg):

@@ -15,7 +15,7 @@ import pytest
 
 from bot.candles import Candle
 from bot.config import Config
-from bot.executor import ExecutionResult
+from bot.executor import ExecutionResult, StopOrderGone
 from bot.indicators import RibbonSnapshot
 from bot.risk import RiskManager
 from bot.signals import ConfidenceBreakdown, EntryDecision
@@ -298,6 +298,57 @@ def test_managing_does_not_lower_stop(cfg):
     eng.on_short_candle(_candle())
     assert closer.moved == []  # never ratchets the stop down
     assert eng.state("NFLX") is BotState.MANAGING
+
+
+class _StopGoneCloser:
+    """Reproduces 2026-06-30: the stop leg filled broker-side, so replace_stop_price
+    raises StopOrderGone and the position is already flat — close_position returns None
+    (a 404) and reconcile_exit recovers the real broker-side fill."""
+
+    def __init__(self, fill=("stop-1", 97.5)):
+        self._fill = fill  # (order_id, broker-side fill price)
+        self.moved = []
+        self.closed = []
+        self.reconciled = []
+
+    def close_position(self, symbol):
+        self.closed.append(symbol)
+        return None  # already flat broker-side → exit_position falls to reconcile
+
+    def reconcile_exit(self, symbol):
+        self.reconciled.append(symbol)
+        return self._fill
+
+    def close_fill_price(self, order_id):
+        return None
+
+    def entry_fill_price(self, order_id):
+        return None
+
+    def replace_stop_price(self, stop_order_id, new_stop_price):
+        self.moved.append((stop_order_id, new_stop_price))
+        raise StopOrderGone(stop_order_id)  # the leg already filled — can't be moved
+
+
+def test_managing_reconciles_and_frees_when_stop_filled(cfg):
+    # IMP-012 regression: 2026-06-30 AMD/SE stopped out broker-side intraday, so every
+    # trailing move 422'd "order is not open" (~minutely, 504 tracebacks) and the symbols
+    # sat MANAGING and un-re-enterable for ~4.5h until the EOD flatten. The manager must
+    # detect the gone stop, reconcile the real exit ONCE, and release the symbol to WAITING.
+    closer = _StopGoneCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([_rising_trigger(110.0)]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()  # entry 100, stop 98, leg "stop-1"
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    assert closer.moved == [("stop-1", 107.8)]    # the ratchet was attempted, reported gone
+    assert closer.reconciled == ["NFLX"]          # exit reconciled from broker order history
+    assert eng.state("NFLX") is BotState.WAITING   # freed, not stuck MANAGING
+    assert "NFLX" not in eng._positions
 
 
 def test_eod_window_flattens_managing_position(cfg):

@@ -448,3 +448,45 @@ Entry template:
   tight.)
 
 ---
+
+## IMP-012 — 2026-06-30
+
+- **Problem:** A clean, profitable day (9 trades, 7W/2L, +$61.79, books exact 6th straight) was swamped by
+  **504 ERROR tracebacks**: AMD's and SE's **broker-side stop legs filled mid-session** (AMD's stop order
+  698c6cdf returned 422 `code 42210000 "order is not open"` from **15:07 UTC** onward; SE's 80faa3b7 likewise),
+  yet the bot **never detected the fill**. The trailing-stop ratchet kept trying to move those already-filled
+  stop orders every candle for **~4.5h** (AMD's phantom "stop" climbing to 572 while it had actually exited at
+  552), and both symbols sat **MANAGING and un-re-enterable** until the EOD flatten finally reconciled them.
+- **Root cause:** `OrderExecutor.replace_stop_price` caught **every** exception into a single
+  `log.exception(...)` + `return None`, so the caller (`RiskManager.update_trailing_stop`) treated a stop leg
+  that had **filled** (position gone — code 42210000 "order is not open") identically to a transient move
+  failure: keep the old stop and **retry next candle, forever**. IMP-003 detects an already-flat position at
+  *close* time (404 "position not found"); nothing detected the broker-side fill at *trailing-update* time, so
+  the symbol stayed MANAGING (no re-entry possible) and the log filled with tracebacks until the close.
+- **Change:** `bot/executor.py` — new `_is_order_gone(exc)` (recognises 422 `42210000 "order is not open"`,
+  distinct from `_is_position_gone`'s 404) and a new `StopOrderGone` exception; `replace_stop_price` now, on
+  that specific error, logs a concise **WARNING** (not a traceback) and **raises `StopOrderGone`** instead of
+  swallowing it as `None`. `bot/risk.py` — new `TrailResult` enum (`MOVED`/`HELD`/`STOP_GONE`);
+  `update_trailing_stop` returns it and maps `StopOrderGone` → `STOP_GONE`. `bot/strategy.py` — `_manage` now,
+  on `STOP_GONE`, **reconciles the real exit once** via the proven `exit_position`→`reconcile_exit` path
+  (records the true broker-side fill) and **releases the symbol to WAITING** — the same transition the EOD
+  flatten produces, just at the moment the stop actually fills. **No risk widened, no safety disabled, no entry
+  logic changed** — exit-infra / observability / state-correctness (IMP-003's family); it does NOT confound
+  IMP-011's first-week evaluation.
+- **Validation:** full suite **231 passed** (`pytest -q`, was 228 + 3 new). New regressions:
+  `tests/test_executor.py::test_replace_stop_price_raises_when_order_not_open` (today's AMD 422 → `StopOrderGone`,
+  generic errors still → `None`), `tests/test_risk.py::test_trailing_stop_reports_stop_gone_when_leg_filled`
+  (a filled leg surfaces as `TrailResult.STOP_GONE`; existing trailing tests updated to the enum),
+  `tests/test_strategy.py::test_managing_reconciles_and_frees_when_stop_filled` (today's exact AMD/SE scenario:
+  the trail finds the stop gone → exit reconciled from broker history → symbol freed to WAITING, not stuck
+  MANAGING). `bot.preflight` PASS (Alpaca ACTIVE, equity $9,460.02, 0 positions; 1 WARN = market closed).
+- **Expected impact:** a broker-side stop fill is detected the moment it happens → **no more minutely 422
+  traceback storms** (504× today), the books are reconciled at the true fill *immediately* rather than only at
+  the EOD flatten, and a stopped-out symbol returns to WAITING (re-enterable on a fresh valid cross, exactly as
+  the EOD-flatten path already permits). Observability + state-correctness; no win-rate behaviour change.
+- **Commit:** (filled on push)
+- **Observed effect:** (await next review — confirm an intraday broker-side stop fill now logs a single WARNING
+  + a `trailing stop (stop/target filled broker-side)` exit at the real fill time, with **zero** "could not move
+  stop order" tracebacks, and the symbol freed to WAITING rather than carried MANAGING to the close.)
+
+---

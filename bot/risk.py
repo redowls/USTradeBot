@@ -29,9 +29,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from bot.config import Config
+from bot.executor import StopOrderGone  # exception only — no cycle (executor imports nothing here)
 from bot.indicators import RibbonSnapshot
 from bot.sizing import round_price
 
@@ -39,6 +41,20 @@ if TYPE_CHECKING:  # avoid a runtime import cycle (executor imports nothing from
     from bot.executor import ExecutionResult, OrderExecutor
 
 log = logging.getLogger("ustradebot.risk")
+
+
+class TrailResult(Enum):
+    """Outcome of a :meth:`RiskManager.update_trailing_stop` pass.
+
+    ``HELD``      — the stop was left where it was (no room to ratchet, or no stop leg).
+    ``MOVED``     — the broker stop leg was ratcheted up to a new level.
+    ``STOP_GONE`` — the stop leg is no longer open (it filled broker-side); the position
+                    is flat, so the caller should reconcile the exit, not retry the move.
+    """
+
+    HELD = "held"
+    MOVED = "moved"
+    STOP_GONE = "gone"
 
 
 @dataclass(frozen=True)
@@ -136,7 +152,7 @@ class RiskManager:
 
     def update_trailing_stop(
         self, trigger: RibbonSnapshot, entry: ExecutionResult | None
-    ) -> bool:
+    ) -> TrailResult:
         """Ratchet the broker stop up under a rising price; never lower it.
 
         Each managed candle we compute ``close * (1 - trail_percent)`` and, when that
@@ -145,27 +161,36 @@ class RiskManager:
         gives back ``trail_percent`` from its peak (the stop fills broker-side), rather
         than being cut on the first 1-min wobble well short of its potential.
 
-        No-ops (returns ``False``) without a known stop leg — e.g. a position adopted
-        via startup reconcile, which simply keeps its original broker bracket. State is
-        keyed by the trade's original stop-leg id, so it never leaks across re-entries;
-        the *live* broker id (which Alpaca rotates on every replace) is tracked apart so
-        each move targets the current order rather than a stale, already-replaced one.
+        ``HELD`` without a known stop leg — e.g. a position adopted via startup
+        reconcile, which simply keeps its original broker bracket. State is keyed by the
+        trade's original stop-leg id, so it never leaks across re-entries; the *live*
+        broker id (which Alpaca rotates on every replace) is tracked apart so each move
+        targets the current order rather than a stale, already-replaced one.
+
+        Returns ``STOP_GONE`` when the broker stop leg can no longer be moved because it
+        has filled (``StopOrderGone``): the position is flat, so the caller reconciles
+        the exit once instead of re-issuing the doomed move every candle (the 2026-06-30
+        bug — AMD/SE stopped out broker-side at ~15:07 UTC yet the move 422'd ~minutely
+        for ~4.5h while the symbols sat MANAGING and un-re-enterable).
         """
         key = getattr(entry, "stop_order_id", "") if entry is not None else ""
         if not key:
-            return False
+            return TrailResult.HELD
         current = self._trail_stops.get(key, entry.stop_price)
         new_stop = round_price(trigger.close * (1.0 - self._cfg.trail_percent))
         if new_stop <= current:
-            return False
+            return TrailResult.HELD
         live_id = self._live_stop_oid.get(key, key)  # replace the current order, not the original
-        new_id = self._executor.replace_stop_price(live_id, new_stop)
+        try:
+            new_id = self._executor.replace_stop_price(live_id, new_stop)
+        except StopOrderGone:
+            return TrailResult.STOP_GONE  # the leg filled — the caller reconciles the exit
         if new_id is None:
-            return False  # move failed; keep the old stop and retry next candle
+            return TrailResult.HELD  # move failed; keep the old stop and retry next candle
         self._live_stop_oid[key] = new_id or live_id  # track the replacement id for next move
         self._trail_stops[key] = new_stop
         log.info("trailing stop %s: %.4f -> %.4f", entry.symbol, current, new_stop)
-        return True
+        return TrailResult.MOVED
 
     def exit_position(
         self,

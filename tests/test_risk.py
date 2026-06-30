@@ -12,9 +12,9 @@ from datetime import UTC, datetime
 import pytest
 
 from bot.config import Config
-from bot.executor import ExecutionResult
+from bot.executor import ExecutionResult, StopOrderGone
 from bot.indicators import RibbonSnapshot
-from bot.risk import RiskManager
+from bot.risk import RiskManager, TrailResult
 
 _TS = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
 
@@ -38,10 +38,11 @@ class _FakeExecutor:
 
     def __init__(
         self, order_id="close-1", replace_ok=True, reconciled=None, close_fill=None,
-        entry_fill=None,
+        entry_fill=None, replace_gone=False,
     ):
         self._order_id = order_id
         self._replace_ok = replace_ok
+        self._replace_gone = replace_gone  # replace_stop_price raises StopOrderGone (leg filled)
         self._reconciled = reconciled  # (order_id, price) of a broker-side fill, or None
         self._close_fill = close_fill  # actual fill price of the bot's own close, or None
         self._entry_fill = entry_fill  # corrected entry buy fill (delayed fill), or None
@@ -67,6 +68,8 @@ class _FakeExecutor:
 
     def replace_stop_price(self, stop_order_id, new_stop_price):
         self.moved.append((stop_order_id, new_stop_price))
+        if self._replace_gone:
+            raise StopOrderGone(stop_order_id)  # the leg already filled broker-side
         if not self._replace_ok:
             return None
         return stop_order_id + "-r"  # Alpaca issues a new id on each replace
@@ -143,7 +146,7 @@ def test_check_exit_ignores_unready_ribbon(cfg):
 def test_trailing_stop_ratchets_up(cfg):
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
-    assert rm.update_trailing_stop(_rising(110.0), _entry()) is True
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED
     assert ex.moved == [("stop-1", 107.8)]  # 110 * (1 - 0.02)
 
 
@@ -152,24 +155,24 @@ def test_trailing_stop_never_lowers(cfg):
     rm = RiskManager(cfg, executor=ex)
     rm.update_trailing_stop(_rising(110.0), _entry())  # stop -> 107.8
     # price pulls back to 105 -> 102.9 < 107.8, so the stop is left where it is
-    assert rm.update_trailing_stop(_rising(105.0), _entry()) is False
+    assert rm.update_trailing_stop(_rising(105.0), _entry()) is TrailResult.HELD
     assert ex.moved == [("stop-1", 107.8)]
 
 
 def test_trailing_stop_noop_without_stop_leg(cfg):
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
-    assert rm.update_trailing_stop(_rising(110.0), _entry(stop_order_id="")) is False
-    assert rm.update_trailing_stop(_rising(110.0), None) is False
+    assert rm.update_trailing_stop(_rising(110.0), _entry(stop_order_id="")) is TrailResult.HELD
+    assert rm.update_trailing_stop(_rising(110.0), None) is TrailResult.HELD
     assert ex.moved == []
 
 
 def test_trailing_stop_retries_after_failed_move(cfg):
     ex = _FakeExecutor(replace_ok=False)
     rm = RiskManager(cfg, executor=ex)
-    assert rm.update_trailing_stop(_rising(110.0), _entry()) is False
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.HELD
     # the failed move isn't cached as the current stop, so it retries next candle
-    assert rm.update_trailing_stop(_rising(110.0), _entry()) is False
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.HELD
     assert ex.moved == [("stop-1", 107.8), ("stop-1", 107.8)]
 
 
@@ -179,9 +182,20 @@ def test_trailing_stop_targets_replacement_id_on_next_move(cfg):
     # not the now-dead original ("stop-1") which would 422 forever.
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
-    assert rm.update_trailing_stop(_rising(110.0), _entry()) is True  # 107.8 on stop-1
-    assert rm.update_trailing_stop(_rising(115.0), _entry()) is True  # 112.7 on stop-1-r
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED  # 107.8 stop-1
+    assert rm.update_trailing_stop(_rising(115.0), _entry()) is TrailResult.MOVED  # 112.7 stop-1-r
     assert ex.moved == [("stop-1", 107.8), ("stop-1-r", 112.7)]
+
+
+def test_trailing_stop_reports_stop_gone_when_leg_filled(cfg):
+    # IMP-012 regression: 2026-06-30 AMD/SE stopped out broker-side intraday, so the
+    # stop leg was no longer open and every trailing move 422'd "order is not open"
+    # (504 tracebacks, symbols stuck MANAGING ~4.5h). The risk manager must surface
+    # that as STOP_GONE so the strategy reconciles the exit instead of retrying forever.
+    ex = _FakeExecutor(replace_gone=True)
+    rm = RiskManager(cfg, executor=ex)
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.STOP_GONE
+    assert ex.moved == [("stop-1", 107.8)]  # the move was attempted, then reported gone
 
 
 def test_exit_clears_trailing_state(cfg):

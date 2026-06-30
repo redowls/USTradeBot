@@ -40,7 +40,7 @@ from bot.candles import Candle
 from bot.config import EASTERN, Config
 from bot.executor import ExecutionResult, OrderExecutor
 from bot.indicators import RibbonEngine, RibbonSnapshot
-from bot.risk import RiskManager
+from bot.risk import RiskManager, TrailResult
 from bot.signals import (
     ConfidenceBreakdown,
     EntryDecision,
@@ -331,7 +331,17 @@ class StrategyEngine:
         """
         if self._risk is None:
             return
-        self._risk.update_trailing_stop(trigger, self._positions.get(symbol))
+        entry = self._positions.get(symbol)
+        if self._risk.update_trailing_stop(trigger, entry) is TrailResult.STOP_GONE:
+            # The broker-side stop leg filled — the position is already flat. Record the
+            # exit at its true broker fill now (via the proven reconcile path) and release
+            # the symbol back to WAITING, the same transition the EOD flatten produces.
+            # Otherwise the trailing move 422s every candle until the close (the 2026-06-30
+            # AMD/SE bug: 504 tracebacks, symbols stuck MANAGING for ~4.5h).
+            if self._risk.exit_position(symbol, trigger.close, "trailing stop", entry) is not None:
+                self._positions.pop(symbol, None)
+                self._set(symbol, BotState.WAITING)
+                self._flatten_escalated.discard(symbol)  # re-arm if re-entered later
 
     def _flatten_all_eod(self, now_utc: datetime) -> None:
         """Close every open position before the session ends (intraday flatten).

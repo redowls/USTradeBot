@@ -56,6 +56,31 @@ def _is_position_gone(exc: Exception) -> bool:
     return "position not found" in text or "40410000" in text
 
 
+class StopOrderGone(Exception):
+    """The trailing stop's broker-side leg can no longer be moved — it is not open.
+
+    Alpaca 422 ``code 42210000 "order is not open"`` on a stop-leg replace means the
+    leg has already **filled** (the position is flat) — moving it is futile. Raised by
+    :meth:`OrderExecutor.replace_stop_price` so the caller reconciles the real exit
+    once, instead of re-issuing the replace every candle until the EOD flatten. See
+    the 2026-06-30 bug: AMD/SE stopped out broker-side at ~15:07 UTC yet the trailing
+    stop 422'd ~minutely for ~4.5h (504 tracebacks) while the symbols sat MANAGING.
+    """
+
+
+def _is_order_gone(exc: Exception) -> bool:
+    """True when an Alpaca error means an order can't be replaced — it's no longer open.
+
+    Distinct from :func:`_is_position_gone` (a 404 on the *position*): this is a 422 on
+    the *order* (``code 42210000 "order is not open"``), raised when we try to move a
+    stop leg that has already filled. Same underlying reality (the position is flat), but
+    a different API surface, so the trailing-stop path detects it separately and routes
+    through the proven ``reconcile_exit`` rather than retrying the move.
+    """
+    text = str(exc).lower()
+    return "order is not open" in text or "42210000" in text
+
+
 # Close retry/poll budget. After we cancel the bracket's resting legs the broker
 # keeps the position's qty ``held_for_orders`` for a few seconds — the cancel settles
 # asynchronously — so an immediate close 403s with "insufficient qty available". We
@@ -281,7 +306,16 @@ class OrderExecutor:
             order = client.replace_order_by_id(
                 stop_order_id, ReplaceOrderRequest(stop_price=round_price(new_stop_price))
             )
-        except Exception:
+        except Exception as exc:
+            if _is_order_gone(exc):
+                # The stop leg already filled (the position is flat). Don't spam a
+                # traceback every candle (504× on 2026-06-30); signal the caller to
+                # reconcile the real exit once and release the symbol.
+                log.warning(
+                    "stop order %s is no longer open — it filled broker-side; "
+                    "position is flat, reconciling exit", stop_order_id,
+                )
+                raise StopOrderGone(stop_order_id) from exc
             log.exception("could not move stop order %s to %.4f", stop_order_id, new_stop_price)
             return None
         new_id = str(getattr(order, "id", "") or "")
