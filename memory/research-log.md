@@ -676,3 +676,66 @@ QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change
 only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-06-30 — Pre-market Research
+
+**Quarter-end day** (final session of Q2). Book CLEAN & FLAT (0 positions, equity all cash); nothing
+locked → full watchlist free. IMP-011 (`MIN_CROSSOVER` 0.20 floor) continues its first full live week —
+the weekly review's directive is to *let it prove out without stacking another entry-logic change*; that
+is a results/ops grade, not a watchlist action.
+
+### Market context
+- **Risk-on, megacap-tech rebound into quarter-end.** Mon 06-29 ripped: Dow **record close 52,182.74**
+  (+0.59%), S&P **+1.18%** (7,440.43), Nasdaq Composite **+2.07%** (Nasdaq-100 +2.3%) on a Mag7 rebound
+  after a soft prior week. **GOOG/Alphabet +4.96%** (first day as a Dow component, replacing Verizon),
+  **TSLA +8.45%**, AMZN +3.18%, META +2.2%, NVDA +1.3%. This morning futures hold the gains (Dow +~0.1%,
+  S&P modestly higher). Some of the late-June tech wobble is attributed to **quarter-end rebalancing** by
+  pensions/SWFs — a positioning distortion, not a fundamental signal.
+- **No watchlist name reports today** (or this week). Today's only notable earnings is **NKE after close**
+  (not ours); nothing before the bell. **Zero watchlist earnings/binary risk.** Next major tech reports
+  late July (META 07-29, AAPL 07-30).
+- **Macro:** holiday-shortened week — the big catalyst is **Thursday's June jobs report**; today is light.
+  Bond market closed Fri 07-03 (Independence Day). S&P closed Friday just below its 50-day MA (now ~7,363)
+  for the first time since early April — a level to watch, but Monday's rally lifted back above.
+- **Oil firmer** (Brent $73.15 +1.6%, WTI $70.75 +2.2%) as traders watch whether the Iran pause holds —
+  a **one-headline geopolitical bid, not a durable energy uptrend** → **XOM stays parked** (same discipline
+  as every prior run; no knife-catch long).
+
+### Carried from daily review (06-29)
+- **Book CLEAN & FLAT into 06-30** — 0 broker positions, 0 DB-open rows, equity **$9,398.23** all cash
+  (== last_equity; confirmed live this run). Nothing locked; full watchlist free.
+- **No watchlist-name earnings this week → zero binary event risk.** Confirmed via today's calendar.
+- **Chip-rotation pre-market scares are noise intraday** — on 06-29 MU (+1.28%), AMD (+1.38%), TSM (+3.12%)
+  all traded green via the long-only gate. **No semis park indicated** — the regime call holds, keep the
+  semi roster.
+- **C and SPY are persistent weak-cross chop names** (rejected ×4 / ×2 on 06-29, xo<0.20) — these are **NOT**
+  watchlist parks (liquid large-caps; IMP-011 filters their weak crosses in code). No quality park.
+- **MSFT** was 06-29's biggest loser despite the strongest cross (high-conf *early* entry) — a *code/timing*
+  watch item (the emerging open-spike pattern), **not** a symbol-quality issue → **keep MSFT**.
+
+### Watchlist review
+Account ACTIVE, equity **$9,398.23**, BP $37,592.92, **0 open positions = nothing locked.** 23 enabled /
+4 parked (BIRD, ENPH, WPM, XOM); 27 rows, 23 ≤ 30 ✓.
+- The roster is megacap/semi/index-heavy — **exactly the cohort leading today's risk-on, quarter-end
+  rebound** (GOOG/TSLA/AMZN/MSFT/NVDA/QQQ/SPY). No name carries a negative catalyst, earnings, or halt risk
+  today; every laggard from the dailies is **regime / timing / overnight-carry / weak-cross (now filtered by
+  IMP-011) — not signal quality**, and all are mega-liquid large-caps → KEEP, on notice.
+- **AVGO, WMT** still no trades recently — liquid large-caps the gate simply hasn't triggered; consistent
+  with keeping inactive-but-liquid names (C/NFLX) → no park-for-inactivity.
+- **XOM (parked):** today's oil pop is a geopolitical headline bid, not a trend → stays parked.
+- **SPCX** fast-tracked into the Nasdaq-100 (joins ~07-07) — noted as a future candidate once it has trading
+  history; still too new for the ribbon. Today's speculative gainers were micro-caps outside our universe.
+
+### Changes applied to dbo.watchlist
+**No changes.** Nothing locked, the list is broad (23 ≤ 30) and megacap/semi/index-heavy into a risk-on,
+megacap-led tape; **zero watchlist earnings/binary risk today**; every laggard is regime/timing/carry/
+weak-cross per the dailies, none a signal-quality or liquidity park. A **quarter-end-rebalancing-distorted
+pop** is the wrong day to chase a momentum add, and IMP-011's first full live week should be left to prove
+out, not churned. BIRD/ENPH/WPM/XOM stay parked (unchanged).
+
+### Final watchlist
+**23 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA
+QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change → the bot reads the list
+only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
+
+---
