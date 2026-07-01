@@ -965,3 +965,110 @@ Losers (2):
   week's catalyst is **Thursday's June jobs report**; bond market half-day/closed around July 4.
 
 ---
+
+## 2026-07-01 — Daily Review
+
+### Stats
+- **7 trades, 3W / 4L → 43% win rate.** Net DB realized **+$9.52** (avg +$1.36). Avg win **+$12.38**,
+  avg loss **−$6.90**, **profit factor ≈ 1.35**. Account **equity $9,469.51** (cash, **0 open positions**
+  at broker — flat), vs last_equity **$9,459.99** → mark-to-market day **+$9.52**. **Books exact** — DB
+  net **+$9.52 == equity day +$9.52 to the cent** (IMP-009/010 validated a **7th straight session**).
+- **🎉 Seventh consecutive fully clean exit-infra session.** 6 names exited via the **wall-clock EOD
+  flatten 19:45 UTC (15:45 ET)** — every market sell FILLED in liquid RTH; **TSLA reconciled at its real
+  broker-side stop fill @ $423.93** (order 360c6943, tagged "end-of-day flatten (stop/target filled
+  broker-side)"). **0 phantom rows, broker flat, no naked carry, no NAKED page, 0 ERROR/traceback lines,
+  0 WARNING lines, no restarts** (service up since the 06-30 21:27 UTC IMP-012 restart).
+- Confidence vs outcome (all-time): 70-79 best (**+$255.00, 59%, 39 tr**), 60-69 **+$121.81 (46%, 71 tr)**,
+  80-89 **+$47.38 (56%, 9 tr)**, 90-100 **−$53.94 (0%, 1 tr = AMD 06-25, unchanged — no 80+ trade today)**.
+
+### Trade-by-trade review (Model A throughout; all exited "end-of-day flatten" 19:45 UTC)
+Winners (3):
+- **SE** 14:38 @ $101.66, conf 69.13 (**xo 0.4485** strong, trend 1.0, rsi 1.0, **vol 0.0508** near-zero,
+  vlt 0.99) → $102.85 **+$24.99** (+1.17%). **Best trade.** Strong fresh cross carried a clean intraday
+  trend despite a thin-volume sub-score — the recurring thin-tape name behaved (won +$33.40 on 06-24 too).
+- **AAPL** 14:28 @ $292.98, conf 71.35 (**xo 0.2386**, trend 1.0, rsi 1.0, vol 0.61) → $294.24 **+$10.09**
+  (+0.43%). Earliest entry (10:28 ET — *not* an open spike), maxed gate trend, held all day for a modest gain.
+- **JPM** 14:58 @ $332.61, conf 70.72 (**xo 0.3936**, trend 0.81, rsi 0.90) → $333.02 **+$2.05** (+0.12%).
+  Near-scratch chop; the trailing stop ratcheted but the name went nowhere.
+Losers (4):
+- **TSLA** 14:40 @ $427.84, conf 70.62 (**xo 0.2610**, trend 1.0, rsi 1.0) → broker-side **trailing-stop fill
+  @ $423.93** **−$15.63** (−0.91%). **Worst (largest notional).** Entered after TSLA's +8.45% 06-29 rip /
+  quarter-end pop; faded into the Q3-open consolidation, the trailing stop (ratcheted 418.74→423.94 by 15:28,
+  still below entry) contained the loss to −0.91%. See the residual-gap finding below.
+- **ABNB** 15:25 @ $148.23, conf 61.36 (**xo 0.3118**, trend 1.0, rsi 0.85, **vol 0.0**) → $147.46 **−$6.16**
+  (−0.52%). Weakest confidence; drifted down on a zero-volume confirmation.
+- **NFLX** 18:56 @ $74.312, conf 74.94 (**xo 0.2062** — weakest surviving cross, just above the 0.20 floor) →
+  $74.09 **−$5.55** (−0.30%). Latest entry (14:56 ET); thin late-day cross, no follow-through.
+- **AMZN** 15:10 @ $242.39, conf 63.97 (**xo 0.2600**, **vol 0.2051**) → $242.345 **−$0.27** (−0.02%). Scratch.
+- **Root cause (all):** a **low-volatility Q3-open consolidation/digestion tape** after the record-quarter
+  rally — names that trended a little ran (SE +1.17%, AAPL +0.43%); the rest drifted flat-to-slightly-red near
+  their trailing stops. **Regime / intraday dispersion, not a signal or risk defect** — no violent stop-outs
+  (worst −0.91%), no risk-limit trips, book honest & flat. Crossover strength was **NOT monotonic within the
+  kept (≥0.20) population** (SE 0.45 won big, but JPM 0.39 barely won while TSLA 0.26 / ABNB 0.31 / NFLX 0.21
+  lost) — expected noise; IMP-011 filters only the <0.20 dead zone, it does not rank within survivors.
+
+### IMP-011 (MIN_CROSSOVER 0.20) — day 3 of its full week, still validating ✅
+- **Filtering fired heavily and correctly:** journald shows weak-cross candidates rejected all session —
+  **NFLX** (xo 0.08/0.11/0.13/0.16, ×4), **NVDA** (0.09/0.16/0.16), **MSFT** (0.07/0.17), **C** (0.15),
+  **GOOG** (0.19), **UNH** (0.05/0.17) — each `no entry … crossover X.XX < 0.20`, plus many sub-60 confidence
+  rejections. All **7 entries had xo ≥ 0.2062** (floor honored; NFLX's *surviving* 0.2062 lot barely cleared).
+- **Entry count held** (7 — did not collapse). Win rate 43% on a flat consolidation tape; the two clean
+  winners were the strongest-cross names (SE 0.45, JPM 0.39-ish/AAPL). **Do NOT stack another entry-logic
+  change** — the weekly directive is to let IMP-011 finish proving out over its first full week (through 07-03).
+
+### IMP-012 first live day — no regression, but a complementary residual gap surfaced (TSLA)
+- IMP-012 (shipped 06-30, live from the 06-30 21:27 restart) got its first full trading day: **0 tracebacks,
+  0 WARNING lines, no 422 "order is not open" storm** (the 06-30 failure mode did **not** recur). Its *exact*
+  scenario (a trail *attempting* to move an already-filled stop) simply didn't arise today.
+- **But TSLA exposed the complementary half.** TSLA's trailing stop ratcheted 418.74 → **423.94 by 15:28**,
+  then the broker-side stop **filled** — yet **no `StopOrderGone`/reconcile fired mid-session**, so TSLA sat
+  **MANAGING (un-re-enterable) for ~4.3h until the EOD reconcile** caught it at 19:45:12. Root: IMP-012 only
+  detects the fill when the trail **next tries to replace** the stop; here the stop filled and **no later
+  higher-high re-triggered a replace**, so the doomed-move path never ran and the symbol was never freed early.
+- **Realized cost today ≈ zero:** books stayed correct (EOD reconciled the true fill), no naked risk, no log
+  spam, and TSLA presented no fresh re-entry setup in the window (a same-day re-entry on a just-stopped name is
+  arguably undesirable anyway — a mild implicit cooldown). One low-impact occurrence → **watch, do not ship**.
+
+### What worked / what didn't
+- **Worked:** profitable clean day (+$9.52, PF 1.35, books exact to the cent 7th straight); IMP-011 filtered
+  the weak-cross chop cohort as designed (all entries xo ≥ 0.20) and the entry count held; exit infra clean
+  (wall-clock flatten, TSLA's broker-side stop reconciled at the true fill, broker flat, 0 phantoms); risk
+  contained (worst −0.91%, no stop-outs beyond the contained TSLA trail exit).
+- **Didn't:** a flat consolidation tape gave the kept entries little momentum (4 of 7 drifted red/scratch).
+  And IMP-012 left a **complementary detection gap** (a filled stop with no subsequent trail attempt keeps a
+  symbol MANAGING until EOD) — surfaced once (TSLA), zero realized cost → logged as the top candidate.
+
+### Lessons & improvement candidates (ranked)
+1. **No code change warranted today** (a respectable outcome). The system is profitable, books are exact for
+   the 7th straight session, exit infra is clean, **IMP-011 is mid-proving-window** (day 3 of its first full
+   week — the weekly directive is to *not* stack another entry-logic change), and **IMP-012 is only 1 live day
+   old** and owed more validation. Shipping into that on one low-impact occurrence would risk overfitting.
+2. *(new candidate — top of queue, do NOT act yet)* **Free a MANAGING symbol when its broker-side stop fills
+   even if the trail never re-fires.** Complements IMP-012: add a lightweight periodic broker reconcile of
+   MANAGING positions (e.g. off the IMP-007 watchdog tick, or a manage-loop `get_open_position` check when the
+   trail returns HELD) so a stopped-out name returns to WAITING promptly instead of sitting until EOD. It is
+   exit-infra (IMP-003/012 family), would **not** confound IMP-011. But it is a critical-path change adding
+   broker polling for **~zero realized benefit on one occurrence** — gather a 2nd occurrence (ideally one where
+   the stuck-MANAGING actually blocks a real re-entry) before building, exactly as IMP-005/006 were staged.
+3. *(watch — 3 occurrences, still do NOT act)* **strong-cross / early entry underperforms** (AMD 06-25 conf
+   91.7; MSFT 06-29 conf 79.7; AMD 06-30 conf 77.6 rsi 0.00) — did **not** recur today (no first-N-minute
+   entries; earliest was AAPL 10:28 ET, a winner). Gather more; revisit only after IMP-011's week is graded.
+4. *(watch)* **Keep the 0.20 floor.** NFLX's surviving 0.2062 lot lost small and JPM (0.39) barely won —
+   within-survivor xo is noisy, reinforcing that the floor is correctly placed (cut the <0.20 dead zone, don't
+   rank above it). 90-100 still −$53.94 (0/1), 80-89 +$47.38 (56%) — samples unchanged; don't touch weights.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 07-02** — 0 broker positions, 0 DB-open rows, equity **$9,469.51** all cash. No
+  carried lots, no naked exposure, no phantoms. Nothing locked; full watchlist free.
+- **No watchlist-name earnings this week** (next major tech reports late July: META 07-29, AAPL 07-30) → zero
+  binary risk near-term. The week's macro binary is **Thursday's June jobs report (NFP)**; note the bond-market
+  half-day / July-4 holiday context. A low-volatility Q3-open consolidation tape today — no regime park signal.
+- **TSLA** was the day's real loser (−$15.63, trailing-stop out) after unwinding its 06-29 rip / quarter-end
+  pop — a **regime/timing** fade, **not** symbol quality (mega-liquid, no trend break) → **keep, no park**.
+- **SE** won again on a thin tape (+1.17% despite vol sub-score 0.05) — the recurring thin-tape name is
+  behaving (also +$33.40 06-24); **keep, watch the thin volume but no park**.
+- **Entry/symbol quality fine** — all 7 names signalled and filled cleanly; the 4 small losses were flat-tape
+  dispersion, not symbol failure → **no quality parks**. Weak-cross rejects (NFLX/NVDA/MSFT/GOOG/C/UNH xo<0.20)
+  are code-filtered by IMP-011, **not** watchlist parks (all liquid large-caps).
+
+---
