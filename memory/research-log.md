@@ -739,3 +739,67 @@ QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change
 only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-01 — Pre-market Research
+
+**First session of Q3 / H2.** Book CLEAN & FLAT (0 positions, equity all cash); nothing locked → full
+watchlist free. IMP-011 (`MIN_CROSSOVER` 0.20 floor) continues its first full live week — the weekly
+directive is to *let it prove out without stacking another entry-logic change*; that is a results/ops
+grade, not a watchlist action.
+
+### Market context
+- **Record-quarter hangover; consolidation open.** Q2 closed as the **strongest quarter since 2020** —
+  S&P +~14%, **Nasdaq +~20%**, Dow +~12%. Tue 06-30 set a **Dow record close 52,319** (Nasdaq Comp
+  +1.52%, S&P +0.79%) on a **chip-led rally**: **NVDA +2.6%, AMD +7.7%, INTC +6%, Marvell +7.3%,
+  SanDisk +10.9%**. This morning (Wed) futures are **little changed / edging slightly lower** — a
+  digestion session after the record quarter, not a reversal. The AI/semi regime our list is built
+  around is firing on all cylinders.
+- **Jobs-heavy week; today is a warm-up.** Catalysts today = **ADP June employment, ISM Manufacturing
+  PMI, construction spending**, and Fed Chair Warsh at the ECB Sintra forum (watch for policy tone,
+  non-binary). The week's binary is **Thursday's June nonfarm payrolls** (Fed-policy implications).
+- **Zero watchlist earnings risk.** ~12 names report today (only GIS notable — **not ours**); **no
+  watchlist name reports today or this week** (next major tech reports late July: META 07-29, AAPL 07-30).
+- Energy still the laggard → **XOM stays parked**. SPCX joins the Nasdaq-100 before 07-07 open — noted
+  future candidate, still too new for the ribbon.
+
+### Carried from daily review (06-30)
+- **Book CLEAN & FLAT into 07-01** — 0 broker positions, 0 DB-open rows, equity **$9,459.99** all cash
+  (== last_equity; confirmed live this run). Nothing locked; full watchlist free.
+- **No watchlist-name earnings this week → zero binary event risk near-term.** Confirmed via today's calendar.
+- **AMD** flagged as a possible **open-spike / early-entry chopper** (2 first-minute losses in the recent
+  set, but won +$14.67 from a mid-session entry 06-29). Explicitly a **code/timing watch, NOT a
+  symbol-quality park** — and AMD **ripped +7.7% on 06-30**, the regime is clearly working the name → **KEEP**.
+- **SE** a recurring thin-tape name (faded to stop on vol sub-score 0.05 on 06-30) but won +$33.40 on
+  06-24 → **watch, no park**.
+- **No parks indicated on quality grounds** — the day's fix (IMP-012, trailing-stop 422 loop) is exit-infra,
+  not a symbol/signal matter.
+
+### Watchlist review
+Account ACTIVE, equity **$9,459.99**, BP $37,839.96, **0 open positions = nothing locked.** 23 enabled /
+4 parked (BIRD, ENPH, WPM, XOM); 27 rows, 23 ≤ 30 ✓. Reviewed vs 14d closed-trade P&L from dbo.trades:
+- **Leaders:** INTC **+$165.28** (6 tr, 4W), TSLA **+$128.90** (6 tr, 4W), TSM +$55.69 (3/4? 3W), MU
+  +$36.63 (3W), MSFT +$27.88, UNH +$23.92, NVDA +$21.51, QQQ +$18.74, AVGO +$10.85 — the semi/index
+  regime the list is built around, and precisely the cohort that led Tuesday's record close.
+- **Laggards:** AMD −$69.47 (4 tr, 1W — the early-entry chop, but +7.7% on the tape 06-30), AMZN −$46.65,
+  BABA −$43.60 (single overnight-carry loser), JPM −$42.41, NFLX −$32.00, ABNB −$29.08, COST −$22.24,
+  SPY −$17.47, AAPL −$15.40, C −$7.15, GOOG −$5.26. Per the dailies every one is **regime / timing /
+  overnight-carry / weak-cross (now filtered by IMP-011) — not signal quality**; all mega-liquid
+  large-caps, none a liquidity or quality park → KEEP, on notice. (WPM/ENPH/QCOM `n=1 pnl=0` in the query
+  are IMP-006 phantom-sweep rows, not real trades.)
+- No name carries a negative catalyst, earnings, or halt risk today. XOM (parked): energy still the
+  laggard → stays parked.
+
+### Changes applied to dbo.watchlist
+**No changes.** Nothing locked; the list is broad (23 ≤ 30) and semi/index-heavy into a chip-led,
+record-setting tape; **zero watchlist earnings/binary risk today or this week**; every laggard is
+regime/timing/carry/weak-cross per the dailies, none a signal-quality or liquidity park. A slightly-lower
+consolidation open after a record quarter — with Thursday's NFP the week's real binary — is the wrong
+tape to chase a momentum add, and IMP-011's first full live week should be left to prove out, not churned.
+BIRD/ENPH/WPM/XOM stay parked (unchanged).
+
+### Final watchlist
+**23 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA
+QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change → the bot reads the list
+only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
+
+---
