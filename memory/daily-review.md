@@ -1072,3 +1072,115 @@ Losers (4):
   are code-filtered by IMP-011, **not** watchlist parks (all liquid large-caps).
 
 ---
+
+## 2026-07-02 — Daily Review
+
+### Stats
+- **7 trades, 3W / 4L → 43% win rate.** Net DB realized **+$10.21** (avg +$1.46). Avg win **+$24.77**,
+  avg loss **−$16.02**, **profit factor ≈ 1.16**. Account **equity $9,479.69** (cash, **0 open positions**
+  at broker — flat), vs last_equity **$9,469.48** → mark-to-market day **+$10.21**. **Books exact** — DB
+  net **+$10.21 == equity day +$10.21 to the cent** (IMP-009/010 validated an **8th straight session**).
+- **🎉 Eighth consecutive fully clean exit-infra session.** 5 names exited via the **wall-clock EOD flatten
+  19:45 UTC (15:45 ET)** — every market sell FILLED in liquid RTH; **GOOG and SE reconciled at their real
+  broker-side stop fills** (@353.25 / @103.50, tagged "end-of-day flatten (stop/target filled broker-side)").
+  **0 phantom rows, broker flat, no naked carry, no NAKED page, 0 ERROR/traceback lines, 0 WARNING lines,
+  no restarts** (service up since the 06-30 21:27 UTC IMP-012 restart — so 07-01 and 07-02 both ran on IMP-012).
+- **IMP-011 (MIN_CROSSOVER 0.20) — day 4 of its full week, still validating ✅.** Journald shows **7
+  weak-cross candidates rejected** (`crossover X.XX < 0.20`); all **7 entries had xo ≥ 0.2083** (floor
+  honored). Entry count held (7, did not collapse). See below.
+- Confidence vs outcome (all-time): 70-79 best (**+$257.74, 59%, 41 tr**), 60-69 **+$129.30 (46%, 76 tr)**,
+  80-89 **+$47.38 (56%, 9 tr)**, 90-100 **−$53.94 (0%, 1 tr = AMD 06-25, unchanged — no 80+ trade today)**.
+
+### Trade-by-trade review (Model A throughout)
+Winners (3):
+- **NFLX** 14:05 @ $75.739, conf 67.54 (**xo 0.35** strongest cross, trend 1.0, rsi 1.0, **vol 0.19**, vlt 0.94)
+  → EOD flatten @ $77.90 **+$62.67** (+2.85%). **Best trade by far** (> the whole day's net). Earliest entry
+  (10:05 ET — *not* an open spike), strong fresh cross + maxed gate; rode a clean all-day uptrend. Textbook
+  strong-cross winner and the day's carry.
+- **AAPL** 14:52 @ $306.11, conf 61.31 (**xo 0.2105** — just above the floor, trend 1.0, **vol 0.0**) →
+  EOD flatten @ $307.836 **+$8.63** (+0.56%). Maxed gate trend on a near-floor cross; held for a modest gain.
+- **MSFT** 14:50 @ $390.20, conf 77.07 (**xo 0.34**, trend 0.85, vol 1.0, vlt 1.0) → EOD flatten @ $390.70
+  **+$3.00** (+0.13%). 2nd-strongest cross + highest confidence, yet only scratched — within-survivor xo
+  was **not** monotonic today (strongest NFLX won big, 2nd-strongest MSFT ~flat, at-floor AAPL won small).
+Losers (4):
+- **GOOG** 14:08 @ $359.84, conf 61.11 (**xo 0.28**, **trend 0.6838 — weakest gate of the day**, vol 0.29) →
+  broker-side **stop @ $353.25** 15:42 **−$32.95** (−1.83%). **Worst.** The weakest 5m gate trend of the seven
+  faded straight to its stop; the 3×ATR stop did its job. (Stuck MANAGING until EOD — see the residual finding.)
+- **SE** 15:00 @ $105.135, conf 61.54 (**xo 0.2182** near-floor, trend 1.0, **vol 0.0** near-zero) → broker-side
+  **stop @ $103.50** 16:24 **−$21.26** (−1.56%). Recurring thin-tape name — decent gate but zero volume
+  confirmation; faded to its stop (also faded to stop on 06-30 vol 0.05, but won +$33.40 06-24 / +$24.99 07-01).
+- **AMZN** 15:00 @ $245.233, conf 61.34 (**xo 0.2083** — the day's weakest surviving cross, exactly at the floor,
+  vol 0.16) → EOD flatten @ $243.632 **−$9.61** (−0.65%). Near-floor cross, mild drift.
+- **COST** 16:51 @ $948.88, conf 70.90 (**xo 0.22**, trend 1.0, vol 0.61) → EOD flatten @ $948.61 **−$0.27**
+  (−0.03%). Latest entry (12:51 ET); scratch.
+- **Root cause (all):** an **NFP-morning, holiday-shortened tape** (June jobs pulled a day early ahead of the
+  07-03 Independence-Day close) following 07-01's sharp **SMH −5.4%** semi selloff. Only NFLX found a clean
+  trend (+2.85%); the rest drifted flat-to-slightly-red near their stops. **Regime / intraday dispersion, not
+  a signal or risk defect** — no violent stop-outs (worst −1.83%), no risk-limit trips, book exact & flat.
+  Notably **4 of the 7 entries clustered right at the IMP-011 floor** (xo 0.208–0.224: GOOG/AAPL/AMZN/SE/COST)
+  and went **1W/3L+1scratch** — the two clean winners were the two strongest crosses (NFLX 0.35, and MSFT 0.34
+  scratched); consistent with the floor filtering the <0.20 dead zone but not ranking within survivors.
+
+### 🔧 The day's real finding — IMP-012's complementary residual gap recurred 2× (GOOG, SE)
+- **Both broker-side stops filled mid-session but the symbols weren't freed until the EOD reconcile:** GOOG's
+  stop filled **15:42:02 @353.25** yet GOOG sat **MANAGING ~4h** until reconciled at 19:45; SE's stop filled
+  **16:24:48 @103.50** yet SE sat **MANAGING ~3h21m** until 19:45. This is the **exact residual gap flagged on
+  07-01 (TSLA)** — now **3 occurrences over 2 days.** Root: IMP-012 only detects a filled stop when the trail
+  **next tries to replace** it (422 → `StopOrderGone`); when the stop fills and **no later higher-high
+  re-triggers a replace**, the doomed-move path never runs, so the fill is caught only at the 19:45 EOD reconcile.
+- **Realized cost again ≈ zero:** books stayed exact (EOD reconciled the true broker fills — the +$10.21 ties to
+  equity to the cent), no naked risk, **no log spam** (0 tracebacks — IMP-012's 422-storm fix held), and **neither
+  GOOG nor SE presented a fresh valid cross+gate re-entry** while stuck (GOOG kept drifting below entry; SE below
+  its stop) — so **no real re-entry was blocked**. The stuck-MANAGING even acts as a mild implicit same-day
+  cooldown on a just-stopped name (arguably desirable). See candidate #1.
+
+### What worked / what didn't
+- **Worked:** profitable clean day (+$10.21, PF 1.16, **books exact 8th straight**); IMP-011 filtered the
+  weak-cross chop cohort as designed (7 rejects, all entries xo ≥ 0.208, count held); NFLX's strong-cross long
+  carried the day; exit infra clean (wall-clock flatten, GOOG/SE broker-side stops reconciled at the true fill,
+  broker flat, 0 phantoms, 0 tracebacks); risk contained (worst −1.83%, no risk-limit trips).
+- **Didn't:** a flat/dispersed NFP-morning tape gave the kept entries little momentum (4 of 7 drifted red/scratch).
+  And **IMP-012's complementary detection gap recurred twice** (GOOG/SE stopped mid-session, freed only at EOD) —
+  now 3 occurrences, still zero realized cost → the top staged candidate (below), deliberately not shipped today.
+
+### Lessons & improvement candidates (ranked)
+1. **No code change warranted today** (a respectable, well-precedented outcome — cf. 06-29 & 07-01). The system
+   is profitable, **books are exact for the 8th straight session**, exit infra is clean, and **IMP-011 is
+   mid-proving-window** (day 4 of its first full week; the weekly directive is to *not* stack another change and
+   let it finish proving out through the 07-03 weekly grade). The only anomaly — the MANAGING-until-EOD residual —
+   has **zero realized cost** and did not block a re-entry.
+2. *(top of queue — staged, NOT yet shipped; 3 occurrences now)* **Free a MANAGING symbol when its broker-side
+   stop fills even if the trail never re-fires.** Complements IMP-012: add a lightweight periodic broker reconcile
+   of MANAGING positions — cheapest clean seam is to piggyback the existing **IMP-007 wall-clock watchdog `tick()`**
+   (already runs every 30s and already calls broker APIs at EOD) with a bounded `get_open_position` check for
+   symbols currently in MANAGING, routing a detected fill through the proven `reconcile_exit` path. It is exit-infra
+   (IMP-003/012 family) and would **NOT** confound IMP-011. **Why still not shipped:** it adds broker polling to a
+   near-critical path for **~zero realized benefit** (3 occurrences, all zero-cost, none blocked a real re-entry),
+   the streak is clean, and IMP-011's proving window runs through 07-03. **Ship trigger:** after IMP-011's first
+   full week is graded (07-03 weekly), OR the next occurrence that demonstrably **blocks a real re-entry** — exactly
+   how IMP-005/006 were staged. Do it on a calm, non-event session.
+3. *(watch — 3 occurrences, still do NOT act)* **strong-cross / early entry underperforms** (AMD 06-25 conf 91.7;
+   MSFT 06-29 conf 79.7; AMD 06-30 conf 77.6 rsi 0.00) — did **not** recur today (earliest entry NFLX 10:05 ET was
+   the day's *best* trade). Gather more; revisit only after IMP-011's week is graded.
+4. *(watch)* **Keep the 0.20 floor.** AMZN entered at exactly 0.2083 and lost small, AAPL at 0.2105 won small —
+   within-survivor xo remains noisy (strongest NFLX won, 2nd-strongest MSFT scratched), reinforcing the floor is
+   correctly placed (cut the <0.20 dead zone, don't rank above it). 90-100 still −$53.94 (0/1), 80-89 +$47.38
+   (56%) — samples unchanged (no 80+ trade today); don't touch threshold/weights.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into the next session (Mon 07-06; markets CLOSED Fri 07-03 for Independence Day)** — 0 broker
+  positions, 0 DB-open rows, equity **$9,479.69** all cash. No carried lots, no naked exposure, no phantoms.
+  Nothing locked; full watchlist free.
+- **No watchlist-name earnings near-term** (next major tech: META 07-29, AAPL 07-30) → zero binary risk. The June
+  jobs report is behind us; a long holiday weekend follows (Fri 07-03 closed). No regime park signal from a
+  dispersed NFP-morning tape.
+- **GOOG** was the day's worst (−$32.95, stopped) on the **weakest 5m gate trend of the group (0.68)** — a
+  regime/timing fade (mega-liquid, no trend break), **not** symbol quality → keep, no park.
+- **SE** faded to its stop again on **near-zero intraday volume** (vol sub-score 0.0) — the recurring thin-tape
+  name; but it won +$33.40 (06-24) and +$24.99 (07-01), so **watch the thin volume, no park**.
+- **QCOM park-watch carries** (flagged 07-02 pre-market: below both MAs, thinnest megacap-semi liquidity, no real
+  trades) — action a park on a **calm, non-event session** if QCOM fails to reclaim its 20MA; today's NFP tape was
+  the wrong day to judge it, and it didn't trade. Entry/symbol quality otherwise fine — all 7 names signalled and
+  filled cleanly; weak-cross rejects (code-filtered by IMP-011) are **not** watchlist parks.
+
+---
