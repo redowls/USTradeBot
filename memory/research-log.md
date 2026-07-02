@@ -803,3 +803,61 @@ QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change
 only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-02 — Pre-market Research
+
+### Market context
+- **June jobs report (NFP) drops TODAY at 8:30 ET** — pulled a day early because Fri **07-03 is the
+  Independence Day market holiday** (07-04 falls on Saturday). Consensus **+115K**, unemployment **4.3%**;
+  ADP already printed a soft +98K. This is the pivotal binary of a holiday-shortened week — a hot number
+  feeds the now-hawkish Fed tilt (market pricing at least one **2026 hike** off 3.50–3.75%), yields ticking up.
+- **Futures wavering slightly red** into the print (Dow −0.1%, S&P −0.08%, Nasdaq-100 −0.3%) after a weak
+  07-01 (S&P −0.2%, Nasdaq −0.7%). **07-01 was a sharp semiconductor selloff** — SMH **−5.4%**, Micron and
+  Sandisk each **−10%+** as traders pared chip positions.
+- **Zero watchlist earnings risk** — no watchlist name reports today or this week (next major tech: META
+  07-29, AAPL 07-30). No halts, downgrades, or symbol-specific binary events on our names.
+
+### Carried from daily review (07-01)
+- **Book CLEAN & FLAT into 07-02** — 0 broker positions, 0 DB-open rows, equity **$9,469.48** all cash
+  (confirmed live this run). Nothing locked; full watchlist free.
+- **No parks indicated on quality grounds** (07-01 review): TSLA's −$15.63 was a regime/timing fade of its
+  06-29 rip (mega-liquid, no trend break) → keep; SE won again on a thin tape → keep; the small losers were
+  flat-tape dispersion, not symbol failure; weak-cross rejects are code-filtered by **IMP-011** (mid-proving
+  window through 07-03), **not** watchlist parks. Weekly directive: don't stack entry/watchlist churn onto
+  IMP-011's first full live week.
+
+### Watchlist review
+Account ACTIVE, equity **$9,469.48**, BP $37,877.92, **0 open positions = nothing locked.** 23 enabled /
+4 parked (BIRD, ENPH, WPM, XOM); 27 rows, 23 ≤ 30 ✓. Reviewed vs 14d closed-trade P&L + fresh 60-day
+daily-bar trend (vs 20/50MA, ATR%, 20d $vol):
+- **Leaders (14d):** INTC **+$163**, TSLA **+$134**, TSM +$77, MU +$52, GOOG +$34, MSFT +$28, SE +$26,
+  UNH +$24, AAPL +$23, NVDA +$22, QQQ +$19, AVGO +$11 — the semi/index regime the list is built around.
+  14d book: **67 trades, ~51% win, +$350 net.**
+- **Semis after the 07-01 selloff:** MU −10.6% 1d but **still +22.7% vs 50MA** (only −1.5% vs 20MA), AMD
+  −6.9% but **+18.7% vs 50MA / +4.4% vs 20MA**, INTC −9.0% but **+13.1% vs 50MA / +3.5% vs 20MA**, TSM
+  −7.0% but **+6.2% vs 50MA**. Every top semi held its **uptrend above both MAs** — a one-day, sector-wide
+  give-back of froth, mega-liquid ($61B/$17B/$16B/$6B daily). **Regime, not symbol → KEEP all.**
+- **Laggards (14d):** AMD −$69, AMZN −$47, JPM −$40, NFLX −$38, COST −$22, ABNB −$21 — per the dailies all
+  regime/timing/weak-cross (IMP-011-filtered), all mega-liquid large-caps in intact or recovering trends
+  (AMD +18.7% vs 50MA; JPM +7.0%; AMZN/NFLX +1.4%/+3.9% today reclaiming). **None a quality park → KEEP.**
+- **QCOM — park-WATCH (not acted today).** The lone semi outlier: **below both MAs (−13.1% vs 20MA, −9.8%
+  vs 50MA)** while its peers hold uptrends, thinnest megacap-semi liquidity ($4.7B/day), ATR 7.6% chop, and
+  **no real trades in 14d** (its `n=1 pnl=0` was an IMP-006 phantom-sweep row, not a trade — its long-only
+  gate rarely opens). A genuine weak-trend candidate — but **today, on an NFP-morning binary layered over a
+  violent semi dislocation, is the wrong tape to judge a chip name's trend.** Stage it (as IMP-005/006 were):
+  action a park on a calm, non-event session if QCOM fails to reclaim its 20MA.
+
+### Changes applied to dbo.watchlist
+**No changes.** Nothing locked; the list is broad (23 ≤ 30), semi/index-heavy, and profitable (+$350/14d);
+zero watchlist earnings/binary risk today or this week; every top semi held its uptrend through the 07-01
+selloff and every laggard is regime/timing/weak-cross, not a quality or liquidity failure. Parking a chip
+name INTO an NFP-morning binary stacked on a one-day sector dislocation would be poorly-timed churn, and
+IMP-011's first full live week should finish proving out un-perturbed. QCOM logged as a park-watch for a
+calmer session. BIRD/ENPH/WPM/XOM stay parked (unchanged).
+
+### Final watchlist
+**23 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA
+QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change → the bot reads the list
+only at startup). 🔒 Locked: none (0 open positions).
+
+---
