@@ -1184,3 +1184,70 @@ Losers (4):
   filled cleanly; weak-cross rejects (code-filtered by IMP-011) are **not** watchlist parks.
 
 ---
+
+## 2026-07-03 — Daily Review
+
+### Stats
+- **No trades today — US market HOLIDAY (Independence Day observed).** July 4, 2026 is a **Saturday**, so the
+  NYSE/NASDAQ holiday was observed **Friday 2026-07-03** → markets **closed all day**. Confirmed authoritatively
+  via Alpaca: `/v2/clock` `is_open=false` (next_open **2026-07-06 09:30 ET**, Monday), and `/v2/calendar` for
+  the week lists trading days **07-01, 07-02, 07-06, 07-07 — 07-03 absent.** This was fully anticipated in the
+  07-02 entry's pre-market notes.
+- **0 trades, 0 orders, 0 positions.** DB `dbo.trades` today = **0 rows**; Alpaca `/v2/orders?after=07-03` = **0**;
+  `/v2/positions` = **0**. `bot.report --days 1`: 0 closed trades. **Book flat & exact** — nothing carried, no
+  naked exposure, no phantoms.
+- **Account equity $9,479.66** (all cash), essentially unchanged from 07-02's $9,479.69 (a $0.03 broker
+  bookkeeping drift, no marks — flat holiday). Service **active, 0 restarts** since the 06-30 21:27 UTC IMP-012
+  boot → 07-01/07-02/07-03 all ran on IMP-012 with no intervening restart.
+- Confidence vs outcome (all-time, **unchanged** — no trade today): 70-79 best **+$257.74 (59%, 41 tr)**,
+  60-69 **+$129.29 (46%, 76 tr)**, 80-89 **+$47.38 (56%, 9 tr)**, 90-100 **−$53.94 (0%, 1 tr)**.
+
+### Trade-by-trade review
+- **None — market closed.** Root-cause of the zero-trade day is **exogenous (exchange holiday), not the
+  strategy, watchlist, gates, or any defect.** With the market shut there were **no trades on the tape all day**,
+  hence no candles were aggregated and no entries evaluated (journald's last data line is **07-02 20:44 UTC**,
+  after the 07-02 close; **zero log lines for 07-03**, exactly as expected for a dark session). The
+  `market_is_open()` hours-gate and the empty feed both independently guarantee no entries on a closed day.
+
+### What worked / what didn't
+- **Worked:** the bot correctly did **nothing** on a holiday — no spurious entries, no errors, no restarts, book
+  stayed flat & exact into a 3-day weekend. Process healthy (active since 06-30). DB↔broker↔report all agree at
+  zero. IMP-012 exit-infra streak intact (no exits to test, but nothing broke).
+- **Didn't:** N/A — no trading activity to critique. (Operational aside, **out of scope for this routine:** the
+  *morning pre-market Claude routine* failed today with an expired OAuth token — moot, since the market was
+  closed and no watchlist decision was needed; that is routine-infra, not USTradeBot code.)
+
+### Lessons & improvement candidates (ranked)
+1. **No code change warranted — zero-data holiday.** Making any change off a closed-market session with **no
+   trades and no new evidence** would be a textbook random/overfit change and is explicitly forbidden. "Reviewed,
+   no change warranted" is the correct outcome (cf. 06-29, 07-01, 07-02). The system is profitable, books are
+   exact, exit infra is clean, and IMP-011's first-full-week proving window completes with **today's weekly
+   grade** — the discipline is to add nothing here.
+2. *(staged, unchanged — decision belongs to the weekly routine, NOT here)* **Free a MANAGING symbol when its
+   broker-side stop fills even if the trail never re-fires** (piggyback the IMP-007 wall-clock `tick()` with a
+   bounded `get_open_position` reconcile of MANAGING names; complements IMP-012). Still **3 zero-cost
+   occurrences** (TSLA 07-01, GOOG+SE 07-02), none blocked a real re-entry. **Ship trigger** was "after IMP-011's
+   first full week is graded (07-03 weekly) OR the next occurrence that demonstrably blocks a re-entry." Today's
+   holiday produced **no new occurrence and no new evidence**, so it does not trip the trigger — the green-light
+   call is for the **07-03 weekly-review routine** to make on a calm, non-event *trading* session, not for this
+   dark-session daily review to force.
+3. *(watch, unchanged)* strong-cross/early-entry underperformance (3 obs) and the 0.20 crossover floor — both
+   need live trading days to accumulate evidence; nothing to add from a closed session.
+
+### Notes for pre-market research
+- **Next session = Monday 2026-07-06** (regular full day, 09:30–16:00 ET / 13:30–20:00 UTC). **07-03 was a
+  full-day holiday close; 07-04 Sat, 07-05 Sun.** Book is **CLEAN & FLAT** into Monday — 0 broker positions, 0
+  DB-open rows, equity **$9,479.66** all cash. Nothing locked; **full watchlist free.**
+- **No watchlist-name earnings near-term** (next major tech: META 07-29, AAPL 07-30) → zero binary risk on the
+  Monday reopen. Expect a **post-holiday-weekend gap/regime reset** — first candles Monday may be thin/gappy in
+  the opening minutes; the warmup (IMP-008) rebuilds ribbons on boot so gates are ready at the open.
+- **Carry-over watch items from 07-02 (unchanged by the holiday):** **SE** — recurring thin-tape name (faded to
+  stop on near-zero volume 06-30 & 07-02, but won 06-24/07-01) → *watch volume, no park.* **QCOM** — park-watch
+  (below both MAs, thinnest megacap-semi liquidity, no real trades) → action a park only on a **calm non-event
+  trading session** if it fails to reclaim its 20MA. **GOOG** — 07-02's worst was a regime fade on the weakest 5m
+  gate, not symbol quality → keep. No new park signals from a dark session.
+- **Confirm the morning pre-market routine actually runs Monday** — today's routine failed on an expired Claude
+  OAuth token (re-authed this session); verify the 07-06 11:30 UTC premarket job produces a fresh watchlist
+  review rather than silently erroring.
+
+---
