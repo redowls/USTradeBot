@@ -446,6 +446,14 @@ Entry template:
   `"crossover < 0.20"` skip logs appear for filtered candidates, and the realized win rate on entries that DO
   fire rises vs the 4-clean-day baseline. Watch for over-filtering on strong-trend days where width is naturally
   tight.)
+  **Weekly (07-03): ✅ VALIDATED over its first full week** (the week's headline result). Across the 4 trading
+  sessions 06-29..07-02: **entry count held every day** (12 / 9 / 7 / 7 — never collapsed toward zero, the
+  weekly review's #1 worry); **every entry honored the floor** (xo ≥ 0.20 each session, lowest survivors ~0.206–0.24);
+  the `crossover X.XX < 0.20` skip logs **fired daily** on the weak-cross chop cohort (C/SPY/JPM 06-29; NFLX/NVDA/
+  MSFT/C/GOOG/UNH 07-01; 7 rejects 07-02); and **win rate rose to 57% (20/35), +$171.24, PF 1.59** vs the 40%
+  four-clean-day baseline. No over-filtering — GOOG entered at *exactly* 0.20 on 06-30 and barely paid (+$0.08),
+  confirming the floor is correctly placed. Within-survivor crossover stays noisy/non-monotonic (MSFT 0.66 was
+  06-29's worst loser) — expected, since the floor cuts the dead zone but does not rank above it. **Keep at 0.20.**
 
 ---
 
@@ -488,5 +496,15 @@ Entry template:
 - **Observed effect:** (await next review — confirm an intraday broker-side stop fill now logs a single WARNING
   + a `trailing stop (stop/target filled broker-side)` exit at the real fill time, with **zero** "could not move
   stop order" tracebacks, and the symbol freed to WAITING rather than carried MANAGING to the close.)
+  **Weekly (07-03): ✅ validated, with one complementary gap left open.** Shipped on the 06-30 21:27 UTC restart;
+  07-01 and 07-02 both ran on it with **0 tracebacks, 0 WARNING lines, no 422 "order is not open" storm** — the
+  minutely traceback loop that swamped the 06-30 log (AMD stop 698c6cdf, ~4.5h of ERRORs) **cannot recur** on this
+  path. BUT IMP-012's *exact* scenario (a trail *attempting* to move an already-filled stop) never arose; instead a
+  **complementary residual gap** surfaced **3× (TSLA 07-01, GOOG+SE 07-02)**: when a broker-side stop fills and **no
+  later higher-high re-triggers a replace**, the doomed-move path never runs, so the fill is caught only at the 19:45
+  EOD reconcile and the symbol sits MANAGING for hours. **Zero realized cost all 3×** — books stayed exact to the
+  cent, no naked risk, and no fresh valid re-entry was blocked (arguably a mild same-day cooldown). The staged fix
+  (piggyback the IMP-007 wall-clock `tick()` with a bounded MANAGING `get_open_position` reconcile) was correctly
+  **held back** — ship trigger is this weekly grade OR the next occurrence that demonstrably blocks a real re-entry.
 
 ---

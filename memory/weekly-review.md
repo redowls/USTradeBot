@@ -168,3 +168,79 @@ baseline; do NOT raise the 0.20 floor yet. Begin watching the **90-100 confidenc
 book is clean and exact, **grade the strategy on results** (PF, win rate) — the exit-infra saga is closed.
 
 ---
+
+## Week ending 2026-07-03 — Grade: A−
+
+### Stats
+- **DB (closed, Mon 06-29 → Fri 07-03; 07-03 was the Independence-Day holiday, market closed):** **35 trades,
+  20W → 57.1% win**, net **+$171.24**, PF **1.59**, avg win **+$23.07** / avg loss **−$19.35**. Best **+$95.62**
+  (TSLA 06-29), worst **−$46.84** (MSFT 06-29). By day: 06-29 **+$89.72** (12, 58%) · 06-30 **+$61.79** (9, 78%) ·
+  07-01 **+$9.52** (7, 43%) · 07-02 **+$10.21** (7, 43%) · 07-03 **holiday (0)**.
+- **Equity: $9,308.54 (Mon 06-29 open/last_equity) → $9,479.66 (now) = +$171.12 (+1.84%).** The **best week of the
+  record**, and the DB net **+$171.24 ties to equity to the cent** every trading day (5th–8th consecutive clean
+  sessions; the ~$0.12 residual is a $0.03 holiday bookkeeping drift + rounding). No phantoms, no naked carry,
+  broker flat every night — 0 open positions into the long weekend.
+- **Per-symbol:** winners led by **TSLA +$107.04** (3 tr, 2W), **TSM +$59.59** (2/2), **INTC +$50.90** (2/2),
+  **AAPL +$24.23** (3/3); drags **SE −$30.85** (thin-tape fades), **ABNB −$27.09**, **AMZN −$26.06**, **MSFT
+  −$43.84** (the early-entry chop). Semis/megacap trend names carried the week.
+- **Confidence vs outcome (all-time):** 70-79 best **+$257.74 (59%, 41 tr)**, 60-69 **+$129.29 (46%, 76 tr)**,
+  80-89 **+$47.38 (56%, 9 tr)**, **90-100 still −$53.94 (0/1 = AMD 06-25)** — unchanged (no 90+ trade this week).
+- **Service: healthy — 0 crashes, `NRestarts=0`, one clean deploy restart (06-30 21:27 UTC for IMP-012).** The
+  only journal ERRORs all week were the **06-30 trailing-stop 422 traceback storm** (AMD stop 698c6cdf, ~4.5h of
+  minutely tracebacks) — the exact latent bug IMP-012 fixed; 07-01/07-02 ran clean (0 tracebacks, 0 WARNINGs).
+
+### Grade rationale
+**The best week of the record, on a now-clean system — and last week's plan executed to the letter.** Results
+were genuinely good: **+1.84% ($171.12), PF 1.59, 57% win**, books **exact to the cent every trading day**, no
+naked carries, no NAKED pages, no risk-limit trips, worst trade a contained −1.77% (MSFT). Last week's "Focus for
+next week" was **fully honored**: **IMP-011 was proven on live data over its full first week** — entry count held
+every day (12/9/7/7, never collapsed), the floor was honored every session, the `crossover < 0.20` skip logs fired
+daily on the chop cohort, and win rate rose to **57% vs the 40% baseline**; the 0.20 floor was **not** raised
+(GOOG entered at exactly 0.20 on 06-30 and barely paid — correctly placed); and the 90-100/open-spike pattern was
+**watched, not acted on** (now 3 occurrences: AMD 06-25, MSFT 06-29, AMD 06-30). Discipline was textbook: **zero
+entry-logic changes were stacked on IMP-011 during its proving window** (three "reviewed, no change warranted" days
+— 06-29/07-01/07-02 — plus the holiday), and the one shipped change (IMP-012) was pure exit-infra that cannot
+confound the evaluation. It is **not a clean A** for two honest reasons: (1) a **real system error occurred live
+this week** — the 06-30 422 traceback storm swamped the log for ~4.5h and left two symbols stuck MANAGING (the
+rubric reserves A for "no system errors"); it was zero-capital-cost, books stayed exact, and it was root-caused and
+fixed *same day* (IMP-012), but it did happen in production; and (2) IMP-012 then surfaced a **complementary
+residual gap** that recurred **3× (TSLA 07-01, GOOG+SE 07-02)** — a filled stop with no subsequent trail-replace
+leaves a symbol MANAGING until the EOD reconcile — still **open** (staged, not shipped). Both are zero-realized-cost
+and correctly handled, so this is a strong, well-run, profitable week docked one notch from a perfect A → **A−**.
+
+### What worked / what didn't
+- **Worked:** IMP-011 delivered exactly as designed (weak-cross chop filtered, win rate 40%→57%, count healthy,
+  floor honored) — the week's headline; the strong/mid-cross trend longs carried it (TSLA +$95.62 on 06-29 alone >
+  three of the four days' net; TSM/INTC/NVDA/QQQ green); exit infra clean 4 straight sessions (wall-clock flatten,
+  all fills real, broker-side stops reconciled at the true price, books exact to the cent, broker flat nightly);
+  risk control held (worst −1.77%, no stop-outs beyond contained trail exits); watchlist discipline (MU re-enable
+  kept paying +$14.37; only QCOM park-watch pending — minimal, justified churn).
+- **Didn't:** the **06-30 trailing-stop 422 storm** (latent pre-IMP-012 bug, ~4.5h of tracebacks, zero capital
+  cost) reached production before being fixed; **IMP-012's residual MANAGING-until-EOD gap** recurred 3× (still
+  open); the two flat mid-week days (07-01/07-02, both 43% / +~$10) show the strategy has **no edge in a
+  low-volatility consolidation tape** — it makes its money on trend-dispersion days (06-29/06-30) and merely
+  treads water when the tape chops; and the **early-entry / strong-cross underperformance** pattern is now 3 data
+  points (MSFT was this week's worst trade at −$46.84) but remains correctly unactioned.
+
+### Improvements shipped this week
+- **IMP-011** (0002ed9, shipped 06-26) — `MIN_CROSSOVER` 0.20 entry floor. **Observed: ✅ VALIDATED over its full
+  first week** — entry count held (12/9/7/7), floor honored every session, weak-cross skip logs fired daily, win
+  rate 40%→57%, no over-filtering (GOOG at exactly 0.20 barely paid). Keep at 0.20; do not raise.
+- **IMP-012** (c9fbcdc, shipped 06-30) — detect a broker-side stop-leg fill in the trailing path (422 "order is
+  not open" → `StopOrderGone`), reconcile + free the symbol instead of re-issuing the doomed move every candle.
+  **Observed: ✅ validated** (07-01/07-02: 0 tracebacks, no 422 storm — the 06-30 log flood cannot recur), **but
+  it surfaced a complementary residual gap** — a filled stop with no subsequent trail-replace still sits MANAGING
+  until the EOD reconcile (3× this week, all zero-cost). Staged follow-up correctly held back.
+
+### Focus for next week
+**Decide the staged MANAGING-reconcile fix (IMP-012's residual gap).** Its explicit ship trigger — "after IMP-011's
+first full week is graded (this weekly) OR the next occurrence that blocks a real re-entry" — is now met by this
+grade, and it has 3 clean occurrences of evidence: **green-light it on a calm, non-event trading session** (piggyback
+the IMP-007 wall-clock `tick()` with a bounded `get_open_position` reconcile of MANAGING names; it is exit-infra, won't
+confound IMP-011). **Keep IMP-011 at 0.20** (proven; do not raise). Keep **watching the early-entry / strong-cross
+underperformance** (now 3 obs — MSFT/AMD) for a possible first-N-minutes or RSI-extreme guard, but **do not act on 3
+points**. Now that IMP-011 is validated and the book is exact, the strategy's real open question is its **flat-tape
+edge** (07-01/07-02 near-zero days) — gather more consolidation-tape sessions before any entry-quality change. Confirm
+the **Monday 07-06 pre-market Claude routine actually runs** (today's failed on an expired OAuth token — re-authed).
+
+---
