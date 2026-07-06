@@ -549,7 +549,7 @@ Entry template:
   cohort that loses, with **no change to win rate or entry count** (nothing is filtered — only the top-band size
   is trimmed). On a day like today AVGO's loss would have been ~−$43 rather than −$55.80 (~$13 less), improving
   the day's PF without removing a single trade. First capital-*sizing* change shipped by this routine.
-- **Commit:** (this run)
+- **Commit:** ac195d6 (deployed live on the 2026-07-06 21:26 UTC restart — warmup primed 22/22, clean startup)
 - **Observed effect:** (await next review — confirm that any conf > 85 entry is sized as conf 85 [smaller qty
   than the linear ramp would give], that entry *count* is unchanged vs the linear-ramp baseline, and that the
   top-band per-trade loss shrinks; re-check the `vw_confidence_outcome` 80-100 bands over the coming weeks to see
