@@ -861,3 +861,66 @@ QCOM QQQ SE SPY TSLA TSM UNH WMT. Service **NOT restarted** (no watchlist change
 only at startup). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-06 — Pre-market Research
+
+**First session back after the 07-03 Independence Day holiday** (07-03 full close, 07-04 Sat, 07-05 Sun).
+Book CLEAN & FLAT into today (0 positions, equity all cash); nothing locked → full watchlist free. This is
+the **calm, non-event trading session** the staged **QCOM park-watch** was waiting for — actioned today.
+
+### Market context
+- **Risk-on, chip-led reopen.** Post-holiday futures higher: S&P +0.4%, **Nasdaq-100 +1.1%**, Dow ~flat.
+  **SMH +2.4%** pre-bell leads a tech/semis rebound (WDC +4%, Teradyne +4%, Marvell/Oracle +3%+); XLK +1.2%.
+  Building on last week's record run (Dow ~+2%, within striking distance of 53,000; S&P +1.8%, Nasdaq +2.1%).
+- **No binary today.** June jobs (07-03) already printed labor-market resilience without an inflation
+  overshoot; no major economic release today. **No watchlist name reports today or this week** (next major
+  tech: META 07-29, AAPL 07-30) → **zero watchlist earnings/binary risk.** Oil softer post-holiday → energy
+  the laggard, **XOM stays parked.**
+- **SPCX joins the Nasdaq-100 before tomorrow's (07-07) open** (+ Samsung prelim Q2 07-07) — noted future
+  candidate, still too new for the ribbon.
+
+### Carried from daily review (07-03, holiday)
+- **Book CLEAN & FLAT into Monday** — 0 broker positions, 0 DB-open rows, equity **$9,479.66** all cash
+  (confirmed live this run). Nothing locked; full watchlist free.
+- **Zero binary risk on the reopen**; expect a thin/gappy opening print — IMP-008 warmup rebuilds ribbons
+  on boot so gates are ready at the open.
+- **QCOM park-watch** (staged since 07-02): "action a park only on a **calm non-event trading session** if
+  it fails to reclaim its 20MA." → trigger conditions met today (see below) → **ACTIONED: PARK QCOM.**
+- **SE** thin-tape watch (won 06-24/07-01, faded on near-zero vol 06-30/07-02) → *watch volume, no park.*
+  **GOOG** 07-02 worst = regime fade on weakest 5m gate, not symbol quality → keep.
+
+### Watchlist review
+Account ACTIVE, equity **$9,479.66**, BP $37,918.64, **0 open positions = nothing locked.** 23 enabled /
+4 parked (BIRD, ENPH, WPM, XOM); 27 rows, 23 ≤ 30 ✓. Reviewed vs 14d closed-trade P&L (65 tr, net **+$161**)
++ fresh 60-day daily bars (through 07-02 close: trend vs 20/50MA, ATR%, 20d $vol):
+- **Leaders (14d):** TSLA **+$115** (4 tr, 3W), TSM +$60, MU +$44, AAPL +$32 (4/4), MSFT +$31, NFLX +$25,
+  UNH +$24, NVDA +$22, INTC +$21, QQQ +$17 — the semi/index regime the list is built around, and precisely
+  the cohort leading today's chip-led reopen.
+- **Laggards (14d):** AMD −$69 (early-entry chop, but +12.6% vs 50MA, ripped intraday recently), AMZN −$57,
+  JPM −$40, COST −$23, ABNB −$21, SPY −$17 — per the dailies all regime/timing/weak-cross (IMP-011-filtered),
+  every one a mega-liquid large-cap in an intact/recovering trend (AMD/AMZN/AAPL back at/above 20MA) → KEEP.
+- **Top semis all hold their uptrends into the rally:** AMD +0.3%/+12.6% vs 20/50MA, INTC −2.2%/+6.2%,
+  TSM −0.7%/+3.6%, MU −6.5%/**+14.5%**, NVDA −4.4%/−7.3% (mild, most-liquid name $980M) → regime intact, keep.
+- **QCOM — PARK (staged trigger met).** The lone semi laggard: **−14.3% vs 20MA, −13.0% vs 50MA and still
+  falling** (last-5 closes 188.62→176.12, fresh relative lows — *failed to reclaim its 20MA*), thinnest
+  liquidity on the semi cohort (~$136M/day), 8.6% ATR chop, and **no real trades in 14d** (its long-only 5m
+  gate rarely opens). Today is the calm, non-event session the 07-02 park-watch specified. Even on a broad
+  chip rally, QCOM's own trend is broken and produces no clean intraday longs → PARK (re-enable if it
+  reclaims its 20MA on a durable basis; this is a trend/liquidity park, not a demotion of the name).
+- **SE** (+14.5%/+16.0% vs MAs, strong uptrend, but lowest $vol ~$20M) → thin-tape watch, no park.
+
+### Changes applied to dbo.watchlist
+- **PARK QCOM** (enabled=0, note "parked 2026-07-06: -14% vs 20/50MA & falling, lone semi laggard, thin
+  $vol 136M, no real trades 14d"). The one decided action — the staged park-watch, actioned on the calm
+  session it was waiting for.
+- **No adds.** The roster is already semi/index-heavy (leading today's tape); adding momentum/chip names into
+  a chip-led melt-up would be concentration-chasing, and the dailies requested no adds. SPCX too new. XOM/WPM/
+  ENPH/BIRD stay parked.
+
+### Final watchlist
+**22 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QQQ SE SPY TSLA
+TSM UNH WMT. Parked: BIRD, ENPH, QCOM, WPM, XOM. Service **restarted 11:34 UTC** — `active`, clean startup,
+account ACTIVE equity $9,479.66, 0 positions reconciled, 22-symbol subscribe confirmed in journal (no QCOM).
+🔒 Locked: none (0 open positions).
+
+---
