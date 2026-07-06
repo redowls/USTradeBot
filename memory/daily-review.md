@@ -1251,3 +1251,90 @@ Losers (4):
   review rather than silently erroring.
 
 ---
+
+## 2026-07-06 — Daily Review
+
+### Stats
+- Closed trades (DB): **11** — 6W / 5L → **55% win rate**. Net realized P&L **−$52.33** (avg −$4.76/trade).
+  Avg win **+$8.56**, avg loss **−$20.74**, **profit factor ≈ 0.50** (losers ~2.4× the winners). Account
+  **equity $9,427.33** (all cash, **0 open positions** — book flat).
+- **Books exact to the cent.** DB net −$52.33 == equity move (premarket $9,479.66 → $9,427.33 = −$52.33).
+  DB↔broker↔report all agree; every entry/exit matches the Alpaca fill (IMP-009/010 entry-fill + IMP-012
+  broker-side-fill reconcile all holding; no phantoms, nothing carried).
+- Confidence vs outcome (all-time, **updated by today's AVGO conf-96 loss**): **70-79 the peak** +$246.28
+  (57%, 44 tr), 60-69 +$157.56 (48%, 81 tr), **80-89 mediocre +$34.02 (55%, 11 tr), 90-100 negative
+  −$109.74 (0% win, 2 tr)**. The curve is **non-monotonic and inverts at the top** — the basis for IMP-013.
+
+### Trade-by-trade review
+All entries Model A; all 11 closed at/around the **19:45 UTC EOD flatten** — **4 had already hit their
+broker-side (trailed) stops intraday** (annotated *"stop/target filled broker-side"*), the other 7 were
+market-flattened at the close. **No target hit, no bearish-cross early exit fired all day.**
+- **AVGO** (entry 13:36 @ 381.56, conf **96.28** [x1.0/t1.0/rsi1.0/v1.0/**vol0.75**], qty 9) → broker stop
+  @375.36 at 14:56 → **−$55.80 (−1.62%)**. **Day's biggest loss = the day's highest confidence = the day's
+  biggest size** (~37% BP via Model A). Entered 6 min after the open into the chip gap-up, faded. Root:
+  **regime (opening-spike fade) + sizing (conf→size bet the most on the worst setup).**
+- **INTC** (14:07 @ 126.20, conf **84.66** [x0.65/t1.0/rsi1.0/v1.0/**vol0.67**], qty 15) → stop @124.60 at
+  15:12 → **−$24.00 (−1.27%)**. 2nd-highest conf, 2nd-biggest loss. Same open-drive semis fade; **lowest
+  volatility sub-score of the book (0.67 = spikiest entry bar).**
+- **MU** (14:34 @ 1011.04, conf 70.36, qty 1) → stop @997.57 at 15:08 → **−$13.47 (−1.33%)**. Semis fade.
+- **AMD** (14:37 @ 568.05, conf 60.30 [x0.21 — just above the IMP-011 floor], qty 1) → stop @560.55 at
+  15:17 → **−$7.50 (−1.32%)**. Marginal cross, semis fade.
+- **TSM** (14:07 @ 456.57, conf 74.99, qty 3) → EOD flatten @455.59 → **−$2.94 (−0.21%)**. Small drift loss.
+- **AAPL** (14:14 @ 309.85, conf 64.28, qty 4) → EOD @313.66 → **+$15.23 (+1.23%)**. Best trade; non-semi
+  megacap that held the trend to the close.
+- **SE** (15:47 @ 104.82, conf 66.33, qty 15) → EOD @105.57 → **+$11.25 (+0.72%)**. Trailing stop ratcheted
+  (103.85→103.98) as it held; the thin-tape name *worked* today (as 06-24/07-01, not 06-30/07-02).
+- **QQQ** (13:40 @ 721.17, conf 80.48, qty 3) → EOD @724.72 → **+$10.65 (+0.49%)**. Index, held.
+- **BABA** (13:58 @ 97.31, conf 67.23, qty 17) → EOD @97.83 → **+$8.82 (+0.53%)**. Non-semi, held.
+- **C** (13:58 @ 143.08, conf 79.39, qty 16) → EOD @143.39 → **+$4.96 (+0.22%)**. Financial, held small.
+- **TSLA** (16:27 @ 417.27, conf 65.30, qty 3) → EOD @417.43 → **+$0.47 (+0.04%)**. Late entry, flat scratch.
+
+### What worked / what didn't
+- **Worked:** win *count* was fine (6/11); IMP-011 floor held (AMD x0.21 was the lowest survivor, all others
+  ≥0.25); books exact; SE/BABA/C/AAPL/QQQ (non-semi/index) held their small trends to the close; trailing
+  stop ratcheted correctly on SE/BABA. Service healthy, 0 restarts intraday, 0 naked overnight.
+- **Didn't:** **P&L, not win rate, was the problem** — losers averaged −$20.74 vs wins +$8.56 (PF 0.50). Two
+  structural threads: (1) **the confidence→size link is backwards** — the two highest-confidence trades
+  (AVGO 96, INTC 85) were the two biggest losers, and Model A sized them largest, so the single biggest loss
+  was the highest-conf/biggest-size trade; (2) **regime**: a post-holiday chip-led gap-up (research expected
+  Nasdaq +1.1% / SMH +2.4%) that **faded** — the 4 semis/megacap-chip names entered in the first ~100 min all
+  stopped out ~14:56–15:17, while the non-chip holds won. **Volatility sub-score cleanly split the book today**
+  (all 6 winners vol=1.0; the 2 big losers had the lowest, 0.75/0.67 = spikiest bars) — a strong *single-day*
+  signal, logged for accumulation, **not acted on** (one day = overfit risk; cf. IMP-011 needed 4 clean days).
+- **Minor:** one Telegram send timed out (TSM exit alert, 19:45) — side-channel, swallowed, no trading impact.
+- **IMP-012 residual gap recurred 4×** (AVGO/MU/INTC/AMD each sat MANAGING ~4h after the stop filled, caught
+  only at the 19:45 EOD reconcile) — **zero realized cost, no re-entry demonstrably blocked** (the staged
+  MANAGING-watchdog ship-trigger still not tripped; unchanged).
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED — IMP-013] Cap the confidence→size ramp (`SIZE_CONFIDENCE_CAP`, default 85).** Highest-impact,
+   capital-protective, entry-neutral. Model A/B scaled size linearly to conf 100 assuming edge grows with
+   confidence; the all-time 138-trade curve shows the opposite above the ~70s (70-79 peak; 80-89 mediocre;
+   90-100 0% win / −$110), so the ramp bet the most capital on its worst cohort — today's AVGO (conf 96,
+   ~37% BP) was the biggest loss. The cap sizes a >cap candidate as if it scored the cap: **only ever shrinks
+   the top-band position, never enlarges one, never blocks an entry, never touches the stop/threshold.**
+2. *(watch — accumulate, do NOT ship yet)* **Volatility-sub-score floor for entries.** Today it split the book
+   perfectly (winners vol=1.0; big losers 0.67/0.75), consistent with an opening-spike-fade read, but it is a
+   **single day** — needs ≥3–4 corroborating sessions before it earns a filter (the IMP-011 discipline). If it
+   holds, a `MIN_VOLATILITY`-style floor is the natural next entry-quality change after IMP-011's crossover floor.
+3. *(watch, unchanged)* **Opening-drive / time-of-day entry quality.** The 4 stop-outs all entered in the first
+   ~100 min into a gap-up that faded; but 4 winners also entered early (QQQ 13:40, C/BABA 13:58) — not a clean
+   time cutoff yet. Keep observing whether early *chip* entries specifically underperform on gap-up-fade days.
+4. *(staged, unchanged — weekly-routine call)* **Free a MANAGING symbol when its broker stop fills even if the
+   trail never re-fires** (piggyback IMP-007 wall-clock `tick()` with a bounded `get_open_position` reconcile).
+   4 fresh zero-cost occurrences today; still no demonstrably-blocked re-entry → ship-trigger not tripped.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 07-07** — 0 broker positions, 0 DB-open rows, equity **$9,427.33** all cash.
+  Nothing locked; full watchlist free.
+- **Regime caution:** today was a **chip-led gap-up that FADED** — the semis/megacap-chip cohort (AVGO, INTC,
+  MU, AMD, TSM) all gave back at the open and stopped out; the non-chip holds (AAPL, QQQ, C, BABA, SE) won.
+  If 07-07 gaps up again on chips, **expect the same open-drive fade risk** — the ribbon fires freshest crosses
+  right at the extended open. IMP-013 now trims size on the very-high-confidence (often most-extended) of these.
+- **AVGO** — highest-conf loser two-in-a-row pattern; **INTC/MU/AMD** — semis that faded the open. Not park
+  candidates (all intact/recovering trends per 07-06 premarket), but **flag the chip cohort as gap-up-fade-prone.**
+- **SE worked today** (+$11.25 on adequate volume) — the thin-tape watch stays "watch volume, no park."
+- **SPCX joins the Nasdaq-100 at today's (07-07) open** + Samsung prelim Q2 — still too new for the ribbon; note only.
+- **No watchlist-name earnings this week** (next: META 07-29, AAPL 07-30) → zero binary risk.
+
+---

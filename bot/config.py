@@ -157,6 +157,17 @@ class Config:
     min_alloc: float
     max_alloc: float
     max_risk_per_trade: float
+    # Cap the confidence used *for position sizing only* at this value (100 disables).
+    # Model A/B scale size linearly up to confidence 100, assuming edge grows with
+    # confidence — but the all-time confidence-outcome curve shows the opposite above
+    # the sweet spot: the 70-79 band is the peak (+$246, 57% win over 44 tr) while
+    # 80-89 is mediocre (+$34) and 90-100 loses outright (0% win, −$110 over 2 tr).
+    # So the linear ramp bet the *most* capital on the *worst* cohort — 2026-07-06's
+    # single biggest loss was AVGO (conf 96, sized ~37% BP → −$55.80). Sizing a
+    # candidate above the cap as if it scored the cap only ever *shrinks* the
+    # top-band position; it never enlarges one, never blocks an entry, never changes
+    # the entry decision or the stop. Capital protection only (IMP-013).
+    size_confidence_cap: float
 
     # Bracket
     stop_loss: float
@@ -220,6 +231,7 @@ class Config:
             min_alloc=_float("MIN_ALLOC", 0.10),
             max_alloc=_float("MAX_ALLOC", 0.40),
             max_risk_per_trade=_float("MAX_RISK_PER_TRADE", 0.02),
+            size_confidence_cap=_float("SIZE_CONFIDENCE_CAP", 85.0),
             stop_loss=_float("STOP_LOSS", 0.02),
             take_profit=_float("TAKE_PROFIT", 0.04),
             trail_percent=_float("TRAIL_PERCENT", 0.02),
@@ -259,6 +271,11 @@ class Config:
             raise ConfigError("Require 0 < MIN_ALLOC <= MAX_ALLOC <= 1.")
         if not 0 < self.max_risk_per_trade <= 1:
             raise ConfigError("MAX_RISK_PER_TRADE must be in (0, 1].")
+        if not self.entry_threshold <= self.size_confidence_cap <= 100:
+            raise ConfigError(
+                "SIZE_CONFIDENCE_CAP must be in [ENTRY_THRESHOLD, 100] "
+                "(cap below the threshold would flatten sizing to MIN_ALLOC)."
+            )
         for fld in ("stop_loss", "take_profit", "trail_percent"):
             v = getattr(self, fld)
             if not 0 < v < 1:

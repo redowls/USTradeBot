@@ -92,11 +92,20 @@ def plan_model_a(
     max_alloc: float,
     stop_loss: float,
     take_profit: float,
+    size_confidence_cap: float = 100.0,
 ) -> SizePlan | None:
-    """Size by % of buying power. ``None`` if it rounds to fewer than 1 share."""
+    """Size by % of buying power. ``None`` if it rounds to fewer than 1 share.
+
+    ``size_confidence_cap`` caps the confidence used *for sizing only* (100 = no
+    cap): a candidate scoring above it is sized as if it scored the cap, because the
+    realized edge does not increase with confidence above the sweet spot (see the
+    all-time confidence-outcome curve — IMP-013). This only ever *reduces* size on
+    very-high-confidence entries; it never enlarges a position or blocks an entry.
+    """
     if entry_price <= 0 or buying_power <= 0:
         return None
-    frac = alloc_fraction(confidence, threshold=threshold, min_alloc=min_alloc, max_alloc=max_alloc)
+    eff_conf = confidence if confidence <= size_confidence_cap else size_confidence_cap
+    frac = alloc_fraction(eff_conf, threshold=threshold, min_alloc=min_alloc, max_alloc=max_alloc)
     notional_target = buying_power * frac
     qty = math.floor(notional_target / entry_price)
     if qty < 1:
@@ -124,12 +133,16 @@ def plan_model_b(
     max_alloc: float,
     stop_loss: float,
     take_profit: float,
+    size_confidence_cap: float = 100.0,
 ) -> SizePlan | None:
     """Size by risk budget: shares from the stop distance, capped by ``max_alloc``.
 
     ``effective_risk = max_risk_per_trade × (0.25 → 1.0 by confidence)``; shares =
     ``equity × effective_risk / (entry − stop)``, then capped so the notional stays
     within ``max_alloc × buying_power``. ``None`` if it rounds below 1 share.
+
+    ``size_confidence_cap`` caps the confidence used for the risk multiplier only
+    (100 = no cap), mirroring :func:`plan_model_a` — see IMP-013.
     """
     if entry_price <= 0 or buying_power <= 0 or equity <= 0:
         return None
@@ -137,7 +150,8 @@ def plan_model_b(
     risk_per_share = entry_price - stop
     if risk_per_share <= 0:
         return None
-    multiplier = 0.25 + 0.75 * confidence_fraction(confidence, threshold)
+    eff_conf = confidence if confidence <= size_confidence_cap else size_confidence_cap
+    multiplier = 0.25 + 0.75 * confidence_fraction(eff_conf, threshold)
     effective_risk = max_risk_per_trade * multiplier
     risk_qty = math.floor((equity * effective_risk) / risk_per_share)
     cap_qty = math.floor((max_alloc * buying_power) / entry_price)

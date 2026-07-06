@@ -25,6 +25,7 @@ def _set_env(monkeypatch, **overrides):
         "MIN_CROSSOVER",
         "MIN_ALLOC",
         "MAX_ALLOC",
+        "SIZE_CONFIDENCE_CAP",
         "WATCHLIST",
         "MARKET_OPEN",
     ]:
@@ -60,6 +61,21 @@ def test_min_crossover_default_and_override(monkeypatch):
     _set_env(monkeypatch, MIN_CROSSOVER="0")  # 0 disables the floor
     assert Config.load(dotenv=False).min_crossover == 0.0
     _set_env(monkeypatch, MIN_CROSSOVER="1.5")  # > 1 is invalid
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+
+
+def test_size_confidence_cap_default_and_override(monkeypatch):
+    # IMP-013: sizing-confidence cap defaults to 85 (edge does not grow above the
+    # 70s band; 90-100 loses). Must lie in [ENTRY_THRESHOLD, 100]; 100 disables it.
+    _set_env(monkeypatch)
+    assert Config.load(dotenv=False).size_confidence_cap == 85.0
+    _set_env(monkeypatch, SIZE_CONFIDENCE_CAP="100")  # 100 disables the cap
+    assert Config.load(dotenv=False).size_confidence_cap == 100.0
+    _set_env(monkeypatch, SIZE_CONFIDENCE_CAP="50")  # below ENTRY_THRESHOLD (60) is invalid
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+    _set_env(monkeypatch, SIZE_CONFIDENCE_CAP="120")  # > 100 is invalid
     with pytest.raises(ConfigError):
         Config.load(dotenv=False)
 

@@ -508,3 +508,52 @@ Entry template:
   **held back** — ship trigger is this weekly grade OR the next occurrence that demonstrably blocks a real re-entry.
 
 ---
+
+## IMP-013 — 2026-07-06
+
+- **Problem:** First **sizing** change (all prior IMPs were exit-infra, warmup, entry-fill, or the IMP-011
+  entry filter). On the post-holiday reopen (11 trades, 6W/5L, **−$52.33**, PF 0.50, books exact to the cent),
+  the loss was an **expectancy/sizing** problem, not a win-rate one: avg loss **−$20.74** vs avg win **+$8.56**.
+  The two **highest-confidence** trades were the two **biggest losers** — **AVGO** (conf **96.28**, sized ~37%
+  of BP → qty 9 → **−$55.80**, the day's single biggest loss) and **INTC** (conf 84.66 → **−$24.00**) — i.e.
+  Model A bet the **most** capital on the setups that lost the most. This is the long-accumulating
+  high-confidence-underperformance pattern, now vividly confirmed: the all-time `vw_confidence_outcome` curve is
+  **non-monotonic and inverts at the top** — **70-79 is the peak (+$246.28, 57%, 44 tr)**, 60-69 +$157.56 (48%,
+  81 tr), **80-89 mediocre (+$34.02, 55%, 11 tr)**, **90-100 negative (−$109.74, 0% win, 2 tr)**.
+- **Root cause:** `bot/sizing.py` `plan_model_a`/`plan_model_b` scale position size **linearly across confidence
+  [threshold, 100]** (`alloc_fraction`: MIN_ALLOC at 60 → MAX_ALLOC at 100). That encodes an assumption —
+  *realized edge grows monotonically with confidence up to 100* — which the 138-trade outcome curve **falsifies**:
+  edge peaks in the 70s and does not improve (indeed inverts) above it. So the ramp systematically over-sizes the
+  exact band that underperforms. Confidence is the strategy's *ranking* heuristic, not a probability of profit
+  (CLAUDE.md) — sizing treated it as the latter above the sweet spot.
+- **Change:** new tunable **`SIZE_CONFIDENCE_CAP` (env, default 85.0)** in `bot/config.py` — the confidence used
+  **for sizing only** is capped at this value (`eff_conf = min(confidence, cap)`) in both `plan_model_a`
+  (alloc fraction) and `plan_model_b` (risk multiplier); `bot/executor.py` threads `cfg.size_confidence_cap`
+  into both `plan_*` calls. A candidate scoring above the cap is sized **as if it scored the cap** — so it only
+  ever **shrinks** a top-band position (e.g. today's AVGO conf 96 would size as conf 85: ~0.29 of BP → qty 7,
+  not 0.37 → qty 9). Default 85 sits **above the proven 70-79 peak with a buffer**, de-sizing only the
+  mediocre-to-negative 86-100 region; validated to lie in **[ENTRY_THRESHOLD, 100]** (100 disables it,
+  = pre-IMP-013 behavior; a cap below the threshold is rejected). **No entry blocked, no risk widened, no stop /
+  threshold / weight / entry logic touched — strictly a capital-protection *reduction* on the top confidence band.**
+  This is orthogonal to IMP-011 (which filters *entries*) and does not confound its evaluation.
+- **Validation:** full suite **235 passed** (`pytest -q`, was 231 + 4 new). New regressions in
+  `tests/test_sizing.py`: `test_model_a_size_confidence_cap_shrinks_top_band` (today's AVGO conf-96 scenario —
+  uncapped 37 shares vs capped-at-85 28 shares, and a candidate exactly at the cap sizes identically),
+  `test_model_a_size_confidence_cap_leaves_below_cap_and_default_unchanged` (conf 80 below the cap is untouched;
+  default 100 == pre-IMP-013), `test_model_b_size_confidence_cap_limits_multiplier` (the risk multiplier honors
+  the cap); `tests/test_config.py::test_size_confidence_cap_default_and_override` (85 default, 100 disables,
+  <threshold and >100 both raise `ConfigError`). `bot.preflight` **PASS** (Alpaca ACTIVE, equity $9,427.33,
+  0 positions; 1 WARN = market closed).
+- **Expected impact:** on very-high-confidence entries (the historically worst-performing, currently
+  largest-sized band) position size and therefore **per-trade loss** shrink → smaller drawdown on the exact
+  cohort that loses, with **no change to win rate or entry count** (nothing is filtered — only the top-band size
+  is trimmed). On a day like today AVGO's loss would have been ~−$43 rather than −$55.80 (~$13 less), improving
+  the day's PF without removing a single trade. First capital-*sizing* change shipped by this routine.
+- **Commit:** (this run)
+- **Observed effect:** (await next review — confirm that any conf > 85 entry is sized as conf 85 [smaller qty
+  than the linear ramp would give], that entry *count* is unchanged vs the linear-ramp baseline, and that the
+  top-band per-trade loss shrinks; re-check the `vw_confidence_outcome` 80-100 bands over the coming weeks to see
+  whether de-sizing the top improves overall PF. If a cleaner sizing-vs-confidence relationship emerges, revisit
+  the cap value [85] — set it to 100 to fully revert.)
+
+---

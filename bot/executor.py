@@ -167,6 +167,7 @@ class OrderExecutor:
                 max_alloc=cfg.max_alloc,
                 stop_loss=cfg.stop_loss,
                 take_profit=cfg.take_profit,
+                size_confidence_cap=cfg.size_confidence_cap,
             )
         return plan_model_a(
             confidence=confidence,
@@ -177,6 +178,7 @@ class OrderExecutor:
             max_alloc=cfg.max_alloc,
             stop_loss=cfg.stop_loss,
             take_profit=cfg.take_profit,
+            size_confidence_cap=cfg.size_confidence_cap,
         )
 
     # --- execution ---------------------------------------------------------
