@@ -1338,3 +1338,102 @@ market-flattened at the close. **No target hit, no bearish-cross early exit fire
 - **No watchlist-name earnings this week** (next: META 07-29, AAPL 07-30) → zero binary risk.
 
 ---
+
+## 2026-07-07 — Daily Review
+
+### Stats
+- Closed trades (DB): **11** — **1W / 10L → 9% win rate.** Net realized P&L **−$179.00**
+  (avg **−$16.27**/trade). Avg win **+$2.88** (n=1, UNH), avg loss **−$18.19**, **profit factor
+  ≈ 0.02** (the lone win was a +$2.88 scratch). Account **equity $9,248.30** (all cash, **0 open
+  positions** — book flat). **Worst day since 06-17** (−$181).
+- **Books exact to the cent.** DB net −$179.00 == equity move (premarket $9,427.30 → $9,248.30 =
+  **−$179.00**). DB↔broker↔report all agree; every entry/exit matches the Alpaca fill (IMP-008/009/010
+  price-truth + IMP-012 broker-side-fill reconcile all holding). **0 phantoms, nothing carried, no
+  naked overnight, no NAKED page.** Exit infra clean again (wall-clock flatten fired 19:45 UTC, all
+  sells filled in liquid RTH before 16:00 ET).
+- **IMP-013 (SIZE_CONFIDENCE_CAP=85) did NOT bind today** — the day's highest confidence was NFLX
+  79.51 (< 85), so no position was above the cap; today is not an IMP-013 test (await a >85 entry).
+- Confidence vs outcome (all-time, dragged down by today's 60-79 losers): **70-79 +$189.62 (53%, 47 tr)**
+  [was +$246], **60-69 +$35.23 (45%, 89 tr)** [was +$157], 80-89 +$34.02 (55%, 11 tr, unchanged),
+  **90-100 −$109.74 (0%, 2 tr, unchanged)**.
+
+### Trade-by-trade review (Model A throughout; entry times UTC)
+Every entry cleared the gate (5m 21/34/55 stacked & rising) + a fresh 1m cross, then **faded** — a
+broad, market-wide false-breakout tape. **All crosses were mid-band (xo 0.21–0.35); ZERO strong
+crosses (≥0.40) were available all day** — the market was choppy, not trending, so no high-conviction
+setup existed. 3 hit broker-side (trailed) stops, 8 rode to the EOD flatten.
+- **C** 13:47 @ 144.01, conf 60.69 (xo 0.23, trend 0.94, **vol 0.0**) → broker stop @141.10 → **−$31.39
+  (−1.98%)**. **Biggest loss**; stopped near the −2% floor. Financials faded with the tape.
+- **NFLX** 14:38 @ 77.47, conf **79.51** (xo 0.32, all confirms 1.0) → broker stop @76.30 → **−$26.90
+  (−1.51%)**. Highest-confidence trade of the day → 2nd-biggest loss; the tape reversed on the strongest-scored name.
+- **WMT** 14:12 @ 113.24, conf 63.50 (xo 0.28) → EOD @111.66 → **−$22.13 (−1.40%)**. Drifted to near-stop, flattened.
+- **SE** 18:06 @ 105.87, conf 73.05 (xo 0.31, vol 1.0) → EOD @104.19 → **−$21.84 (−1.59%)**. Latest entry (14:06 ET) still faded — not a purely opening-drive problem.
+- **GOOG** 14:14 @ 369.73, conf 61.60 (xo 0.22) → EOD @362.99 → **−$20.22 (−1.82%)**.
+- **AMZN** 13:47 @ 246.51, conf 61.01 (**xo 0.35 = strongest cross**, trend 0.67) → broker stop @241.54 → **−$18.48 (−1.07%)**. The day's strongest crossover was a stop-out.
+- **MSFT** 13:51 @ 392.34, conf 62.95 (xo 0.24) → EOD @389.28 → **−$12.24 (−0.78%)**.
+- **JPM** 13:43 @ 340.94, conf 65.52 (xo 0.35) → EOD @338.92 → **−$12.12 (−0.59%)**.
+- **NVDA** 16:46 @ 197.37, conf 65.49 (xo 0.31) → EOD @195.93 → **−$8.64 (−0.73%)**. Late (12:46 ET) semis entry, faded.
+- **ABNB** 14:33 @ 149.48, conf 72.42 (xo 0.27, all confirms 1.0) → EOD @148.76 → **−$7.92 (−0.48%)**.
+- **UNH** 15:07 @ 426.04, conf 68.25 (**xo 0.21 = weakest cross**, vol 0.45) → EOD @427.00 → **+$2.88
+  (+0.23%)**. **The ONLY winner — and it had the lowest crossover and a below-average volume sub-score.**
+- **Root cause (all 11):** **market regime — a broad false-breakout / whipsaw day.** The 5m gate opened
+  and the 1m cross fired on name after name, but there was no follow-through anywhere; the long-only
+  ribbon has no edge when the whole tape reverses after every breakout. **Not signal-scorer failure, not
+  infra, not stop placement** (losses contained, worst −1.98% at C's stop) — the strategy's known
+  "no-edge-in-chop" weakness, on a severe day.
+
+### What worked / what didn't
+- **Worked:** exit infra flawless (wall-clock flatten 19:45, all fills real, broker flat, books exact to
+  the cent, 0 phantoms, no naked carry); risk containment held (worst single trade −1.98%, no risk-limit
+  event, no blowup); IMP-011 floor honored (weakest survivor UNH xo 0.21). Service healthy, 0 restarts,
+  0 errors/504/422 all session.
+- **Didn't:** the strategy took **11 losing/scratch entries into a persistently adverse tape** with no
+  mechanism to stand down as the day went against it (see candidate #2). **No sub-score discriminated the
+  outcome today** — the only winner (UNH) had the *lowest* crossover; the highest crosses (AMZN/JPM 0.35,
+  NFLX 0.32) lost; and **volatility was ≈1.0 on 10 of 11 names yet 10 lost**, which directly **contradicts
+  the 07-06 volatility-floor hypothesis** (07-06 the 2 big losers had the *low* vol sub-scores). One
+  adverse regime day, cleanly attributable to the tape.
+
+### Lessons & improvement candidates (ranked)
+1. **NO CODE CHANGE WARRANTED — "reviewed, no change warranted" is the correct outcome.** Today is a
+   single broad-regime false-breakout day; **today's own data contradicts every ready entry-quality
+   candidate** — raising the `MIN_CROSSOVER` floor would have removed the day's only winner (UNH xo 0.21)
+   and kept the losers (highest crosses lost); a `MIN_VOLATILITY` floor would have blocked ~0 losers (vol
+   ≈1.0 on 10/11). Shipping any of these off today would be textbook overfitting to one noisy day, which
+   the mandate forbids ("Never overfit to one day"). The weekly (07-03) said **keep IMP-011 at 0.20 — do
+   not raise** — honored. Books are exact, exit infra clean, system profitable overall (best week 07-03
+   +1.84%). **IMP-013 shipped 07-06 is still unobserved** (didn't bind today) — stacking a second change
+   before evaluating it would muddy attribution. Add nothing.
+2. *(NEW candidate — accumulate, do NOT ship on one day)* **Broad-adverse-day stand-down / daily-loss
+   circuit breaker.** The bot has **no daily-drawdown or consecutive-loss entry halt** (only the feed-loss
+   `entries_allowed` latch). Today it kept opening fresh entries (NVDA 16:46, SE 18:06) while the whole day
+   went red. A halt on cumulative daily drawdown would be capital-protective and *general* (would also have
+   helped 06-17). **Caveat that blocks shipping today:** most losses realized only at the 19:45 EOD flatten
+   (positions rode open all day), so a *realized*-loss trigger would not have fired intraday — a correct
+   version needs live **mark-to-market** equity/open-P&L tracking (a larger critical-path change). Design
+   it on MTM drawdown, gather ≥1–2 more broad-adverse days as evidence, and ship deliberately — NOT rushed
+   off one session (same discipline that made IMP-011 wait 4 clean days).
+3. *(watch — 07-06's volatility candidate now NON-corroborated)* The `MIN_VOLATILITY` floor idea from
+   07-06 (winners vol=1.0, big losers 0.67/0.75) **failed to replicate today** (all-high-vol book, all
+   losing). Two contradictory sessions → the volatility sub-score is **not** a reliable outcome
+   discriminator. Down-weight this candidate; needs a genuinely clean multi-day signal before it earns a filter.
+4. *(staged, unchanged — weekly-routine call)* IMP-012 residual MANAGING-until-EOD gap recurred (NFLX/AMZN/C
+   stops filled intraday, reconciled only at the 19:45 EOD sweep) — **zero realized cost, no re-entry
+   demonstrably blocked**; ship-trigger still not tripped.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 07-08** — 0 broker positions, 0 DB-open rows, equity **$9,248.30** all cash.
+  Nothing locked; full watchlist free.
+- **Regime, NOT symbols:** all 11 names signalled and filled cleanly; the 1W/10L was a **broad
+  false-breakout tape** where every breakout reversed — **no watchlist parks indicated on quality
+  grounds.** C/NFLX/WMT/GOOG/SE were the biggest losers today purely because they faded with the market,
+  not because they're broken; all are liquid, intact names. Do not park for a one-day regime loss.
+- **Every entry was a mid-band cross (xo 0.21–0.35); zero strong crosses (≥0.40) fired all day** — the
+  market simply wasn't trending. On a choppy tape the strategy makes many low-conviction entries with no
+  edge; there is no watchlist fix for that (it's a regime, not a symbol, issue).
+- **UNH** was the lone green (+$2.88) — behaved; keep. **SE** faded today (−$21.84) after working 07-06
+  (+$11.25) — regime, not a fresh park signal; thin-tape watch continues ("watch volume, no park").
+- **QCOM stays parked** (actioned 07-06 pre-market). **SPCX** (joined Nasdaq-100 07-07) still too new for
+  the ribbon. No watchlist-name earnings this week (next: META 07-29, AAPL 07-30) → zero binary risk.
+
+---
