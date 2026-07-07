@@ -924,3 +924,64 @@ account ACTIVE equity $9,479.66, 0 positions reconciled, 22-symbol subscribe con
 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-07 — Pre-market Research
+
+**Book CLEAN & FLAT into today** (0 broker positions, equity all cash); nothing locked → full watchlist
+free. No decided action was carried in — the 07-06 daily review flagged **no park candidates** (the chip
+cohort was tagged "gap-up-fade-prone" but explicitly *not* park candidates). So this is a review-and-hold
+run unless overnight news changes it.
+
+### Market context
+- **Chip-pressured, memory-led risk-off open** after Monday's records (07-06: S&P +0.72% to 7,537, Nasdaq
+  +1.12%, **Dow record 53,055**). This morning **Samsung's prelim Q2 disappointed** (profit surged 19× but
+  under-whelmed → Samsung **−8.8% in Seoul**) and **SK Hynix debuts a ~$28B US listing** — memory names
+  **MU and SanDisk slid ~5% pre** (sources conflict; one shows MU +3%). **Nasdaq-100 futures −1%, S&P −0.2%**;
+  Brent up. The "does the semi rotation that took a 3% bite last week continue?" question is live again.
+- **No binary for our names today.** **No watchlist name reports earnings today or this week** (week's
+  reports are Delta/PepsiCo + Fed minutes — none ours; next tech META 07-29, AAPL 07-30) → **zero watchlist
+  earnings/binary risk.** Oil firmer but energy still not a durable uptrend → **XOM stays parked.**
+- **SPCX officially joins the Nasdaq-100 at today's open** (15 trading days after its 06-12 IPO) — noted
+  future candidate, **still too new for the ribbon.** Today's big movers (TeraWulf +16% on an Anthropic
+  data-center deal, VERA +6% into a PDUFA) are outside our liquid large-cap universe — not add candidates.
+
+### Carried from daily review (07-06)
+- **Book CLEAN & FLAT into 07-07** — 0 positions, equity **$9,427.33** all cash (confirmed live: equity
+  $9,427.33, 0 open positions). Nothing locked; full watchlist free.
+- **Regime caution actioned as a lens, not a park:** the chip cohort (AVGO/INTC/MU/AMD/TSM) faded a chip
+  gap-up on 07-06 and stopped out; non-chip holds (AAPL/QQQ/C/BABA/SE) won. Today's Samsung/SK-Hynix memory
+  wobble is the **same regime risk** — the long-only 5m gate simply won't fire longs in a downtrend, so the
+  bot self-protects; **IMP-013 (SIZE_CONFIDENCE_CAP 85, shipped 07-06) now trims size on the very-high-conf
+  / most-extended of these.** These are **not** park candidates (trends intact/recovering) → KEEP.
+- **SE worked 07-06** (+$11.25 on adequate volume) → thin-tape watch stays "watch volume, no park."
+- **No watchlist parks indicated on quality grounds.**
+
+### Watchlist review
+Account ACTIVE, equity **$9,427.33**, BP $37,709.32, **0 open positions = nothing locked.** 22 enabled /
+5 parked (BIRD, ENPH, QCOM, WPM, XOM); 27 rows, 22 ≤ 30 ✓. Reviewed vs 14d closed-trade P&L from dbo.trades:
+- **Leaders (14d):** TSLA **+$115** (5 tr, 4W), TSM +$57, AAPL +$47 (5/5), MSFT +$31, MU +$30, QQQ +$28,
+  NFLX +$25, UNH +$24, NVDA +$22, SE +$14 — the semi/index/megacap regime the list is built around.
+- **Laggards (14d):** AMD −$77 (4 tr, 1W), AMZN −$57 (5/0), AVGO −$45, JPM −$40, COST −$23, ABNB −$21,
+  SPY −$17. Per the dailies/weekly every one is **regime / opening-drive-fade / weak-cross (IMP-011-filtered)
+  — not signal quality**; all mega-liquid large-caps in intact/recovering trends (AMD bounced +3% pre today
+  eyeing $546 resistance; AMZN/AAPL back at/above 20MA). None a liquidity or quality park → KEEP, on notice.
+- **Chip cohort into the Samsung/SK-Hynix memory wobble** (MU/AVGO/INTC/AMD/NVDA/TSM): a **regime** headwind,
+  not a symbol break; the gate won't open longs into weakness (fewer entries, not bad ones). No park.
+- **C/COST/WMT/GOOG** low or negative recent activity but liquid large-caps the gate simply hasn't triggered
+  cleanly — consistent with prior "keep inactive-but-liquid" discipline → no park-for-inactivity.
+
+### Changes applied to dbo.watchlist
+**No changes.** Nothing locked, but the list is broad (22 ≤ 30) and semi/index/megacap-heavy; **zero
+watchlist earnings/binary risk today or this week**; every laggard is regime/timing/weak-cross per the
+dailies + weekly, none a signal-quality or liquidity park; and a **memory-chip-led risk-off open is the
+wrong tape to chase a momentum add** (today's gainers are speculative/small names outside our universe;
+SPCX too new). QCOM/BIRD/ENPH/WPM/XOM stay parked. Discipline: let IMP-011/IMP-013 keep proving out — do
+not churn the list.
+
+### Final watchlist
+**22 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QQQ
+SE SPY TSLA TSM UNH WMT. Parked: BIRD, ENPH, QCOM, WPM, XOM. Service **NOT restarted** (no watchlist change
+→ the bot reads the list only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open
+positions).
+
+---
