@@ -1437,3 +1437,86 @@ setup existed. 3 hit broker-side (trailed) stops, 8 rode to the EOD flatten.
   the ribbon. No watchlist-name earnings this week (next: META 07-29, AAPL 07-30) → zero binary risk.
 
 ---
+
+## 2026-07-08 — Daily Review
+
+### Stats
+- Closed trades (DB): **7** — 5W / 2L → **71% win rate**. Net realized P&L **+$54.69**
+  (avg +$7.81/trade). Avg win **+$14.14**, avg loss **−$8.01**, **profit factor ≈ 4.4**.
+  Account **equity $9,302.96** (= last_equity $9,248.27 + $54.69; all cash, **0 open positions**).
+- **Books EXACT.** Equity delta (+$54.69) == DB net (+$54.69) to the cent; broker holds 0
+  positions, 14 orders filled today (7 entries + 7 exits), 0 DB-open rows. Clean, reconciled
+  session — the full recovery from yesterday's 07-07 whipsaw (1W/10L / −$179).
+- Service `active` since the 06:29 UTC pre-market restart; no errors/504s/naked carries all day.
+
+### Trade-by-trade review
+**All 7 exited "end-of-day flatten" at ~19:45 UTC** — none hit stop, target, or a bearish-cross
+early exit. Model A throughout. Trend sub-score ≥0.84 on every entry (the 5m gate held all day).
+- **NVDA** (16:41 @199.52, conf 65.65, xo 0.28/tr 0.98/vol 0.18) → 204.49 **+$39.69 (+2.49%)** —
+  **best.** Rode the afternoon semis bounce cleanly; the day's whole edge. Note: gain was realized
+  only by *where it sat at the flatten* — no profit-lock mechanism captured it.
+- **BABA** (14:18 @108.70, conf 79.80, **xo 0.65 strongest**/tr 1.0) → 109.24 **+$12.42 (+0.50%)** —
+  strongest crossover of the day → clean orderly winner. Textbook entry.
+- **AVGO** (14:34 @387.52, conf 62.36, xo 0.30/vol **0.00**) → 390.36 **+$11.36 (+0.73%)** — thin-vol
+  entry that worked; chip cohort traded fine despite the memory/AI wobble.
+- **SE** (19:06 @105.30, conf 61.11, **xo 0.20 weakest**/vol **0.00**) → 105.70 **+$4.80 (+0.38%)** —
+  weakest cross + zero volume score, still green; late (24 min to flatten) but no give-back.
+- **MU** (17:08 @945.30, conf 73.77, xo 0.39) → 947.73 **+$2.43 (+0.26%)** — marginal, near-scratch.
+- **COST** (14:04 @957.68, conf 73.75, xo 0.37) → 954.13 **−$7.10 (−0.37%)** — drifted slightly red
+  into the close; minor EOD give-back, not a stop-out, not signal failure.
+- **TSM** (17:24 @438.69, conf 69.33, xo 0.21 weak/tr 0.84) → 435.72 **−$8.91 (−0.68%)** — **worst.**
+  Faded after entry; weakest-but-one crossover, but SE (xo 0.20) won → crossover strength did **not**
+  separate winners from losers today.
+
+### What worked / what didn't
+- **Worked:** the 5m gate held a real trend all session (trend ≥0.84 on all 7), so entries had
+  follow-through and rode to the close instead of whipsawing out — the exact opposite of 07-07.
+  Strong-cross BABA (0.65) and the NVDA semis bounce carried the day.
+- **Didn't:** nothing broke. The two losers were sub-1% EOD drifts, not stop-outs. Neither
+  crossover strength (SE 0.20 won, TSM 0.21 lost) nor volume score (AVGO/SE vol 0.00 both won)
+  cleanly ranked outcomes today — consistent with a small (n=7), trend-carried sample.
+
+### Lessons & improvement candidates
+1. **[#1, structural — NEEDS INTRADAY-REPLAY VALIDATION, do NOT ship reactively] Break-even /
+   trailing stop on the open position.** 20-day exit-bucket audit is the strongest signal in the
+   data: `end-of-day flatten` (positions that rode to the close) = **62 tr / 60% win / +$497.40**,
+   while `end-of-day flatten (stop/target filled broker-side)` = **27 tr / 19% win / −$512.59**
+   (net 20d ≈ flat, −$15). **The entire drawdown is concentrated in broker-side STOP fills**
+   (targets sit ~10% out and are never hit intraday). A break-even lock (move the bracket stop to
+   entry after +X favorable) would convert some round-trip stop-outs into breakeven/small exits
+   **without widening risk**. BUT it cannot be validated from the DB — exits price off the candle
+   close, there is no fills/high-low stream, so there is **no max-favorable-excursion data** to
+   confirm (a) how many of the 27 stop-outs first went favorable enough to trip a break-even, and
+   (b) whether the +$497 EOD-winner bucket would be prematurely stopped on intraday dips (NVDA's
+   +2.49% today likely dipped mid-session). **Next step:** a dedicated run that reconstructs MFE
+   from Alpaca minute bars for the stop-out cohort, then sizes the break-even offset — then ship.
+   Shipping it today would be a guess ("never make random changes").
+2. IMP-013 (`SIZE_CONFIDENCE_CAP` 85, sizing, shipped 07-06) is **still unobserved** — only the
+   07-07 whipsaw and today have run since. Discipline: one clean variable at a time; do not stack
+   an exit change on top of an unproven sizing change and confound both.
+
+### Decision — NO CODE CHANGE WARRANTED today
+A clean, profitable, well-behaved 5W/2L day with **zero stop-outs** offers nothing that *today's*
+data independently justifies changing (winners/losers don't separate on any recorded sub-score),
+IMP-013 is still unproven, and the one genuinely high-impact candidate (break-even stop) cannot be
+validated from available data and must not be shipped reactively. "Reviewed, no change warranted"
+is the disciplined call. Candidate #1 is logged for a dedicated future run.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 07-09** — 0 broker positions, 0 DB-open rows, equity **$9,302.96** all
+  cash. **Nothing locked**; full watchlist free.
+- **07-08 fully recovered from the 07-07 whipsaw:** 5W/2L / **+$54.69**, all seven rode to EOD
+  flatten on an orderly semis/megacap bounce. **NVDA best (+$39.69/+2.49%)**, BABA the clean
+  strong-cross winner. **No stop-outs, no infra issues.**
+- **No signal-quality parks.** Both small losers (COST −$7.10, TSM −$8.91) were sub-1% EOD
+  give-backs, not symbol failures. TSM had a weak crossover (0.21) but SE won on an equally-weak
+  one (0.20) → no park on quality grounds.
+- **Chip cohort traded fine** (AVGO/NVDA/MU/TSM all signalled; 3 of 4 green) despite the ongoing
+  memory/AI-valuation wobble — the long-only gate found clean longs. **No chip parks.**
+- **SE** won again (+$4.80) on a thin tape (volume sub-score 0.00) → thin-tape watch stays
+  **"watch volume, no park."**
+- **QCOM/BIRD/ENPH/WPM/XOM stay parked** (XOM's oil pop is one Iran headline, not a trend). No
+  watchlist-name earnings this week (next META 07-29, AAPL 07-30) → **zero binary risk**. SPCX
+  still too new for the ribbon.
+
+---
