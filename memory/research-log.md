@@ -985,3 +985,70 @@ SE SPY TSLA TSM UNH WMT. Parked: BIRD, ENPH, QCOM, WPM, XOM. Service **NOT resta
 positions).
 
 ---
+
+## 2026-07-08 — Pre-market Research
+
+**Book CLEAN & FLAT into today** (0 broker positions, equity $9,248.27 all cash); nothing locked → full
+watchlist free. No decided action carried in — the 07-07 daily review flagged **no park candidates** (the
+1W/10L was a broad-regime whipsaw, explicitly *not* symbol quality). Review-and-hold unless overnight news
+changes it.
+
+### Market context
+- **Chip / AI-valuation wobble continues; oil spikes on Iran.** Tue 07-07 closed lower on another AI/semis
+  rotation: Dow **−0.25%** to 52,925 (off its record), S&P **−0.45%** to 7,503.85, Nasdaq Comp **−1.16%** to
+  25,818; **SMH −3%**, MU −4.7%, AVGO/AMD/KLA/MRVL lower (Samsung prelim wobble + SK Hynix ~$28B US listing).
+  This morning futures are **mixed/flattish** — S&P futures firm, **Nasdaq-100 futures soft (~29,400, techs
+  "strong sell")**; Asia fell on AI-valuation fears. The "does the chip rotation keep biting?" question is live.
+- **Oil SPIKED ~+5%** (Brent >$76, WTI >$72) after the US moved to **revoke the license permitting Iranian
+  oil sales** — energy is bid, but a **single geopolitical headline, not a durable uptrend** → **XOM stays
+  parked** (a bid oil name still isn't a clean intraday ribbon long; same discipline as every prior run).
+- **Zero watchlist earnings/binary risk today or this week.** The week's reports are Delta/PepsiCo + Fed
+  minutes — none ours; next tech is **META 07-29, AAPL 07-30**. Today's idiosyncratic movers (IBM +3% on a
+  BofA target, Dell +4% on a Trump plug, EOSE, Circle +6%, AMZN +0.8% on a $25B bond sale, MSFT −1% on 4,800
+  job cuts/Xbox, Rivian −10% offering) are not clean ribbon adds. **SPCX** (joined NDX 07-07) still too new.
+
+### Carried from daily review (07-07)
+- **Book CLEAN & FLAT into 07-08** — 0 positions, equity **$9,248.27** all cash (confirmed live this run).
+  Nothing locked; full watchlist free.
+- **07-07 was 1W/10L / −$179 — worst day since 06-17 — but a broad FALSE-BREAKOUT / whipsaw regime day**, not
+  symbol failure: every 5m-gated fresh 1m cross faded with no follow-through anywhere; **all crosses mid-band
+  (xo 0.21–0.35), zero strong (≥0.40) crosses fired all day** (the tape wasn't trending). All 11 names
+  signalled/filled cleanly; C/NFLX/WMT/GOOG/SE were the biggest losers purely from fading with the market →
+  **no watchlist parks indicated on quality grounds.** Do not park for a one-day regime loss.
+- **Daily-review verdict = "NO CODE CHANGE WARRANTED"** (today's own data contradicts every ready
+  entry-quality candidate; MIN_CROSSOVER raise would have cut the lone winner UNH xo 0.21 and kept the losers;
+  the 07-06 MIN_VOLATILITY hypothesis failed to replicate) — a code/daily-review matter, no watchlist implication.
+- **SE** faded 07-07 (−$21.84) after working 07-06 (+$11.25) → thin-tape watch stays **"watch volume, no park."**
+
+### Watchlist review
+Account ACTIVE, equity **$9,248.27**, BP $36,993, **0 open positions = nothing locked.** 22 enabled / 5 parked
+(BIRD, ENPH, QCOM, WPM, XOM); 27 rows, 22 ≤ 30 ✓. Reviewed vs 10d closed-trade P&L from dbo.trades (57 tr, net
+**−$60**, dragged entirely by the 07-07 −$179 whipsaw — the week ending 07-03 was **+$171 / PF 1.59 / 57% win**):
+- **Leaders (10d):** TSLA **+$108** (4/3), TSM +$57 (3/2), AAPL +$39 (4/4), QQQ +$30 (2/2), INTC +$27 (3/2),
+  NVDA +$13 — the semi/index/megacap trend cohort the list is built around.
+- **Laggards (10d):** MSFT −$56 (early-entry chop + a non-binary 4,800-job-cut headline), AVGO −$45 (07-06
+  highest-conf chip fade, now IMP-013-capped), AMZN −$45 (0W/4, regime fades; +0.8% pre on a $25B bond sale,
+  back ≥20MA), SE −$41 (thin-tape watch), ABNB −$35, C −$26 (07-07 tape fade), GOOG/AMD/WMT/COST all regime.
+  Every one is a **mega-liquid large-cap whose red is the 07-07 broad whipsaw + chip rotation** per the
+  dailies/weekly — none a signal-quality or liquidity park → **KEEP, on notice.**
+- **Chip cohort** (MU/AVGO/INTC/AMD/NVDA/TSM) into the continuing memory/AI-valuation wobble: a **regime**
+  headwind, not a symbol break; the long-only 5m gate won't open longs into weakness (fewer entries, not bad
+  ones) → no park.
+- **C/COST/WMT/GOOG** low/negative recent activity but liquid large-caps the gate simply hasn't triggered
+  cleanly — consistent with prior "keep inactive-but-liquid" discipline → no park-for-inactivity.
+
+### Changes applied to dbo.watchlist
+**No changes.** Nothing locked; the list is broad (22 ≤ 30) and megacap/semi-heavy; **zero watchlist
+earnings/binary risk today or this week**; every laggard is regime/whipsaw/chip-rotation per the dailies + the
+A− weekly, none a quality or liquidity park; and a **chip-pressured / AI-valuation-wobble tape with an oil
+spike is the wrong day to chase a momentum add** (today's gainers — IBM/Dell/EOSE/Circle — are idiosyncratic,
+not ribbon trends; SPCX too new). QCOM/BIRD/ENPH/WPM/XOM stay parked (XOM's oil pop is one headline, not a
+trend). Discipline: **IMP-013 (shipped 07-06) is still unobserved** — do not stack changes or churn the list
+before it proves out.
+
+### Final watchlist
+**22 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QQQ SE
+SPY TSLA TSM UNH WMT. Parked: BIRD, ENPH, QCOM, WPM, XOM. Service **NOT restarted** (no watchlist change → the
+bot reads the list only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
+
+---
