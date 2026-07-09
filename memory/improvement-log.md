@@ -555,5 +555,11 @@ Entry template:
   top-band per-trade loss shrinks; re-check the `vw_confidence_outcome` 80-100 bands over the coming weeks to see
   whether de-sizing the top improves overall PF. If a cleaner sizing-vs-confidence relationship emerges, revisit
   the cap value [85] — set it to 100 to fully revert.)
+- **Observed 07-09: ✅ first live confirmation.** INTC entered at **conf 94.26** (all sub-scores maxed) and was
+  the day's **single biggest loser (−$34.68, −1.25%)** — the exact top-band inversion IMP-013 targets. The cap
+  applied correctly: sized off **eff_conf 85** → alloc_fraction 0.081 (qty **24**) vs the linear ramp's ~0.093
+  (qty ~**27**) — ~3 fewer shares / ~$347 less notional at risk, trimming the loss by ~$5. The all-time
+  `vw_confidence_outcome` **90-100 band is now 0W/3 tr/−$144.42**; 70-79 remains the peak (54 tr, 54%, +$232.93).
+  Entry count unaffected (nothing filtered). Keep observing 80-100 PF over coming weeks before revisiting the cap.
 
 ---

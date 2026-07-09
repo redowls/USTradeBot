@@ -1520,3 +1520,91 @@ is the disciplined call. Candidate #1 is logged for a dedicated future run.
   still too new for the ribbon.
 
 ---
+
+## 2026-07-09 — Daily Review
+
+### Stats
+- Closed trades (DB): **10** — 4W / 6L → **40% win rate**. Net realized P&L **+$22.58**
+  (avg +$2.26/trade). Avg win **+$30.39**, avg loss **−$16.50**, **profit factor ≈ 1.23**
+  (winners ~2× losers → positive expectancy despite the sub-50% hit rate). Account **equity
+  $9,325.52** (all cash, 0 open positions at broker after the EOD flatten).
+- **Books exact to the cent.** Pre-open equity $9,302.94 → close $9,325.52 = **+$22.58**
+  mark-to-market == DB realized **+$22.58**. Broker flat (0 positions), 20 fills = 10 entries
+  + 10 exits, all matching `dbo.trades`. The IMP-008/009/010 fill-truth thread holds; no
+  DB⇄broker desync. Model A throughout.
+
+### Trade-by-trade review
+- **SE** (13:35, conf 62.47, xo 0.2953) $106.47 → **$109.43** EOD **+$53.21** (+2.78%). **Best.**
+  Weak-ish cross but rode a clean all-session Sea Ltd uptrend to the flatten — regime tailwind,
+  not signal strength.
+- **BABA** (13:41, conf 77.20, **xo 0.5822**) $109.82 → $111.40 EOD **+$26.86** (+1.44%). Strong
+  cross, clean trend hold. The day's best signal-quality winner.
+- **ABNB** (14:23, conf 74.47) $144.92 → $146.81 EOD **+$28.35** (+1.30%). Solid trend hold.
+- **AMZN** (17:27, conf 64.05, xo 0.2370) $243.58 → $245.77 EOD **+$13.14** (+0.90%). Low-conf,
+  near the IMP-011 floor, still won — mid-band coin-flip landed heads.
+- **TSLA** (17:37, conf 79.17, all subs ≈max) $405.02 → $404.95 EOD **−$0.28** (scratch). Round-
+  tripped, no net move. Regime (flat tape), not a signal failure.
+- **MU** (13:36, conf 84.63) $1014.30 → $1013.61 EOD **−$1.38** (scratch). Round-trip, no trend.
+- **AVGO #2** (18:02, conf 68.21, **xo 0.2014** — right at the floor) $406.30 → $401.82 EOD
+  **−$13.44** (−1.10%). **Same-day re-entry** after AVGO #1 stopped out at 16:55; faded again.
+- **TSM** (15:07, conf 77.10) $443.23 → $438.39 EOD **−$19.38** (−1.09%). Faded post-entry, rode
+  to flatten. Regime give-back.
+- **AVGO #1** (13:38, conf 67.90, xo 0.3971) $402.64 → **$395.18 trailing stop @16:55** **−$29.82**
+  (−1.85%). **Only intraday stop of the day.** Faded after entry; the broker-side trailing stop
+  caught it (IMP-012 path clean — single WARNING, no traceback storm, reconciled at true fill).
+- **INTC** (13:36, **conf 94.26**, xo 1.00, every sub-score maxed) $115.66 → $114.21 EOD
+  **−$34.68** (−1.25%). **Worst.** The textbook **high-confidence-underperformance** case: a
+  fully-maxed ribbon at entry marked a late/exhausted move that faded. The all-time
+  `vw_confidence_outcome` **90-100 band is now 0 wins / 3 trades / −$144.42**. **IMP-013 already
+  de-sized it** — conf capped at 85 for sizing → alloc 0.081 (qty 24) vs the linear ramp's ~0.093
+  (qty ~27), ~$347 less notional at risk. Working as designed.
+
+### What worked / what didn't
+- **Worked:** winners rode clean trends to the EOD flatten (SE/BABA/ABNB/AMZN); **avg win 2×
+  avg loss → positive expectancy** even at 40% hit rate. **IMP-011** floor honored (lowest survivor
+  AVGO#2 xo 0.2014). **IMP-013** actively trimmed the INTC top-band position (first live confirmation).
+  Exit infra flawless: 1 clean trailing-stop reconcile, 9 clean EOD flattens, books exact.
+- **Didn't:** the **top confidence band inverted again** — INTC (conf 94) the single biggest loser,
+  reconfirming IMP-013's thesis. **AVGO churned both ways** (−$43.26 combined) including a same-day
+  re-entry that lost a second time. Both round-trip scratches (MU/TSLA) were flat-tape regime, not
+  signal failures.
+
+### Lessons & improvement candidates
+1. **Break-even stop lock — RESOLVED with data (the 07-08-requested MFE run), NOT shipped.**
+   Reconstructed max-favorable-excursion from **real IEX minute bars for all 99 clean-book-era
+   trades (06-23→07-09, 0 missing bar-sets)** and simulated moving the stop to entry after +T·R
+   favorable. Result: the edge is **marginal and trigger-fragile** — only an aggressive **0.5R**
+   trigger helps (**+$25.38 / 99 trades**; saved 5 stop-outs +$35.83, but **already forfeited 2
+   winners −$10.45**); **0.75R → +$8.17; ≥1.0R → ≈ $0** (−$0.36 to $0.00). Benefit is ~$0.26/trade
+   concentrated in **5 trades**, and the winner-forfeit (whipsaw) cost would grow on trending days
+   absent from this calm sample. **Not enough to ship**, and stacking an exit change on the
+   **still-unproven IMP-013** (only 3 sessions old) would confound its evaluation. Candidate
+   **downgraded**, evidence archived (`/tmp/mfe_sim.py` logic) — revisit only if the stop-out
+   drawdown re-concentrates.
+2. **High-confidence inversion (INTC today, 90-100 band 0/3):** already addressed by **IMP-013**
+   sizing cap; observing. Do NOT layer a second high-conf change on a 3-trade band (overfit).
+3. **Same-day re-entry (AVGO):** the **only** same-day double-entry in 45 days — a one-off, not a
+   pattern. A re-entry cooldown would overfit a single event. No change.
+
+### Decision — NO CODE CHANGE WARRANTED today
+A healthy, profitable, well-behaved day (positive expectancy, exit infra flawless, books exact).
+The one genuinely high-impact backlog candidate (break-even stop) was finally **measured against
+real minute bars** rather than deferred again — and the MFE evidence shows only a marginal,
+fragile edge that doesn't justify shipping over the still-unproven IMP-013. IMP-013 got its first
+live confirmation (INTC de-sized). "Reviewed, no change warranted" is the disciplined call.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into 07-10** — 0 broker positions, 0 DB-open rows, equity **$9,325.52** all
+  cash. **Nothing locked**; full watchlist free.
+- **SE** was the day's star (+2.78%) on a weak-ish cross (0.30) — momentum name behaving well;
+  thin-tape watch stays **"watch volume, no park."** **BABA/ABNB/AMZN** all traded clean longs.
+- **INTC** — a **maxed-confidence entry (94.26) that faded to the day's worst loss** (−1.25%). It
+  signalled fine (no quality park), but the top confidence band keeps disappointing; IMP-013 now
+  size-limits it. Flag for size-awareness, not exclusion.
+- **AVGO chopped both directions** (−$43.26 combined, incl. a same-day re-entry that lost again) —
+  **watch for whipsaw**; if AVGO stops out early tomorrow, treat a same-day re-signal with suspicion.
+- **MU / TSLA round-tripped to scratch** — flat-tape, no trend; not symbol failures, keep.
+- **QCOM/BIRD/ENPH/WPM/XOM stay parked.** No watchlist-name earnings this week (next META 07-29,
+  AAPL 07-30) → **zero binary risk**.
+
+---
