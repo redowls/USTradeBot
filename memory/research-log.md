@@ -1052,3 +1052,68 @@ SPY TSLA TSM UNH WMT. Parked: BIRD, ENPH, QCOM, WPM, XOM. Service **NOT restarte
 bot reads the list only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-09 — Pre-market Research
+
+**Book CLEAN & FLAT into today** (0 broker positions, equity $9,302.94 all cash); nothing locked → full
+watchlist free. No decided action carried in — the 07-08 daily review (5W/2L / +$54.69, full recovery from
+the 07-07 whipsaw) flagged **no park candidates** and **NO CODE CHANGE WARRANTED**. Review-and-hold unless
+overnight news changes it.
+
+### Market context
+- **Mixed-to-firmer, semis-led rebound attempt.** Futures: S&P +0.2%, **Nasdaq-100 +0.55–0.6%**, Dow ~flat.
+  Semis bifurcated on the wires (one feed: **SMH +1.8%, MU +3.4%, SanDisk +2.4%**; another: MU −3.4%) — the
+  memory/AI-valuation rotation that's chopped the tape all week is still live, but the NDX bid leans risk-on.
+  Follows a weak Wed 07-08 (Dow tumbled on renewed Iran tensions).
+- **Renewed US–Iran tensions + oil risk premium.** US launched fresh strikes on Iran (attacks on Strait of
+  Hormuz shipping); Trump said the ceasefire is "over," then softened ("called Iran to make a deal") → crude
+  roughly flat but with a re-established geopolitical risk premium. A **headline-driven oil bid, not a durable
+  energy uptrend** → **XOM stays parked** (same discipline as every prior run).
+- **BABA +11% pre-market** (watchlist name) — a clear **positive** catalyst; reinforces keeping it, no action.
+- **Zero watchlist earnings/binary risk.** Today's reports are **PepsiCo (PEP)** + June existing-home sales —
+  neither ours; next tech is **META 07-29, AAPL 07-30**. Today's big movers (VTAK +42%, IOTR +35%, PENG +19%,
+  CMMB −20%, FCEL −20%) are speculative small-caps **outside our liquid large-cap universe** → not add
+  candidates. **SPCX** (joined NDX 07-07) still too new for the ribbon.
+
+### Carried from daily review (07-08)
+- **Book CLEAN & FLAT into 07-09** — 0 positions, equity **$9,302.94** all cash (confirmed live this run).
+  Nothing locked; full watchlist free.
+- **No signal-quality parks.** 07-08 was a clean 5W/2L recovery on an orderly semis/megacap bounce (NVDA best
+  +$39.69/+2.49%, BABA the strong-cross winner); both small losers (COST −$7.10, TSM −$8.91) were sub-1% EOD
+  give-backs, not symbol failures. **Chip cohort traded fine** (3 of 4 green) → no chip parks.
+- **SE** won again 07-08 (+$4.80) on a thin tape → thin-tape watch stays **"watch volume, no park."**
+- **QCOM/BIRD/ENPH/WPM/XOM stay parked.** IMP-013 (SIZE_CONFIDENCE_CAP 85, shipped 07-06) is **still
+  unobserved** — do not stack changes or churn the list before it proves out.
+
+### Watchlist review
+Account ACTIVE, equity **$9,302.94**, BP $37,211.76, **0 open positions = nothing locked.** 22 enabled /
+5 parked (BIRD, ENPH, QCOM, WPM, XOM); 27 rows, 22 ≤ 30 ✓. Reviewed vs 10d closed-trade P&L from dbo.trades:
+- **Leaders (10d):** TSLA **+$107.51** (4 tr, 3W), NVDA +$53.05 (3/2), TSM +$47.74, AAPL +$39.46 (**4/4**),
+  QQQ +$29.95 (2/2), INTC +$26.90, BABA +$21.24 (2/2, and +11% pre today) — the semi/index/megacap trend
+  cohort the list is built around, and exactly the names leading today's rebound attempt.
+- **Laggards (10d):** MSFT −$56.08 (early-entry chop + non-binary job-cut headline), AMZN −$44.54 (0W/4,
+  regime fades, back ≥20MA), SE −$36.64 (thin-tape watch), ABNB −$35.01, AVGO −$33.59 (07-06 high-conf chip
+  fade, now IMP-013-capped), C −$26.43, COST −$24.76, GOOG −$23.04, AMD −$23.03, WMT −$22.13. Per the dailies
+  + the A− weekly every one is a **mega-liquid large-cap whose red is the 07-07 broad whipsaw / chip rotation /
+  weak-cross (IMP-011-filtered)** — none a signal-quality or liquidity park → **KEEP, on notice.**
+- **Chip cohort** (MU/AVGO/INTC/AMD/NVDA/TSM) into the continuing memory/AI-valuation wobble: a **regime**
+  headwind, not a symbol break; the long-only 5m gate won't open longs into weakness (fewer entries, not bad
+  ones), and 07-08 showed it still finds clean longs when a trend forms (NVDA +2.49%) → no park.
+- **C/COST/WMT/GOOG** low/negative recent activity but liquid large-caps the gate simply hasn't triggered
+  cleanly — consistent with prior "keep inactive-but-liquid" discipline → no park-for-inactivity.
+
+### Changes applied to dbo.watchlist
+**No changes.** Nothing locked; the list is broad (22 ≤ 30) and megacap/semi-heavy; **zero watchlist
+earnings/binary risk today or this week**; every laggard is regime/whipsaw/chip-rotation per the dailies + the
+A− weekly, none a quality or liquidity park; BABA (+11% pre) is a positive, not a risk; and a bifurcated-chip /
+renewed-Iran-tension tape with an oil bid is the wrong day to chase a momentum add (today's gainers —
+VTAK/IOTR/PENG — are speculative small-caps outside our universe; SPCX too new). QCOM/BIRD/ENPH/WPM/XOM stay
+parked (XOM's oil bid is one Iran headline, not a trend). Discipline: **IMP-013 is still unobserved** — do not
+churn the list before it proves out.
+
+### Final watchlist
+**22 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C COST GOOG INTC JPM MSFT MU NFLX NVDA QQQ SE
+SPY TSLA TSM UNH WMT. Parked: BIRD, ENPH, QCOM, WPM, XOM. Service **NOT restarted** (no watchlist change → the
+bot reads the list only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
+
+---
