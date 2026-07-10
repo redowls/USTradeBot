@@ -1117,3 +1117,53 @@ SPY TSLA TSM UNH WMT. Parked: BIRD, ENPH, QCOM, WPM, XOM. Service **NOT restarte
 bot reads the list only at startup, so a restart would be pointless churn). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-10 — Pre-market Research
+
+### Market context
+- **Quiet, slightly soft open.** S&P futures ~flat/+0.2%, Nasdaq-100 futures **−0.2/−0.4%**, Dow +0.25%,
+  Russell ~flat. **VIX ~15.9** (calm). Driver is **sticky bond yields — US 10Y ~4.6%** keeping "one more Fed
+  hike" chatter alive; gold −0.6%. Year's hot rally "losing steam" narrative but no shock.
+- **No watchlist-name earnings today or this week** (next META 07-29, AAPL 07-30) → **zero binary event risk.**
+- Movers: HPE +9.9%, Lumentum (LITE) +11% (post-report pops — speculative/mid-cap optical, outside our clean
+  large-cap trend universe); **COST −4.2% pre** (see below). SpaceX joining the Nasdaq-100 (SPCX still too new
+  for the ribbon); OPEC "$40 oil" survival story keeps energy soft → **XOM stays parked**.
+
+### Carried from daily review (07-09)
+- Book **CLEAN & FLAT** into today — 0 broker positions, 0 DB-open rows, equity **$9,325.49** all cash.
+  **Nothing locked**; full watchlist free. Verified against `/v2/positions` (count 0).
+- 07-09 was healthy (4W/6L, **+$22.58**, PF 1.23, positive expectancy; exit infra flawless, books exact).
+- Acted on the notes: **INTC** kept (maxed-conf fade is a *sizing*, not a quality, issue — IMP-013 now
+  de-sizes the top band; keep, size-aware). **AVGO** flagged for whipsaw (chopped both ways −$43 on 07-09) →
+  kept but on **whipsaw watch**. **MU/TSLA** scratches = flat-tape, kept. Parked set unchanged.
+
+### Watchlist review
+22 enabled reviewed vs overnight news + 14d closed-trade P&L (`dbo.trades`):
+- **Winners/keeps:** TSLA +$115.09 (4/6), NVDA +$52.56, BABA +$48.10 (3/3), AAPL +$46.86 (5/5), TSM +$28.36,
+  QQQ/MSFT/SE/UNH/MU green — core trend/megacap engine intact. SE thin-tape watch stays "watch volume, no park"
+  (won again 07-09, +2.78%).
+- **COST → PARK.** The one clear negative catalyst: June sales report **disappointed** (comps +8.8% vs May's
+  +12.5%, missed ~10.6% est), FCF "air pocket" from heavy CapEx, JPMorgan cut PT → stock **−4.47% (07-09) then
+  −4.2% pre (07-10)**, an **~8% two-day gap-down** now below both 20MA (958) and 50MA (989; 07-08 close 953,
+  now ~$910). Also the **worst recent P&L on the list — 0W/4, −$29.61 (14d)** and a diversifier (WMT still
+  covers consumer staples). A long-only intraday-ribbon strategy should not chase a name in an accelerating,
+  catalyst-driven downtrend. Parked.
+- **AVGO / AMZN — kept despite red 14d** (AVGO −$76.85, AMZN −$50.47). Mega-liquid trend names; per 07-09
+  review these are **regime give-backs, not symbol failures** (both signalled and traded fine on trend days).
+  AVGO on explicit **whipsaw watch** — if it stops out early and re-signals same-day, treat with suspicion.
+- **No adds.** Today's gainers (HPE/LITE) are single-session earnings pops, not clean established trends; a
+  soft-Nasdaq, sticky-yield tape is the wrong day to chase momentum, and the list is already broad. SPCX too
+  new. **IMP-013 still barely observed (1 live confirmation, 07-09) — do not churn the list before it proves.**
+- **No re-enables.** QCOM/BIRD/ENPH/WPM/XOM all still lack a positive catalyst (XOM: oil still soft on the
+  OPEC story). Stay parked.
+
+### Changes applied to dbo.watchlist
+- **PARK COST** (`enabled=0`): June-sales miss + JPM PT cut, ~8% 2-day gap-down below 20/50MA, worst 14d P&L
+  (0W/4, −$29.61). No adds, no re-enables.
+
+### Final watchlist
+**21 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C GOOG INTC JPM MSFT MU NFLX NVDA QQQ SE SPY TSLA TSM UNH
+WMT. Parked: BIRD, COST, ENPH, QCOM, WPM, XOM. Service **restarted** — active, clean startup, warmup primed
+21/21, 21-symbol iex subscribe confirmed in journal (COST absent, no errors). 🔒 Locked: none (0 open positions).
+
+---
