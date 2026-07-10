@@ -282,6 +282,16 @@ class StrategyEngine:
         )
         if in_window or post_close:
             self._flatten_all_eod(now_utc)
+            return
+        # Outside the close window (regular session): sweep MANAGING positions for a
+        # broker-side stop/target fill the trailing ratchet never caught. The ratchet only
+        # replaces the stop on a higher high, so a stop that fills on a *down* move is never
+        # surfaced as ``StopOrderGone`` — the symbol then sits MANAGING and un-re-enterable
+        # until the 19:45 EOD flatten reconciles it hours late, its exit mistimed/mislabelled
+        # (2026-07-10 SE: stop filled @14:33 UTC, booked @19:45 as "end-of-day flatten").
+        # This detects it within a tick via the read-only reconcile path. IMP-012 residual gap.
+        if market_is_open(now_utc, self._cfg.market_open, self._cfg.market_close):
+            self._reconcile_managing()
 
     def _log_skip(self, symbol: str, decision: EntryDecision) -> None:
         """Explain why a closed candle did not open a position, so a flat session is
@@ -337,11 +347,43 @@ class StrategyEngine:
             # exit at its true broker fill now (via the proven reconcile path) and release
             # the symbol back to WAITING, the same transition the EOD flatten produces.
             # Otherwise the trailing move 422s every candle until the close (the 2026-06-30
-            # AMD/SE bug: 504 tracebacks, symbols stuck MANAGING for ~4.5h).
-            if self._risk.exit_position(symbol, trigger.close, "trailing stop", entry) is not None:
-                self._positions.pop(symbol, None)
-                self._set(symbol, BotState.WAITING)
-                self._flatten_escalated.discard(symbol)  # re-arm if re-entered later
+            # AMD/SE bug: 504 tracebacks, symbols stuck MANAGING for ~4.5h). The lock + state
+            # recheck serialise this with the wall-clock tick's MANAGING sweep
+            # (:meth:`_reconcile_managing`) so the same broker-side fill is never recorded twice.
+            with self._flatten_lock:
+                if self.state(symbol) is not BotState.MANAGING:
+                    return
+                if self._risk.exit_position(symbol, trigger.close, "trailing stop", entry) is not None:
+                    self._positions.pop(symbol, None)
+                    self._set(symbol, BotState.WAITING)
+                    self._flatten_escalated.discard(symbol)  # re-arm if re-entered later
+
+    def _reconcile_managing(self) -> None:
+        """Detect & record a broker-side stop/target fill on a ``MANAGING`` symbol.
+
+        Driven by the wall-clock watchdog (:meth:`tick`) so a stop that filled on a *down*
+        move — which the trailing ratchet never surfaces, since it only replaces the stop on
+        a higher high — is caught within a tick rather than only at the EOD flatten hours
+        later (the 2026-07-10 SE case). :meth:`RiskManager.reconcile_if_closed` is read-only
+        against the broker: it polls order history and returns ``None`` while the position is
+        still open, so an open MANAGING position is left untouched (no close is ever
+        submitted). The lock + state recheck serialise this with the candle thread's
+        ``_manage`` release so the same fill is never recorded twice.
+        """
+        if self._risk is None:
+            return
+        for symbol in list(self._state):
+            if self.state(symbol) is not BotState.MANAGING:
+                continue
+            with self._flatten_lock:
+                if self.state(symbol) is not BotState.MANAGING:
+                    continue  # released by the candle thread between the check and the lock
+                entry = self._positions.get(symbol)
+                if self._risk.reconcile_if_closed(symbol, entry) is not None:
+                    self._positions.pop(symbol, None)
+                    self._set(symbol, BotState.WAITING)
+                    self._flatten_escalated.discard(symbol)  # re-arm if re-entered later
+                    log.info("reconciled broker-side exit for %s -> WAITING", symbol)
 
     def _flatten_all_eod(self, now_utc: datetime) -> None:
         """Close every open position before the session ends (intraday flatten).

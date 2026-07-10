@@ -227,6 +227,45 @@ class RiskManager:
             fill_price = self._executor.close_fill_price(order_id)
             if fill_price is not None:
                 exit_price = fill_price
+        return self._record_exit(symbol, exit_price, reason, entry, order_id)
+
+    def reconcile_if_closed(
+        self, symbol: str, entry: ExecutionResult | None = None
+    ) -> ExitResult | None:
+        """Record a broker-side stop/target fill on a still-``MANAGING`` symbol *without*
+        attempting a close — the poll-driven counterpart to :meth:`exit_position`.
+
+        The trailing stop only surfaces a filled stop leg when a *higher high* triggers a
+        replace that 422s (``StopOrderGone`` → the ``_manage`` reconcile path). When the
+        stop instead fills on a **down move**, no replace is ever attempted, so the fill
+        goes undetected until the EOD flatten reconciles it hours later — the symbol sits
+        ``MANAGING`` (un-re-enterable) and its exit is mistimed/mislabelled (the 2026-07-10
+        SE case: the broker-side stop filled @14:33 UTC yet was booked @19:45 as an
+        "end-of-day flatten" — IMP-012's residual gap). This polls order history through the
+        read-only :meth:`OrderExecutor.reconcile_exit`, which returns ``None`` while the
+        broker still holds the position, so it is safe to call on an open position (it never
+        submits a sell). On a real fill it records the exit at the true broker price, tags it
+        ``stop/target filled broker-side``, and returns it; otherwise ``None``.
+        """
+        reconciled = self._executor.reconcile_exit(symbol)
+        if reconciled is None:
+            return None
+        order_id, exit_price = reconciled
+        return self._record_exit(
+            symbol, exit_price, "stop/target filled broker-side", entry, order_id
+        )
+
+    def _record_exit(
+        self,
+        symbol: str,
+        exit_price: float,
+        reason: str,
+        entry: ExecutionResult | None,
+        order_id: str | None,
+    ) -> ExitResult:
+        """Build, log, persist (via ``on_exit``) and return the :class:`ExitResult` — the
+        shared tail of :meth:`exit_position` and :meth:`reconcile_if_closed`.
+        """
         # Correct the recorded entry price to the actual broker fill. IMP-009 reads the
         # parent buy's `filled_avg_price` moments after the submit ack, but a fill delayed
         # past that short budget falls back to the candle-close estimate and understates P/L

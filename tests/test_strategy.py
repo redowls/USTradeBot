@@ -676,6 +676,58 @@ def test_tick_after_candle_flatten_is_idempotent(cfg):
     assert eng.state("NFLX") is BotState.WAITING
 
 
+# --- wall-clock MANAGING reconcile (IMP-014) -------------------------------
+#
+# 2026-07-10 regression: SE's broker-side stop filled @14:33 UTC on a DOWN move, so the
+# trailing ratchet (which only replaces the stop on a higher high) never attempted a move
+# and never surfaced the fill as StopOrderGone. SE sat MANAGING, un-re-enterable, until the
+# 19:45 EOD flatten reconciled it — its exit mistimed ~5h and mislabelled "end-of-day
+# flatten". The wall-clock watchdog must detect the gone position mid-session and release it.
+
+
+def test_tick_reconciles_broker_side_stop_fill_outside_close_window(cfg):
+    exits: list = []
+    closer = _StopGoneCloser(fill=("stop-se", 113.21))  # broker-side stop fill in order history
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer, on_exit=exits.append),
+        trigger_engine=_FakeEngine([]),  # no candle needed — the watchdog drives this
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.tick(_OPEN_TS)  # mid-session, well OUTSIDE the close window
+    assert closer.closed == []  # read-only reconcile: never submitted a close
+    assert closer.reconciled == ["NFLX"]  # detected the broker-side fill from order history
+    assert len(exits) == 1
+    assert exits[0].exit_price == 113.21  # recorded at the real broker fill
+    assert "stop/target filled broker-side" in exits[0].reason
+    assert eng.state("NFLX") is BotState.WAITING  # freed, not stuck MANAGING for hours
+    assert "NFLX" not in eng._positions
+    # A second tick is a no-op — the symbol is already released (not MANAGING).
+    eng.tick(_OPEN_TS)
+    assert closer.reconciled == ["NFLX"]
+    assert len(exits) == 1
+
+
+def test_tick_reconcile_leaves_open_position_managing(cfg):
+    # A MANAGING position still held at the broker (reconcile_exit → None) must be left
+    # untouched by the sweep: no exit recorded, no close submitted, still MANAGING.
+    exits: list = []
+    closer = _FakeCloser()  # reconcile_exit returns None → still open
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer, on_exit=exits.append),
+        trigger_engine=_FakeEngine([]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()
+    eng.tick(_OPEN_TS)
+    assert closer.closed == []
+    assert exits == []
+    assert eng.state("NFLX") is BotState.MANAGING
+    assert "NFLX" in eng._positions
+
+
 # --- rejected-entry logging ------------------------------------------------
 
 

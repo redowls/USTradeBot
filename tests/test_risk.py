@@ -294,6 +294,48 @@ def test_exit_position_reconciles_broker_side_stop_fill(cfg):
     assert seen == [result]  # on_exit fired → the exit is persisted
 
 
+def test_reconcile_if_closed_records_broker_side_fill(cfg):
+    # IMP-014 regression (2026-07-10 SE): a broker-side stop that fills on a DOWN move is
+    # never surfaced by the trailing ratchet (no higher-high replace to 422), so the
+    # wall-clock sweep polls order history to detect it. reconcile_if_closed must record the
+    # exit at the real fill, tag it a broker-side fill, and NEVER submit a close.
+    ex = _FakeExecutor(reconciled=("stop-se", 113.21))
+    seen = []
+    rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
+    result = rm.reconcile_if_closed("SE", _entry())
+    assert result is not None
+    assert ex.closed == []  # read-only: never attempted a close
+    assert ex.reconcile_calls == ["SE"]
+    assert result.exit_price == 113.21  # the true broker-side fill
+    assert "stop/target filled broker-side" in result.reason
+    assert result.order_id == "stop-se"
+    assert result.qty == 10  # carried from the entry
+    assert seen == [result]  # persisted via on_exit
+
+
+def test_reconcile_if_closed_none_when_still_open(cfg):
+    # reconcile_exit returns None while the broker still holds the position, so a still-open
+    # MANAGING symbol is left untouched — no exit recorded, no close submitted.
+    ex = _FakeExecutor(reconciled=None)
+    seen = []
+    rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
+    assert rm.reconcile_if_closed("SE", _entry()) is None
+    assert ex.closed == []
+    assert ex.reconcile_calls == ["SE"]
+    assert seen == []
+
+
+def test_reconcile_if_closed_clears_trailing_state(cfg):
+    # A reconciled exit is a completed trade, so it must drop the trade's trailing-stop
+    # state (like exit_position) so the maps don't grow unbounded across re-entries.
+    ex = _FakeExecutor(reconciled=("stop-se", 113.21))
+    rm = RiskManager(cfg, executor=ex)
+    rm.update_trailing_stop(_rising(110.0), _entry())
+    assert rm._trail_stops  # populated by the ratchet
+    rm.reconcile_if_closed("NFLX", _entry())
+    assert rm._trail_stops == {} and rm._live_stop_oid == {}
+
+
 def test_exit_position_without_entry_has_no_qty(cfg):
     rm = RiskManager(cfg, executor=_FakeExecutor())
     result = rm.exit_position("NFLX", 99.0, "reason")  # reconciled position, no entry
