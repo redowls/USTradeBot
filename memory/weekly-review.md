@@ -244,3 +244,85 @@ edge** (07-01/07-02 near-zero days) — gather more consolidation-tape sessions 
 the **Monday 07-06 pre-market Claude routine actually runs** (today's failed on an expired OAuth token — re-authed).
 
 ---
+
+## Week ending 2026-07-10 — Grade: C
+
+### Stats
+- **DB (closed, Mon 07-06 → Fri 07-10):** **45 trades, 18W → 40% win**, net **−$172.40**, PF **0.62**, avg win
+  **+$15.39** / avg loss **−$16.64**. Best **+$53.21** (SE 07-09), worst **−$55.80** (AVGO 07-06). By day:
+  07-06 **−$52.33** (11, 6W) · **07-07 −$179.00 (11, 1W)** · 07-08 **+$54.69** (7, 5W) · 07-09 **+$22.58** (10, 4W)
+  · 07-10 **−$18.34** (6, 2W).
+- **Equity: $9,479.66 (Mon 07-06 pre-open) → $9,307.15 (now) = −$172.51 (−1.82%).** The **worst week of the
+  record** — a near-exact mirror of last week's best (+1.84%). **Books exact to the cent every trading day (5/5):**
+  DB net −$172.40 == equity move; 0 phantoms, 0 naked carry, broker flat every night.
+- **The entire loss is ONE day.** 07-07 (a broad false-breakout whipsaw, 1W/10L, **−$179.00**) = **104% of the
+  week's net**; the other **four days combined to +$6.60** — essentially flat. Strip 07-07 and the week is
+  break-even.
+- **Per-symbol drags:** AVGO **−$87.70** (4 tr, whipsawed both ways incl. a 07-09 same-day re-entry), INTC
+  **−$58.68** (2/0, the conf-94 top-band fade), TSM **−$31.23** (3/0), C **−$27.09**, NFLX **−$26.90**. **Winners:**
+  NVDA **+$55.84** (3, 2W), BABA **+$48.10** (3/3), SE **+$28.62** (5, 3W), ABNB **+$26.07** (3, 2W).
+- **Confidence vs outcome (all-time):** **70-79 the peak +$232.93 (54%, 54 tr)**, 60-69 +$80.92 (46%, 101 tr),
+  80-89 +$38.63 (50%, 14 tr), **90-100 0W / 3 tr / −$144.42** — deepened this week by AVGO (conf 96, −$55.80) and
+  INTC (conf 94, −$34.68). The top-band inversion IMP-013 targets is **reconfirmed**.
+- **Service: healthy — `NRestarts=0`, no crashes, no naked carry, no 422 storm.** Only **1 real ERROR all week**
+  (07-06 Telegram `sendMessage` SSL handshake timeout — a side-channel exit alert, **zero trading impact**) + 2
+  benign IMP-012 stop-reconcile WARNINGs (working as designed) + 1 websocket auto-reconnect. A clean-reliability week.
+
+### Grade rationale
+**The mirror of last week — record-worst results (−1.82%) on the same A-grade process that earned the record-best
+week its A−.** Two honest anchors fix the grade. It **cannot be a B** (B = flat-to-positive; this is a real −1.82%
+loss, the biggest weekly drawdown on record). And it is **not a D**, for three reasons: (1) **risk was fully
+controlled** — worst trade −1.62% (AVGO −$55.80), no risk-limit trip, no naked overnight, no system failure, books
+exact to the cent all five days; (2) **no repeated mistakes and no reckless/unvalidated changes** — the multi-week
+exit-infra saga stayed rock-solid, and the only two ships were capital-protective / data-integrity (IMP-013's
+sizing cap is entry-neutral and can only *shrink* a position; IMP-014 is the deliberately-staged fix, green-lit
+exactly on the trigger last week's grade set); and (3) **the entire loss is one unforecastable regime day** —
+07-07's broad false-breakout whipsaw (1W/10L, −$179) was 104% of the week's net, the other four days summing to
++$6.60. Last week's **"Focus for next week" was honored to the letter:** IMP-014 (the staged MANAGING-reconcile
+fix) shipped on its trigger; IMP-011 kept at 0.20 (not raised); the break-even-stop candidate was finally
+**measured against real IEX minute bars** (07-09 MFE run, 99 trades) and **correctly NOT shipped** (edge marginal
+and whipsaw-fragile); and 07-07's disaster was diagnosed as regime and **not overfit** ("reviewed, no change
+warranted" — the day's own data would have removed the only winner and spared the losers). The week's real open
+weakness is genuine but **correctly unactioned**: the long-only ribbon has no edge in a false-breakout tape and no
+daily-loss / mark-to-market stand-down, so it kept opening entries into 07-07's adverse regime — a legitimate
+structural gap that needs live MTM tracking (a larger critical-path change) and must not be rushed off one day.
+Exemplary, fully-validated process on a contained, single-regime-day loss = a solid **C**. It is emphatically not
+higher (a real record-worst loss), and the discipline holds it well clear of D.
+
+### What worked / what didn't
+- **Worked:** process discipline was textbook — the 07-09 **MFE study on real minute bars** (not another deferral)
+  that correctly killed the break-even-stop candidate; **zero overfitting** of the −$179 day; one-clean-variable-
+  at-a-time (only capital-protective / data-integrity ships); books exact to the cent 5/5; **exit infra flawless**
+  (wall-clock flatten every day, all fills real, broker flat nightly, IMP-012 reconciles clean, no 422 storm);
+  risk control held (worst −1.62%, no breach); minimal watchlist churn (only QCOM parked 07-06); service
+  `NRestarts=0`. **IMP-013 got its first live confirmation** (INTC de-sized 07-09). The three green/flat days
+  (07-08/09/10) show the strategy still works when the tape trends or holds.
+- **Didn't:** the strategy has **no edge in chop and no stand-down mechanism** — on 07-07 it took 11 entries into a
+  persistent false-breakout tape and lost 10 (−$179 = the whole week's loss). The **90-100 confidence band deepened
+  to 0W/3/−$144.42**; IMP-013 caps *size* but bound only **once** live and does **not prevent** those entries. Both
+  fresh ships are early: IMP-013 largely unproven (1 binding), IMP-014 unproven (shipped today, after the close).
+
+### Improvements shipped this week
+- **IMP-013** (ac195d6, shipped 07-06) — `SIZE_CONFIDENCE_CAP=85` (cap the confidence→size ramp). **Observed:
+  ⚠️ directionally validated, but only ONE live binding all week** — INTC 07-09 (conf 94 → de-sized off eff_conf 85,
+  ~$347 less notional, ~$5 less loss). No other >85-conf entry occurred to test it (07-06 AVGO conf 96 predated the
+  deploy; 07-07/08/10 all peaked <85). The 90-100 band deepened to 0W/3/−$144.42, reconfirming the inversion — but
+  the cap is **capital-protective sizing, not an entry guard**, so it shrinks damage it can't prevent. Keep at 85;
+  **still early** — needs more bindings to judge the 80-100 PF effect.
+- **IMP-014** (c92fdfd, shipped 07-10) — wall-clock `tick()` sweeps `MANAGING` symbols for a **down-move**
+  broker-side stop fill the trailing ratchet never catches (closes IMP-012's residual gap — **last week's staged #1
+  focus**). **Observed: UNPROVEN — shipped today AFTER the close** (live on the 21:23 UTC restart, 240 tests).
+  Today's SE (stop filled @14:33, undetected ~5h until the EOD flatten) is the **motivating regression case, not
+  yet a validated catch**; first live test is next week.
+
+### Focus for next week
+**Prove the two fresh ships on live data.** (1) **IMP-014** — a down-move broker-side stop fill must now reconcile
+**mid-session** (`reconciled broker-side exit … -> WAITING`, exit booked at the true fill time) with **zero** late
+`end-of-day flatten (stop/target filled broker-side)` rows and no double-exit / double-Telegram. (2) **IMP-013** —
+accumulate more **>85-conf bindings** and re-check the 80-100 PF; keep the cap at 85. Keep **IMP-011 at 0.20** and
+the **break-even-stop candidate downgraded** (07-09 MFE = marginal/fragile). The one strategic question worth
+**designing (not rushing):** a **mark-to-market daily-loss / consecutive-loss stand-down** for broad-adverse days
+like 07-07 — gather 1–2 more whipsaw sessions and design it on live open-P&L before shipping (same discipline that
+made IMP-011 wait 4 clean days). **No entry-logic changes while IMP-013/014 are still proving.**
+
+---

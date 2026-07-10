@@ -561,6 +561,14 @@ Entry template:
   (qty ~**27**) — ~3 fewer shares / ~$347 less notional at risk, trimming the loss by ~$5. The all-time
   `vw_confidence_outcome` **90-100 band is now 0W/3 tr/−$144.42**; 70-79 remains the peak (54 tr, 54%, +$232.93).
   Entry count unaffected (nothing filtered). Keep observing 80-100 PF over coming weeks before revisiting the cap.
+- **Observed 07-10 (weekly review): ⚠️ directionally validated but only ONE live binding all week.** The cap
+  engaged exactly once — **INTC 07-09** (conf 94.26 → de-sized off eff_conf 85, ~$347 less notional, ~$5 less
+  loss). No other >85-conf entry occurred to test it: 07-06's AVGO conf 96 (−$55.80, the week's worst) predated
+  the 21:26 UTC deploy; 07-07 peaked at NFLX 79.5; 07-08 at BABA 79.8; 07-10 at NVDA 83.76 / SE 83.00 (both <85).
+  Meanwhile the **all-time 90-100 band deepened to 0W/3 tr/−$144.42** (AVGO 96 + INTC 94 both losers) — the
+  inversion thesis is **reconfirmed**, but IMP-013 is **capital-protective sizing, not an entry guard**: it can
+  only shrink the damage it does not prevent. Correct and low-risk, but **still early** — needs several more >85
+  bindings before its PF effect on the 80-100 bands can be judged. Keep at 85.
 
 ---
 
@@ -611,5 +619,11 @@ Entry template:
   with **zero** `end-of-day flatten (stop/target filled broker-side)` rows for stops that filled hours
   before the close; and that no double-exit / double-Telegram occurs when the trailing path and the sweep
   race the same fill.)
+- **Observed 07-10 (weekly review): UNPROVEN — shipped today AFTER the close.** Live on the **21:23 UTC**
+  post-close restart (`NRestarts=0`, 240 tests). Today's **SE** (stop filled @14:33 UTC on a down move,
+  undetected until the 19:45 EOD flatten) is the **motivating regression case, not yet a validated catch** —
+  the fix went live only after that row was already booked. First real live test is next week; ship-trigger
+  from last week's weekly (the 07-03 grade) was correctly met, and the change is pure data-integrity so it
+  does not confound IMP-013's still-open evaluation.
 
 ---
