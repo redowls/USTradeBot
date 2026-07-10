@@ -1608,3 +1608,71 @@ live confirmation (INTC de-sized). "Reviewed, no change warranted" is the discip
   AAPL 07-30) → **zero binary risk**.
 
 ---
+
+## 2026-07-10 — Daily Review
+
+### Stats
+- Closed trades (DB): **6** — 2W / 4L → **33% win rate**. Net realized P&L **−$18.34**
+  (avg −$3.06/trade). Avg win **+$15.22**, avg loss **−$12.19**, **profit factor ≈ 0.62**
+  (small day; the two losers TSLA/SE were 88% of the loss). Account **equity $9,307.15**
+  (all cash, **0 open positions** at broker after the flatten).
+- **Books exact to the cent.** Pre-open equity $9,325.49 → close $9,307.15 = **−$18.34**
+  mark-to-market == DB realized **−$18.34**. Broker flat (0 positions), 88 orders today
+  (6 entries + 6 exits + bracket legs/replaces), 0 DB-open rows. IMP-008/009/010 fill-truth
+  thread holds. Model A throughout. Service `active` all session, no 504s, no naked carry.
+
+### Trade-by-trade review
+- **NVDA** (14:11 @207.136, conf **83.76**, xo 0.57 / tr 1.0 / rsi 1.0 / **vol 0.86** / vlt 0.92)
+  → EOD @209.615 **+$24.79 (+1.20%)**. **Best.** High conviction **+ strong volume** rode a clean
+  semis trend hold to the flatten — the day's whole edge. High-conf paying off here (contrast SE).
+- **ABNB** (13:54 @148.17, conf 65.24, xo 0.38 / vol 0.00) → EOD @148.64 **+$5.64 (+0.32%)**. Modest
+  winner, orderly hold; thin volume score again didn't stop a green outcome.
+- **C** (14:02 @140.88, conf 60.19 low, xo 0.24 / vol 0.00) → EOD @140.82 **−$0.66** scratch. Low-conf
+  flat-tape round-trip; regime, not a signal failure.
+- **AMZN** (15:48 @246.35, conf 60.37 low, xo 0.23) → EOD @245.61 **−$4.44 (−0.30%)**. Low-conf, late
+  entry, minor fade to the close. Churn.
+- **SE** (14:02 @114.15, conf **83.00** high, **xo 0.95 strongest** / vol 0.09) → **broker-side stop
+  filled @113.21 at 14:33:21 UTC** **−$18.80 (−0.82%)**, but **detected only at the 19:45 EOD flatten**
+  (booked "end-of-day flatten (stop/target filled broker-side)"). High-conviction entry that faded
+  **straight down** from entry → stopped out inside 30 min. The stop filled on a down move, so the
+  trailing ratchet never surfaced it → **IMP-012 residual gap (see below)**.
+- **TSLA** (13:48 @409.284, conf 69.08, xo 0.41 / vol 0.26) → **trailing stop @404.31 (16:20 UTC)**
+  **−$24.87 (−1.22%)**. **Worst.** Popped after the open (stop trailed 400.94→404.31), then reversed
+  and gave it all back through the trail. Caught **cleanly intraday** via the trailing path (single
+  WARNING, no traceback) — the IMP-012 *rising*-case works. Regime give-back, not signal failure.
+
+### What worked / what didn't
+- **Worked:** NVDA (conf 83.76 **+ volume 0.86**) carried the day on a clean semis hold; exit infra
+  flawless (TSLA's reversal caught intraday, 5 clean EOD flattens, books exact to the cent).
+- **Didn't:** **high-conf split** — NVDA (83.76) won big yet SE (83.00) was a fast stop-out; the
+  **80-89 band stays a coin flip** (now 14 tr / 50% / +$38.63 all-time). No trade cleared **85** today,
+  so **IMP-013's sizing cap never engaged**. Low-conf entries (C 60.19, AMZN 60.37) added small churn
+  (both red). And **SE's stop fill on a down move sat undetected ~5h** — the residual gap, now 4th time.
+
+### Lessons & improvement candidates
+1. **[SHIPPED — IMP-014]** Wall-clock `tick()` now sweeps `MANAGING` symbols for a broker-side
+   stop/target fill the trailing ratchet never caught (fills on a **down move** raise no higher-high
+   replace → no 422 → invisible until the EOD flatten). Read-only `reconcile_if_closed` (never submits a
+   close) records the exit at the true intraday time/price and frees the symbol to `WAITING` within a
+   tick. Closes IMP-012's residual gap; today's SE is the regression scenario. 240 tests, restart clean.
+2. **Volume sub-score (watch, not actionable):** today the winner NVDA had **vol 0.86** and all four
+   losers had low vol (SE 0.09 / TSLA 0.26 / AMZN 0.255 / C 0.00) — but **ABNB won on vol 0.00**, so it
+   doesn't cleanly separate (consistent with 07-08: AVGO/SE vol 0.00 both won). No change; keep logging.
+3. **High-conf 80-89 coin flip:** don't touch a 50/50 band; IMP-013 already size-caps ≥85 (untouched
+   today). The break-even/MFE candidate stays **downgraded** (measured 07-09: marginal/fragile).
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Mon 07-13** — 0 broker positions, 0 DB-open rows, equity **$9,307.15** all
+  cash. **Nothing locked**; full watchlist free.
+- **NVDA** was the day's star (+1.20%) on high conviction **and strong volume** — semis leadership
+  intact; keep.
+- **SE** — a **high-conf entry (83.00) that faded straight down** and stopped out early (−0.82%) on
+  **thin volume (0.09)**; momentum cooled today. **Watch volume, no park.**
+- **TSLA** popped then fully reversed → trailing-stopped for the day's worst (−1.22%). **Chop watch** —
+  if it re-signals early Monday and reverses again, treat with suspicion.
+- **C / AMZN** chopped small on low conviction (both ~scratch/minor red) — flat-tape regime, not symbol
+  failures; keep.
+- **QCOM/BIRD/ENPH/WPM/XOM stay parked.** No watchlist-name earnings next week (META 07-29, AAPL 07-30)
+  → **zero binary risk**.
+
+---

@@ -563,3 +563,53 @@ Entry template:
   Entry count unaffected (nothing filtered). Keep observing 80-100 PF over coming weeks before revisiting the cap.
 
 ---
+
+## IMP-014 — 2026-07-10
+
+- **Problem:** SE's **broker-side stop filled @14:33:21 UTC @113.21** (a −0.82% loss, confirmed in
+  `/v2/orders`), but the bot **did not detect it until the 19:45 EOD flatten** — SE sat `MANAGING`
+  and un-re-enterable for **~5h**, and its exit was booked at **19:45** tagged `end-of-day flatten
+  (stop/target filled broker-side)` rather than at the real ~14:33 intraday fill. This is the
+  **4th occurrence** of IMP-012's flagged **residual gap** (after TSLA 07-01, GOOG+SE 07-02) and the
+  first to produce a concretely **mistimed/mislabelled** row in `dbo.trades` — the very win-rate
+  metric this routine optimizes. (Contrast today's TSLA, whose stop filled on a *rising* tape and was
+  caught cleanly intraday at 16:20 via the trailing path.)
+- **Root cause:** the broker-side stop fill is only surfaced as `StopOrderGone` when the trailing
+  ratchet **attempts a replace**, and `update_trailing_stop` only replaces on a **higher high**. When
+  the stop fills on a **down move** (SE fell straight from entry), no higher high ever occurs → no
+  replace is attempted → the 422 is never raised → the fill is invisible to the state machine until
+  the EOD flatten's `reconcile_exit` finally catches it. IMP-012 fixed the *rising* case; the *falling*
+  case was explicitly deferred (staged fix: "piggyback the IMP-007 wall-clock `tick()` with a bounded
+  MANAGING reconcile"). Today is the ship trigger — a recurring gap now corrupting the trade record.
+- **Change:** `bot/risk.py` — extracted the exit-recording tail of `exit_position` into a shared
+  `_record_exit(...)`; added **`reconcile_if_closed(symbol, entry)`**, a **read-only** poll that calls
+  the existing `reconcile_exit` (returns `None` while the broker still holds the position, so it
+  **never submits a close**) and, on a real fill, records the exit at the true broker price tagged
+  `stop/target filled broker-side`. `bot/strategy.py` — `tick()` now, **outside** the close window and
+  while the market is open, calls new `_reconcile_managing()`: it sweeps `MANAGING` symbols and releases
+  any whose broker-side stop/target has filled, freeing them to `WAITING` within a watchdog tick (~30s)
+  instead of hours later. The candle thread's `_manage` STOP_GONE release and the sweep are both guarded
+  by `_flatten_lock` + a state recheck so the same fill is **never recorded twice**. **No risk widened,
+  no safety disabled, no entry/sizing/threshold logic touched** — state-correctness + data-integrity
+  (IMP-003/012 family). Does not confound IMP-013 (still under observation).
+- **Validation:** full suite **240 passed** (`pytest -q`, was 235 + 5 new). New regressions:
+  `tests/test_risk.py::test_reconcile_if_closed_records_broker_side_fill` (today's SE scenario: fill
+  @113.21 recorded, tagged broker-side, **no close submitted**), `..._none_when_still_open` (open
+  position untouched), `..._clears_trailing_state`; `tests/test_strategy.py::
+  test_tick_reconciles_broker_side_stop_fill_outside_close_window` (mid-session tick detects the gone
+  position, reconciles once, frees to WAITING; second tick is a no-op) and
+  `test_tick_reconcile_leaves_open_position_managing` (a still-held position stays MANAGING). `bot.preflight`
+  **PASS** (Alpaca ACTIVE, equity $9,307.15, 0 positions; 1 WARN = market closed).
+- **Expected impact:** a broker-side stop/target that fills on a down move is detected within a tick →
+  the exit is booked at its **true intraday time & price** (not the 19:45 EOD estimate), the reason is
+  correctly `stop/target filled broker-side` (so the exit-bucket audit stays honest), and the symbol
+  returns to `WAITING` promptly (re-enterable on a fresh valid cross). Data integrity + state-correctness;
+  no win-rate behaviour change.
+- **Commit:** c92fdfd (deployed live on the 2026-07-10 post-close restart)
+- **Observed effect:** (await next review — confirm any intraday broker-side stop fill now logs
+  `reconciled broker-side exit for <SYM> -> WAITING` mid-session and books the exit at the fill time,
+  with **zero** `end-of-day flatten (stop/target filled broker-side)` rows for stops that filled hours
+  before the close; and that no double-exit / double-Telegram occurs when the trailing path and the sweep
+  race the same fill.)
+
+---
