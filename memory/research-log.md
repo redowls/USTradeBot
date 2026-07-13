@@ -1167,3 +1167,63 @@ WMT. Parked: BIRD, COST, ENPH, QCOM, WPM, XOM. Service **restarted** — active,
 21/21, 21-symbol iex subscribe confirmed in journal (COST absent, no errors). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-13 — Pre-market Research
+
+**Q2 earnings season starts this week and it hits the watchlist** — the 07-10 daily-review note
+("no watchlist-name earnings next week → zero binary risk") is **superseded by fresh news**: JPM & C
+report **Tue 07-14 pre-open**, TSM **Wed 07-15**, NFLX & UNH **Thu 07-16**. Book CLEAN & FLAT
+(0 positions), nothing locked → full watchlist free.
+
+### Market context
+- **Futures LOWER, chip-led selloff.** S&P −0.3%, Nasdaq-100 **−0.9%**, Dow ~flat. A **memory/AI-chip
+  reversal**: SK Hynix ADR **−8%** (after its +13% Fri Nasdaq debut) dragged the complex — **MU −5.2%**,
+  SanDisk −6.3%, Seagate −4%, **AMD −2.6%**, INTC lower; Samsung −10.7% / SK Hynix Korea −15% overnight.
+  Attributed to profit-taking + ADR-vs-Korea valuation uncertainty. Follows a green Fri (S&P +0.4%).
+- **Renewed US–Iran strikes over the weekend** (Strait of Hormuz) — oil risk premium back, but a
+  headline, not a durable energy uptrend → **XOM stays parked** (same discipline as every prior run).
+- **Event-heavy week:** **Tue 07-14 June CPI 8:30 ET + Warsh's first congressional testimony** (macro
+  binary; CME prices a possible Sept hike), Wed PPI, Thu Retail Sales. **Earnings on our list:** JPM/C
+  (Tue pre-open), TSM (Wed), NFLX/UNH (Thu). Nothing reports **today**.
+
+### Carried from daily review (07-10)
+- **Book CLEAN & FLAT into Mon 07-13** — 0 broker positions, 0 DB-open rows, equity **$9,307.12** all
+  cash (== last_equity; confirmed live via /v2/positions count 0). Nothing locked.
+- **NVDA** the 07-10 star (+1.20%, high conf + strong volume) → keep; **SE** high-conf fade/stop on thin
+  volume → "watch volume, no park"; **TSLA** popped-then-reversed → chop watch; **C/AMZN** low-conf chop,
+  keep. **QCOM/BIRD/ENPH/WPM/XOM/COST stay parked.** IMP-013/014 still proving — no entry-logic churn.
+
+### Watchlist review
+Account ACTIVE, equity **$9,307.12**, BP $37,228, **0 open positions = nothing locked.** 21 enabled /
+6 parked (BIRD, COST, ENPH, QCOM, WPM, XOM); 27 rows. Reviewed vs 14d closed-trade P&L from dbo.trades:
+- **Leaders (14d):** TSLA **+$82.4** (6/3), NVDA **+$77.8** (4/3), BABA +$48.1 (3/3), AAPL +$39.5 (4/4),
+  QQQ +$30 (2/2), TSM +$28.4 — the trend/megacap engine the list is built around; NVDA/TSLA/AAPL/BABA keep.
+- **Laggards (14d):** AVGO −$76.9 (whipsaw watch), MSFT −$56.1 (early-entry chop), AMZN −$35.8 (0-heavy,
+  regime fades), C −$27.1, GOOG −$23, AMD −$23, WMT −$22.1. All mega-liquid large-caps whose red is the
+  07-07 whipsaw / chip rotation / weak-cross (IMP-011-filtered) per the dailies + C-grade weekly — none a
+  signal-quality or liquidity park → KEEP, on notice. **Chip cohort** (MU/AMD/INTC/AVGO/TSM/NVDA) sells
+  off pre-market on the SK Hynix reversal — a **regime** headwind; the long-only 5m gate won't open longs
+  into weakness (self-protects) → no park.
+- **Earnings risk THIS WEEK:** JPM & C report **Tue 07-14 pre-open** → **today (Mon) is the last session
+  before their prints**; a Monday entry risks a naked-overnight carry into a binary bank-earnings event if
+  the EOD flatten hiccups (the exact tail the MU-park discipline guards). Both are financials/diversifiers,
+  not core trend names → **PARK both today**, re-enable after the prints. TSM (Wed)/UNH (Wed-park)/NFLX
+  (Thu) are flagged for the Tue/Wed/Thu routines, not today's park.
+- **Parked re-enable check:** COST (still downtrending, no catalyst), QCOM (chip laggard into a chip
+  selloff), ENPH/WPM/BIRD, XOM (oil bid is one Iran headline, not a trend) → **all stay parked, no re-enable.**
+
+### Changes applied to dbo.watchlist
+- **PARK JPM** (enabled=0): reports earnings Tue 07-14 pre-open (Q2 bank kickoff); avoid naked-overnight
+  carry into the print; re-enable after.
+- **PARK C** (enabled=0): reports earnings Tue 07-14 pre-open (Q2 bank); avoid naked-overnight carry into
+  the binary print; re-enable after.
+- **No adds** — a chip-selloff, risk-off Monday into CPI/earnings week is the wrong tape to chase a
+  momentum add (SK Hynix too new; today's weakness isn't a ribbon trend). **No re-enables.**
+
+### Final watchlist
+**19 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA GOOG INTC MSFT MU NFLX NVDA QQQ SE SPY TSLA TSM UNH
+WMT. Parked: BIRD, C, COST, ENPH, JPM, QCOM, WPM, XOM. Service **restarted** 11:35 UTC — active, clean
+startup, warmup primed **19/19** from history, 19-symbol iex subscribe confirmed in journal (JPM/C absent,
+no errors), account ACTIVE equity $9,307.12, 0 positions reconciled. 🔒 Locked: none (0 open positions).
+
+---
