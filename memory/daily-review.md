@@ -1676,3 +1676,94 @@ live confirmation (INTC de-sized). "Reviewed, no change warranted" is the discip
   → **zero binary risk**.
 
 ---
+
+## 2026-07-13 — Daily Review
+
+### Stats
+- Closed trades (DB): **2** — 0W / 2L → **0% win rate**. Net realized P&L **−$51.48**
+  (avg −$25.74/trade). Avg loss **−$25.74**; no wins → profit factor 0. Account **equity
+  $9,255.64** (all cash, **0 open positions** at broker after the EOD flatten).
+- **Books exact to the cent.** Pre-open equity $9,307.12 → close $9,255.64 = **−$51.48**
+  mark-to-market == DB realized **−$51.48** (AMZN −$2.52 + NFLX −$48.96). Broker flat
+  (0 positions confirmed via preflight), 0 DB-open rows. Model A throughout. Service `active`
+  all session, no 504s, no naked carry.
+- **Quiet, defensive session on a risk-off, chip-selloff CPI-eve tape** (as the 07-13 pre-market
+  research predicted): only **2 entries** all day. Journald shows the long-only 5m gate did its
+  job — a wall of rejections into the weak tape (UNH conf 59.8/54.9 <60, BABA 56.8 <60, WMT
+  50.4/50.5/61.2, MSFT crossover 0.12/0.06/0.05 <0.20). The bot correctly refused to chase longs
+  into weakness. Low activity here is the gate protecting capital, not a malfunction.
+
+### Trade-by-trade review
+- **AMZN** (13:58 @247.57, conf 68.34, xo 0.28 / tr 0.68 / rsi 1.0 / vol 0.78 / vlt 0.97) → EOD
+  flatten @247.29 **−$2.52 (−0.11%)**. **Near-scratch.** Low-mid-conf entry that round-tripped on
+  a flat/choppy tape; drifted a few cents red into the close. Regime churn, **not** a signal
+  failure — no stop-out, no fade of consequence. (DB exit priced @247.29 off the candle vs the
+  actual broker fill @247.33 — the known Phase 4/6 candle-vs-fill $0.04 estimation gap; benign.)
+- **NFLX** (14:03 @75.32, conf **83.21** high, xo 0.46 / tr 1.00 / rsi 1.00 / **vol 1.00** / vlt
+  0.96) → EOD flatten @73.96 **−$48.96 (−1.81%)**. **Worst — the day's entire loss.** A
+  high-conviction, fully-stacked ribbon (trend/rsi/vol all maxed) that **faded straight down from
+  entry**, rode toward its 73.81 stop, and was flattened at 73.96 (just $0.15 above the stop) at
+  the close. It never triggered the broker-side stop (so IMP-014's sweep had nothing to catch) and
+  never recovered → a clean, textbook instance of the **high-confidence-underperformance** pattern
+  logged repeatedly (INTC 07-09, SE 07-10). NFLX was freshly re-enabled this morning and reports
+  earnings **Thu 07-16** — today was a fresh momentum entry that immediately reversed. Root cause:
+  **signal quality of a maxed ribbon marking a late/exhausted push**, not stop placement (a 2% stop
+  is normal) and not exit logic (nothing to trail — it went straight against the entry).
+
+### What worked / what didn't
+- **Worked:** the defensive gate — 2 entries on a risk-off chip-selloff day, dozens of correct
+  rejections; exit infra flawless (both flattened cleanly, books exact to the cent, broker flat,
+  no 504s / no naked carry). IMP-014 live and quiet (no broker-side stop fill to catch today).
+- **Didn't:** **the high band bit again.** NFLX (conf 83.21) — the single biggest loser — is the
+  4th consecutive session where an ≥80-conf entry disappointed. Its −$48.96 **single-handedly
+  flipped the all-time 80-89 band from +$38.63 (14 tr, per 07-10) to −$10.32 (15 tr / 47% win)**.
+  AMZN (68.34) was harmless scratch churn. Neither loss was an infra or stop-placement failure.
+- **Transient, self-healed:** one `notifier | Telegram sendMessage failed … ConnectionReset` at
+  19:45:26 during the AMZN exit alert — the exception was caught, the bot continued and flattened
+  NFLX normally; preflight at 21:12 confirms Telegram delivery is healthy. A one-off network blip,
+  **not** a code fault — no action.
+
+### Lessons & improvement candidates
+1. **High-conf ≥80 underperformance — candidate: consider lowering IMP-013's `SIZE_CONFIDENCE_CAP`
+   from 85 toward ~80.** The 70-79 band is the clear sweet spot (+$232.93 / 54 tr / 54% win) while
+   the ≥80 bands are collectively **−$154.75** (80-89: −$10.32/15; 90-100: −$144.42/3). But **NOT
+   TODAY, and not reactively:** (a) today's band flip is driven by **one trade** (NFLX) — before
+   today the 80-89 band was *positive* (+$38.63); reacting now would **overfit to a single day**;
+   (b) IMP-013 (cap=85, shipped 07-06) is **still unproven** — it has engaged only once (INTC 07-09)
+   and NFLX at 83.21 is *below* its cap so it didn't even fire today — changing its parameter now
+   would **confound its own evaluation**. Revisit only once IMP-013 has several more observations
+   AND the 80-89 band has post-today data confirming NFLX wasn't an outlier. Logged, not shipped.
+2. **Break-even/MFE stop** stays **downgraded** (measured 07-09 vs real minute bars: marginal/fragile;
+   NFLX today faded straight down with no favorable excursion, so a break-even lock would not have
+   helped it either — reinforces the downgrade).
+3. **IMP-014** (broker-side stop sweep) remains **unexercised** — no down-move broker-side stop fill
+   occurred today; keep observing for its first real live catch.
+
+### Decision — NO CODE CHANGE WARRANTED today
+A 2-trade day (one regime scratch + one known-pattern high-conf fade) is far too thin to justify a
+strategy change, and the one tempting move — lowering the ≥80 sizing cap — would both **overfit to
+the single NFLX trade that flipped the band** and **confound the still-unproven IMP-013**. The gate
+behaved correctly and defensively on a risk-off tape; infra was flawless; books reconcile to the
+cent. "Reviewed, no change warranted" is the disciplined call. Candidate #1 is logged for a future
+run once IMP-013 has matured and the band has more data.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Tue 07-14** — 0 broker positions, 0 DB-open rows, equity **$9,255.64**
+  all cash. **Nothing locked**; watchlist free. **JPM & C are still parked** (report Tue 07-14
+  pre-open) — the pre-market routine should **re-enable them after their prints clear** per the
+  07-13 park plan.
+- **⚠️ Event-heavy Tuesday:** **June CPI 08:30 ET + Warsh congressional testimony** (macro binary),
+  and **JPM/C Q2 earnings pre-open**. Expect another choppy/gappy tape; late-day entries into CPI
+  aftermath carry extra reversal risk.
+- **NFLX** — a **maxed-confidence entry (83.21) that faded straight down to the day's whole loss
+  (−1.81%)** on its first session back on the list, with **earnings Thu 07-16** looming. It signalled
+  fine (no quality park), but flag it: **NFLX is size-/earnings-sensitive** — Wed 07-15 is the last
+  session before its Thu print (same naked-overnight-into-binary risk that parks JPM/C). Consider
+  parking NFLX for Wed's routine.
+- **AMZN** chopped to scratch on a flat tape — regime, not a symbol failure; keep.
+- **TSM reports Wed 07-15, UNH Wed, NFLX Thu 07-16** — flag for the Tue/Wed routines (park the day
+  before each print). **QCOM/BIRD/ENPH/WPM/XOM/COST stay parked** (chip selloff / no trend).
+- Chip cohort stayed weak all day (SK Hynix reversal); the gate opened **zero** chip longs — the
+  long-only 5m gate self-protected against the selloff exactly as intended.
+
+---
