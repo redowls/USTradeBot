@@ -1767,3 +1767,117 @@ run once IMP-013 has matured and the band has more data.
   long-only 5m gate self-protected against the selloff exactly as intended.
 
 ---
+
+## 2026-07-14 — Daily Review
+
+### Stats
+- Closed trades (DB): **6** — 2W / 4L → **33% win rate**. Net realized P&L **−$62.38**
+  (avg −$10.40/trade). Avg win **+$11.60** (QQQ +$0.86, INTC#2 +$22.33), avg loss **−$21.39**,
+  **profit factor ≈ 0.27**. Account **equity $9,193.24** (all cash, **0 open positions** at
+  broker after the EOD flatten).
+- **Books exact to the cent.** Pre-open equity $9,255.62 → close $9,193.24 = **−$62.38**
+  mark-to-market == DB realized **−$62.38**. Broker flat (0 positions, preflight/`/v2/positions`
+  confirmed), 12 fills = 6 entries + 6 exits, all matching `dbo.trades`. IMP-008/009/010 fill-truth
+  thread holds; no phantoms, nothing carried, no naked overnight, no NAKED page. Model A throughout.
+- **Event-heavy CPI-day tape** (June CPI 08:30 ET + Warsh congressional testimony, as the 07-13
+  pre-market flagged): a risk-off/choppy session; every entry was a weak-to-mid crossover (xo
+  0.216–0.30, except TSLA's strong 0.659) and most faded. Service `active` since the 07-13 11:34
+  UTC boot (**NRestarts=0**, running on IMP-014), no 504s/422s/errors all session.
+- Confidence vs outcome (all-time, **80-89 deepened again by today's TSLA loss**): **70-79 the
+  peak +$222.56 (54%, 56 tr)**, 60-69 +$48.44 (45%, 105 tr), **80-89 −$32.38 (44%, 16 tr)** [was
+  −$10.32/15 tr on 07-13], **90-100 −$144.42 (0%, 3 tr, unchanged — no 90+ today)**.
+
+### Trade-by-trade review (Model A throughout; entry times UTC)
+- **TSLA** 13:39 @399.18, conf **83.60** (**xo 0.659 strong**, tr 0.74, rsi 1.0, vol 1.0, vlt 0.93),
+  qty 7 → EOD flatten @396.03 **−$22.05 (−0.79%)**. High-conf (80-89), strongest cross of the day,
+  all confirms high — yet **faded to the flatten** (never threatened its 391.14 stop). The
+  **high-confidence-underperformance** pattern again — the 5th consecutive session an ≥80 entry
+  disappointed (INTC 07-09 c94, SE 07-10 c83, NFLX 07-13 c83, TSLA today c83.6).
+- **QQQ** 13:46 @719.93, conf 67.77 (xo 0.230) qty 2 → EOD @720.36 **+$0.86 (+0.06%)**. Scratch.
+- **INTC #1** 13:49 @107.42, conf **60.10** (just above the 60 gate; xo 0.300, **vol 0.07 thin**,
+  vlt 0.67) qty 13 → **broker-side stop @105.28 filled 14:05:08** **−$27.79 (−1.99%)**. Low-conviction,
+  thin-volume entry stopped near the −2% floor within 16 min on a down move. **Caught intraday by the
+  IMP-014 path at 14:05:30** (~22s after the broker fill) → freed to WAITING → re-enterable (see INTC #2).
+- **WMT** 14:07 @115.56, conf 72.11 (xo 0.236, all confirms 1.0) qty 16 → **broker-side stop @113.52
+  filled 19:22:04** **−$32.69 (−1.77%)**. **Biggest loss.** Drifted straight down over the session; the
+  stop filled on a **down move** (no higher-high replace, so the trailing ratchet never surfaced it) →
+  the exact **IMP-014 regression scenario**. **Reconciled by the IMP-014 wall-clock sweep at 19:22:25
+  (~21s after the fill)**, booked at the true intraday fill/time tagged `stop/target filled broker-side`,
+  freed to WAITING — **NOT** a late `end-of-day flatten (...)` row. First real live catch (see below).
+- **MU** 16:40 @985.10, conf 61.92 (xo 0.231, **vol 0.00**) qty 1 → EOD @982.06 **−$3.04 (−0.31%)**. Scratch.
+- **INTC #2** 16:43 @106.86, conf 71.10 (xo 0.216 — weakest survivor, honors IMP-011 floor) qty 15 →
+  EOD @108.35 **+$22.33 (+1.39%)**. **Best trade.** **Same-day re-entry** after INTC #1's 14:05 stop-out;
+  the name recovered and rode to the flatten. Because IMP-014 freed INTC to WAITING promptly, the bot
+  re-entered and captured the afternoon recovery — a concrete win from the prompt reconcile.
+- **Root cause (day):** **event-day / regime**, not a fixable single defect. On a risk-off CPI tape the
+  gate+cross fired on weak-mid crosses that mostly faded. The two biggest losers (WMT −$32.69, INTC #1
+  −$27.79 = ~97% of gross loss) were **stop-outs on weak-to-mid-conf entries** (conf 72.1/60.1, xo
+  0.236/0.30); the single high-conf loss (TSLA −$22.05) was **~offset by the INTC re-entry (+$22.33)**.
+  Losses contained (worst −1.99% at INTC #1's stop), no risk-limit trip, no infra/stop-placement fault.
+
+### What worked / what didn't
+- **Worked — the headline: IMP-014's FIRST TWO LIVE VALIDATIONS.** Both down-move broker-side stop
+  fills that the trailing ratchet cannot surface (INTC #1 @14:05, WMT @19:22) were detected within ~20s
+  by the wall-clock `_reconcile_managing()` sweep, booked at their **true intraday fill price/time**
+  (tagged `stop/target filled broker-side`, not a late EOD row), and the symbols freed to WAITING —
+  **INTC then re-entered and won +$22.33.** This is exactly the catch the 07-10 weekly asked to prove
+  (`reconciled broker-side exit for <SYM> -> WAITING`, no double-exit, no double-Telegram). Exit infra
+  flawless again: wall-clock EOD flatten fired 19:45, all sells filled in liquid RTH, broker flat, books
+  exact. IMP-011 floor honored (weakest survivor INTC #2 xo 0.216).
+- **Didn't:** the strategy has **no edge on a choppy CPI-event tape** — 6 weak-mid-cross entries, 4
+  faded (2 to stops). And the **≥80 band bit again** (TSLA c83.6 → 80-89 now −$32.38/16 tr), the 5th
+  straight high-conf disappointment — but today it was offset by the INTC re-entry, so it was **not**
+  the day's damage. **No recorded sub-score separated winners from losers today**: the strong-cross
+  TSLA (0.659) lost while the weakest-cross INTC #2 (0.216) won; low-vol MU (0.00) scratched while
+  high-vol WMT (1.0) took the biggest stop — reconfirming (as 07-07/07-10) that neither a crossover nor
+  a volatility/volume floor cleanly ranks outcomes.
+
+### Lessons & improvement candidates (ranked)
+1. **High-conf ≥80 underperformance — candidate still: lower IMP-013's `SIZE_CONFIDENCE_CAP` 85 → ~80.**
+   The ≥80 cohort is now **19 tr / −$176.80** all-time (80-89 −$32.38/16; 90-100 −$144.42/3) vs the clear
+   70-79 peak (+$222.56/56). Today's TSLA (c83.6, loss) is the second post-NFLX 80-89 datapoint, so the
+   07-13 gate condition *"80-89 confirms NFLX wasn't an outlier"* is now met. **But NOT shipped today**,
+   for two firm reasons the mandate demands: (a) the 07-13 review's *other* gate — *"IMP-013 has several
+   more observations"* — is **NOT met**: IMP-013 (cap 85) has bound **only once live** (INTC 07-09; today's
+   TSLA 83.6 is below the cap), so it remains essentially unproven — lowering its parameter now would
+   **confound its own evaluation** and stack a change on an unproven ship; and (b) **it would not have
+   helped today** — the day's damage was low/mid-conf stop-outs (WMT/INTC #1), and TSLA's high-conf loss
+   was offset by the INTC re-entry, so shipping it off today's book would target the wrong cohort. Revisit
+   once IMP-013 has ≥2–3 more live bindings AND the 80-89 band keeps deteriorating on fresh data.
+2. *(watch — accumulating)* **Broad-adverse-day / MTM daily-loss stand-down** (the 07-07 candidate). Today
+   was −$62 on a CPI event day but **not** a whipsaw disaster (2 wins, moderate loss), so it does not add a
+   qualifying occurrence. Still needs live mark-to-market open-P&L tracking (a larger critical-path change)
+   and 1–2 more genuine broad-adverse sessions before deliberate design — do NOT rush off a single day.
+3. *(watch, unchanged)* **Same-day re-entry** is now 2 occurrences (AVGO 07-09 lost, INTC 07-14 **won**) →
+   1W/1L, no actionable pattern; a re-entry cooldown would have **blocked today's best trade**. No change.
+4. *(watch, unchanged)* Volatility/volume sub-score floor — again **failed to separate** today (see above);
+   stays down-weighted (07-07/07-10 contradicted it). Break-even/MFE stop stays **downgraded** (07-09 MFE:
+   marginal/fragile; TSLA/WMT/INTC #1 faded from entry with little favorable excursion → a BE lock wouldn't help).
+
+### Decision — NO CODE CHANGE WARRANTED today
+A moderate −$62 loss on a CPI-event regime day, dominated by two weak-mid-conf **stop-outs** and partly
+offset by a winning re-entry, offers nothing today's data independently justifies changing. The one
+tempting lever (lower the ≥80 sizing cap) is **explicitly gated off** by the 07-13 review (IMP-013 still
+unproven — bound once), **would not have helped today's damage**, and would confound the two still-maturing
+recent ships (IMP-013 07-06, IMP-014 07-10 — validated only *today*). Shipping it would overfit one CPI day
+and violate the one-clean-variable discipline the weekly reviews have repeatedly praised. **The disciplined
+call is to add nothing and let IMP-013/IMP-014 accumulate observations.** Today's real result is *positive on
+process*: IMP-014's first two live catches close out the 07-10 weekly's #1 focus. Candidate #1 logged, not shipped.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Wed 07-15** — 0 broker positions, 0 DB-open rows, equity **$9,193.24** all cash.
+  **Nothing locked**; watchlist free (subject to the earnings parks below).
+- **⚠️ Earnings parks (carried from 07-13, action for the Wed routine):** **TSM reports Wed 07-15** and
+  **UNH Wed 07-15** — park each the session before its print per timing; **NFLX reports Thu 07-16** →
+  **Wed 07-15 is NFLX's last pre-print session, so the Wed routine should PARK NFLX** (same naked-into-binary
+  discipline). **JPM & C** reported **today (Tue 07-14) pre-open** (parked per the 07-13 plan) → **re-enable
+  them now that their prints have cleared** if charts are intact.
+- **TSLA** — a high-conf (83.60) **strong-cross** entry that still **faded** (−0.79%, rode to flatten); 5th
+  straight ≥80 disappointment. It signalled fine (**no quality park**) — flag it as **size-/high-conf-sensitive**,
+  not broken. **WMT & INTC** both stopped out on the risk-off CPI tape (regime, not symbol quality) — and INTC's
+  same-day **re-entry won (+$22.33)**, proof the name wasn't broken; **keep both**.
+- **Weak-mid-cross chop day:** only TSLA had a strong cross (0.659); the rest were 0.216–0.30. On a choppy
+  CPI tape the strategy makes many low-conviction entries with no edge — a **regime** issue, no watchlist fix.
+- **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked.** Chip/semis were mixed on the CPI print.
+
+---
