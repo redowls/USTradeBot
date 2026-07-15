@@ -1227,3 +1227,67 @@ startup, warmup primed **19/19** from history, 19-symbol iex subscribe confirmed
 no errors), account ACTIVE equity $9,307.12, 0 positions reconciled. 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-15 — Pre-market Research
+
+**Earnings-timing correction day.** The 07-14 daily-review notes carried provisional print dates
+("TSM Wed 07-15, UNH Wed 07-15, NFLX Thu 07-16") that fresh SEC/company-source verification this
+morning **corrected**: **TSM and UNH both report Thu 07-16 pre-open** (not Wed), **NFLX reports Thu
+07-16 after the close**. Applying the standing "never hold a name overnight into its binary print"
+discipline (the MU/JPM/C park rule) with the *correct* dates flips two of the three actions — see below.
+
+### Market context
+- **Cautiously positive, tech-led.** Futures modestly higher pre-open (Dow +0.2%, S&P +0.18%,
+  **Nasdaq-100 +0.46%**) after **Tuesday's softer-than-expected June CPI** cut Fed-hike odds to
+  ~17% (CME FedWatch, from ~41%). **June PPI today** + **day 2 of Warsh's congressional testimony**
+  are the macro wildcards; Warsh said one data point isn't victory on inflation → caps the relief.
+- **Chips firm:** ASML +3.8% pre on raised 2026 guidance (AI-demand reassurance) lifting the semi
+  complex — a tailwind for our AVGO/NVDA/AMD/INTC/MU cohort. PayPal +18.5% on a Stripe/Advent
+  takeover bid (not ours). Banks kicked off Q2 strong Tuesday (JPM/C both cleared, re-enabled 07-14).
+- **Q2 earnings — verified dates:** **JPM & C reported Tue 07-14 pre-open** (cleared → both enabled).
+  **TSM Thu 07-16 pre-open**, **UNH Thu 07-16 pre-open (8am ET call)**, **NFLX Thu 07-16 after close**.
+  **No watchlist name reports today (Wed 07-15).** Renewed Strait-of-Hormuz/Iran tension bids oil —
+  a headline, not a trend → **XOM stays parked**.
+
+### Carried from daily review (07-14)
+- **Book CLEAN & FLAT into today** — broker-confirmed **0 positions**, equity **$9,193.22** all cash
+  (== last_equity). **Nothing locked**; watchlist free.
+- **Re-enable JPM & C** (prints cleared 07-14) → **already done 07-14** (both enabled, notes dated).
+- **Earnings parks "per timing":** verified TSM & UNH are **Thu pre-open** ⇒ the session that would
+  carry them naked overnight *into* the print is **today (Wed)** → **PARK both today** (consistent with
+  the note's "park the session before its print"). NFLX is **Thu after-close** ⇒ Thursday, not Wednesday,
+  is its last pre-print session, so **KEEP NFLX today** and park it in the **Thu 07-16** routine. This
+  corrects the note's premise that "Wed is NFLX's last pre-print session" (it isn't — NFLX prints Thu PM).
+- **TSLA/WMT/INTC** losers 07-14 were regime/CPI-tape stop-outs (INTC's same-day re-entry won +$22.33)
+  → no quality parks. **QCOM/BIRD/ENPH/WPM/XOM/COST stay parked.**
+
+### Watchlist review
+Account ACTIVE, equity **$9,193.22**, BP $36,772, **0 open positions = nothing locked.** 21 enabled /
+6 parked reviewed vs 12d closed-trade P&L from dbo.trades:
+- **Leaders (12d):** NVDA **+$55.84** (3/2), BABA **+$48.10** (3/3), SE **+$28.62** (5/3), ABNB +$26.07
+  (3/2), AAPL +$15.23, QQQ +$11.51 (2/2) — the trend/megacap engine; keep.
+- **Laggards (12d):** AVGO −$87.70, NFLX −$75.86 (2/0 — the high-conf fades 07-13/prior), INTC −$64.14,
+  WMT −$54.82, TSLA −$46.73, TSM −$31.23, C −$27.09. All mega-liquid large-caps whose red is the
+  07-07 whipsaw / chip rotation / weak-mid-cross CPI chop per the dailies — **none a signal-quality or
+  liquidity park** → KEEP, on notice. Chip cohort catches today's ASML/AI tailwind.
+- **Earnings risk:** TSM & UNH print **Thu pre-open** → parked today (overnight-into-binary). NFLX prints
+  **Thu after-close** → kept today, flagged for a **Thu park**. JPM/C prints cleared → stay enabled.
+- **Parked re-enable check:** COST (still downtrend/June-sales miss), QCOM (chip laggard), ENPH/WPM/BIRD,
+  XOM (oil is one Iran headline, not a trend) → **all stay parked, no re-enable.**
+
+### Changes applied to dbo.watchlist
+- **PARK TSM** (enabled=0, note dated): reports **Thu 07-16 pre-open**; avoid a naked-overnight carry
+  into the binary print; re-enable after.
+- **PARK UNH** (enabled=0, note dated): reports **Thu 07-16 pre-open (8am ET)**; same overnight-binary
+  discipline; re-enable after.
+- **No adds** — mid-earnings-season on a PPI + Warsh-testimony day is the wrong tape to chase a momentum
+  add; the list is broad and already semi/megacap-heavy. **No re-enables.**
+
+### Final watchlist
+**19 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C GOOG INTC JPM MSFT MU NFLX NVDA QQQ SE SPY TSLA
+WMT. Parked: BIRD, COST, ENPH, QCOM, TSM, UNH, WPM, XOM. Service **restarted** 11:34 UTC — active, clean
+startup, warmup primed **19/19** from history, 19-symbol iex subscribe confirmed in journal (TSM/UNH
+absent, no errors), account ACTIVE equity $9,193.22, 0 positions. 🔒 Locked: none (0 open positions).
+**Thu 07-16 routine: PARK NFLX** (earnings after close) and keep TSM/UNH parked through their prints.
+
+---
