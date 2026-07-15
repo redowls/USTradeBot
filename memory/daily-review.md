@@ -1881,3 +1881,120 @@ process*: IMP-014's first two live catches close out the 07-10 weekly's #1 focus
 - **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked.** Chip/semis were mixed on the CPI print.
 
 ---
+
+## 2026-07-15 — Daily Review
+
+### Stats
+- Closed trades (DB): **7** — 1W / 6L → **14% win rate**. Net realized P&L **−$38.19**
+  (avg −$5.46/trade). **Only winner GOOG +$30.87**; avg loss **−$11.51**, **profit factor ≈ 0.45**.
+  Account **equity $9,155.03** (all cash, **0 open positions** at broker after the EOD flatten).
+- **Books exact to the cent.** Pre-open equity $9,193.22 → close $9,155.03 = **−$38.19**
+  mark-to-market == DB realized **−$38.19**. Broker **flat** (`/v2/positions` = []), **14 fills =
+  7 entries + 7 exits**, every price matching `dbo.trades`. No phantoms, nothing carried, no naked
+  overnight, no NAKED page. Model A throughout.
+- **Service healthy:** `active` since the 11:34 UTC pre-market restart (**NRestarts=0**), running on
+  IMP-014. The only journald ERROR (`connection limit exceeded`, 11:22 UTC) belongs to the **old PID
+  1672358 during the pre-market restart handoff** — the two websocket subs briefly overlapped; the
+  11:34 restart re-subscribed cleanly to 19 symbols. **Zero 504s/422s/errors during the trading
+  session.**
+- **Regime:** cautiously-positive-then-fading tape (softer June CPI Tue cut hike odds, but **June PPI +
+  day-2 Warsh testimony** capped the relief, as the 07-15 pre-market flagged). Entries clustered
+  **13:55–15:01 UTC** on weak-to-mid crossovers (xo 0.28–0.49); most drifted or faded.
+- Confidence vs outcome (all-time, `vw_confidence_outcome`): **70-79 the peak +$220.43 (53%, 59 tr)**,
+  60-69 +$13.75 (44%, 108 tr), **80-89 −$33.73 (41%, 17 tr)** [MSFT 80.31 added a −$1.36 scratch],
+  **90-100 −$144.42 (0%, 3 tr, unchanged — no 90+ today)**.
+
+### Trade-by-trade review (Model A throughout; entry times UTC)
+- **GOOG** 14:30 @364.34, conf **78.47** (xo 0.282, **trend/rsi/vol/vlt all 1.0** — full confirm stack),
+  qty 6 → EOD flatten @369.49 **+$30.87 (+1.41%)**. **Only winner / best trade.** Rode a clean intraday
+  uptrend; trailing stop ratcheted up all session (357.17→364.61 in journal). The full-confirm megacap
+  trend behaved exactly as the model wants.
+- **SE** 14:23 @113.73, conf 71.31 (xo 0.428, **vol 0.232 thin**), qty 19 → **broker-side stop @112.17
+  filled, reconciled 17:05:53** **−$29.64 (−1.37%)**. 2nd-biggest loss. Fell straight from entry (no
+  higher-high ratchet) → the classic down-move stop. **Caught by the IMP-014 wall-clock sweep** (`reconcile_exit
+  SE broker-side fill @112.17` → `reconciled broker-side exit for SE -> WAITING`), booked at the **true
+  intraday fill price/time** tagged `stop/target filled broker-side`, not a late EOD row.
+- **NFLX** 14:39 @74.79, conf 62.33 (xo 0.297, **vol 0.095 very thin**), qty 17 → **broker-side stop
+  @73.32 filled, reconciled 19:18:25** **−$24.99 (−1.97%)**. **Biggest loss** (near the −2% floor). Kept
+  today per pre-market plan (earnings **Thu 07-16 after close**, so Wed is not the pre-print carry
+  session). Straight down-move stop → **again caught cleanly by IMP-014** (`reconciled broker-side exit for
+  NFLX -> WAITING`), booked at fill.
+- **AMZN** 14:30 @254.94, conf 69.74 (xo 0.491, **vol 0.00**), qty 7 → EOD @254.22 **−$5.02 (−0.28%)**. Scratch.
+- **ABNB** 13:55 @148.71, conf 64.88 (xo 0.403, vol 0.083), qty 13 → EOD @148.35 **−$4.68 (−0.24%)**.
+  Scratch. Trailing stop ratcheted up early (147.29→147.63) then drifted back to a flat flatten.
+- **JPM** 15:01 @348.32, conf 79.93 (xo 0.331, all confirms 1.0), qty 4 → EOD @347.48 **−$3.37 (−0.24%)**.
+  Scratch. First session back after its Tue print cleared (re-enabled 07-14) — behaved fine, just no trend.
+- **MSFT** 14:31 @395.58, conf **80.31** (xo 0.344, all confirms 1.0), qty 5 → EOD @395.31 **−$1.36 (−0.07%)**.
+  Near-flat scratch. The **only ≥80 entry today** — it did **not** "bite" (essentially breakeven).
+- **Root cause (day):** **regime, not a fixable single defect.** The two full losses (SE −$29.64 + NFLX
+  −$24.99 = **−$54.63 = 143% of the net loss**) were **broker-side stop-outs on straight-down moves**, both
+  reconciled cleanly by IMP-014; the four scratches (−$14.43 combined) were flat EOD flattens; GOOG's clean
+  trend (+$30.87) offset ~57% of the two stops. Losses contained (worst −1.97% at NFLX's near-floor stop),
+  no risk-limit trip, no stop-placement or infra fault. Third consecutive **soft regime-loss** day (07-13
+  −$51, 07-14 −$62, 07-15 −$38) — chop/fade tapes where the long-only crossover has no edge.
+
+### What worked / what didn't
+- **Worked — IMP-014's 3rd & 4th live validations.** Both down-move broker-side stop fills (SE @17:05,
+  NFLX @19:18) were detected within a watchdog tick (~20s), booked at their **true intraday price/time**
+  (`stop/target filled broker-side`, not late EOD rows), and the symbols freed to WAITING — exactly the
+  behaviour the 07-10 weekly asked to prove, now demonstrated on 4 fills across 2 sessions (INTC+WMT 07-14,
+  SE+NFLX today), **zero** double-exit / double-Telegram. GOOG showed the model's happy path (full confirm
+  stack + clean trend → the day's only win). Exit infra flawless: wall-clock EOD flatten fired 19:45, all
+  sells filled in liquid RTH, broker flat, books exact.
+- **Didn't:** the strategy has **no edge on a fade tape** — 7 mid-conviction entries, 6 red (2 to stops, 4
+  scratch). **Notable but NOT yet actionable:** today the **volume sub-score separated cleanly** — the two
+  full losses (SE vol 0.232, NFLX vol 0.095) and both other losers were **low-volume** entries (ABNB 0.083,
+  AMZN 0.00), while all three **vol=1.0** entries avoided a real loss (GOOG +$30.87 win; MSFT/JPM ~flat). But
+  this **directly contradicts 07-14**, where high-vol WMT (1.0) took the biggest stop and low-vol MU (0.00)
+  scratched — so volume remains an **inconsistent** separator across days (as 07-07/07-10/07-14 all found).
+  One clean day is an artifact, not a signal → **watch, do not act.**
+
+### Lessons & improvement candidates (ranked)
+1. *(watch — accumulating, do NOT ship on one day)* **Volume sub-score as an entry filter.** Today the four
+   losers were all low-volume (conf_volume ≤0.23) and the three vol=1.0 entries avoided a real loss — the
+   cleanest volume/outcome split yet. **But** 07-14 was the exact inversion (high-vol WMT = biggest stop),
+   and 07-07/07-10 also found volume doesn't rank outcomes. Shipping a volume floor now would **overfit to
+   today and contradict a direct recent counterexample**. Track whether "low-vol entries fade" recurs on 2–3
+   more independent sessions before designing a filter; log the per-trade volume/outcome each day.
+2. **Lower IMP-013's `SIZE_CONFIDENCE_CAP` 85 → ~80 — still NOT justified.** The only ≥80 entry today (MSFT
+   80.31) was a **−$1.36 scratch**, so the ≥80 band did **not** bite today (80-89 barely moved to −$33.73/17).
+   No ≥85 binding again → IMP-013 remains bound **only once live** (INTC 07-09), still essentially unproven;
+   the 07-13/07-14 gate ("IMP-013 has several more observations") is **still unmet**. Lowering it now would
+   confound its own evaluation and target a cohort that didn't cause today's damage. Revisit once IMP-013 has
+   ≥2–3 more live bindings AND the 80-89 band deteriorates on fresh data.
+3. *(watch, unchanged)* **Broad-adverse-day MTM daily-loss stand-down** (07-07 candidate). Today −$38 is a
+   modest soft-loss, not a whipsaw disaster (had a +$30.87 winner) → does **not** add a qualifying occurrence.
+   Still needs live open-P&L tracking + 1–2 genuine broad-adverse sessions before deliberate design.
+4. *(watch, unchanged)* Break-even/MFE stop stays **downgraded** — SE and NFLX both faded straight from entry
+   with no favorable excursion, so a break-even lock would not have helped either loser today (reinforces it).
+
+### Decision — NO CODE CHANGE WARRANTED today
+A −$38 soft-loss on a fade/regime tape, whose damage was two **correctly-stopped** down-move exits (both
+**cleanly reconciled by IMP-014** — its 3rd & 4th live catches) partly offset by GOOG's clean trend win, and
+whose remainder was four near-flat scratches, offers nothing today's data independently justifies changing.
+The single tempting lever — a **volume floor** — is the cleanest signal in *today's* book but is **directly
+contradicted by 07-14** and would overfit one session; the other lever (lower the ≥80 cap) is **gated off**
+(IMP-013 still bound once) and **wasn't today's problem** (MSFT ≥80 scratched to breakeven). Books reconcile
+to the cent, infra was flawless, no positions carried. **"Reviewed, no change warranted" is the disciplined
+call** — the real positive is process: IMP-014 has now cleanly caught 4 down-move stops across 2 sessions,
+retiring the 07-10 weekly's #1 concern. Candidates #1 (volume) and #2 (≥80 cap) logged, not shipped.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Thu 07-16** — 0 broker positions, 0 DB-open rows, equity **$9,155.03** all cash.
+  **Nothing locked**; watchlist free (subject to the earnings parks below).
+- **⚠️ EARNINGS PARKS — action for the Thu 07-16 routine:** **TSM reports Thu 07-16 pre-open** and **UNH Thu
+  07-16 pre-open (8am ET)** → **both already parked** for the overnight-into-print carry; **keep parked through
+  their prints, re-enable after.** **NFLX reports Thu 07-16 AFTER the close** → **Thu 07-16 is NFLX's last
+  pre-print session, so the Thu routine should PARK NFLX** (same naked-into-binary discipline). NFLX was
+  correctly kept today and it stopped out −1.97% (regime, not a quality park).
+- **GOOG** — the day's only win (+$30.87) rode a **full-confirm-stack** (trend/rsi/vol/vlt all 1.0) clean
+  uptrend; the megacap trend engine is intact. **Keep.**
+- **SE & NFLX** both stopped out on straight-down fades on **thin volume** (conf_volume 0.23 / 0.095) — flag
+  as **low-volume-fade-prone on this regime**, but **not** signal-quality parks (they signalled fine); keep,
+  on notice. **MSFT/JPM** re-enabled/megacap, chopped to scratch — regime, keep.
+- **Fade-tape watch:** 3rd straight chop/fade session. Only full-confirm-stack trends (GOOG) paid; mid-conf
+  weak-cross entries faded. If PPI/Warsh keep the tape rangebound, expect more low-conviction scratches — a
+  **regime** issue, no watchlist fix.
+- **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked** (chip laggards / oil-headline / no trend).
+
+---
