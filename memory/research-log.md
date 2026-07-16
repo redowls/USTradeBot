@@ -1291,3 +1291,66 @@ absent, no errors), account ACTIVE equity $9,193.22, 0 positions. 🔒 Locked: n
 **Thu 07-16 routine: PARK NFLX** (earnings after close) and keep TSM/UNH parked through their prints.
 
 ---
+
+## 2026-07-16 — Pre-market Research
+
+**Earnings-rotation day.** Two carried actions land today: **PARK NFLX** (reports after today's
+close → today is its last pre-print session) and unwind the TSM/UNH earnings parks now that both
+have reported **pre-open this morning** (same play as JPM/C re-enabled on their 07-14 print morning).
+
+### Market context
+- **Mixed tape, chips soft, Big-Tech-led.** Futures mixed pre-open (Dow +0.2%, **Nasdaq-100 −0.47%**,
+  Russell −0.36%, VIX ~16). Soft **June CPI** (−0.4% m/m, 3.5% y/y; core 2.6%) eased hike fears, but
+  **June PPI (annual 5.5%)** + Warsh caution capped the relief. Wed 07-15 closed higher on a clear
+  **rotation OUT of chips INTO Big Tech**: AAPL +4% (ATH), AMZN/GOOG ~+3%, MSFT ~+3%, while **MU −8%,
+  AMD/LRCX −3%**. This morning **semis sell off across Asia** (KOSPI −6%, Nikkei −3%) on AI-valuation
+  skepticism → a **regime** headwind for our chip cohort (AVGO/NVDA/AMD/INTC/MU/TSM); the long-only 5m
+  gate self-protects (won't open longs into weakness). Oil climbed on renewed Iran headlines → **XOM
+  stays parked**.
+- **Earnings — verified today:** **TSM reported pre-open** (record Q2: rev ~$40.2B +36% y/y, GM 67.7%,
+  ADR EPS $4.31 +14% beat, raised FY26 to >40% growth) — **yet ADR gaps DOWN ~3–4%** to ~$402 (from
+  $419.48) on priced-to-perfection + a raised $62B capex bill / falling FCF. **UNH reported pre-open**
+  (adj EPS **$6.38** vs ~$4.85 est, big beat + **raised FY26 adj to $19.50–20.00**) — strongly positive.
+  **NFLX reports AFTER today's close.** No other watchlist name reports today.
+
+### Carried from daily review (07-15)
+- **Book CLEAN & FLAT into today** — broker-confirmed **0 positions**, equity **$9,155.03 == last_equity**,
+  all cash. **Nothing locked**; watchlist free (subject to the earnings actions).
+- **PARK NFLX today** (after-close print) — **actioned** (the standing naked-into-binary discipline).
+  NFLX was correctly kept 07-15 and stopped −1.97% (regime, not a quality park).
+- **Keep TSM/UNH parked through their prints, re-enable after** — both prints are **out pre-open this
+  morning** (before the 9:30 ET open), so their overnight-into-binary risk is resolved → **re-enable
+  both today**, exactly as JPM/C were re-enabled on their 07-14 pre-open print morning. TSM's gap-down
+  is a reaction, not a broken thesis; the gate won't chase it. UNH's beat is clean.
+- **GOOG** (07-15 sole win, full-confirm-stack trend) → keep. **SE/NFLX** low-volume fades (regime, not
+  quality). **QCOM/BIRD/ENPH/WPM/XOM/COST stay parked.** IMP-013/014 proving — no entry-logic churn.
+
+### Watchlist review
+Account **ACTIVE**, equity **$9,155.03**, BP $36,620, **0 open positions = nothing locked.** 19 enabled /
+8 parked reviewed:
+- **Core megacap/trend engine** (AAPL/AMZN/GOOG/MSFT/QQQ/SPY/TSLA/NVDA) — AAPL/AMZN/GOOG/MSFT are the
+  *leaders* of today's rotation; keep. Chip cohort (AVGO/AMD/INTC/MU/TSM) faces an Asia-led semi selloff
+  — a **regime** headwind, not a symbol/quality issue; the long-only gate self-protects → **keep, on notice.**
+- **BABA/SE/ABNB/C/WMT** — mega/large-liquid; recent red is 07-07 whipsaw / weak-mid-cross chop per the
+  dailies, none a liquidity or signal-quality park → keep.
+- **Earnings actions:** NFLX (after-close) → **PARK**. TSM & UNH (pre-open prints cleared) → **RE-ENABLE**.
+- **Parked re-enable check:** COST (still downtrend/June-sales miss), QCOM (chip laggard into a chip
+  selloff), ENPH/WPM/BIRD, XOM (oil is one Iran headline, not a trend) → **all stay parked, no re-enable.**
+
+### Changes applied to dbo.watchlist
+- **PARK NFLX** (enabled=0): reports earnings **after today's close**; no naked-overnight into a binary
+  print; re-enable after the print is digested.
+- **RE-ENABLE TSM** (enabled=1): Q2 pre-open print cleared (record beat; gapped down ~4% on priced-to-
+  perfection); binary event risk resolved — park was event-driven, not a demotion.
+- **RE-ENABLE UNH** (enabled=1): Q2 pre-open print cleared (beat + raised FY guidance); event risk resolved.
+- **No adds** — a chip-selloff, rotation, PPI/retail-sales day is the wrong tape to chase a momentum add;
+  the list is broad and already megacap/semi-heavy.
+
+### Final watchlist
+**20 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C GOOG INTC JPM MSFT MU NVDA QQQ SE SPY TSLA TSM UNH
+WMT. Parked: BIRD, COST, ENPH, NFLX, QCOM, WPM, XOM. Service **restarted** 11:35 UTC — active, clean
+startup, warmup primed **20/20** from history, 20-symbol iex subscribe confirmed in journal (NFLX absent,
+TSM/UNH present, no errors), account ACTIVE equity $9,155.03, 0 positions reconciled. 🔒 Locked: none.
+**Fri 07-17 routine: re-enable NFLX** once the after-close print is digested (check the post-print gap).
+
+---
