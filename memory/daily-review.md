@@ -1998,3 +1998,96 @@ retiring the 07-10 weekly's #1 concern. Candidates #1 (volume) and #2 (≥80 cap
 - **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked** (chip laggards / oil-headline / no trend).
 
 ---
+
+## 2026-07-16 — Daily Review
+
+### Stats
+- Closed trades (DB): **1** — 0W / 1L → **0% win rate**. Net realized P&L **−$20.64** (−1.16%).
+  Single trade **BABA**. Account **equity $9,134.36** (all cash, **0 open positions** at broker
+  after the EOD flatten).
+- **Books exact to the cent.** Pre-open equity $9,155.03 → close $9,134.36 = **−$20.67** mark-to-market
+  ≈ DB realized **−$20.64** (sub-cent rounding). Broker **flat** (`/v2/positions` = []); today's
+  6 Alpaca orders = **1 entry fill @119.136 + 1 EOD-flatten sell @117.76** + the bracket stop/limit legs
+  (replaced by the trailing ratchet, then **canceled cleanly at flatten** — no naked legs), every fill
+  matching `dbo.trades` (entry 119.136, exit 117.76). No phantoms, nothing carried, no naked overnight,
+  no NAKED page. Model A.
+- **Service healthy:** `active` since the 11:35 UTC pre-market restart (**NRestarts=0**), running on
+  IMP-014. Warmup primed **20/20** from history, 20-symbol IEX subscribe confirmed (NFLX absent per the
+  earnings park; TSM/UNH present). **Zero 504s / 422s / errors** all session.
+- **Regime:** mixed/soft, chip-heavy headwind — **Asia semis sell-off** (KOSPI −6%, Nikkei −3%) + rotation
+  OUT of chips INTO Big Tech, exactly as the 07-16 pre-market flagged. The long-only 5m gate **self-protected**:
+  only **1 entry taken all day**, a wall of `crossover < 0.20` and `confidence < 60` rejections otherwise.
+- Confidence vs outcome (all-time, `vw_confidence_outcome`): **70-79 the peak +$220.43 (53%, 59 tr)**,
+  60-69 **−$6.90 (43%, 109 tr)** [BABA 61.4 added here], **80-89 −$33.73 (41%, 17 tr)**, **90-100 −$144.42
+  (0%, 3 tr, unchanged — no 80+ entry today)**.
+
+### Trade-by-trade review (Model A; entry times UTC)
+- **BABA** 13:51 @119.136, conf **61.43** (xo 0.468, trend 0.659, rsi 1.00, **vol 0.000**, vlt 0.949),
+  qty 15, stop 116.69 / target 130.98 → **EOD flatten @117.76** **−$20.64 (−1.16%)**. Only trade.
+  **Root cause: market regime, not a fixable defect.** A mid-conviction (61.4, marginal 60-69 band)
+  weak-cross entry that never trended: it drifted down from entry on a chip-soft tape, the trailing stop
+  ratcheted from 116.69 but never re-triggered (exit 117.76 sat well above the original stop), so it simply
+  **faded to the wall-clock EOD flatten** for a contained −1.16% loss. Never threatened the −2% floor;
+  no stop-placement, slippage, or infra fault. Classic fade-tape scratch-to-small-loss.
+
+### What worked / what didn't
+- **Worked — gate discipline on a hostile tape.** With Asia semis −6% and a chip-rotation headwind, the
+  long-only 5m gate correctly **refused to open longs into weakness** — only 1 entry all day, and the many
+  rejections were the *right* ones (WMT conf 72.1 xo 0.08, MSFT conf 74.0 xo 0.13 → **IMP-011 crossover
+  floor** filtered the weak-cross high-conf chop cohort as designed). Exit infra flawless: bracket legs
+  canceled cleanly at the 19:45 flatten, sell filled in liquid RTH, broker flat, books exact to the cent.
+- **Didn't:** the one entry the gate *did* allow (BABA, marginal 61.4 band) faded — the persistent
+  **no-edge-on-a-fade-tape** pattern, now a **4th consecutive soft regime-loss day** (07-13 −$51, 07-14 −$62,
+  07-15 −$38, 07-16 −$20.64; each successively *smaller* as trade count falls on the tightening tape).
+- **Volume-floor candidate REFUTED again (do NOT ship).** Today's sole loser BABA had **vol sub-score 0.00** —
+  the exact feature 07-15 tentatively flagged as a "low-vol-fades" signal. But the all-time segmentation is
+  the **opposite**: **vol=0 is the BEST bucket (+$239.28, 30 tr, avg +$7.98)**, vol≥0.5 the **worst
+  (−$180.98, 101 tr)**. A volume floor would have blocked today's trade for the wrong reason and is
+  contradicted by the full history — the 07-15 "watch" candidate is now **actively refuted**, not just unproven.
+
+### Lessons & improvement candidates (ranked)
+1. *(NEW — watch, sample too small to act)* **Crossover sub-score ≥0.7 is a stark loser.** All-time
+   segmentation of *taken* entries: xo 0.5–0.7 **+$275.97 (12W/22, 55%)** = the money band; **xo≥0.7 = 1W/8,
+   −$221.61 (avg −$27.70)** — very-strong crossovers appear to be late/overextended or reversal entries. This
+   is the top-end mirror of IMP-011's 0.20 floor and is **not yet addressed**. **But n=8 → shipping a MAX_CROSSOVER
+   cap now would overfit** exactly as the routine warns. **Track:** log crossover-vs-outcome each day; revisit a
+   soft high-crossover de-rate (or cap) once the ≥0.7 cohort reaches ~15–20 trades and holds negative.
+2. *(refuted — DROP)* **Volume sub-score as an entry filter.** See above — history inverts the 07-15 intraday
+   read (vol=0 is the best bucket, not the worst). **Do not build a volume floor.** Close the candidate.
+3. **Lower IMP-013's `SIZE_CONFIDENCE_CAP` 85 → ~80 — still NOT justified & still gated.** No ≥80 entry at
+   all today (peak 61.4) → IMP-013 remains bound **only once live** (INTC 07-09). The 07-13/07-14/07-15 gate
+   ("needs ≥2–3 more live bindings AND 80-89 deterioration") is **still unmet**. Revisit later.
+4. *(watch, unchanged)* **Broad-adverse-day MTM daily-loss stand-down.** Today −$20 is a *shrinking* soft-loss
+   with 1 trade, not a whipsaw disaster → does **not** add a qualifying occurrence. Needs live open-P&L
+   tracking + 1–2 genuine broad-adverse sessions before design.
+
+### Decision — NO CODE CHANGE WARRANTED today
+A **single** regime-driven −$20.64 loss — one marginal-band weak-cross entry that faded on a chip-soft/
+rotation tape the morning research correctly predicted — is the **weakest possible basis** for a strategy
+change, and the day's only novel signal (crossover ≥0.7 losing) rests on **8 trades** = textbook overfit
+risk. The tempting lever (a volume floor) is now **actively refuted** by the full history. Both open changes
+(**IMP-013** sizing cap, bound once; **IMP-014** down-move reconcile, 4 clean catches) remain **under
+observation** — a third concurrent change would confound them. Books reconcile to the cent, infra was
+flawless, gate discipline was exactly right (self-protected into a semis sell-off), nothing carried.
+**"Reviewed, no change warranted" is the disciplined call.** Candidate #1 (crossover ≥0.7) logged to watch;
+candidate #2 (volume floor) closed as refuted.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Fri 07-17** — 0 broker positions, 0 DB-open rows, equity **$9,134.36** all cash.
+  **Nothing locked**; watchlist free (subject to the NFLX action below).
+- **⚠️ EARNINGS ACTION for the Fri 07-17 routine: RE-ENABLE NFLX.** NFLX reported **after today's close
+  (07-16)** and was correctly parked for it; the binary is now resolved → **re-enable Fri once the post-print
+  gap is digested** (check direction/size before it can open a long). **TSM & UNH** were re-enabled today
+  post-print and behaved as regime names (no entries) — **keep enabled.**
+- **BABA** — today's only trade, a **mid-conviction weak-cross fade** (conf 61.4, xo 0.47, vol 0.00) to a
+  −1.16% EOD flatten; not a signal-quality or liquidity park (it signalled fine, regime faded it) → **keep,
+  on notice as fade-prone in this tape.**
+- **Chip cohort (AVGO/AMD/INTC/MU/TSM/NVDA)** — the 5m gate **never opened a single long** into the Asia-led
+  semis sell-off; the long-only self-protection worked exactly as intended → **keep, no watchlist fix** (regime
+  headwind, not symbol quality). If Asian semis keep bleeding, expect continued chip-side flatness.
+- **Fade-tape watch — 4th straight chop/fade session.** Trade count is *falling* (7→1) as the gate tightens on
+  a rangebound/rotation tape; only full-confirm-stack megacap trends have paid recently. This is a **regime**
+  issue with **no watchlist fix** — resist adding momentum names into rotation chop.
+- **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked** (chip laggards / oil-headline / no trend).
+
+---
