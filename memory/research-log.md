@@ -1354,3 +1354,67 @@ TSM/UNH present, no errors), account ACTIVE equity $9,155.03, 0 positions reconc
 **Fri 07-17 routine: re-enable NFLX** once the after-close print is digested (check the post-print gap).
 
 ---
+
+## 2026-07-17 — Pre-market Research
+
+**NFLX re-enable day.** The 07-16 daily review scheduled one action for today: unwind the NFLX
+event-park now that its after-close print is resolved. Book is CLEAN & FLAT (0 positions) →
+NFLX is not locked and is free to re-enable.
+
+### Market context
+- **Broad risk-OFF, semis-led.** Futures lower into the open: Dow −0.6%, S&P −0.9%, **Nasdaq-100
+  −1.9%** on **AI-spending jitters**. A fresh **semiconductor selloff**: SOXX −3.7%, **NVDA −3%,
+  MU/INTC/ARM −4%, AMAT/LRCX −5%** — a direct **regime** headwind for our chip cohort
+  (AVGO/AMD/INTC/MU/TSM/NVDA); the long-only 5m gate self-protects (won't open longs into
+  weakness). Majors head for a losing week. Gold bid as a safe haven.
+- **NFLX Q2 (after 07-16 close):** narrow EPS beat (~in-line rev) but **weak Q3 guidance**
+  (rev growth ~11.7% vs ~$13B est) + decelerating growth + engagement worries → **stock −8–9%
+  after hours to a fresh 52-week low** (−21% YTD). A **chart-breaking gap DOWN**, the mirror of
+  MU's 06-25 blowout re-enable — but a gap-down does not disqualify a top-liquid mega-cap; the
+  gate simply won't chase it lower.
+- **Earnings today:** TRV, TFC, ISRG (−10% post-print), FITB — **none on our watchlist.** No
+  watchlist name reports today. Oil firm on Iran headlines → **XOM stays parked**.
+
+### Carried from daily review (07-16)
+- **Book CLEAN & FLAT into today** — broker-confirmed **0 positions**, equity **$9,134.34 ==
+  last_equity**, all cash. **Nothing locked.**
+- **RE-ENABLE NFLX** (after-close print digested) → **actioned.** Gap is a hard down-move to a
+  52-wk low, but the park was purely event-driven (naked-into-binary); the binary is resolved.
+  NFLX is a liquid, intraday-trending mega-cap = strategy universe; the long-only gate
+  self-protects while it sits in a post-earnings downtrend, exactly as it does on the chip
+  cohort today. Parking a liquid name merely for gapping down would contradict keeping
+  AMD/INTC/MU/NVDA enabled through the same risk-off tape. Re-enabled, on notice. Asset
+  re-verified on Alpaca: `tradable=true, status=active`.
+- **TSM & UNH** re-enabled 07-16 post-print, behaved as regime names → keep. **BABA** kept
+  (fade-prone on notice). **Chip cohort** kept (regime headwind, no watchlist fix). **Fade-tape
+  watch (now 5th soft session):** resist adding momentum names into rotation/risk-off chop.
+
+### Watchlist review
+Account **ACTIVE**, equity **$9,134.34**, BP $36,537, **0 open positions = nothing locked.**
+20 enabled / 7 parked reviewed vs 14d closed-trade P&L from dbo.trades (61 tr, 21W, net
+**−$345** — the 07-07 whipsaw + a 4-day fade stretch; regime, per the dailies):
+- **14d greens:** NVDA +$55.84 (3, 2W), BABA +$27.46 (4, 3W), ABNB +$21.39, AAPL +$15.23,
+  QQQ +$11.51 (2/2), GOOG +$10.65, UNH +$2.88 — the trend/megacap engine still pays on
+  dispersion days. **Reds:** NFLX −$100.85 (0/3, pre-park regime), AVGO −$87.70, INTC −$64.14,
+  WMT −$54.82, TSLA −$46.73, TSM −$31.23 — every one is **regime (07-07 whipsaw / semi
+  rotation / fade tape), not signal or liquidity quality** per the daily reviews; all
+  mega-liquid, none a park candidate.
+- **Parked re-enable check:** COST (still downtrend / June-sales miss, 0/4), QCOM (−14% vs
+  20/50MA, thin $vol, lone chip laggard into a chip selloff), ENPH/WPM/BIRD, XOM (oil is one
+  Iran headline, not a trend) → **all stay parked, no re-enable.**
+
+### Changes applied to dbo.watchlist
+- **RE-ENABLE NFLX** (enabled=1, note "re-enabled 2026-07-17: earnings binary resolved (weak Q3
+  guide, ~8% gap-down to 52wk low); gate self-protects, on notice"). The single decided action.
+- **No adds** — a risk-off, AI-jitters, semi-selloff Friday (5th straight soft/fade session) is
+  the wrong tape to chase a momentum add; the list is broad and already megacap/semi-heavy.
+  BIRD/COST/ENPH/QCOM/WPM/XOM stay parked.
+
+### Final watchlist
+**21 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C GOOG INTC JPM MSFT MU NFLX NVDA QQQ SE
+SPY TSLA TSM UNH WMT. Parked (6): BIRD COST ENPH QCOM WPM XOM. Service **restarted** 11:35 UTC —
+active, `NRestarts=0`, clean startup, warmup primed **21/21** from history, 21-symbol iex
+subscribe confirmed in journal (NFLX present, no errors), account ACTIVE equity $9,134.34,
+0 positions reconciled. 🔒 Locked: none (0 open positions).
+
+---
