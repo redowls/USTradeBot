@@ -2091,3 +2091,137 @@ candidate #2 (volume floor) closed as refuted.
 - **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked** (chip laggards / oil-headline / no trend).
 
 ---
+
+## 2026-07-17 — Daily Review
+
+### Stats
+- Closed trades (DB): **5** — 0W / 5L → **0% win rate**. Net realized P&L **−$113.26**
+  (avg −$22.65/trade). No winners; avg loss −$22.65, **profit factor 0.00**. Account
+  **equity $9,021.08** (all cash, **0 open positions** at broker after the EOD flatten).
+- **Books exact to the cent.** Pre-open equity $9,134.34 → close **$9,021.08 = −$113.26**
+  mark-to-market == DB realized **−$113.26**. Broker **flat** (`get_all_positions()` = []),
+  cash == equity, nothing carried, no naked overnight, no NAKED page. Model A throughout.
+- **Service healthy:** `active` since the 11:35 UTC pre-market restart (**NRestarts=0**),
+  running IMP-011/013/014. Warmup primed **21/21**, 21-symbol IEX subscribe (NFLX present per
+  the earnings re-enable). **Zero 504s / 422s / errors** all session; EOD flatten fired clean
+  at 19:45 UTC.
+- **This is the WORST of a now-FIVE-day soft/regime-loss streak** (07-13 −$51, 07-14 −$62,
+  07-15 −$38, 07-16 −$20.64, **07-17 −$113.26**) — the shrinking trend BROKE today as a broad
+  risk-off semis selloff re-widened the damage. Second-worst single day of the period after
+  **07-07 −$179** (the originating broad-whipsaw session).
+- Confidence vs outcome (all-time, `vw_confidence_outcome`): **70-79 the peak +$156.97 (51%,
+  61 tr)** [INTC 76.24 + NFLX 73.71 both lost today → band fell from +$220 to +$157], **60-69
+  −$56.70 (42%, 112 tr)** [UNH/MU/TSM added], **80-89 −$33.73 (41%, 17 tr)**, **90-100 −$144.42
+  (0%, 3 tr, unchanged — no ≥80 entry today; peak conf was INTC 76.24)**.
+
+### Trade-by-trade review (Model A; entry times UTC)
+All five were **long entries into the premarket-flagged broad risk-off, semis-led selloff**
+(Nasdaq-100 futures −1.9%, SOXX −3.7%, NVDA/MU/INTC −3–4% on AI-spending jitters). Three of the
+five (MU/TSM/INTC) were the exact chip cohort the morning research called out.
+- **INTC** 17:32 @97.66, conf **76.24** (xo 0.457, trend 1.0, rsi 1.0, vol 0.562, vlt 0.941),
+  qty 22 → **broker-side stop @95.86** **−$39.60 (−1.84%)**. **Biggest loss.** Highest-conf
+  entry of the day, into the −4% chip tape; fell straight from entry, no higher-high ratchet →
+  classic down-move stop. **Caught cleanly intraday by IMP-014** (booked `stop/target filled
+  broker-side` @18:15, not a late EOD row).
+- **TSM** 17:17 @403.57, conf 63.36 (xo 0.208, trend 0.743, vol 0.484), qty 4 → **broker-side
+  stop @395.52** **−$32.20 (−1.99%)**. **2nd-biggest**, near the −2% floor. Weak-cross entry on
+  an intraday chip bounce that immediately resumed lower. **IMP-014 catch** @19:08.
+- **NFLX** 18:43 @69.39, conf 73.71 (xo 0.292, vol 1.0, all confirms high), qty 31 → **EOD
+  flatten @68.62** **−$23.85 (−1.11%)**. First session back after the earnings re-enable; opened
+  a long into the post-print downtrend on an intraday bounce, faded to the flatten. Regime, not a
+  quality issue (it signalled fine).
+- **UNH** 16:06 @432.15, conf **60.14** (xo 0.291, trend 0.651, vol 0.225), qty 4 → **EOD
+  flatten @428.04** **−$16.44 (−0.95%)**. Marginal-band earliest entry; drifted down all session,
+  trailing stop never re-triggered, faded to the flatten.
+- **MU** 16:30 @885.18, conf **60.04** (xo 0.224, trend 1.0, vol 0.00), qty 1 → **broker-side
+  stop @884.01** **−$1.17 (−0.13%)**. Near-scratch; qty 1 (high price / small alloc) contained it.
+  **IMP-014 catch** @17:57.
+- **Root cause (all 5):** **market regime — a broad risk-off, semis-led selloff, exactly as the
+  07-17 pre-market predicted.** The long-only 5m gate, which the morning research expected to
+  "self-protect," instead opened 5 longs on intraday bounces that each resumed lower. The two
+  full chip stops (INTC −39.60 + TSM −32.20 = **−$71.80 = 63% of the day's loss**) were correct
+  down-move stops on the −4% semis tape; NFLX/UNH faded to flat-ish flattens; MU was a scratch.
+  Losses contained (worst −1.99% at TSM's near-floor stop), no risk-limit trip, no stop-placement,
+  slippage, or infra fault.
+
+### What worked / what didn't
+- **Worked — IMP-014's 5th/6th/7th live catches.** All three down-move broker-side stop fills
+  (MU 17:57, INTC 18:15, TSM 19:08) were detected within a watchdog tick and booked at their
+  **true intraday price/time** tagged `stop/target filled broker-side` — not late EOD rows — and
+  the symbols freed to WAITING. Zero double-exit / double-Telegram. Exit infra flawless: wall-clock
+  EOD flatten fired 19:45, NFLX/UNH sold in liquid RTH, broker flat, books exact to the cent.
+- **Didn't:** the long-only crossover strategy has **no edge — and now takes real damage — on a
+  broad risk-off down day.** The gate did NOT self-protect as the morning research hoped: 5 mid-band
+  crossovers (xo 0.21–0.46) fired on intraday bounces and all faded. This is the SAME failure mode
+  as **07-07** (−$179, 11 mid-band longs into a broad whipsaw, 1W/10L): *the 5m gate opens multiple
+  longs on intraday bounces during a market-wide adverse tape, and they all fade/stop.* Two clean
+  qualifying broad-adverse sessions are now on record (07-07 whipsaw, 07-17 risk-off selloff).
+
+### Lessons & improvement candidates (ranked)
+1. **⬆ ELEVATED — Broad-adverse-day stand-down / daily-loss circuit breaker.** First logged
+   **07-07** (the −$179 whipsaw) with the explicit gate *"design it on MTM drawdown, gather ≥1–2
+   more broad-adverse days as evidence, and ship deliberately — NOT rushed off one day."* **Today
+   is that additional qualifying broad-adverse session** (07-17 −$113, 0W/5L, broad risk-off; same
+   many-mid-band-longs-into-an-adverse-tape failure mode). The gate's evidence bar is now MET (2
+   genuine sessions: 07-07 + 07-17, together **−$292 = the bulk of the recent drawdown**). The bot
+   still has **no daily-drawdown or consecutive-loss entry halt** (only the feed-loss fail-safe).
+   **Concrete design brief for the deliberate build:** track intraday **realized+unrealized (MTM)
+   P&L vs the session-open equity**; when the session drawdown breaches a floor (candidate ≈ **−2%
+   to −2.5% of open equity**, i.e. ~−$180 to −$225 at current equity — sized above a normal 3–4
+   contained-stop day and below these two disaster days) OR **N consecutive full stop-outs** (≈3),
+   **stop opening NEW entries for the rest of the session** (keep managing/flattening open ones;
+   reset at the next session open). On today's timeline a realized −$90 / 3-consecutive-loss halt
+   after INTC (18:15) would have **blocked NFLX (−$23.85)**; on 07-07 it would have blocked most of
+   the 10 losers. **Why still NOT shipped tonight:** (a) the routine's own chosen design is
+   **MTM-based**, which needs new intraday equity/open-P&L tracking state — a **critical-path
+   change**, not a one-line tweak, and rushing it reactively post-loss is the exact overfit trap the
+   dailies warn against; (b) it is a **behavioral entry change** that would **confound IMP-013**
+   (sizing cap, still bound only once — needs several more >85 bindings) and muddy IMP-014's fresh
+   proving; a third concurrent behavioral change violates the one-clean-variable discipline. → **Ship
+   deliberately as the NEXT change, with the weekly review's blessing, once IMP-013 has more bindings
+   or is graded.** This is now the **#1 design priority.**
+2. *(watch, unchanged)* **Crossover ≥0.7 de-rate/cap** (07-16 candidate). N/A today — all five
+   crosses were 0.21–0.46, none ≥0.7. Cohort still ~8 trades; keep accumulating before acting.
+3. **Lower IMP-013's `SIZE_CONFIDENCE_CAP` 85 → ~80 — still NOT justified & still gated.** No ≥80
+   entry today (peak INTC 76.24). IMP-013 remains bound **only once live** (INTC 07-09); the
+   multi-review gate ("≥2–3 more live bindings AND 80-89 deterioration") is **still unmet**. Revisit later.
+4. *(refuted — closed)* **Volume floor** — the two full losers today split on volume (INTC vol 0.562
+   full-loss vs MU vol 0.00 scratch; TSM 0.484), reconfirming volume does NOT rank outcomes. Stays closed.
+5. *(refuted — do NOT re-propose)* **Market-direction / skip-bearish regime gate** was analyzed and
+   **refuted with data on 07-09**. Today's fix is a *drawdown* stand-down (candidate #1), NOT a
+   market-direction filter — the two are distinct; do not conflate.
+
+### Decision — NO CODE CHANGE WARRANTED today
+A −$113 loss whose entire damage is a **broad risk-off, semis-led selloff the morning research
+predicted to the sector** — five long entries on intraday chip/mega-cap bounces that each resumed
+lower, two correct down-move stops (both **cleanly caught by IMP-014**, its 5th–7th live validations)
+plus two fades and a scratch — is a **market-regime** outcome, not a fixable single defect that today
+independently justifies changing. The one high-impact lever this day strengthens (the broad-adverse
+stand-down) is now **evidence-qualified** (2nd genuine session) and **elevated to #1 design
+priority**, but its routine-chosen **MTM design is a critical-path build** that must be shipped
+**deliberately** — not rushed reactively post-loss, and not concurrently with **IMP-013** (bound once,
+unproven) and **IMP-014** (still proving), which a third behavioral change would confound. Every other
+lever is refuted (volume floor, market-direction gate), gated (≥80 cap — not today's problem, no ≥80
+entry), or premature (crossover-cap, n≈8). Books reconcile to the cent, infra flawless, gate/exit
+discipline correct, nothing carried. **"Reviewed, no change warranted" is the disciplined call** — with
+the daily-loss stand-down now teed up as the next deliberate build. Candidate #1 elevated, nothing shipped.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Mon 07-20** — 0 broker positions, 0 DB-open rows, equity **$9,021.08**
+  all cash. **Nothing locked**; watchlist free. (Next session is Monday 07-20; today was Friday.)
+- **Chip cohort (INTC/TSM/MU/NVDA/AVGO/AMD)** took the day's real damage on the AI-spending-jitters
+  semis selloff (SOXX −3.7%): **INTC −$39.60 and TSM −$32.20 were the two full stops** (63% of the
+  loss). All signalled and stopped correctly — **regime, NOT symbol/liquidity quality; keep all
+  enabled.** If AI-capex jitters persist into Monday, expect continued chip-side adverse pressure —
+  resist adding chip/momentum names into a risk-off tape.
+- **NFLX** — first session back after the earnings re-enable; opened a long into its post-print
+  downtrend and faded −1.11% to the flatten. Not a quality park (binary resolved, signalled fine),
+  but it is **in a fresh post-earnings downtrend** — **keep, on notice as fade-prone** until it bases.
+- **UNH** faded to a −0.95% flatten (marginal 60.14 band); **MU** a −0.13% scratch — regime, keep both.
+- **Regime, not watchlist:** 5th straight soft session, and today it turned into the worst on a
+  broad risk-off day. No single symbol is broken; the issue is the strategy opening longs into a
+  market-wide down tape — a **strategy/regime** matter (see the elevated stand-down candidate), **not
+  a watchlist fix.** No parks indicated.
+- **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked** (chip laggards / oil-headline / no trend).
+
+---
