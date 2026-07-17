@@ -326,3 +326,100 @@ like 07-07 — gather 1–2 more whipsaw sessions and design it on live open-P&L
 made IMP-011 wait 4 clean days). **No entry-logic changes while IMP-013/014 are still proving.**
 
 ---
+
+## Week ending 2026-07-17 — Grade: D
+
+### Stats
+- **DB (closed, Mon 07-13 → Fri 07-17):** **21 trades, 3W → 14% win**, net **−$285.95**, PF **0.16**, avg win
+  **+$18.02** / avg loss **−$18.89**. Best **+$30.87** (GOOG 07-15), worst **−$48.96** (NFLX 07-13). By day:
+  07-13 **−$51.48** (2, 0W) · 07-14 **−$62.38** (6, 2W) · 07-15 **−$38.19** (7, 1W) · 07-16 **−$20.64** (1, 0W) ·
+  07-17 **−$113.26** (5, 0W). **Every single day red — the first all-red week of the record.**
+- **Equity: $9,307.12 (Mon 07-13 pre-open) → $9,021.08 (now) = −$286.04 (−3.07%).** The **worst week of the
+  record** by a wide margin (prior worst was 07-10's −$172.40 / −1.82%). **Books exact to the cent every trading
+  day (5/5):** each day's DB realized == equity mark-to-market; 0 phantoms, 0 naked carry, broker flat every night.
+- **Not one bad day — a broad, persistent losing week.** Unlike 07-10 (where 4 of 5 days summed to +$6.60 and
+  one whipsaw day was 104% of the loss), here **every day lost meaningfully**: strip the worst day (07-17 −$113)
+  and the other four still combine to **−$172.69**. There is no "single unforecastable event" rescue this week.
+- **Per-symbol:** only **two** green — **GOOG +$30.87** (the week's one clean full-confirm trend, 07-15) and
+  **QQQ +$0.86**. Drags: **NFLX −$97.80** (3 tr, re-enabled/parked/re-enabled around its Thu print, faded or
+  stopped every time), **INTC −$45.06** (3, 1W), **WMT −$32.69**, **TSM −$32.20**, **SE −$29.64**, **TSLA −$22.05**,
+  **BABA −$20.64**. Chip/semis names carried the damage on a risk-off week.
+- **Exit reasons:** 7 `stop/target filled broker-side` (**−$188.08**) + 14 `end-of-day flatten` (−$97.87). All 7
+  broker-side stops were **down-move fills cleanly reconciled by IMP-014** (its full-validation week — see below).
+- **Crossover cohorts (this week):** 0.20–0.40 → 14 tr, **−$115.36 (3W)**; **xo ≥ 0.40 → 7 tr, −$170.59 (0W)** —
+  the *strong*-cross cohort lost hardest, reinforcing the 07-16 "very-strong crossover = late/reversal entry"
+  watch-candidate. **No xo<0.20 all week** — IMP-011's 0.20 floor honored every session.
+- **Confidence vs outcome (all-time):** **70-79 still the peak +$156.97 (51%, 61 tr)** [fell from +$220 as INTC 76
+  + NFLX 73 both lost 07-17], 60-69 **−$56.70 (42%, 112 tr)**, **80-89 −$33.73 (41%, 17 tr)** [flipped negative
+  from +$38.63 as NFLX 83.2 + TSLA 83.6 lost], **90-100 −$144.42 (0%, 3 tr, unchanged — no ≥85 entry all week).**
+- **Service: healthy — `NRestarts=0`, no crashes, no naked carry, no 422 storm, EOD flatten fired clean every day.**
+  Only benign noise: a self-healed **07-13 Telegram `sendMessage` ConnectionReset** (side-channel exit alert, zero
+  trading impact) and two **pre-market websocket `connection limit exceeded` blips** (07-14 05:48–05:52, 07-15
+  11:22 — old-PID/new-PID restart-handoff overlap, recovered in minutes, zero session impact). A clean-reliability week.
+
+### Grade rationale
+**A record-worst, all-five-days-red loss (−3.07%) that exemplary process holds to a *high* D — but cannot rescue
+to a C.** Two honest anchors fix the grade. It **cannot be a C**: the C rubric is "a *small* loss within risk
+limits," and −$285.95 / −3.07% is the **biggest weekly drawdown on record** — ~68% larger than last week's −1.82%
+C, and unlike that week it is **not one bad day** (every one of the five sessions lost, 14% win, PF 0.16). A grade
+that stayed C here would be insensitive to a near-doubling of the loss and to the loss becoming *persistent* rather
+than a single event — that is a **meaningful loss**, the D threshold. And it is emphatically **not an F**: no large
+single-trade loss (worst −1.99%, TSM's near-floor stop), **no risk-limit breach, no naked overnight, no crash, no
+corrupted books** — real per-trade damage stayed tightly contained and the capital-protection machinery worked
+perfectly. What holds it at the **top of D** rather than lower is genuinely strong process: **books exact to the
+cent all 5 days**, broker flat every night, service `NRestarts=0`; **zero reckless/unvalidated changes** (five
+straight "reviewed, no change warranted" days that correctly **refused to overfit** — the volume floor was
+*refuted* with full-history data on 07-16, the ≥80 sizing-cap cut stayed correctly gated, the crossover-cap idea
+held at n=8); and **IMP-014 was fully validated** (7 clean live catches across 3 sessions — last week's #1 focus
+retired). Last week's "Focus for next week" was **honored to the letter**: IMP-014 proven live, IMP-013 kept at 85
+(it simply had no >85 entry to bind on), break-even-stop stayed downgraded, and no entry-logic change was stacked
+during the proving window. The single process demerit — and the reason this is a D and not a "process-perfect
+losing week" — is that the **broad-adverse-day failure mode RECURRED** (07-07 −$179 → 07-17 −$113, together −$292 =
+the bulk of the drawdown): the long-only 5m gate opens multiple longs on intraday bounces that all fade/stop, the
+bot still has **no daily-loss / MTM stand-down**, and that fix's own evidence gate ("1–2 more broad-adverse
+sessions") is **now met** — a known, now-twice-realized structural gap took real money a second time while the
+remedy sat staged. Deferring it once was disciplined; it is now **overdue**. Meaningful record loss + clean risk
+control + one overdue structural fix = a solid **D**.
+
+### What worked / what didn't
+- **Worked:** process discipline stayed textbook — five correct "no change" calls with **zero overfitting** of a
+  brutal tape (the volume floor was actively *refuted*, not just deferred; the ≥80 cap and crossover cap stayed
+  correctly gated on insufficient/confounded evidence); **exit infra flawless** (wall-clock flatten every day, all
+  fills real, broker flat nightly, books exact to the cent 5/5); **IMP-014 fully proven** (7 down-move stops caught
+  mid-session, 0 double-exit/double-Telegram, even enabled INTC's +$22.33 07-14 re-entry); risk control absolute
+  (worst trade −1.99%, no breach, no naked); watchlist churn minimal and justified (only earnings parks/re-enables:
+  JPM/C, NFLX, TSM/UNH around their prints); service `NRestarts=0`. GOOG's clean full-confirm trend (+$30.87) shows
+  the model still works when a real trend appears.
+- **Didn't:** the long-only ribbon has **no edge — and now takes real, repeated damage — on broad risk-off / fade
+  tapes**, and there is still **no stand-down mechanism**. This regime ran the **entire week** (5 straight soft/
+  regime-loss days, 07-17 the broad-selloff climax), and the exact 07-07 failure mode recurred on 07-17. The
+  **≥80 confidence band deteriorated further** (80-89 flipped to −$33.73) but IMP-013 (cap 85) can't touch the
+  80-85 zone and had **zero bindings** all week — its proving is now bottlenecked on market conditions. The
+  **strong-crossover cohort (xo≥0.40) went 0/7, −$170.59** — the top-end crossover concern, still un-actioned.
+
+### Improvements shipped this week
+- **None shipped** (0 code changes — five deliberate "no change warranted" days). The week's job was to *prove* the
+  two prior-week ships on live data:
+- **IMP-014** (c92fdfd, shipped 07-10) — down-move broker-side stop sweep. **Observed: ✅ FULLY VALIDATED** — 7
+  clean live catches over 3 sessions (INTC/WMT 07-14, SE/NFLX 07-15, MU/INTC/TSM 07-17), each reconciled mid-session
+  at the true fill within a watchdog tick, 0 late-EOD mislabels, 0 double-exit. IMP-012's residual gap is closed and
+  proven; last week's #1 focus is retired.
+- **IMP-013** (ac195d6, shipped 07-06) — `SIZE_CONFIDENCE_CAP=85`. **Observed: ⚠️ still bound only ONCE ever** — no
+  >85-conf entry occurred all week (peak 83.6), so it never engaged; the 90-100 band is unchanged (0W/3/−$144.42)
+  while 80-89 deteriorated to −$33.73 (which the 85 cap doesn't reach). Its PF effect **still cannot be judged** —
+  proving now bottlenecked on market conditions, not process. Keep at 85.
+
+### Focus for next week
+**Ship the broad-adverse-day / daily-loss stand-down — it is now the #1 priority and its evidence gate is MET**
+(two qualifying broad-adverse sessions: 07-07 −$179 whipsaw + 07-17 −$113 risk-off selloff, together −$292). Build
+it **deliberately** per the 07-17 design brief: track intraday **MTM (realized+unrealized) P&L vs session-open
+equity**; when session drawdown breaches ~**−2% to −2.5% of open equity** OR **~3 consecutive full stop-outs**,
+**halt NEW entries for the rest of the session** (keep managing/flattening; reset next open). It is a critical-path
+change (new intraday equity-tracking state) and a *behavioral* entry change — ship it as the **single** change of
+its run, with a fresh test suite, and do **not** rush it reactively. IMP-014 is done (no further action); **keep
+IMP-013 at 85** (its proving waits on the market producing a >85 entry — do not lower the cap to force bindings).
+Keep **IMP-011 at 0.20**. Continue **watching the strong-crossover (xo≥0.40 / ≥0.70) cohort** (0/7 this week) for a
+possible top-end de-rate once n≥15–20 — do not act yet. If the risk-off regime persists, expect the 5m gate to keep
+opening low-conviction longs that fade until the stand-down lands — that fix is the week's whole job.
+
+---

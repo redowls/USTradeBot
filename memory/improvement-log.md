@@ -569,6 +569,17 @@ Entry template:
   inversion thesis is **reconfirmed**, but IMP-013 is **capital-protective sizing, not an entry guard**: it can
   only shrink the damage it does not prevent. Correct and low-risk, but **still early** — needs several more >85
   bindings before its PF effect on the 80-100 bands can be judged. Keep at 85.
+- **Observed 07-17 (weekly review): ⚠️ STILL bound only ONCE ever — ZERO >85-conf entries all week (07-13..17).**
+  Peak confidence all week was TSLA **83.60** (07-14), below the 85 cap, so IMP-013 **never engaged**; it remains
+  bound a single time live (INTC 07-09). The all-time **90-100 band is unchanged at 0W/3 tr/−$144.42** (no new
+  top-band trade). But the adjacent **80-89 band flipped negative and deepened** — from **+$38.63 (14 tr, 07-10)**
+  to **−$33.73 (41% win, 17 tr)** — driven by NFLX 83.21 (−$48.96, 07-13) and TSLA 83.60 (−$22.05, 07-14), the
+  8th+ instances of the ≥80-underperformance pattern. IMP-013 caps at 85 so it does **not** touch this 80-85 zone.
+  **Multi-review gate to lower the cap toward ~80 ("≥2–3 more >85 bindings AND 80-89 deterioration") is now
+  HALF met** — the 80-89 deterioration is confirmed on fresh data, but the ">85 bindings" half is stuck at 1
+  because the market simply produced no ≥85 entries. **Keep at 85; still cannot judge its 80-100 PF effect.**
+  The proving of IMP-013 is now bottlenecked on market conditions, not process — de-prioritize behind the
+  broad-adverse-day stand-down (the week's #1 open design priority).
 
 ---
 
@@ -625,5 +636,15 @@ Entry template:
   the fix went live only after that row was already booked. First real live test is next week; ship-trigger
   from last week's weekly (the 07-03 grade) was correctly met, and the change is pure data-integrity so it
   does not confound IMP-013's still-open evaluation.
+- **Observed 07-17 (weekly review): ✅ FULLY VALIDATED — 7 clean live catches across 3 sessions.** Its first
+  live proving week delivered exactly the behaviour the 07-10 weekly asked for. Every one of the week's **7
+  `stop/target filled broker-side` exits** (−$188.08 total) was a **down-move broker-side stop fill the trailing
+  ratchet can't surface**, and each was reconciled **mid-session within a watchdog tick (~20–30s)**, booked at
+  its **true intraday fill price/time**, and the symbol freed to `WAITING`: **INTC #1 & WMT (07-14), SE & NFLX
+  (07-15), MU/INTC/TSM (07-17)**. **Zero** late `end-of-day flatten (stop/target filled broker-side)` rows,
+  **zero** double-exit / double-Telegram, books exact to the cent all 5 days. The prompt release even **produced
+  a win**: INTC's 07-14 same-day re-entry (+$22.33) was only possible because IMP-014 freed it promptly after the
+  14:05 stop. IMP-012's residual down-move gap is **closed and proven**; the 07-10 weekly's #1 focus is retired.
+  No parameter to revisit — this is settled data-integrity infra.
 
 ---
