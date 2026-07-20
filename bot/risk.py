@@ -246,7 +246,23 @@ class RiskManager:
         broker still holds the position, so it is safe to call on an open position (it never
         submits a sell). On a real fill it records the exit at the true broker price, tags it
         ``stop/target filled broker-side``, and returns it; otherwise ``None``.
+
+        Guard (2026-07-20 NVDA): a bracket entry can fill **seconds-to-minutes late**
+        (NVDA's buy filled ~2.5 min after submission — the same delayed-fill pattern
+        IMP-010 handles). During that gap the symbol is already ``MANAGING`` but the
+        broker holds **no** position yet, so ``reconcile_exit``'s ``get_open_position``
+        404s just like an already-flat position — and it would then match a **stale
+        prior-session sell** as a phantom exit (NVDA booked a +$41 win on a trade that
+        was really a −$58 stop-out, and the bot marked itself flat while the broker
+        actually held the position). So we first confirm the **entry buy has filled**
+        (``entry_fill_price`` returns a price only once it has); until then the position
+        simply hasn't opened — return ``None`` and leave it ``MANAGING`` to re-check next
+        tick. When there's no entry order to check (a startup-reconciled holding), the
+        position was confirmed held at startup, so the guard is skipped.
         """
+        entry_oid = getattr(entry, "order_id", "") if entry is not None else ""
+        if entry_oid and self._executor.entry_fill_price(entry_oid) is None:
+            return None  # entry not filled yet → position not open → don't book an exit
         reconciled = self._executor.reconcile_exit(symbol)
         if reconciled is None:
             return None

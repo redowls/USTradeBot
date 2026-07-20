@@ -323,7 +323,7 @@ class _StopGoneCloser:
         return None
 
     def entry_fill_price(self, order_id):
-        return None
+        return 100.0  # entry buy did fill (position genuinely opened, then stopped out)
 
     def replace_stop_price(self, stop_order_id, new_stop_price):
         self.moved.append((stop_order_id, new_stop_price))

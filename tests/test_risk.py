@@ -299,7 +299,7 @@ def test_reconcile_if_closed_records_broker_side_fill(cfg):
     # never surfaced by the trailing ratchet (no higher-high replace to 422), so the
     # wall-clock sweep polls order history to detect it. reconcile_if_closed must record the
     # exit at the real fill, tag it a broker-side fill, and NEVER submit a close.
-    ex = _FakeExecutor(reconciled=("stop-se", 113.21))
+    ex = _FakeExecutor(reconciled=("stop-se", 113.21), entry_fill=108.0)  # entry did fill
     seen = []
     rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
     result = rm.reconcile_if_closed("SE", _entry())
@@ -316,7 +316,7 @@ def test_reconcile_if_closed_records_broker_side_fill(cfg):
 def test_reconcile_if_closed_none_when_still_open(cfg):
     # reconcile_exit returns None while the broker still holds the position, so a still-open
     # MANAGING symbol is left untouched — no exit recorded, no close submitted.
-    ex = _FakeExecutor(reconciled=None)
+    ex = _FakeExecutor(reconciled=None, entry_fill=108.0)  # entry filled, but still held
     seen = []
     rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
     assert rm.reconcile_if_closed("SE", _entry()) is None
@@ -325,10 +325,26 @@ def test_reconcile_if_closed_none_when_still_open(cfg):
     assert seen == []
 
 
+def test_reconcile_if_closed_skips_while_entry_unfilled(cfg):
+    # 2026-07-20 NVDA regression (IMP-015): the entry buy filled ~2.5 min late, so the
+    # wall-clock MANAGING sweep fired while the position had NOT yet opened. The broker
+    # 404'd (no position yet), and reconcile_exit would have matched a STALE prior-session
+    # sell as a phantom exit (+$41 booked on a trade that was really a −$58 stop-out),
+    # desyncing bot state from the broker. Until the entry is confirmed filled, the sweep
+    # must NOT reconcile — never even consult order history — and leave the symbol MANAGING.
+    ex = _FakeExecutor(reconciled=("stale-sell", 209.615), entry_fill=None)  # entry unfilled
+    seen = []
+    rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
+    assert rm.reconcile_if_closed("NVDA", _entry()) is None
+    assert ex.entry_fill_calls == ["o1"]  # checked the entry fill first
+    assert ex.reconcile_calls == []  # never looked at order history → no phantom exit
+    assert seen == []  # nothing recorded
+
+
 def test_reconcile_if_closed_clears_trailing_state(cfg):
     # A reconciled exit is a completed trade, so it must drop the trade's trailing-stop
     # state (like exit_position) so the maps don't grow unbounded across re-entries.
-    ex = _FakeExecutor(reconciled=("stop-se", 113.21))
+    ex = _FakeExecutor(reconciled=("stop-se", 113.21), entry_fill=108.0)  # entry did fill
     rm = RiskManager(cfg, executor=ex)
     rm.update_trailing_stop(_rising(110.0), _entry())
     assert rm._trail_stops  # populated by the ratchet
