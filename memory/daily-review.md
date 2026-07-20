@@ -2225,3 +2225,80 @@ the daily-loss stand-down now teed up as the next deliberate build. Candidate #1
 - **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked** (chip laggards / oil-headline / no trend).
 
 ---
+
+## 2026-07-20 — Daily Review
+
+### Stats
+- **Closed trades (DB, corrected): 7 — 2W / 5L → 29% win.** Net realized **−$93.33**
+  (avg −$13.33/trade). Avg win **+$24.44**, avg loss **−$28.44**, **profit factor ≈ 0.34**.
+  Best **+$33.36** (BABA), worst **−$58.46** (NVDA). Account **equity $8,927.72** (all cash,
+  0 open positions), from $9,021.08 pre-open = **−$93.33** — books now tie to equity to the cent.
+- **⚠️ The report's headline (+$6.28, 3W/4L, 43%) was FICTITIOUS.** A data-integrity bug booked
+  **NVDA as a phantom +$41.15 win** when it was really a **−$58.46 stop-out** — a **$99.61** error
+  that exactly equals the DB↔equity gap ($6.28 DB vs −$93.33 equity). The NVDA row was
+  broker-verified-corrected this run (entry 206.45→**206.807**, exit 209.615→**202.31** @19:16:18,
+  pnl +41.15→**−58.46**), restoring the book. **The real day is a −1.03% loss, not a small gain.**
+
+### Trade-by-trade review (Model A throughout; times UTC)
+- **NVDA** 13:33:06 @**206.807** (buy filled ~13:35:52, ~2.5 min late), conf **82.40**
+  (xo 0.55 / trend 0.86 / rsi 1.0 / vol 1.0 / vlt 0.93) → broker-side stop **@202.31 @19:16:18**,
+  **−$58.46 (−2.17%)**. Worst. A top-of-morning long into the semis weakness that stopped out.
+  **The IMP-015 bug (below) originally recorded this as a +$41.15 win** — a ≥80-conf name that was
+  actually the day's biggest loser, reinforcing the ≥80 underperformance pattern.
+- **BABA** 13:51 @118.92, conf **81.72** (xo 0.66 / trend 1.0 / rsi 1.0 / vol 0.50 / vlt 0.96)
+  → EOD flatten @120.51, **+$33.36 (+1.34%)**. Best. Clean trend, held all session. Regime winner.
+- **GOOG** 14:16 @359.39, conf **72.38** (xo 0.49 / trend 1.0 / rsi 0.70 / vol 0.57 / vlt 1.0)
+  → broker-side stop @352.07 @17:16, **−$36.60 (−2.04%)**. Full stop; faded straight off entry.
+- **MSFT** 15:39 @397.97, conf **67.17** (**xo 0.23 weak** / trend 0.90 / rsi 1.0 / vol 0.49 / vlt 1.0)
+  → EOD flatten @401.85, **+$15.52 (+0.97%)**. Weak cross but trend/rsi carried a small win.
+- **AVGO** 15:43 @381.43, conf **62.54** (xo 0.25 / trend 1.0 / rsi 1.0 / **vol 0.0** / vlt 1.0)
+  → EOD flatten @379.35, **−$6.25 (−0.55%)**. Near-scratch; thin-volume marginal setup.
+- **AMD** 15:52 @514.44, conf **67.69** (xo 0.34 / trend 1.0 / rsi 1.0 / vol 0.17 / vlt 1.0)
+  → broker-side stop @507.30 @19:14, **−$14.28 (−1.39%)**. Full stop on the chip weakness.
+- **SE** 16:11 @108.00, conf **61.58** (**xo 0.22 just above the 0.20 floor** / trend 1.0 / rsi 1.0
+  / **vol 0.0** / vlt 1.0) → broker-side stop @105.58 @19:45, **−$26.62 (−2.24%)**. Weakest setup,
+  worst % loss — a near-floor crossover on zero relative volume that faded to its stop.
+
+### What worked / what didn't
+- **Worked:** BABA (clean trend, +$33.36) and MSFT (trend-carried, +$15.52) held green; the exit
+  infra otherwise behaved (all real stops filled broker-side, EOD flatten clean, broker flat at close).
+- **Didn't:** (1) **A data-integrity bug corrupted the book** — the IMP-014 wall-clock MANAGING sweep
+  fired ~30s after the NVDA entry while its buy was **still unfilled** (delayed ~2.5 min); the broker
+  404'd (no position yet), `reconcile_exit` mistook "not opened" for "already flat," and matched a
+  **stale prior-session NVDA sell (@209.615)** as a phantom exit — booking a +$41 win, freeing NVDA to
+  WAITING, and **desyncing bot state from the broker** (the real buy then filled and rode to a real stop
+  the DB never saw). This is the day's #1 issue and the shipped fix. (2) **Continued semis/AI-capex
+  regime damage** — NVDA/AMD/AVGO plus GOOG all faded/stopped (same risk-off tape as 07-17). (3) The
+  **≥80-conf band underperformed again** (NVDA 82.40 the worst loser); correcting NVDA flips today's
+  80-89 contribution from ~+$41 phantom to ~−$58 real, deepening the top-band inversion.
+
+### Lessons & improvement candidates
+1. **[SHIPPED — IMP-015] Phantom-exit-on-unfilled-entry.** `reconcile_if_closed` now confirms the
+   **entry buy has actually filled** (`entry_fill_price` returns a price) before reconciling a
+   broker-side exit; until then the position simply hasn't opened, so it stays MANAGING and re-checks
+   next tick. This closes the exact NVDA book-corruption + state-desync path. Highest impact: it
+   protects the win-rate/P&L/confidence data that ALL tuning (incl. the stand-down) depends on.
+2. **[DEFERRED — the standing #1 strategic priority] Broad-adverse-day / daily-loss MTM stand-down.**
+   Its evidence gate is met (07-07, 07-17), but **today it was correctly preempted**: a fresh
+   book-corruption bug surfaced, and the routine's own discipline is *fix data integrity before shipping
+   a strategy change* — you cannot ship (or later judge) a stand-down on top of a corrupted book. Ship
+   it on the next clean-book session as its single change (session MTM vs open equity, halt new entries
+   at ~−2%, reset next session). It **would have helped today** (−1.03% approaches the trigger).
+3. **[watch] ≥80 confidence + weak-cross/zero-volume entries** keep underperforming (NVDA 82.40 loss;
+   SE xo 0.22/vol 0, AVGO xo 0.25/vol 0). Gather more; IMP-013's cap (85) doesn't reach the 80-85 zone.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Tue 07-21** — 0 broker positions, 0 DB-open rows, equity **$8,927.72** all
+  cash after the NVDA-row correction. Nothing locked; watchlist free.
+- **Semis/AI-capex regime persists into a 2nd week** — NVDA/AMD/AVGO all stopped today (plus GOOG), the
+  same risk-off tape that ran all of last week. All signalled and stopped **correctly = regime, not
+  symbol/liquidity quality; keep enabled.** Resist adding chip/momentum names into this tape.
+- **BABA** was the clean trend winner two setups in a row — behaving well; keep.
+- **SE** (xo 0.22 / vol 0.0, −2.24%) and **AVGO** (vol 0.0) traded on **zero relative volume** — thin,
+  fade-prone setups, but that's a signal-scoring matter, **not a watchlist park** (both liquid, both
+  signalled). No parks indicated on quality grounds.
+- **NVDA** — the phantom-exit was a *bot bug*, not a symbol problem; NVDA's real trade was a normal
+  regime stop-out. Keep enabled, no action.
+- QCOM / BIRD / ENPH / WPM / XOM / COST stay parked (unchanged).
+
+---

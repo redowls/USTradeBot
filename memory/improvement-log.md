@@ -648,3 +648,45 @@ Entry template:
   No parameter to revisit — this is settled data-integrity infra.
 
 ---
+
+## IMP-015 — 2026-07-20
+
+- **Problem:** Today's report showed a benign **+$6.28 / 3W-4L**, but equity fell **−$93.33**
+  ($9,021.08 → $8,927.72) — a **$99.61** DB↔equity gap. Root: **NVDA was booked as a phantom
+  +$41.15 win when it was really a −$58.46 stop-out.** NVDA's bracket buy filled **~2.5 min late**
+  (submitted 13:33, filled 13:35:52 @206.807 — the known delayed-fill pattern of IMP-010); the
+  IMP-014 wall-clock MANAGING sweep fired ~30 s after entry, while the position had **not yet opened**.
+  `get_open_position` 404'd (no position), `reconcile_exit` treated that as "already flat," and matched
+  a **stale prior-session NVDA sell (@209.615)** as the exit → a fake win, NVDA freed to WAITING, and
+  the bot **desynced from the broker** (the real buy then filled and rode to a real broker-side stop
+  @202.31 @19:16 that the DB never recorded). Corrupts exactly the win-rate/P&L/confidence data this
+  routine optimizes (NVDA conf 82.40 flipped an 80-89 loser into a phantom win).
+- **Root cause:** `RiskManager.reconcile_if_closed` (the IMP-014 down-move sweep) concluded "closed"
+  from a bare 404 **without ever confirming the entry was filled**. A 404 means EITHER opened-then-closed
+  OR **never-opened-yet** (entry fill still pending); the two are indistinguishable from the position
+  read alone, and `reconcile_exit` then matches the most-recent filled sell — which, for a never-opened
+  position, is a **stale sell from a prior session**. IMP-014 assumed a MANAGING symbol was always an
+  open position; a delayed entry fill breaks that assumption.
+- **Change:** `bot/risk.py` — `reconcile_if_closed` now first calls `entry_fill_price(entry.order_id)`
+  and **returns `None` (leaves the symbol MANAGING) until the entry buy has actually filled**; only then
+  does it consult `reconcile_exit`. When there is no entry order id (a startup-reconciled holding, which
+  was confirmed held at startup) the guard is skipped, preserving that path. **No risk widened, no safety
+  disabled, no entry/exit logic changed** — pure state-correctness / data-integrity (IMP-003/012/014
+  family). Also a one-off broker-verified correction of today's NVDA row (entry 206.45→206.807, exit
+  209.615→202.31 @19:16:18, pnl +41.15→−58.46) so the book ties to equity to the cent (−$93.33).
+- **Validation:** full suite **241 passed** (`pytest -q`, was 240 + 1 net new). New regression
+  `tests/test_risk.py::test_reconcile_if_closed_skips_while_entry_unfilled` (today's exact NVDA scenario:
+  entry unfilled → the sweep never consults order history, records no phantom exit, leaves it MANAGING);
+  the three existing `reconcile_if_closed` tests updated to supply a filled entry (the new precondition),
+  and `_StopGoneCloser.entry_fill_price` now returns a real fill (it models a genuinely-opened position).
+- **Expected impact:** a MANAGING symbol whose entry buy hasn't filled yet is never mistaken for a closed
+  position → no more phantom exits from stale prior-session sells, no DB↔broker desync, and the
+  win-rate/P&L/confidence data stays trustworthy. Data integrity + state-correctness; no win-rate behavior
+  change. **This preempted the daily-loss stand-down (the weekly's #1 strategic priority): you don't ship
+  a strategy change on a corrupted book — ship the stand-down on the next clean-book session.**
+- **Commit:** 844dfa9
+- **Observed effect:** (await next review — confirm no `reconcile_exit` fires for a symbol whose entry
+  buy is still unfilled, no phantom-win rows appear, and DB realized P&L keeps tying to equity to the cent;
+  watch that a delayed-fill entry that later stops out records its **real** broker-side exit, not a stale one.)
+
+---
