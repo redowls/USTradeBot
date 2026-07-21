@@ -1487,3 +1487,69 @@ watchlist change → the bot reads the list only at startup, so a restart would 
 service already `active` since the Fri 07-17 11:35 UTC restart, NRestarts=0). 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-07-21 — Pre-market Research
+
+**Second session of the AI-trade's pivotal earnings week.** Book is CLEAN & FLAT (0 positions,
+equity all cash) → nothing locked, full watchlist free. Today carries **zero watchlist earnings
+risk**; the week's binary parks are queued for **Wed 07-22 (GOOG + TSLA, after close)** and
+**Thu 07-23 (INTC)** — none today. No watchlist action indicated this run.
+
+### Market context
+- **Risk-ON, chip-led rebound.** Futures higher: **Nasdaq-100 +1.3%**, S&P +0.5%, Dow +0.3%;
+  QQQ +1.38% ($705.68) / SPY +0.56% ($746.28) pre. **Semis revive** — KOSPI +2% overnight on
+  chip strength; Mon's after-hours already showed AVGO +2%, MU +1.9%, AMD +1.6%, INTC +2.1%.
+  The 2-week semis/AI-capex risk-off regime that damaged our chip cohort is **easing this
+  morning**, but it's a *bounce* into the pivotal AI-earnings week — the wrong tape to chase adds.
+- **Monday 07-20 closed mostly lower** (S&P −0.2%, Dow −307, Nasdaq-100 ~flat) on renewed
+  **US–Iran tensions** — oil swung sharply, Treasury yields rose (energy-driven inflation →
+  rate-hike-later-this-year expectations). Oil elevated on the conflict, capped by diplomacy
+  hopes: a one-headline bid, not a durable energy uptrend → **XOM stays parked**.
+- **⚠️ Earnings — verified none of ours today.** Tue 07-21 reporters: **GM (BMO), Novartis, 3M
+  (MMM), Halliburton** — **no watchlist name.** GOOG + TSLA report **Wed 07-22 after close**
+  (→ Wed routine parks both); **INTC Thu 07-23** (→ Thu routine parks INTC). Season strong so
+  far (88% of ~50 S&P reporters beat, FactSet).
+
+### Carried from daily review (07-20)
+- **Book CLEAN & FLAT into Tue 07-21** — daily review said equity $8,927.72 all cash, nothing
+  locked; **confirmed live this run** (ACTIVE, equity **$8,927.72**, 0 positions, BP $35,710).
+- **Semis/AI-capex regime persisted into a 2nd week** — NVDA/AMD/AVGO all stopped 07-20 (plus
+  GOOG); all signalled and stopped **correctly = regime, not symbol/liquidity quality; keep all
+  enabled.** "Resist adding chip/momentum into this tape" → honored (no adds, even on today's bounce).
+- **NVDA phantom-exit was a bot bug (IMP-015 shipped), not a symbol problem** — its real trade
+  was a normal regime stop-out → keep, no action.
+- **BABA** the clean trend winner two setups running (+$33.36 on 07-20) → keep.
+- **SE (xo 0.22 / vol 0.0) and AVGO (vol 0.0)** traded on zero relative volume — thin, fade-prone,
+  but a **signal-scoring** matter (both liquid, both signalled), **not a watchlist park.** Honored.
+- **QCOM / BIRD / ENPH / WPM / XOM / COST stay parked.** Honored.
+
+### Watchlist review
+Account **ACTIVE**, equity **$8,927.72**, BP $35,710, **0 open positions = nothing locked.** 21
+enabled / 6 parked reviewed against the chip-bounce risk-on tape + the dailies' 14d P&L read:
+- **Core megacap/trend engine** (AAPL/AMZN/GOOG/MSFT/QQQ/SPY/NVDA/TSLA) — the dispersion-day
+  earners; GOOG +1.5% pre ahead of Wed's guidance. Keep. **Chip cohort** (AVGO/AMD/INTC/MU/TSM)
+  bounces this morning; the long-only 5m gate only opens longs if a real trend forms → keep, on notice.
+- **BABA/SE/ABNB/C/WMT/UNH** — mega/large-liquid; recent red is regime (semis rotation / 07-07
+  whipsaw / fade tape) per the dailies, none a liquidity or signal-quality park → keep. NFLX kept
+  **on notice** (fade-prone in its post-earnings downtrend, but liquid mega-cap, gate self-protects).
+- **Parked re-enable check:** COST (June-sales-miss downtrend, 0/4), QCOM (−14% vs 20/50MA, thin
+  $vol, lone chip laggard), ENPH (10.9% ATR whipsaw), WPM (dead-vol downtrend), BIRD (micro-cap),
+  XOM (oil is one Iran headline, not a trend) → **all stay parked, no fresh bullish catalyst.**
+
+### Changes applied to dbo.watchlist
+- **No changes.** Nothing locked; the list is broad (21 ≤ 30) and already megacap/semi-heavy;
+  **zero watchlist earnings risk today**; every laggard is regime per the dailies, none a
+  signal-quality or liquidity park (NFLX kept on notice); and a chip *bounce* into the week's
+  three $1T+ prints (GOOG/TSLA Wed, INTC Thu) is the wrong tape to chase a momentum add.
+  BIRD/COST/ENPH/QCOM/WPM/XOM stay parked.
+- **⚠️ Binary-event parks queued (NOT today):** **Wed 07-22 pre-market routine MUST park GOOG +
+  TSLA** before Wed's open (both report after Wed's close). **Thu 07-23 routine parks INTC.**
+
+### Final watchlist
+**21 enabled** (≤30 ✓, unchanged): AAPL ABNB AMD AMZN AVGO BABA C GOOG INTC JPM MSFT MU NFLX NVDA
+QQQ SE SPY TSLA TSM UNH WMT. Parked (6): BIRD COST ENPH QCOM WPM XOM. Service **NOT restarted** (no
+watchlist change → the bot reads the list only at startup, so a restart would be pointless churn;
+service already `active` since the Fri 07-17 11:35 UTC restart). 🔒 Locked: none (0 open positions).
+**Wed 07-22 routine: PARK GOOG + TSLA** (after-close prints). **Thu 07-23 routine: PARK INTC.**
+
+---
