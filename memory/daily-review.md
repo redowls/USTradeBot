@@ -2302,3 +2302,94 @@ the daily-loss stand-down now teed up as the next deliberate build. Candidate #1
 - QCOM / BIRD / ENPH / WPM / XOM / COST stay parked (unchanged).
 
 ---
+
+## 2026-07-21 — Daily Review
+
+### Stats
+- **8 trades, 5W / 3L → 62% win.** Net DB realized **−$9.15** (avg −$1.14). Avg win **+$19.01**,
+  avg loss **−$34.73**, **profit factor ≈ 0.91** — winners small, losers larger but each contained
+  (worst −2.13%, a normal stop). Best **+$34.14** (TSM), worst **−$40.05** (MU). Account
+  **equity $8,918.55** (all cash, **0 open positions**), from $8,927.70 pre-open = **−$9.15**.
+- **Books exact to the cent.** DB realized −$9.15 == broker equity delta −$9.15 (last_equity
+  $8,927.70 → $8,918.55); broker **flat** (0 positions), cash == equity. Nothing carried, no naked
+  overnight, no phantom rows, no NAKED page. **First clean-book session since the IMP-015 fix — the
+  precondition the reviews set for shipping the stand-down.** Model A throughout.
+- **Service healthy:** `active` since the Fri 07-17 11:35 UTC restart (NRestarts=0) through today's
+  post-close IMP-016 restart; zero 504s/422s/errors all session; EOD flatten clean at 19:45 UTC.
+- **A benign, mildly-green tape** — snapped the recent soft streak (07-13..07-20 all red). Not a
+  broad-adverse day; a choppy risk-on chip bounce (PPI cooler; semis revived, as the pre-market read
+  and a Perplexity post-close check both flagged) where early longs whipsawed and afternoon ones worked.
+- Confidence vs outcome (all-time, `vw_confidence_outcome`): **70-79 the peak +$74.03 (50%, 66 tr)**,
+  **60-69 −$56.20 (42%, 117 tr)**, **80-89 −$53.77 (45%, 22 tr)**, **90-100 −$144.42 (0%, 3 tr,
+  unchanged — no 90+ entry today)**. Notably the **≥80 band was net GREEN today** (TSM 88.44 +$34.14,
+  MU 82.30 +$10.98, MU 81.21 −$40.05 → +$5.07), a break from the recent top-band inversion.
+
+### Trade-by-trade review (Model A; entry times UTC)
+- **TSM** 13:36 @418.50, conf **88.44** (xo 0.93 / t 1.0 / r 0.57 / **v 1.0** / vlt 0.93), q6 → **EOD
+  flatten @424.19 +$34.14 (+1.36%)**. **Best.** Earliest entry (09:36 ET), strong fresh cross + maxed
+  trend/volume; rode the chip rebound all day. Textbook good signal.
+- **INTC** 13:51 @103.29, conf 76.89 (xo 0.87 / t 1.0 / r 1.0 / **v 0.10** / vlt 0.63), q22 →
+  **broker-side stop @101.48 −$39.78 (−1.75%)**. Early-morning long stopped ~18 min in **before the
+  rebound firmed**; caught cleanly intraday (IMP-014).
+- **MU** 13:51 @939.92, conf 81.21 (xo 0.997 / t 1.0 / r 1.0 / **v 0.00** / vlt 0.75), q2 →
+  **broker-side stop @919.89 −$40.05 (−2.13%)**. **Worst.** Same early whipsaw, near the −2% floor.
+- **TSLA** 14:40 @382.71, conf 73.85 (xo 0.45 / t 1.0 / r 1.0 / v 0.36 / vlt 1.0), q5 → **EOD flatten
+  @377.84 −$24.35 (−1.27%)**. Faded off entry, drifted to the flatten. Mild regime fade.
+- **INTC** 15:06 @103.62, conf 67.33 (xo 0.32 / t 1.0 / r 1.0 / v 0.22 / vlt 0.97), q16 → **EOD flatten
+  @105.63 +$32.13 (+1.94%)**. Winner — the **re-entry worked once the chip tape firmed** intraday.
+- **NVDA** 15:22 @206.30, conf 71.43 (xo 0.23 / t 0.72 / r 1.0 / v 1.0 / vlt 1.0), q8 → **EOD flatten
+  @206.92 +$4.96 (+0.30%)**. Small winner; weak cross, near-scratch.
+- **MU** 15:36 @956.67, conf 82.30 (xo 0.42 / t 1.0 / r 1.0 / v 1.0 / vlt 0.97), q2 → **broker-side
+  trailing-stop fill @962.16 19:28 +$10.98 (+0.57%)**. Winner — the trailing stop ratcheted **above
+  entry** and locked the gain (IMP-013/trailing working as designed).
+- **NFLX** 19:17 @67.87, conf 70.27 (xo 0.20 / t 0.71 / r 1.0 / v 1.0 / vlt 1.0), q20 → **EOD flatten
+  @68.51 +$12.82 (+0.94%)**. Late winner; behaving well post-earnings.
+- **Root cause (net):** a **choppy risk-on chip-bounce day**, not a strategy defect. The two morning
+  losses (INTC/MU @13:51) were longs opened **before the rebound solidified** and stopped on the early
+  whipsaw; TSLA faded. Every afternoon entry (INTC/NVDA/MU/NFLX) worked as the tape firmed. Losses
+  contained (worst −2.13%, a clean stop), books exact, infra flawless, broker flat.
+
+### What worked / what didn't
+- **Worked:** exit infra flawless (2 broker-side stops caught intraday by IMP-014; MU's trailing stop
+  locked a win above entry; EOD flatten filled clean in liquid RTH; broker flat, books to the cent).
+  Afternoon re-entries as the chip tape firmed were the day's green (INTC/NVDA/MU/NFLX). ≥80 band green.
+- **Didn't:** early-morning longs (INTC/MU @13:51) whipsawed before the risk-on bounce firmed — timing,
+  not signal quality. Losers averaged larger than winners (−$34.7 vs +$19), but that's the normal
+  contained-stop-vs-modest-winner shape, and today's tiny net −$9.15 is noise, not a fixable defect.
+- **Volume note (still refuted):** the 3 losers again had weak volume sub-scores (INTC v0.10, MU v0.00,
+  TSLA v0.36) vs winners mostly v1.0 — but the **all-time volume bands contradict** it (hi-vol ≥0.8 band
+  is −$295 over 82 tr; lo-vol <0.3 is **+$110** over 77 tr). Volume does NOT rank outcome; stays **closed**.
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED — IMP-016] Broad-adverse-day / daily-loss stand-down.** The weekly review's explicit **#1
+   priority** ("evidence gate is MET": 07-07 −$179 + 07-17 −$113 = −$292) and the item deferred across
+   07-07/07-17/07-20. IMP-015 (07-20) preempted it to fix a book bug with the instruction *"ship it on
+   the next clean-book session as its single change"* — **today is that session** (clean book, benign day,
+   one-change slot free). Shipped **deliberately on a calm day, not reactively**: `RiskManager` now halts
+   NEW entries for the rest of a session once **3 consecutive losing exits** occur OR the session realized
+   loss breaches **2.5% of open equity** (open positions still managed/flattened; resets at the next open).
+   Would have blocked INTC+NFLX (−$63) on 07-17 and ~7 losers on 07-07; **does NOT trip on today** (the
+   winner reset the streak at 2). 250 tests pass, preflight all-PASS. This was **the week's whole job.**
+2. *(watch, unchanged)* **≥80-conf band** — net **green today** (+$5.07) but still −$53.77 all-time; no
+   90+ entry. IMP-013's cap (85) still bound only once live. Keep watching; don't touch.
+3. *(watch)* **Strong-crossover (xo≥0.40/≥0.70) cohort** — TSM (xo 0.93) won big today; small sample.
+   Keep accumulating for a possible top-end de-rate at n≥15–20. Do NOT act.
+4. *(refuted — closed)* **Volume floor** — reconfirmed refuted above (all-time bands invert today's read).
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Wed 07-22** — 0 broker positions, 0 DB-open rows, equity **$8,918.55** all
+  cash. Nothing locked; watchlist free.
+- **⚠️ BINARY EARNINGS TOMORROW — the Wed 07-22 pre-market routine MUST PARK GOOG + TSLA** before Wed's
+  open (both report **after Wed's close**). **Thu 07-23 routine PARKS INTC.** These are the week's queued
+  binary parks — do not miss them.
+- **Chip cohort bounced but chopped** — TSM traded beautifully (+$34.14, strong cross, held all day);
+  INTC/MU **whipsawed in the first 20 min** (early longs stopped before the risk-on bounce firmed) then
+  the afternoon re-entries worked. All signalled/stopped correctly = **regime timing, not symbol quality;
+  keep all enabled.** Resist chasing chip/momentum adds into the pivotal AI-earnings prints (GOOG/TSLA Wed).
+- **NFLX** behaved (+0.94% late winner) — the fade-prone post-earnings watch can be relaxed; keep enabled.
+- **No parks indicated on quality grounds.** QCOM / BIRD / ENPH / WPM / XOM / COST stay parked (unchanged).
+- **IMP-016 now LIVE** — if a genuine broad risk-off tape hits (e.g. a disappointing GOOG/TSLA print
+  Wed night → Thu selloff), expect the stand-down to halt entries after 3 straight losses; that is by
+  design. Watch Thu's review for its first live trip (or correct non-trip).
+
+---
