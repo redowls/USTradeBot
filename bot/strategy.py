@@ -205,8 +205,15 @@ class StrategyEngine:
             self._set(symbol, BotState.WAITING)
             return None
 
-        # Phase 5 fail-safe: while the feed is down we can't trust the indicators,
-        # so refuse to open new positions (existing ones keep their broker bracket).
+        # New session? Reset the broad-adverse-day stand-down so a prior day's halt (and
+        # its loss/streak tally) never bleeds into today (IMP-016). Idempotent — it only
+        # acts on an Eastern date change, so calling it every candle is cheap.
+        if self._risk is not None:
+            self._risk.roll_session(candle.start.astimezone(EASTERN).date())
+
+        # Fail-safe / stand-down: while the feed is down (can't trust the indicators) or
+        # the broad-adverse-day stand-down has tripped (too many losses today), refuse to
+        # open new positions — existing ones keep their broker bracket and are still managed.
         if self._risk is not None and not self._risk.entries_allowed:
             self._set(symbol, BotState.WAITING)
             return None

@@ -690,3 +690,47 @@ Entry template:
   watch that a delayed-fill entry that later stops out records its **real** broker-side exit, not a stale one.)
 
 ---
+
+## IMP-016 — 2026-07-21
+
+- **Problem:** The long-only ribbon strategy has **no edge and takes real damage on a market-wide down
+  day** — it keeps opening fresh longs on intraday bounces that each resume lower — and the bot has **no
+  daily-loss / consecutive-loss entry halt** (only the feed-loss fail-safe). Two qualifying broad-adverse
+  sessions on record: **07-07 −$179 (1W/10L whipsaw)** and **07-17 −$113 (0W/5L risk-off selloff)** —
+  together −$292, the bulk of the recent drawdown. This was the **weekly review's explicit #1 priority**
+  ("evidence gate is MET") and the deferred item across 07-07/07-17/07-20; IMP-015 (07-20) preempted it to
+  fix a book-corruption bug with the instruction *"ship the stand-down on the next clean-book session."*
+  **Today (07-21) is that clean-book session** — books tie to equity to the cent (DB −$9.15 == equity
+  −$9.15, broker flat), a benign day (5W/3L) with the one-change slot free. Shipped **deliberately on a calm
+  day, NOT reactively** to today's −$9.15 (today would not have tripped it — see below).
+- **Root cause (of the drawdown pattern):** the 5m gate opens multiple mid-band longs on intraday bounces
+  during a market-wide adverse tape; each fades/stops. Nothing halts the run — the bot keeps re-arming.
+- **Change:** a **broad-adverse-day stand-down** (session circuit-breaker). `bot/risk.py` — `RiskManager`
+  now tallies each closed trade's realized P/L and consecutive-loss streak at its single exit chokepoint
+  (`_record_exit` → `_account_for_standdown`); when the session realized loss breaches
+  `standdown_max_loss_pct` of the session-open equity **OR** `standdown_max_consecutive_losses` losing exits
+  occur back-to-back, it **latches a stand-down** and `entries_allowed` goes False (halting NEW entries —
+  open positions are still managed/flattened, mirroring the feed-loss halt). `roll_session(day)` resets the
+  tally + clears the halt at each new session; the strategy drives it from the candle's Eastern date in
+  `on_short_candle` before the entry gate. `bot/config.py` — 3 tunables: `STANDDOWN_ENABLED` (default True),
+  `STANDDOWN_MAX_LOSS_PCT` (0.025), `STANDDOWN_MAX_CONSECUTIVE_LOSSES` (3). `bot/executor.py` — caches
+  `last_equity` off the account read `execute()` already does (session-open baseline; no extra broker call).
+  **No risk widened, no sizing change, no stop disabled — it can only *stop opening*.**
+- **Validation:** full suite **250 passed** (was 241 + 9 net new). New tests replay the motivating scenarios:
+  `test_standdown_trips_after_consecutive_losses` (07-17 pattern → halts after the 3rd consecutive loss,
+  pages once), `_winner_resets_the_streak`, `_trips_on_session_loss_pct` (2.5% backstop), `_resets_at_next_
+  session`, `_disabled_never_trips`, `_skips_exit_without_entry`, `_and_feed_halt_compose`, plus strategy-
+  level `test_standdown_blocks_new_entries` / `test_new_session_candle_resets_standdown`. Preflight all-PASS
+  (config loads with the 3 new tunables). On **07-17** the streak trigger trips after TSM (3rd loss),
+  blocking INTC (−$39.60) + NFLX (−$23.85) ≈ **−$63 saved**; on **07-07** it blocks ~7 later losers. On
+  **today (07-21)** it does **NOT** trip (exit-time order MU−/INTC−/MU+… — the winner resets the streak at 2,
+  and realized never approached −2.5%) — confirming it is dormant on normal days.
+- **Expected impact:** caps the tail loss on a broad-adverse regime day (the −$179 / −$113 disaster
+  sessions) by halting new entries after 3 consecutive losses or a −2.5%-of-equity session drawdown, while
+  leaving normal chop/mixed days (like today) untouched. First real test is the next genuine risk-off tape.
+- **Commit:** (pending)
+- **Observed effect:** (await next review — confirm the halt trips only on a genuine broad-adverse run,
+  fires the 🛑 page once, blocks the subsequent would-be losers, resets clean at the next session open, and
+  does NOT misfire on a normal mixed/green day; verify managing/flattening of open positions is unaffected.)
+
+---

@@ -7,7 +7,7 @@ without a network.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -38,7 +38,7 @@ class _FakeExecutor:
 
     def __init__(
         self, order_id="close-1", replace_ok=True, reconciled=None, close_fill=None,
-        entry_fill=None, replace_gone=False,
+        entry_fill=None, replace_gone=False, last_equity=None,
     ):
         self._order_id = order_id
         self._replace_ok = replace_ok
@@ -46,6 +46,7 @@ class _FakeExecutor:
         self._reconciled = reconciled  # (order_id, price) of a broker-side fill, or None
         self._close_fill = close_fill  # actual fill price of the bot's own close, or None
         self._entry_fill = entry_fill  # corrected entry buy fill (delayed fill), or None
+        self.last_equity = last_equity  # session-open equity baseline for the stand-down
         self.closed = []
         self.moved = []
         self.reconcile_calls = []
@@ -397,3 +398,119 @@ def test_feed_alert_error_is_swallowed(cfg):
     rm = RiskManager(cfg, executor=_FakeExecutor(), on_feed_alert=boom)
     rm.notify_feed_lost()  # must not raise
     assert rm.entries_allowed is False
+
+
+# --- broad-adverse-day stand-down (IMP-016) -------------------------------
+
+
+def _cfg_standdown(monkeypatch, **overrides):
+    """A Config with the stand-down env vars set (used to disable it / retune it)."""
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    for k, v in overrides.items():
+        monkeypatch.setenv(k, v)
+    return Config.load(dotenv=False)
+
+
+def _lose(rm, exit_price=98.0):
+    """Drive one losing exit through the risk manager (entry 100 × qty 10)."""
+    return rm.exit_position("NFLX", exit_price, "stop", _entry())
+
+
+def _win(rm, exit_price=102.0):
+    return rm.exit_position("NFLX", exit_price, "target", _entry())
+
+
+def test_standdown_trips_after_consecutive_losses(cfg):
+    # 2026-07-17 regression: 0W/5L risk-off selloff kept opening fresh longs that faded.
+    # After the 3rd consecutive losing exit the stand-down must halt NEW entries (the
+    # default streak trigger = 3), while managing/flattening open ones is unaffected.
+    alerts: list[str] = []
+    rm = RiskManager(cfg, executor=_FakeExecutor(), on_feed_alert=alerts.append)
+    rm.roll_session(date(2026, 7, 17))
+    _lose(rm)
+    assert rm.entries_allowed is True  # 1 loss — not yet
+    _lose(rm)
+    assert rm.entries_allowed is True  # 2 losses — not yet
+    _lose(rm)
+    assert rm.entries_allowed is False  # 3rd consecutive loss trips the stand-down
+    assert rm.standdown_active is True
+    assert len(alerts) == 1 and "Stand-down" in alerts[0]  # paged exactly once
+
+
+def test_standdown_winner_resets_the_streak(cfg):
+    # A non-losing exit resets the consecutive-loss counter, so L,L,W,L,L does NOT trip
+    # (only 2 in a row at the end) — the stand-down targets a genuine losing run.
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+    rm.roll_session(date(2026, 7, 21))
+    _lose(rm)
+    _lose(rm)
+    _win(rm)  # resets the streak
+    _lose(rm)
+    _lose(rm)
+    assert rm.entries_allowed is True
+    assert rm.standdown_active is False
+
+
+def test_standdown_trips_on_session_loss_pct(cfg):
+    # The catastrophic backstop: even below the consecutive-loss count, a session realized
+    # loss past standdown_max_loss_pct (default 2.5%) of the session-open equity halts new
+    # entries. Two −$150 losses = −$300 <= 2.5% of $10,000 ($250) → trips at 2 (< 3 streak).
+    rm = RiskManager(cfg, executor=_FakeExecutor(last_equity=10_000.0))
+    rm.roll_session(date(2026, 7, 21))
+    _lose(rm, exit_price=85.0)  # (85-100)*10 = -150
+    assert rm.entries_allowed is True
+    _lose(rm, exit_price=85.0)  # cumulative -300 <= -250 floor
+    assert rm.entries_allowed is False
+    assert rm.standdown_active is True
+
+
+def test_standdown_resets_at_next_session(cfg):
+    # A halt from one session must NOT bleed into the next: roll_session on a new date
+    # clears the stand-down, the realized tally, and the streak.
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+    rm.roll_session(date(2026, 7, 17))
+    _lose(rm); _lose(rm); _lose(rm)
+    assert rm.entries_allowed is False
+    rm.roll_session(date(2026, 7, 18))  # new session
+    assert rm.entries_allowed is True
+    assert rm.standdown_active is False
+    _lose(rm)  # streak starts fresh — one loss doesn't re-trip
+    assert rm.entries_allowed is True
+
+
+def test_standdown_disabled_never_trips(monkeypatch):
+    # The feature has a kill-switch: STANDDOWN_ENABLED=false leaves entries always allowed
+    # regardless of the loss run (pre-IMP-016 behavior).
+    cfg = _cfg_standdown(monkeypatch, STANDDOWN_ENABLED="false")
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+    rm.roll_session(date(2026, 7, 17))
+    for _ in range(5):
+        _lose(rm)
+    assert rm.entries_allowed is True
+    assert rm.standdown_active is False
+
+
+def test_standdown_skips_exit_without_entry(cfg):
+    # A startup-reconciled holding exits with no entry price/qty to score — it must not be
+    # guessed into the loss streak (could false-trip the halt). Three entry-less exits, no trip.
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+    rm.roll_session(date(2026, 7, 21))
+    for _ in range(3):
+        rm.exit_position("NFLX", 98.0, "end-of-day flatten")  # no entry arg
+    assert rm.entries_allowed is True
+    assert rm.standdown_active is False
+
+
+def test_standdown_and_feed_halt_compose(cfg):
+    # The two entry halts are independent latches AND'd together: restoring the feed does
+    # not lift a tripped stand-down, and clearing the stand-down does not lift a feed halt.
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+    rm.roll_session(date(2026, 7, 17))
+    _lose(rm); _lose(rm); _lose(rm)  # stand-down tripped
+    rm.notify_feed_lost()  # feed also down
+    assert rm.entries_allowed is False
+    rm.notify_feed_restored()  # feed back, but stand-down still latched
+    assert rm.entries_allowed is False
+    rm.roll_session(date(2026, 7, 18))  # stand-down cleared, feed already ok
+    assert rm.entries_allowed is True

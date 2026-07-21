@@ -66,6 +66,17 @@ def _float(name: str, default: float) -> float:
         raise ConfigError(f"{name} must be a number, got {raw!r}.") from e
 
 
+def _bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return default
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    raise ConfigError(f"{name} must be a boolean (true/false), got {raw!r}.")
+
+
 def _csv(name: str, default: str) -> tuple[str, ...]:
     raw = os.environ.get(name, default)
     items = tuple(s.strip().upper() for s in raw.split(",") if s.strip())
@@ -192,6 +203,22 @@ class Config:
     # a late-entry cutoff that kills the flagged weak last-15-min entries.
     flatten_before_close_min: int
 
+    # Broad-adverse-day stand-down (IMP-016). The long-only ribbon strategy has no
+    # edge on a market-wide down day — it keeps opening fresh longs on intraday
+    # bounces that each resume lower. Two qualifying sessions (2026-07-07 −$179,
+    # 1W/10L whipsaw; 2026-07-17 −$113, 0W/5L risk-off selloff — together −$292, the
+    # bulk of the recent drawdown) showed the identical failure mode. When the
+    # session's realized loss breaches ``standdown_max_loss_pct`` of the session-open
+    # equity, OR ``standdown_max_consecutive_losses`` losing exits occur back-to-back,
+    # the bot HALTS NEW ENTRIES for the rest of the session (open positions keep being
+    # managed/flattened; the counters reset at the next session open). Capital
+    # protection only — it never widens risk, never sizes up, never disables a stop;
+    # it can only *stop opening* new positions. ``standdown_enabled`` is a safety
+    # kill-switch for the feature itself.
+    standdown_enabled: bool
+    standdown_max_loss_pct: float
+    standdown_max_consecutive_losses: int
+
     # Infra
     sqlserver_conn: str = field(repr=False)
     log_level: str = "INFO"
@@ -238,6 +265,9 @@ class Config:
             market_open=_hhmm("MARKET_OPEN", "09:30"),
             market_close=_hhmm("MARKET_CLOSE", "16:00"),
             flatten_before_close_min=_int("FLATTEN_BEFORE_CLOSE_MIN", 15),
+            standdown_enabled=_bool("STANDDOWN_ENABLED", True),
+            standdown_max_loss_pct=_float("STANDDOWN_MAX_LOSS_PCT", 0.025),
+            standdown_max_consecutive_losses=_int("STANDDOWN_MAX_CONSECUTIVE_LOSSES", 3),
             sqlserver_conn=_str("SQLSERVER_CONN", ""),
             log_level=_str("LOG_LEVEL", "INFO").upper(),
         )
@@ -282,6 +312,10 @@ class Config:
                 raise ConfigError(f"{fld.upper()} must be a fraction in (0, 1).")
         if self.flatten_before_close_min < 0:
             raise ConfigError("FLATTEN_BEFORE_CLOSE_MIN must be >= 0.")
+        if not 0 < self.standdown_max_loss_pct <= 1:
+            raise ConfigError("STANDDOWN_MAX_LOSS_PCT must be a fraction in (0, 1].")
+        if self.standdown_max_consecutive_losses < 1:
+            raise ConfigError("STANDDOWN_MAX_CONSECUTIVE_LOSSES must be >= 1.")
         if self.rsi_period <= 1:
             raise ConfigError("RSI_PERIOD must be > 1.")
         if self.volume_ma_period <= 0:

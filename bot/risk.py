@@ -29,6 +29,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -96,13 +97,30 @@ class RiskManager:
         # drifts away from the original key and must be tracked separately.
         self._trail_stops: dict[str, float] = {}
         self._live_stop_oid: dict[str, str] = {}
+        # Broad-adverse-day stand-down (IMP-016). Session-scoped, reset each session
+        # open via :meth:`roll_session`. Once tripped, ``entries_allowed`` goes False so
+        # the strategy stops opening NEW positions (open ones are still managed/flattened)
+        # for the rest of the session. See :meth:`_account_for_standdown`.
+        self._session_day: date | None = None
+        self._session_realized = 0.0
+        self._consec_losses = 0
+        self._standdown = False
+        self._standdown_baseline_equity: float | None = None
 
     # --- feed-loss fail-safe ----------------------------------------------
 
     @property
     def entries_allowed(self) -> bool:
-        """False while the market-data feed is considered down (halts new entries)."""
-        return self._feed_ok
+        """False while new entries are halted — either the market-data feed is down
+        (feed-loss fail-safe) or the broad-adverse-day stand-down has tripped
+        (IMP-016). Managing/flattening open positions is unaffected either way."""
+        return self._feed_ok and not self._standdown
+
+    @property
+    def standdown_active(self) -> bool:
+        """True once the session stand-down has tripped; cleared at the next session
+        open by :meth:`roll_session`. (IMP-016)"""
+        return self._standdown
 
     def notify_feed_lost(self) -> None:
         """Latch the halt and alert (idempotent within a single down-spell)."""
@@ -136,6 +154,81 @@ class RiskManager:
             self._on_feed_alert(message)
         except Exception:  # a downstream alert bug must not kill risk management
             log.exception("feed-alert callback failed")
+
+    # --- broad-adverse-day stand-down (IMP-016) ---------------------------
+
+    def roll_session(self, day: date) -> None:
+        """Reset the stand-down accounting at the start of a new trading session.
+
+        Driven from the strategy's per-candle path with the candle's US-Eastern session
+        date; a no-op until the date actually changes, so it is safe (and cheap) to call
+        on every candle. It clears the realized-loss tally, the consecutive-loss streak,
+        the equity baseline, and — crucially — an active stand-down, so a halt from one
+        session never bleeds into the next (the brief's "reset at the next session open").
+        """
+        if day == self._session_day:
+            return
+        self._session_day = day
+        self._session_realized = 0.0
+        self._consec_losses = 0
+        self._standdown_baseline_equity = None
+        if self._standdown:
+            log.info("stand-down reset for new session %s — new entries re-enabled", day)
+        self._standdown = False
+
+    def _account_for_standdown(
+        self, result: ExitResult, entry: ExecutionResult | None, entry_fill: float | None
+    ) -> None:
+        """Fold a closed trade into the session stand-down tally (IMP-016).
+
+        Realized P/L is ``(exit - entry) * qty`` using the corrected entry fill when we
+        have it (else the recorded entry price); a loss extends the consecutive-loss
+        streak, any non-loss resets it. When either the cumulative session loss breaches
+        ``standdown_max_loss_pct`` of the session-open equity (the executor's equity read
+        at the session's first entry) OR the streak reaches
+        ``standdown_max_consecutive_losses``, the stand-down latches and new entries halt
+        for the rest of the session. A missing entry (a startup-reconciled holding with no
+        entry price/qty) is skipped rather than guessed — it simply does not count. The
+        two motivating sessions: 2026-07-07 (1W/10L, −$179) trips on the streak after the
+        3rd loss, blocking ~7 later losers; 2026-07-17 (0W/5L, −$113) trips after the 3rd
+        loss (TSM), blocking INTC (−$39.60) and NFLX (−$23.85).
+        """
+        if not self._cfg.standdown_enabled or self._standdown:
+            return
+        qty = getattr(entry, "qty", None)
+        entry_ref = entry_fill if entry_fill is not None else getattr(entry, "entry_price", None)
+        if qty is None or entry_ref is None:
+            return  # no entry context to score this exit — don't guess a P/L
+        pnl = (result.exit_price - entry_ref) * qty
+        self._session_realized += pnl
+        self._consec_losses = self._consec_losses + 1 if pnl < 0 else 0
+        if self._standdown_baseline_equity is None:
+            self._standdown_baseline_equity = getattr(self._executor, "last_equity", None)
+        streak_breach = self._consec_losses >= self._cfg.standdown_max_consecutive_losses
+        loss_breach = (
+            self._standdown_baseline_equity is not None
+            and self._session_realized
+            <= -self._cfg.standdown_max_loss_pct * self._standdown_baseline_equity
+        )
+        if not (streak_breach or loss_breach):
+            return
+        self._standdown = True
+        trigger = (
+            f"{self._consec_losses} consecutive losing exits"
+            if streak_breach
+            else f"session realized {self._session_realized:+.2f} "
+            f"(>= {self._cfg.standdown_max_loss_pct:.1%} of open equity "
+            f"{self._standdown_baseline_equity:.2f})"
+        )
+        log.error(
+            "STAND-DOWN tripped — %s; halting NEW entries for the rest of the session "
+            "(open positions are still managed & flattened)",
+            trigger,
+        )
+        self._alert(
+            f"🛑 Stand-down: {trigger}. No new entries for the rest of the session "
+            "(open positions still managed & flattened; resets at the next open)."
+        )
 
     # --- early exit on reversal -------------------------------------------
 
@@ -311,6 +404,7 @@ class RiskManager:
             result.reason,
             f" qty={result.qty}" if result.qty is not None else "",
         )
+        self._account_for_standdown(result, entry, entry_fill)
         if self._on_exit is not None:
             try:
                 self._on_exit(result)

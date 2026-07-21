@@ -136,6 +136,11 @@ class OrderExecutor:
         self._trading_factory = trading_factory or self._default_trading_client
         self._on_result = on_result
         self._client: TradingClient | None = None
+        # Account equity read at the most recent entry sizing. The risk manager's
+        # broad-adverse-day stand-down (IMP-016) uses it as the session-open equity
+        # baseline for its realized-loss-percentage trip — captured off the account
+        # read execute() already does, so no extra broker call is added.
+        self._last_equity: float | None = None
 
     def _default_trading_client(self) -> TradingClient:
         return TradingClient(
@@ -149,6 +154,13 @@ class OrderExecutor:
         if self._client is None:
             self._client = self._trading_factory()
         return self._client
+
+    @property
+    def last_equity(self) -> float | None:
+        """Account equity read at the most recent entry sizing, or ``None`` before the
+        first entry of the process. The stand-down (IMP-016) reads it as the session's
+        equity baseline; it is refreshed on every :meth:`execute`."""
+        return self._last_equity
 
     # --- sizing ------------------------------------------------------------
 
@@ -193,6 +205,11 @@ class OrderExecutor:
         except Exception:
             log.exception("could not read account before sizing %s — skipping entry", symbol)
             return None
+
+        try:  # cache equity for the stand-down baseline (IMP-016); never block an entry on it
+            self._last_equity = float(account.equity)
+        except (TypeError, ValueError, AttributeError):
+            pass
 
         plan = self.plan(confidence=confidence, entry_price=entry_price, account=account)
         if plan is None:

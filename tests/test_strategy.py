@@ -8,13 +8,13 @@ indicator history.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
 import pytest
 
 from bot.candles import Candle
-from bot.config import Config
+from bot.config import EASTERN, Config
 from bot.executor import ExecutionResult, StopOrderGone
 from bot.indicators import RibbonSnapshot
 from bot.risk import RiskManager
@@ -463,6 +463,53 @@ def test_feed_loss_halts_new_entries(cfg):
     assert sig is None
     assert ex.calls == []  # never evaluated/executed while the feed is down
     assert eng.state("NFLX") is BotState.WAITING
+
+
+def test_standdown_blocks_new_entries(cfg):
+    # IMP-016: once the broad-adverse-day stand-down has tripped, a qualifying candle must
+    # NOT open a position — the same entry gate the feed-loss fail-safe uses. Align the
+    # trip with the candle's session so the per-candle roll_session doesn't reset it.
+    risk = RiskManager(cfg, executor=_FakeCloser())
+    risk.roll_session(_OPEN_TS.astimezone(EASTERN).date())
+    for _ in range(3):  # three consecutive losing exits (entry 100 → exit 98) trip it
+        risk.exit_position("NFLX", 98.0, "stop", _exec_result())
+    assert risk.entries_allowed is False
+    ex = _FakeExecutor(_exec_result())
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        risk=risk,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    sig = eng.on_short_candle(_candle())
+    assert sig is None
+    assert ex.calls == []  # never evaluated/executed while stood down
+    assert eng.state("NFLX") is BotState.WAITING
+
+
+def test_new_session_candle_resets_standdown(cfg):
+    # The strategy drives roll_session off the candle's Eastern date, so the next session's
+    # first candle clears a PRIOR day's stand-down before the entry gate is checked.
+    risk = RiskManager(cfg, executor=_FakeCloser())
+    risk.roll_session(date(2026, 6, 1))  # a prior session, then tripped
+    for _ in range(3):
+        risk.exit_position("NFLX", 98.0, "stop", _exec_result())
+    assert risk.entries_allowed is False
+    ex = _FakeExecutor(_exec_result())
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        risk=risk,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())  # candle is 2026-06-02 → a new session
+    sig = eng.on_short_candle(_candle())
+    assert sig is not None  # the new-session roll re-enabled entries
+    assert len(ex.calls) == 1
+    assert eng.state("NFLX") is BotState.MANAGING
 
 
 def test_signal_callback_error_is_swallowed(cfg):
