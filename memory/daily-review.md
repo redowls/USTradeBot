@@ -2393,3 +2393,95 @@ the daily-loss stand-down now teed up as the next deliberate build. Candidate #1
   design. Watch Thu's review for its first live trip (or correct non-trip).
 
 ---
+
+## 2026-07-22 — Daily Review
+
+### Stats
+- **6 trades, 3W / 3L → 50% win.** Net DB realized **−$36.25** (avg −$6.04). Avg win **+$6.83**,
+  avg loss **−$18.91**, **profit factor ≈ 0.36** — the two real stop-outs (NFLX, INTC) are the entire
+  loss; the other four round-tripped to a roughly-flat EOD flatten. Best **+$17.94** (AMD), worst
+  **−$32.55** (NFLX). Account **equity $8,882.27**, all cash, **0 positions**.
+- **Broker reconciles to the cent.** last_equity $8,918.52 → equity $8,882.27 = **−$36.25**, exactly the
+  DB realized P&L; broker flat, no drift, no missed fill, nothing carried. Clean book (the IMP-015 family
+  is holding — no phantom exits, DB↔equity tie intact).
+- **IMP-016 (stand-down) did NOT trip today, correctly.** Two real stops (INTC 16:46, NFLX 18:08) then
+  four EOD flattens; session loss −0.41% of equity (backstop is −2.5%) and no 3-in-a-row real-stop run
+  before the flatten. A normal chop day is exactly what it should ignore — first *live* observation of
+  IMP-016 = benign non-trip, as designed. Its real test still awaits a genuine broad risk-off tape.
+
+### Trade-by-trade review
+- **NFLX** (14:06 @70.25, qty 28, conf **65.36** — xo **0.37**, trend 1.0, rsi 1.0, **vol 0.0**, vlt 0.95)
+  → stop @69.09 **−$32.55 (−1.65%)**. **Worst.** Lowest-conviction entry of the day (weakest crossover,
+  zero volume confirmation) on a thin name into the GOOG/TSLA-earnings caution tape; went underwater from
+  entry and rode the full initial stop. **Root cause: signal quality + regime** — a marginal cross with no
+  participation into a risk-averse afternoon.
+- **INTC** (14:20 @105.79, qty 20, conf **75.02** — xo 0.63, trend 0.71, rsi 1.0, vol 0.65, vlt 0.81)
+  → stop @104.59 **−$23.97 (−1.13%)**. A **genuinely strong** signal (best sub-scores of the day) that
+  still failed — INTC drifted down all session (own feed: ~$103 by 20:40, below the $104.59 stop).
+  **Root cause: regime, not signal** — a good long into a name that faded; nothing wrong with the entry.
+- **AMD** (14:13 @549.32, qty 3, conf **64.04** — xo **0.37**, trend 1.0, rsi 1.0, **vol 0.0**, vlt 0.86)
+  → EOD flatten @555.30 **+$17.94 (+1.09%). Best.** Note: the **same weak profile as NFLX** (0.37 cross,
+  0 volume) — one won, one lost. **A coin flip, not an edge** (n too small to act, but the pattern that
+  the 0.37-crossover / 0-volume entries are indistinguishable ex-ante is worth watching).
+- **MU** (15:01 @972.90, qty 1, conf 69.06) → EOD flatten @972.68 **−$0.22**. Scratch; never worked,
+  never stopped. Regime chop.
+- **NVDA** (15:31 @212.58, qty 7, conf 68.59) → EOD flatten @212.76 **+$1.25**. Scratch.
+- **AVGO** (17:46 @398.16, qty 5, conf 77.42) → EOD flatten @398.42 **+$1.30**. Scratch; late entry
+  (17:46) with little runway before the flatten.
+
+### What worked / what didn't
+- **Worked:** the trailing/flatten machinery behaved — the four survivors round-tripped to a clean EOD
+  flatten with no naked-overnight risk (0 positions at broker). Reconciliation is spotless. The stand-down
+  stayed dormant on a normal day (its intended behaviour).
+- **Didn't:** two stop-outs (−$56.52 combined) were the whole day. NFLX was a weak, thin, low-conviction
+  entry that shouldn't carry full size into an earnings-caution tape; INTC was a good signal killed by a
+  down-drifting regime — not fixable at entry.
+
+### Lessons & improvement candidates (ranked; NO code change shipped today — see below)
+Today's −$36 is normal chop, IMP-016 shipped **yesterday** and this is its first (benign) observation, and
+every tempting lever is either refuted or unvalidatable tonight. Shipping a second strategy change on top of
+an unobserved one, on one chop day, with no way to validate its sign, would violate *protect-capital /
+never-overfit / one-traceable-change*. **Reviewed → no change warranted.** Candidates, in priority order:
+
+1. **THE STRUCTURAL LEAK — broker-side stop fills are the entire drawdown (highest impact, needs tooling).**
+   Last-30-day exit-reason breakdown: **clean `end-of-day flatten` = +$603.79 (98 tr, 55% win)** — the
+   strategy's edge is in *holding to EOD*. But **`stop/target filled broker-side` = −$422.79 (15 tr, 1 win,
+   avg −$28.19)** + **`end-of-day flatten (…filled broker-side)` = −$561.94 (32 tr, 6 win)** + trailing
+   −$54.69 → **stops bleed ≈ −$1,039** against +$604 of flattens. **Targets sit ~10% away and essentially
+   never fill intraday.** The leak is entries that go straight down into the initial 2% stop; the trail
+   can't help a position that never goes green.
+2. **The reversal early-exit (`RiskManager.check_exit`, "bearish 1-min ribbon cross") is INERT — 0 exits
+   ever.** It's implemented + marked done in todo.md (Phase 5) but **never invoked**: `strategy._manage`
+   only calls `update_trailing_stop`, and the `_manage` docstring shows this was a *deliberate* choice
+   ("returns to WAITING via the EOD flatten… not on a single 1-min pullback"). So it is not a simple wiring
+   bug — naively wiring it would chop the profitable +$604 EOD-flatten holds on shallow pullbacks and could
+   make things worse. **Leading candidate:** wire an **underwater-guarded** reversal exit (fire *only* when
+   the position is below entry — cut the −$28 pure-stop losers earlier, never touch a green runner).
+   **BLOCKER:** its net effect on the winners bucket (many flatten winners surely dip below entry before
+   recovering) **cannot be validated with unit tests alone — USTradeBot has NO replay/backtest harness.**
+3. **Build a minimal historical replay harness (infrastructure, top enabler).** Without it, exit/entry logic
+   cannot be changed safely — the bot has bled −$435 over 30 days on stops with no way to validate a fix.
+   This is the real gate on #1/#2. Too large + risky to rush post-close tonight; propose as a dedicated run.
+4. **Confidence-threshold raise — REFUTED, do not do it.** Last-30-day bands: 60-69 −$175.53 (83 tr),
+   **70-79 −$132.16 (50 tr, also negative)**, 80-89 +$16.48 (16 tr), 90-100 −$144.42 (3 tr, 0 win). The
+   all-time "70-79 sweet spot" has **decayed** — raising `ENTRY_THRESHOLD` 60→70 would cut volume but the
+   retained band also loses. No clean confidence edge to exploit this month.
+5. *(watch, n=3)* 90-100 band is 0/3, −$144 — extreme outliers; `SIZE_CONFIDENCE_CAP` (85) already limits
+   sizing there. Too small to act.
+
+### Notes for pre-market research
+- **NFLX is thin and low-conviction here.** Its feed today was very illiquid (1-min volumes in the teens/20s)
+  and the bot's NFLX entry was its weakest signal (0.37 cross, 0 volume) and its worst loss (−$32.55). Not a
+  park call on one day, but NFLX has now given a fade-then-loss profile twice — **watch liquidity/quality**;
+  if it keeps producing 0-volume-subscore entries, consider parking on thin-participation grounds.
+- **GOOG + TSLA report tonight (after 07-22 close).** Both were correctly parked this morning. **The GOOG/TSLA
+  reaction sets Thu 07-23's regime** — a disappointment could be the first genuine broad risk-off tape and the
+  **first real test of the IMP-016 stand-down**. **INTC's queued park fires Thu 07-23** (reports after Thu
+  close) — don't miss it; today INTC signalled strongly but faded on regime, consistent with keeping it until
+  its own earnings park.
+- **Chip cohort (INTC/MU/AVGO/NVDA/AMD) chopped, didn't trend** — regime, not symbol quality; all
+  signalled/stopped/flattened correctly. Keep enabled. No adds warranted into tonight's binary Mag-7 prints.
+- **Late entries have no runway:** AVGO (17:46) and MU (15:01) entered with little time before the flatten and
+  scratched — consistent with prior "late low-conviction entries churn" notes; not acted on (needs more data).
+
+---
