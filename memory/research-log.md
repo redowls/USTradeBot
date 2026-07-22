@@ -32,6 +32,65 @@ Entry template:
 
 ---
 
+## 2026-07-22 — Pre-market Research
+
+**The week's #1 queued binary parks fire today.** Book is CLEAN & FLAT (0 positions, equity
+**$8,918.52** all cash) → nothing locked, watchlist free. Both the 07-20 daily review and the
+07-21 research entry explicitly ordered: **the Wed 07-22 pre-market routine MUST PARK GOOG + TSLA**
+(both report Q2 after today's close). Done this run. INTC's park is queued for **Thu 07-23** (not today).
+
+### Market context
+- **Risk-OFF into the first Magnificent-7 prints.** Futures lower: **Nasdaq-100 −1.26%**, S&P
+  −0.33% — markets bracing for **GOOG + TSLA after today's close** (the first two Mag-7 to report,
+  the AI-capex test). Tuesday 07-21 closed strong (S&P +0.89% to 7,509.20, semis rebound).
+- **⚠️ Earnings verified (WebSearch):** **GOOG (Alphabet)** reports Q2 **after today's close**
+  (Street EPS $2.88, rev ~$117B; +9% YTD). **TSLA (Tesla)** reports Q2 **after today's close**
+  (Street EPS $0.52, rev ~$26B, record 480K deliveries; −15% YTD, options imply ~7.6% swing).
+  Both are binary overnight events → **parked before the open** (book flat, neither locked = safe).
+  No other watchlist name reports today (AAPL Jul 30). **INTC reports Thu 07-23 → Thu routine parks it.**
+- Non-watchlist movers: **SMCI** surging pre (record backlog); **IBM** reports after close.
+  Macro overhang: oil/inflation, Fed-hike odds up (~24% July, ~69% by Sept), fresh tariffs.
+
+### Carried from daily review (07-21 EOD)
+- **Book CLEAN & FLAT into Wed 07-22** — daily review said equity $8,918.55 all cash; **confirmed
+  live** (ACTIVE, equity **$8,918.52**, 0 positions, BP $35,674). Nothing locked.
+- **The Wed 07-22 GOOG+TSLA park was the daily review's explicit ⚠️ instruction** — executed.
+- **Chip cohort chopped but is regime, not symbol quality** (TSM won +$34.14 on 07-21; INTC/MU
+  whipsawed early then afternoon re-entries worked) → keep all enabled. **NFLX behaved** (+0.94%
+  late winner), post-earnings watch relaxed → keep. **Resist chasing chip/momentum adds** into the
+  megacap prints → honored (no adds).
+- IMP-016 (broad-adverse-day stand-down) now LIVE — watch for its first trip if GOOG/TSLA disappoint tonight → Thu selloff.
+
+### Watchlist review
+21 enabled reviewed against the risk-off tape + 14d P&L. **14d net −$329** across 20 symbols, but
+per the dailies this is the **semis/AI-capex regime week**, not symbol/liquidity quality — every
+laggard signalled & stopped correctly. Winners BABA (+$52), ABNB (+$29), MSFT (+$14), NVDA (+$11).
+- **GOOG (2 tr −$5.73) / TSLA (4 tr −$71.55)** — liquid mega-caps, red is regime; **parked ONLY for
+  tonight's binary earnings**, not quality. Re-enable next open once the print clears.
+- **Core megacap/ETF engine** (AAPL/AMZN/MSFT/QQQ/SPY/NVDA) + **chip cohort** (AVGO/AMD/INTC/MU/TSM)
+  + **BABA/SE/ABNB/C/JPM/WMT/UNH/NFLX** — all liquid, all regime-red where red; keep. Long-only 5m
+  gate self-protects on the risk-off tape.
+- **Parked re-enable check:** BIRD (micro-cap), COST (sales-miss downtrend), ENPH (10.9% ATR whipsaw),
+  QCOM (−14% vs MA, thin $vol), WPM (dead-vol downtrend), XOM (one-headline oil, no trend) → **all
+  stay parked, no fresh bullish catalyst.**
+- **Adds:** none. Risk-off tape into the pivotal Mag-7 prints is the wrong session to chase momentum;
+  no conviction candidate. 19 enabled is broad and healthy.
+
+### Changes applied to dbo.watchlist
+- **Parked GOOG + TSLA** — `enabled=0`, note "parked 2026-07-22: Q2 earnings AFTER today close
+  (binary), re-enable next open once cleared". Both flat (nothing locked) = safe.
+- **No adds, no other parks, no re-enables.** Perplexity sonar briefing returned empty (no cited
+  results) → fell back to WebSearch, which confirmed the GOOG/TSLA after-close timing.
+
+### Final watchlist
+**19 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C INTC JPM MSFT MU NFLX NVDA QQQ SE SPY TSM UNH
+WMT. Parked (8): BIRD COST ENPH GOOG QCOM TSLA WPM XOM. Service **RESTARTED** 11:35 UTC — verified
+`active`, warmup primed, equity $8,918.52, 0 positions, clean 19-symbol subscription (GOOG/TSLA
+absent). 🔒 Locked: none (0 open positions). **Thu 07-23 routine: PARK INTC** (reports Thu). **Re-enable
+GOOG + TSLA on the next clean open after tonight's prints clear.**
+
+---
+
 ## 2026-06-13 — Pre-market Research
 
 First run of this routine. Note: today is Saturday; next session is **Monday 2026-06-15**
