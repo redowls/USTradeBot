@@ -2485,3 +2485,94 @@ never-overfit / one-traceable-change*. **Reviewed → no change warranted.** Can
   scratched — consistent with prior "late low-conviction entries churn" notes; not acted on (needs more data).
 
 ---
+
+## 2026-07-23 — Daily Review
+
+### Stats
+- **NO TRADES.** 0 closed, 0 opened, 0 positions. Net realized **$0.00**. Account **equity $8,882.27**,
+  all cash — **flat vs the 07-22 close** ($8,882.27), no drift.
+- **Broker reconciles to the cent.** `alpaca-usbot` MCP: 0 orders today (`status=all`, after 00:00Z),
+  0 positions, equity/cash/portfolio_value all **$8,882.27**. DB agrees (0 rows entered/exited today).
+  Nothing carried, nothing missed. Clean book.
+- **Not a strategy failure — a risk-off tape the long-only gate correctly sat out.** Perplexity close read:
+  **SPX −1.2% (7,408), Nasdaq −2.2% (25,138), risk-off/rotation-out-of-growth, no clean trend**; semis
+  pressured by the AI/mega-cap selloff, no MU/JPM/NFLX-specific catalyst. On a down, trendless tape the 5m
+  long-gate opens few longs by design — that is the strategy protecting capital, not breaking.
+
+### Trade-by-trade review (no trades → root-cause the zero)
+Only **MU reached the entry gate** all session — **3 ENTRY signals, all dropped by the executor** as
+`skip MU: position sizing (model A) yields < 1 share`:
+- **14:06 MU @ 993.71, conf 79.9** (xo 0.70 trend 0.99 rsi 1.00 vol 0.66 vlt 0.61) — the day's *best*
+  signal (70-79 sweet-spot band). Dropped, unsizable.
+- **16:16 MU @ 992.87, conf 62.2** (xo 0.26 vol 0.00) — dropped, unsizable.
+- **16:24 MU @ 993.39, conf 64.9** (xo 0.30 vol 0.10) — dropped, unsizable.
+- Everything else that came close was correctly gated by confidence: JPM 53.8/46.8/48.5, NFLX 57.2 — all
+  `< 60`, no entry. So the watchlist wasn't dead; the tape simply didn't produce qualifying longs except MU.
+
+**Root cause of the drop (reproduced in-code):** Model A sizes `notional = buying_power × alloc_fraction`,
+then floors to whole shares. Today's runtime config is **MIN_ALLOC 0.05 / MAX_ALLOC 0.10** and **buying
+power came back at 1× ($8,882)** (`get_account_info`: `multiplier:"1"`, buying_power==cash==equity). So the
+**max** per-trade notional is **0.10 × $8,882 = $888**, but **one MU share ≈ $993**. A single MU share is
+**11.2% of equity — above the 10% MAX_ALLOC ceiling** — so the floor correctly yields 0 shares. Reproduced:
+conf 79.9 → frac 0.0749 → target $665 → 0.67 sh; conf 62.2 → 0.47 sh; conf 64.9 → 0.50 sh. **The skip is
+correct risk behavior, not a bug** — forcing 1 share would breach the max-alloc cap (forbidden: never widen
+risk to chase a fill).
+
+**Why MU filled on 07-21/07-22 but not today = buying power, not price.** MU has traded fine for weeks at
+$885–$1,182 (07-22 filled qty 1 @ $972.90; 07-21 qty 2 @ $956.67/$939.92). The lever is **buying power**:
+the 07-22 pre-market note recorded **BP $35,710 (≈4×)**, which makes 0.10×BP = $3,571 → MU affordable; today
+BP is **1× ($8,882)**, so 0.10×BP = $888 < one share. Buying power swinging **4× → 1×** day-to-day (DTBP/RegT
+vs cash) silently flips MU (and any >~$890 name) between sizable and unsizable. See candidate #2.
+
+### What worked / what didn't
+- **Worked:** capital protection. A risk-off day (Nasdaq −2.2%) produced **zero trades and zero loss** — the
+  long-only 5m gate did its job; the confidence gate correctly rejected the marginal JPM/NFLX crosses; and
+  the sizing floor refused an over-cap MU position. Broker/DB tie to the cent. IMP-016 stand-down had nothing
+  to act on (0 exits).
+- **Didn't:** the *one* qualifying signal of the day (79.9%-conf MU, a sweet-spot-band long) was
+  un-actionable purely because MU's share price exceeds this account's per-trade notional cap at 1× buying
+  power. On a thin-signal day that turned a potential trade into a blank session. It's not a loss, but it is
+  wasted watchlist capacity — MU currently generates only un-fillable signals here.
+
+### Lessons & improvement candidates (ranked; NO code change shipped today)
+Zero trades, zero loss, capital protected exactly as designed on a risk-off tape. Every candidate either
+belongs to pre-market (watchlist) or is a core-sizing change that must be validated deliberately on a calm
+day with a backtest — not shipped reactively on a no-trade day. **Reviewed → no change warranted.**
+
+1. **MU is un-sizable at 1× buying power → a watchlist/capital call, not a code change (highest impact,
+   OWNED BY PRE-MARKET).** One MU share (~$993) > MAX_ALLOC×equity ($888), so MU can only produce dropped
+   signals until either equity grows or buying power returns to ≥~2×. It ate the whole session today. **The
+   fix is a watchlist decision (park MU, or accept it's dormant at this account size) — deferred to
+   pre-market per the routine's ground rules.** See Notes below. NOT a sizing-code change: making MU fillable
+   at 1× BP would require breaching the 10% cap.
+2. **Model A sizes off `buying_power`, which swings 1×–4× → position risk isn't anchored to the account
+   (real, but needs a backtest; DO NOT ship reactively).** "10% of buying power" was **40% of equity** on the
+   4× day (07-22) and 10% today — the same config produces wildly different per-name risk. A capital-*safer*
+   variant would anchor the notional base to **equity** (or `min(buying_power, k×equity)`) so a position is a
+   stable fraction of the *account*; this only ever *reduces* size on high-BP days (never widens), and is
+   inert today (BP==equity). But it changes **all-symbol** sizing off a hypothesis about a *different* day,
+   not today's data — exactly the "don't overfit / don't touch sizing casually" line. **Log as a deliberate
+   calm-day candidate that needs the replay harness (candidate #3 below) to validate its sign first.**
+3. **Still-open enabler: the minimal historical replay/backtest harness** (carried from 07-22 #3). Gates any
+   safe change to sizing-base (#2) or the underwater reversal-exit. Unchanged tonight.
+4. **Stop-bucket structural leak / inert reversal-exit** (07-22 #1/#2) — unchanged; no new evidence today
+   (no trades). Still blocked on the harness.
+
+### Notes for pre-market research
+- **⚠️ MU is currently UN-TRADEABLE at this account size + 1× buying power.** At ~$993/share, one MU share is
+  11% of equity — above the 10% MAX_ALLOC cap — so **every MU signal is dropped `< 1 share`** (3 dropped
+  today, incl. a 79.9%-conf sweet-spot long; the *only* symbol that qualified all day). MU fills only when
+  buying power is ≥~2× (it was 4× / BP $35,710 on 07-22). **Decide MU's fate at the watchlist level:** either
+  **park MU** (it's occupying a slot and generating only un-fillable signals at 1× BP), or knowingly keep it
+  as a dormant "trades only on high-BP days" name. Flagging, not deciding — this is your call.
+- **Check today's buying-power figure before curating.** Account came back **1× today (BP $8,882)** vs **4×
+  on 07-22 (BP $35,710)**. This flips MU and any **>~$890 share-price name** (none other on the list are that
+  expensive — AVGO ~$398, TSLA ~$327, AAPL ~$321, NVDA ~$208 are all fine) between sizable and unsizable. If
+  BP is 1× tomorrow, MU stays dormant regardless of tape.
+- **INTC park was due to fire Thu 07-23** (earnings after close). Verify it was parked this morning; if not,
+  it should be parked before Thu's open — carry forward. (No INTC trade today to confirm state from the tape.)
+- **Regime was genuinely risk-off (Nasdaq −2.2%), not a bot problem.** The long-only gate sat out correctly;
+  JPM/NFLX marginal crosses were rightly rejected `< 60`. No watchlist add warranted into a down tape; the
+  chip cohort remains regime-suppressed. Keep the list as-is unless the tape turns.
+
+---
