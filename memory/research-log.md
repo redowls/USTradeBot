@@ -32,6 +32,72 @@ Entry template:
 
 ---
 
+## 2026-07-23 — Pre-market Research
+
+**The queued INTC earnings park fires today; GOOG + TSLA re-enable.** Book is CLEAN & FLAT
+(0 positions, equity **$8,882.27** all cash) → nothing locked, watchlist free. Two decided actions,
+both pre-flagged by the 07-22 daily review: **PARK INTC** (reports Q2 after today's close, binary) and
+**RE-ENABLE GOOG + TSLA** (their after-close prints from last night are now digested).
+
+### Market context
+- **Risk-OFF on AI-capex fears.** Futures lower (as of ~04:00 ET): **Nasdaq −0.7%**, S&P/Dow −0.5%,
+  Russell −0.3%. **GOOG + TSLA both slump pre-market** after last night's Q2 prints — both **beat on
+  revenue** but are punished on **elevated AI capex / margin** concerns (the AI-spending-vs-growth
+  debate). Not chart-breaking collapses (GOOG ~−1-3%, TSLA soft/off-peak) — the binary *event* is
+  resolved, only the reaction remains. Also today: **initial jobless claims**, Middle East tensions →
+  oil bid.
+- **⚠️ Earnings verified (WebSearch, multiple sources):** **INTC reports Q2 AFTER today's close**
+  (Thu 07-23, 5pm ET; consensus ~$14.4B rev, options imply **~15% move** on a name +186% YTD) →
+  textbook binary overnight event, **parked before the open** (book flat, not locked = safe). No other
+  watchlist name reports today (AAPL Jul 30). GOOG/TSLA already reported (last night) → event risk gone.
+- Non-watchlist: **ServiceNow (NOW)** popped on its print; **SPCX** in focus. Busy earnings day broadly.
+
+### Carried from daily review (07-22 EOD)
+- **Book CLEAN & FLAT into Thu 07-23** — daily review said equity $8,882.27 all cash; **confirmed live**
+  (ACTIVE, equity **$8,882.27**, 0 positions, BP $8,882). Nothing locked.
+- **"INTC's queued park fires Thu 07-23 — don't miss it"** → **ACTIONED** (the day's primary change).
+  INTC signalled strongly on 07-22 (conf 75) but faded on regime; kept until its own earnings park, now due.
+- **"Re-enable GOOG + TSLA on the next clean open after tonight's prints clear"** (07-22 research-log)
+  → **ACTIONED**. Same precedent as TSM (07-16, re-enabled through ~4% gap-down) and NFLX (07-17, ~8%
+  gap-down): the park criterion is *binary overnight earnings*, not direction — event resolved, the
+  long-only 5m gate self-protects if they trend down intraday. Both re-verified `tradable/active` on Alpaca.
+- **NFLX thin-participation watch** — 07-22 flagged its illiquid feed + 0-volume-subscore weak entries.
+  Not a one-day park; kept on notice. Behaved-ish today (−0.14% daily). Keep, watch liquidity.
+- **IMP-016 (broad-adverse-day stand-down) LIVE** — today's risk-off GOOG/TSLA-capex tape is a candidate
+  for its **first real trip** if the selloff deepens (per weekly-review D focus + 07-22 note).
+
+### Watchlist review
+19 enabled reviewed against the risk-off tape. Book flat → nothing locked. Chip cohort
+(INTC/MU/AVGO/NVDA/AMD) chopped on 07-22 = regime, not symbol quality — all signalled/stopped/flattened
+correctly; keep. Core megacap/ETF engine (AAPL/AMZN/MSFT/QQQ/SPY/NVDA) + BABA/SE/ABNB/C/JPM/WMT/UNH/NFLX/TSM
+all liquid, all regime-red where red; keep. Long-only gate self-protects on the risk-off tape.
+- **INTC (enabled → parked)** — liquid, quality fine; **parked ONLY for tonight's binary Q2 print**
+  (~15% implied), not for quality. Re-enable next clean open once cleared.
+- **GOOG + TSLA (parked → re-enabled)** — Q2 prints digested; mega-liquid, trend intraday, binary risk gone.
+- **Parked re-enable check:** BIRD (micro-cap), COST (sales-miss downtrend), ENPH (10.9% ATR whipsaw),
+  QCOM (−14% vs MA, thin $vol), WPM (dead-vol downtrend), XOM (one-headline oil, no trend) → **all stay
+  parked**, no fresh bullish catalyst.
+- **Adds:** none. A risk-off, AI-capex-fear tape is the wrong session to chase momentum; no conviction
+  candidate. 20 enabled is broad and healthy.
+
+### Changes applied to dbo.watchlist
+- **Parked INTC** — `enabled=0`, note "parked 2026-07-23: Q2 earnings AFTER today close (~15% implied),
+  no binary overnight hold". Flat (not locked) = safe. The pre-flagged required action.
+- **Re-enabled GOOG + TSLA** — `enabled=1`, notes "Q2 print cleared … event risk resolved, mega-liquid".
+  Both re-verified `tradable=true, status=active` on `/v2/assets`.
+- **No adds, no other parks.** Perplexity sonar briefing returned weak/"not verifiable" (thin retrieval)
+  → fell back to WebSearch, which confirmed INTC's after-close timing and the GOOG/TSLA capex-driven slump.
+
+### Final watchlist
+**20 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C GOOG JPM MSFT MU NFLX NVDA QQQ SE SPY TSLA TSM UNH
+WMT. Parked (7): BIRD COST ENPH INTC QCOM WPM XOM. Service **RESTARTED** 11:37 UTC — verified `active`,
+warmup primed 20/20 from history, account ACTIVE equity $8,882.27, 0 positions, clean 20-symbol subscription
+(GOOG/TSLA present, INTC absent; the connection-limit blips were the known old/new-PID restart handoff,
+recovered by 11:37:30). 🔒 Locked: none (0 open positions). **Re-enable INTC on the next clean open after
+tonight's print clears.** Watch NFLX participation + a possible first IMP-016 stand-down trip on the risk-off tape.
+
+---
+
 ## 2026-07-22 — Pre-market Research
 
 **The week's #1 queued binary parks fire today.** Book is CLEAN & FLAT (0 positions, equity
