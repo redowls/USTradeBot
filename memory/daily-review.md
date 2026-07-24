@@ -2576,3 +2576,86 @@ day with a backtest — not shipped reactively on a no-trade day. **Reviewed →
   chip cohort remains regime-suppressed. Keep the list as-is unless the tape turns.
 
 ---
+
+## 2026-07-24 — Daily Review
+
+### Stats
+- Closed trades (DB): **5** — 3W / 2L → **60% win rate**. Net realized P&L **+$45.00**
+  (avg **+$9.00**/trade). Avg win **+$22.35** (AAPL +$39.10, NFLX +$22.08, WMT +$5.88), avg loss
+  **−$11.03** (MSFT −$13.38, SE −$8.68), **profit factor ≈ 3.04**. Account **equity $8,927.24**
+  (cash, 0 open positions at broker).
+- **Books tie to the cent.** Broker equity $8,927.24 vs last_equity $8,882.24 = **+$45.00**, which
+  matches DB net realized **+$45.00** exactly; 0 open positions (DB & broker both flat), 7 fills / 6
+  canceled bracket legs reconciled, no drift, no naked overnight. Clean session.
+- **Regime (Perplexity):** S&P & Nasdaq **closed lower — a soft / risk-off tape** (AI-capex overhang
+  lingering from Thu), no stock-specific catalyst on any name we traded. **The bot netted green on a
+  down tape — a genuine strategy result, not a regime gift.**
+
+### Trade-by-trade review
+All 5 exited **"end-of-day flatten"** at 19:45 UTC (15:45 ET). Model A throughout. **No target, stop, or
+bearish-cross reversal fired all day — every position rode to the EOD flatten.**
+- **AAPL** (13:31 @ $324.90, conf 62.15 — **xo 0.673**, tr 0.598, rsi 0.00, vol 1.00, vlt 1.00) → $332.72
+  **+$39.10 (+2.41%)**. Best. Opening-hour entry that rode a clean intraday uptrend all session; the
+  strong crossover (0.67) carried it despite the RSI subscore being zeroed (overbought filter). Trend win.
+- **MSFT** (13:35 @ $385.49, conf **74.67** — highest today; xo 0.560, tr 0.781, rsi 1.00, vol 0.50, vlt 0.984)
+  → $382.81 **−$13.38 (−0.69%)**. Worst. **The day's highest-confidence trade was the only real loser** — it
+  drifted down all session, never reached its $377.61 stop, and **never tripped the 1-min bearish-cross early
+  exit**, so it flattened red at EOD. Textbook confidence-inversion + inert-reversal-exit leak.
+- **NFLX** (14:19 @ $69.27, conf 62.92 — xo 0.318, rsi 1.00, vol 0.498) → $70.19 **+$22.08 (+1.33%)**. Win.
+  Low-crossover but rode a steady mid-session uptrend. Post-split price (~$69) sizes cleanly (24 sh).
+- **WMT** (14:32 @ $109.01, conf 63.60 — xo **0.234** weak, tr 0.762, vol 0.424) → $109.43 **+$5.88 (+0.39%)**.
+  Marginal win; weak crossover, small drift up.
+- **SE** (**late** 19:06 @ $100.73, conf 61.94 — xo 0.310, rsi 0.680, vol 0.642) → $100.11 **−$8.68 (−0.62%)**.
+  Loss. Entered 15:06 ET, held 39 min, flattened red — late low-conviction churn. (But see below: late entries
+  are **not** systematically worse in the full record.)
+
+### What worked / what didn't
+- **Worked:** **+$45 green on a soft/risk-off tape** — the long-only 5m gate still found real intraday trends
+  (AAPL/NFLX/WMT) when the index faded; PF 3.0; **books exact to the cent** (broker +$45.00 = DB +$45.00), flat
+  overnight, service `active`, no risk-limit issues (worst trade −0.69%). AAPL's strong-crossover trend hold
+  (+$39) carried the day.
+- **Didn't:** (1) **Confidence inversion again** — highest-conf MSFT (74.67) was the only real loser; the top of
+  the scale still isn't paying (all-time 90-100 = 0% win / −$144, 80-89 = 45% / −$54). (2) **Inert exit
+  machinery** — all 5 rode to the EOD flatten; MSFT trended down all day without tripping the bearish-cross
+  early-exit or its stop. This is the documented stop-bucket / underwater-reversal leak, **still blocked on a
+  replay harness that does not yet exist** — not shippable blind. (3) SE late low-conviction churn (small).
+
+### Lessons & improvement candidates
+1. **(NEW — quantified, tracked, NOT acted) Entry-hour P&L bleed.** Full-history win/PnL by entry hour (UTC):
+   **13Z (09:30–10:30 ET open) is the single biggest drain — −$407.34 over 41 trades, 36.6% win, −$9.94 avg**;
+   17Z −$113, 19Z −$84 (58.8% win but oversized losers). This **REFUTES a late-entry cutoff** (the SE-loss
+   hypothesis): late entries ≥18Z actually win **more** (48.8% vs 43.8% early), so the existing 15:45-ET flatten
+   window is the right late guard and needs no tightening. The real candidate is an **opening-range guard**
+   (delay/gate first-hour entries). **Not acted today:** today's two 13Z entries netted **+$25.72** (AAPL +$39 /
+   MSFT −$13) — today's own tape doesn't justify it, blocking the open would forfeit winners like AAPL, and it's
+   a behavioral entry change that deserves its own deliberate run + more confirmation. Building the case (like
+   the crossover cohort) — revisit once several more sessions confirm the open-hour drain net of its winners.
+2. **Confidence inversion persists** (MSFT 74.67 lost) — governed by standing weekly guidance: **hold IMP-013
+   at 85**, and the strong-crossover de-rate is **"do not act yet, n<15–20."** Today's xo≥0.40 cohort (AAPL,
+   MSFT) was net **+$25.72**, so no fresh support to act — keep watching, don't touch weights.
+3. **Stop-bucket leak / inert reversal-exit** (carried 07-22/07-23) — unchanged; the MSFT ride-to-EOD is fresh
+   evidence but the fix is still gated on the **nonexistent replay harness**. No blind exit-logic change.
+
+**Decision: reviewed — NO CHANGE WARRANTED.** A green +$45 / 60%-win day on a soft tape gives no clean single
+justified lever: the one loss pattern (SE late) is data-refuted, the strongest new signal (open-hour bleed)
+isn't justified by today's own +$25.72 open result and needs its own deliberate run, and the standing weekly
+holds (IMP-013 @ 85, IMP-011 @ 0.20, crossover "don't act yet") bind the confidence work. IMP-016 stand-down
+still awaits its first genuine trip. Shipping anything today would overfit or contradict standing guidance.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Mon 07-27** — broker-confirmed **0 positions**, equity **$8,927.24** all cash.
+  Nothing locked.
+- **INTC re-enable (07-24) is clean** — INTC was enabled and `active` but produced **no signal / no trade**
+  today (no trigger on the soft tape) — no issue, just no cross. Keep enabled.
+- **MSFT** — highest-confidence entry of the day yet drifted down all session for the only real loss; that's the
+  soft/risk-off tape, **not** a symbol problem. Mega-liquid, keep. No park.
+- **SE** — late (15:06 ET) low-conviction entry lost small; liquidity fine, keep. Late entries are **not**
+  systematically worse (data: ≥18Z wins 48.8% vs 43.8%), so no park-for-lateness.
+- **Regime read:** index closed **lower / soft risk-off** (Perplexity) but the bot found tradable longs
+  (AAPL/NFLX/WMT) — a choppy-soft, not a broad-collapse, tape. No watchlist add warranted; no name "never
+  signaled" beyond the normal soft-tape quiet.
+- **Watch (my finding this run):** the **open hour (13Z / 09:30–10:30 ET) is the historical P&L sink**
+  (−$407 all-time). Not a watchlist action, but pre-market should avoid adding hyper-volatile open-gappers that
+  feed low-quality first-hour crosses.
+
+---
