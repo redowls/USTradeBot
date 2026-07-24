@@ -32,6 +32,69 @@ Entry template:
 
 ---
 
+## 2026-07-24 — Pre-market Research
+
+**INTC re-enable day.** Book is CLEAN & FLAT (0 positions, equity **$8,882.24** all cash) → nothing
+locked, watchlist free. One decided action, pre-flagged by the 07-23 research entry + 07-23 daily review:
+**RE-ENABLE INTC** — its Thu 07-23 after-close Q2 print has cleared, and it beat.
+
+### Market context
+- **Futures recovering after Thursday's capex-fear selloff.** As of pre-open: **S&P +0.2%, Nasdaq-100 +0.1%,
+  Dow +0.5% (+268pts)** — stabilizing after Thu 07-23's rough tape (Dow −0.97% to 51,711, **S&P −1.21% to
+  7,408**, **Nasdaq −2.15% to 25,138**) driven by **GOOG −7% + TSLA −14%** on their raised-AI-capex prints.
+  Major averages still on track for a down week (Dow −0.8%, S&P −0.7%, Nasdaq −1.5%).
+- **⚠️ INTC Q2 verified (Perplexity + WebSearch):** reported **after Wed→Thu 07-23 close** — **rev $16.1B
+  (+25% YoY), non-GAAP EPS $0.42, Q3 guide $15.8–16.8B / EPS $0.38 (both above consensus)**, fastest rev
+  growth since 2011 on AI/server demand. Stock **+3.4–3.6% after-hours/pre-market** (~$103.68 vs $100.10
+  close). Binary event resolved **favorably** → re-enable. **Today's earnings on deck** (INTC already out,
+  plus TMUS, LMT, others) — **none of the remaining names are on our watchlist**; no market-hours event risk.
+- Backdrop: oil crossed **$100 (Brent)** Thu on Mideast/Red-Sea tanker attacks, pared to WTI ~$89 / Brent
+  ~$97 Fri; **10-yr ~4.69%** (18-mo high Thu on inflation/hike-back bets); **jobless claims 187K — lowest
+  since 1969** (strong labor). Non-watchlist: geopolitics + oil the swing factors.
+
+### Carried from daily review (07-23 EOD)
+- **Book CLEAN & FLAT into Fri 07-24** — 0 positions, equity $8,882.27 all cash; **confirmed live**
+  (ACTIVE, equity **$8,882.24**, 0 positions). Nothing locked.
+- **"INTC park was due to fire Thu 07-23 — verify it was parked; re-enable on the next clean open once the
+  print clears"** → **ACTIONED**. INTC was correctly parked 07-23; its beat is now digested → re-enabled.
+  Same precedent as GOOG/TSLA (07-23), TSM/UNH (07-16), NFLX (07-17): park = binary overnight earnings,
+  re-enable once resolved regardless of direction. Re-verified `tradable=true, status=active` on `/v2/assets`.
+- **⚠️ "MU is UN-TRADEABLE at 1× buying power" (07-23) — decide its fate.** **Checked BP first, as instructed:
+  today BP is 4× ($35,528.96)**, so 0.10×BP = $3,553 ≫ one MU share (~$993) → **MU is sizable today; KEEP
+  enabled.** The un-tradeable flag was explicitly *conditional on 1× BP* (07-23 had BP 1× → MU dropped all
+  session). BP swings 1×–4× day-to-day; MU stays a "trades on high-BP days" name — no park on a 4× day.
+- **Regime was genuinely risk-off, not a bot problem; no add warranted into a down tape** (07-23) → honored;
+  a recovering-but-choppy, oil/geopolitics-charged, weekly-down tape is no place to chase momentum → no adds.
+
+### Watchlist review
+20 enabled reviewed; book flat → nothing locked. Core megacap/ETF engine (AAPL/AMZN/MSFT/QQQ/SPY/NVDA) +
+chip cohort (AMD/AVGO/MU/TSM) + BABA/SE/ABNB/C/JPM/WMT/UNH/GOOG/TSLA/NFLX all liquid; long-only 5m gate
+self-protects on the soft tape. **GOOG/TSLA** got hit Thu (−7% / −14% on capex) but are flat (not held),
+binary already resolved 07-23, gate handles the direction → keep enabled. **NFLX** thin-participation watch
+continues (no fresh issue) → keep. **MU** sizable at 4× BP → keep.
+- **INTC (parked → re-enabled)** — Q2 beat digested, +3.6% pre-market, mega-liquid top historical earner.
+- **Parked re-enable check:** BIRD (micro-cap), COST (sales-miss downtrend), ENPH (10.9% ATR whipsaw),
+  QCOM (−14% vs MA, thin $vol), WPM (dead-vol downtrend), XOM (oil is a one-headline spike into $100 then
+  faded, not a durable uptrend) → **all stay parked**, no fresh bullish trend catalyst.
+- **Adds:** none. Recovering-but-down-week, oil/Mideast-driven tape; no conviction momentum candidate.
+
+### Changes applied to dbo.watchlist
+- **Re-enabled INTC** — `enabled=1`, note "re-enabled 2026-07-24: Q2 beat (07-23 AH), Q3 guide above cons,
+  +3.6% pre-mkt; earnings event resolved, mega-liquid". Re-verified `tradable=true, status=active` on `/v2/assets`.
+- **No adds, no parks, MU kept** (4× BP today makes it sizable). Perplexity sonar confirmed INTC's beat +
+  reaction (thin on futures/movers) → WebSearch supplied futures direction, the Thu selloff recap, and INTC's
+  +3.6% pre-market move.
+
+### Final watchlist
+**21 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C GOOG INTC JPM MSFT MU NFLX NVDA QQQ SE SPY TSLA TSM
+UNH WMT. Parked (6): BIRD COST ENPH QCOM WPM XOM. Service **RESTARTED** 11:36 UTC — verified `active`, warmup
+primed **21/21** from history, account ACTIVE equity $8,882.24 / BP $35,528.96 (4×), 0 positions, clean
+21-symbol IEX subscription (INTC present), no errors. 🔒 Locked: none (0 open positions). **Watch:** MU only
+trades on high-BP days (dormant at 1× BP); NFLX thin participation; IMP-016 stand-down still awaits its first
+genuine broad risk-off trip.
+
+---
+
 ## 2026-07-23 — Pre-market Research
 
 **The queued INTC earnings park fires today; GOOG + TSLA re-enable.** Book is CLEAN & FLAT
