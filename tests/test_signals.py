@@ -13,6 +13,7 @@ from bot.signals import (
     confidence,
     evaluate_entry,
     in_close_window,
+    in_open_blackout,
     market_is_open,
     minutes_until_close,
     score_crossover,
@@ -151,6 +152,62 @@ def test_market_hours_handle_est_edt_shift():
     assert not market_is_open(datetime(2026, 1, 6, 14, 0, tzinfo=UTC), _open(), _close())
     # 15:00 UTC == 10:00 EST -> open. Same wall-clock gate, different UTC offset.
     assert market_is_open(datetime(2026, 1, 6, 15, 0, tzinfo=UTC), _open(), _close())
+
+
+def _entry_start() -> time:
+    return time(10, 0, tzinfo=EASTERN)
+
+
+def test_open_blackout_blocks_the_first_thirty_minutes():
+    """IMP-017: entries in the opening range are refused. Over 219 live trades the
+    pre-10:00 ET bucket lost $407 (41 trades, 36.6% win) while the rest of the day
+    made +$236 — the opening ribbon crosses are gap artifacts, not trends."""
+    # 13:35 UTC == 09:35 EDT -> inside the blackout.
+    assert in_open_blackout(
+        datetime(2026, 6, 2, 13, 35, tzinfo=UTC), _open(), _close(), _entry_start()
+    )
+
+
+def test_open_blackout_boundary_opens_exactly_at_the_cutoff():
+    # 13:59 UTC == 09:59 EDT -> still blacked out.
+    assert in_open_blackout(
+        datetime(2026, 6, 2, 13, 59, tzinfo=UTC), _open(), _close(), _entry_start()
+    )
+    # 14:00 UTC == 10:00 EDT -> the cutoff minute itself is tradeable.
+    assert not in_open_blackout(
+        datetime(2026, 6, 2, 14, 0, tzinfo=UTC), _open(), _close(), _entry_start()
+    )
+
+
+def test_open_blackout_disabled_when_cutoff_equals_open():
+    """ENTRY_START == MARKET_OPEN restores the pre-IMP-017 behaviour (no blackout)."""
+    assert not in_open_blackout(
+        datetime(2026, 6, 2, 13, 35, tzinfo=UTC), _open(), _close(), _open()
+    )
+
+
+def test_open_blackout_false_outside_the_session():
+    """Pre-market and weekends are already refused by market_is_open — the blackout
+    must not claim them, or the caller could not tell the two cases apart."""
+    # 12:00 UTC == 08:00 EDT -> pre-market, before the open.
+    assert not in_open_blackout(
+        datetime(2026, 6, 2, 12, 0, tzinfo=UTC), _open(), _close(), _entry_start()
+    )
+    # Saturday.
+    assert not in_open_blackout(
+        datetime(2026, 6, 6, 13, 35, tzinfo=UTC), _open(), _close(), _entry_start()
+    )
+
+
+def test_open_blackout_handles_est_edt_shift():
+    # January (EST): 14:35 UTC == 09:35 EST -> inside the blackout.
+    assert in_open_blackout(
+        datetime(2026, 1, 6, 14, 35, tzinfo=UTC), _open(), _close(), _entry_start()
+    )
+    # 15:00 UTC == 10:00 EST -> clear of it. Same wall clock, different UTC offset.
+    assert not in_open_blackout(
+        datetime(2026, 1, 6, 15, 0, tzinfo=UTC), _open(), _close(), _entry_start()
+    )
 
 
 def test_close_window_only_in_final_minutes():

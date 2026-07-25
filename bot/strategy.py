@@ -47,6 +47,7 @@ from bot.signals import (
     ScoreWeights,
     evaluate_entry,
     in_close_window,
+    in_open_blackout,
     market_is_open,
     minutes_until_close,
 )
@@ -202,6 +203,24 @@ class StrategyEngine:
             return None
 
         if not market_is_open(candle.start, self._cfg.market_open, self._cfg.market_close):
+            self._set(symbol, BotState.WAITING)
+            return None
+
+        # Opening-range blackout (IMP-017): the 1-min ribbon reads the opening auction
+        # gap as a trend, so the first 30 minutes fire on gap artifacts rather than
+        # signal. ENTRIES ONLY — the MANAGING branch above has already returned, so open
+        # positions keep trailing their stop and the EOD flatten is untouched.
+        if in_open_blackout(
+            candle.start,
+            self._cfg.market_open,
+            self._cfg.market_close,
+            self._cfg.entry_start,
+        ):
+            log.debug(
+                "no entry %s: opening-range blackout until %s ET",
+                symbol,
+                self._cfg.entry_start.strftime("%H:%M"),
+            )
             self._set(symbol, BotState.WAITING)
             return None
 

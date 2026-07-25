@@ -192,6 +192,28 @@ def market_is_open(ts_utc: datetime, open_t: time, close_t: time) -> bool:
     return open_t.replace(tzinfo=None) <= now < close_t.replace(tzinfo=None)
 
 
+def in_open_blackout(
+    ts_utc: datetime, open_t: time, close_t: time, entry_start_t: time
+) -> bool:
+    """True if ``ts_utc`` is in the open session but before ``entry_start_t`` — the
+    opening-range blackout where new entries are refused (IMP-017).
+
+    The ribbon strategy has no edge in the first 30 minutes: over 219 live trades the
+    pre-10:00 ET bucket lost $407 (41 trades, 36.6% win) while the other 178 trades
+    made +$236, and those 41 produced 48% of all stop-out damage. The 1-min ribbon is
+    reading the opening auction gap and the first noise bars, so the crossovers it
+    fires on are gap artifacts rather than trends.
+
+    ``entry_start_t == open_t`` disables the blackout (nothing is before the open).
+    Mirrors :func:`in_close_window` at the other end of the session; like it, this
+    gates ENTRIES only — open positions keep being managed and flattened.
+    """
+    if not market_is_open(ts_utc, open_t, close_t):
+        return False
+    et = ts_utc.astimezone(EASTERN)
+    return et.time() < entry_start_t.replace(tzinfo=None)
+
+
 def in_close_window(
     ts_utc: datetime, open_t: time, close_t: time, minutes_before_close: int
 ) -> bool:

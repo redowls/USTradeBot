@@ -685,9 +685,11 @@ Entry template:
   change. **This preempted the daily-loss stand-down (the weekly's #1 strategic priority): you don't ship
   a strategy change on a corrupted book — ship the stand-down on the next clean-book session.**
 - **Commit:** 844dfa9
-- **Observed effect:** (await next review — confirm no `reconcile_exit` fires for a symbol whose entry
-  buy is still unfilled, no phantom-win rows appear, and DB realized P&L keeps tying to equity to the cent;
-  watch that a delayed-fill entry that later stops out records its **real** broker-side exit, not a stale one.)
+- **Observed effect:** ✅ **VALIDATED (weekly 07-24).** Books tied to equity **to the cent every session
+  since** — 07-21 (−$9.15), 07-22 (−$36.25), 07-23 (flat, 0 trades), 07-24 all reconciled exactly, **zero
+  phantom-win rows, no DB↔broker state-desync recurrence.** No `reconcile_exit` fired on an unfilled entry in
+  the week's logs; the delayed-fill / MANAGING-sweep interaction is closed and the confidence/P&L data this
+  routine optimizes is trustworthy again. The precondition it set (a clean book) is what let IMP-016 ship.
 
 ---
 
@@ -728,9 +730,96 @@ Entry template:
 - **Expected impact:** caps the tail loss on a broad-adverse regime day (the −$179 / −$113 disaster
   sessions) by halting new entries after 3 consecutive losses or a −2.5%-of-equity session drawdown, while
   leaving normal chop/mixed days (like today) untouched. First real test is the next genuine risk-off tape.
-- **Commit:** (pending)
-- **Observed effect:** (await next review — confirm the halt trips only on a genuine broad-adverse run,
-  fires the 🛑 page once, blocks the subsequent would-be losers, resets clean at the next session open, and
-  does NOT misfire on a normal mixed/green day; verify managing/flattening of open positions is unaffected.)
+- **Commit:** af56b67
+- **Observed effect:** ⏳ **PARTIALLY VALIDATED (weekly 07-24).** First live observation **07-22 = correct
+  benign non-trip** (session loss −0.41% of equity vs the −2.5% backstop, and the winner reset the loss
+  streak at 2 before any 3-in-a-row) — exactly the dormant-on-a-normal-day behavior intended, **no misfire.**
+  **07-23** was a genuine risk-off tape (Nasdaq −2.2%) but produced **0 exits** (the long-only 5m gate sat it
+  out entirely), so the stand-down had nothing to act on. **A genuine broad-adverse TRIP has NOT yet been
+  observed** — the real test still awaits a risk-off run of ≥3 straight stops or a −2.5% session drawdown
+  *while positions are open*. Shipped correctly as the single change on a clean-book calm day; keep watching
+  (next week's FOMC + mega-cap earnings + month-end is a plausible first-trip setup).
+
+---
+
+## IMP-017 — 2026-07-25
+
+- **Problem:** user-raised ("why does ustradebot always lose?"). A full-book audit of all **219 closed
+  trades** in `USBot.dbo.trades` shows the bot is **net −$171.62, PF 0.92, 44.7% win, payoff 1.14** —
+  effectively a **zero-edge coin flip**, up +$380 through 07-02 then −$552 since 07-06 (win rate collapsed
+  50.4% → 37.0%). Segmenting by **entry hour (ET)** localizes the entire lifetime loss to the opening range:
+
+  | entry window | n | net | win% | PF |
+  |---|---|---|---|---|
+  | **pre-10:00 ET** | **41** | **−$407.34** | **36.6%** | **0.45** |
+  | 10:00+ ET | 178 | **+$235.73** | 46.6% | 1.17 |
+
+  Those 41 trades are **19% of the book but 48% of all stop-out damage** (−$528 of −$1,095), averaging
+  **−$35 per stop-out vs −$15** for the rest of the day. Median pre-10:00 trade **−$7.15** vs −$0.27 kept.
+- **Root cause:** the 1-min trigger ribbon is fed the **opening auction gap and the first noise bars**, so
+  the crossovers it fires on in the first 30 minutes are **gap artifacts, not trends** — they mean-revert
+  into the stop. Concentrated in the high-beta gappers: AVGO −$195, INTC −$102, AMD −$84, MSFT −$72,
+  TSLA −$50. Nothing in the code gated it: `MARKET_OPEN=09:30` and the bot armed entries from the bell.
+- **Change:** an **opening-range blackout**. `bot/signals.py` — new `in_open_blackout(ts, open, close,
+  entry_start)`, the mirror of `in_close_window` at the other end of the session. `bot/strategy.py` —
+  checked in `on_short_candle` immediately after `market_is_open`, i.e. **after** the MANAGING branch has
+  already returned, so it gates **NEW ENTRIES ONLY**: open positions keep trailing their stop and the EOD
+  flatten is untouched. `bot/config.py` — `ENTRY_START` (default `10:00`), validated into
+  `[MARKET_OPEN, MARKET_CLOSE)`; setting it equal to `MARKET_OPEN` disables the blackout. `bot/main.py` —
+  startup banner now prints the live entry window so a review can confirm the gate from the log alone.
+  **No risk widened, no sizing change, no stop moved — it can only *stop opening*.**
+- **Why 10:00 and not the argmax:** a cutoff sweep over the full history is a **smooth single-peaked
+  plateau**, not a spike — 09:45 +$292, 09:50 +$390, **09:55 +$435**, **10:00 +$407**, 10:15 +$425,
+  10:30 +$332, decaying to +$198 by 11:00. 09:55 is the sample maximum; **10:00 was chosen deliberately**
+  because it sits mid-plateau on a conventional session boundary rather than on the sample's noise peak.
+- **Robustness (all four checks pass — this is not a fitted result):** ① helps in **both regimes** —
+  June trend +$174.81 (+$380→+$555), July chop +$232.53 (−$552→−$320); ② **6 of 7 weeks improved**, 1
+  neutral (no pre-10:00 trades), **0 worsened**; ③ **not outlier-driven** — excluding the 5 worst blocked
+  trades the blocked bucket is still −$83, and the whole distribution is shifted (median −$7.15 vs −$0.27);
+  ④ mechanism confirmed by the exit-reason mix (the blocked bucket is where the stop-outs concentrate).
+- **Validation:** full suite **263 passed** (was 251, +12 new), TDD — tests written first and confirmed
+  failing (`ImportError: cannot import name 'in_open_blackout'`) before the implementation. New tests:
+  `test_open_blackout_blocks_the_first_thirty_minutes`, `_boundary_opens_exactly_at_the_cutoff`
+  (09:59 blocked / 10:00 allowed), `_disabled_when_cutoff_equals_open`, `_false_outside_the_session`,
+  `_handles_est_edt_shift` (EST/EDT wall-clock, not UTC offset); config parse/default/validation ×4; and
+  strategy-level `test_no_entry_during_the_opening_blackout`, `_entry_allowed_from_the_cutoff_minute`,
+  `_blackout_disabled_by_setting_entry_start_to_the_open`, plus the safety property
+  **`test_open_positions_are_still_managed_during_the_blackout`** (a position carried into the opening
+  range must keep trailing — gating the MANAGING path would leave it unmanaged exactly when it gaps).
+- **Expected impact:** **−$171.62 → +$235.73** on the historical book; PF 0.92 → 1.17, avg trade −$0.78 →
+  +$1.32, win 44.7% → 46.6%. **Caveat: this is a first-order replay** — it removes the gated trades but
+  cannot model later entries that the freed capital might have allowed (concurrency ran median 6/day, max
+  17, against `MAX_ALLOC=0.10` ≈ 10 slots; 8 of 31 days exceeded 8 concurrent). Since post-10:00 trades
+  average +$1.32, the unmodeled effect more likely helps than hurts — but +$407 is an estimate, not a
+  promise. **PF 1.17 is a thin edge, not a fixed bot:** July stays net negative even gated (−$320), and
+  the structural problems remain untouched (see backlog).
+- **Deploy:** service restarted and **deploy-gap verified** (`ActiveEnterTimestamp` 01:34:10 UTC > newest
+  source mtime 01:33:43) — the running process logs `Entry window: 10:00-16:00 ET (opening-range blackout
+  on, IMP-017, EOD flatten from 15 min before the close)`, warmup primed 21/21, equity $8,927.24, book flat.
+- **Backlog surfaced by the same audit (NOT shipped — one change at a time):**
+  1. **`TAKE_PROFIT=0.10` has never once been hit in 219 trades** (median winner +0.75%, so the target is
+     13× the median winner — it is decorative). The 2% stop / 10% target is a 5R ask that squashes the
+     realized distribution: **192 of 219 trades finish between −1R and +1R, avgR −0.006**.
+  2. **The trailing stop is inert** — `TRAIL_PERCENT=0.02` equals `STOP_LOSS=0.02`, so it cannot lock any
+     profit until price is up >2%; **only 2 of 219 trades ever exited via the trailing path** despite
+     `strategy.py` describing it as the primary exit. **74% (161/219) exit on the EOD-flatten clock.**
+  3. **Flat 2% stop, no ATR scaling** (measured 1.89–3.28%, median exactly 2.00%) — inside the noise on
+     AVGO/NVDA/AMD, far outside it on WMT/COST/JPM.
+  4. **Confidence is inverted at the top and sizing amplifies it**: conf 70–80 → +$0.55/trade, but 80–85 →
+     −$5.24, and **90+ → 0% win, −$48.14/trade (n=3)**. IMP-013 caps the ramp at 85; the data argues the
+     ramp should be flat or inverted above ~80. Small n — needs more observations before acting.
+  5. **Hold-overnight was tested and REFUTED** (asked directly by the user): replaying every trade forward
+     on daily bars, holding +1d = −$210, +2d = −$482, +3d = −$1,536 with the 2% stop live (and −$1,003 /
+     −$1,790 / −$3,283 without it) — **every variant worse than same-day flatten**, win rate falling
+     monotonically 41.6% → 20.3% as the hold lengthens. Cause: **10.7% of overnight holds gap straight
+     through the 2% stop** (p05 −3.05%, worst −6.55%), so the stop cannot protect overnight. Winners do not
+     keep running — at +1d **47 improved vs 48 gave back** (net −$370). And it merely levers the regime:
+     June +$702 better, July **−$1,489 worse**. Structurally, a 1-min ribbon signal has a horizon of
+     minutes and cannot underwrite multi-day risk. **Keep the EOD flatten.**
+- **Commit:** _(recorded in the follow-up commit)_
+- **Observed effect:** ⏳ pending — first live session **Mon 2026-07-28**. Watch: (a) zero entries stamped
+  before 10:00 ET, (b) entry count/day drops ~19% (7.5 → ~6), (c) the stop-out bucket's average loss
+  improves toward the −$15 rest-of-day figure. Do **not** judge on one session — the gate's edge is ~$1.3
+  per trade and needs ≥2 weeks to separate from noise.
 
 ---

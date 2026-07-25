@@ -27,6 +27,8 @@ _OPEN_TS = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
 _WEEKEND_TS = datetime(2026, 6, 6, 14, 0, tzinfo=UTC)
 # A Tuesday, 19:56 UTC == 15:56 EDT -> inside the 5-min end-of-day flatten window.
 _CLOSE_WINDOW_TS = datetime(2026, 6, 2, 19, 56, tzinfo=UTC)
+# A Tuesday, 13:35 UTC == 09:35 EDT -> inside the IMP-017 opening-range blackout.
+_BLACKOUT_TS = datetime(2026, 6, 2, 13, 35, tzinfo=UTC)
 
 _ENV = {
     "ALPACA_KEY_ID": "k",
@@ -147,6 +149,50 @@ def test_no_signal_without_open_gate(cfg):
     sig = eng.on_short_candle(_candle())
     assert sig is None
     assert eng.state("NFLX") is BotState.EVALUATING  # evaluated, just no candidate
+
+
+def test_no_entry_during_the_opening_blackout(cfg):
+    """IMP-017: a textbook trigger before 10:00 ET opens nothing. Over 219 live trades
+    the pre-10:00 bucket lost $407 (41 trades, 36.6% win) and produced 48% of all
+    stop-out damage from 19% of the trades — opening crosses are gap artifacts."""
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle(ts=_BLACKOUT_TS))
+    sig = eng.on_short_candle(_candle(ts=_BLACKOUT_TS))
+    assert sig is None
+    assert eng.state("NFLX") is BotState.WAITING
+
+
+def test_entry_allowed_from_the_cutoff_minute(cfg):
+    """The same setup at 10:00 ET is tradeable — a blackout, not a filter that
+    suppresses the signal for the rest of the session."""
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())  # _OPEN_TS == 10:00 EDT, the cutoff minute
+    sig = eng.on_short_candle(_candle())
+    assert sig is not None
+    assert eng.state("NFLX") is BotState.EVALUATING
+
+
+def test_blackout_disabled_by_setting_entry_start_to_the_open(monkeypatch):
+    """Escape hatch: ENTRY_START=09:30 restores pre-IMP-017 behaviour."""
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("ENTRY_START", "09:30")
+    cfg = Config.load(dotenv=False)
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle(ts=_BLACKOUT_TS))
+    assert eng.on_short_candle(_candle(ts=_BLACKOUT_TS)) is not None
 
 
 def test_executing_state_is_not_re_evaluated(cfg):
@@ -297,6 +343,23 @@ def test_managing_does_not_lower_stop(cfg):
     eng._positions["NFLX"] = _exec_result()
     eng.on_short_candle(_candle())
     assert closer.moved == []  # never ratchets the stop down
+    assert eng.state("NFLX") is BotState.MANAGING
+
+
+def test_open_positions_are_still_managed_during_the_blackout(cfg):
+    """IMP-017 safety property: the blackout gates ENTRIES ONLY. A position carried
+    into the opening range must keep trailing its stop — gating the MANAGING path
+    would leave it unmanaged exactly when it is most likely to gap."""
+    closer = _FakeCloser()
+    eng = StrategyEngine(
+        cfg,
+        risk=RiskManager(cfg, executor=closer),
+        trigger_engine=_FakeEngine([_rising_trigger(110.0)]),
+    )
+    eng._state["NFLX"] = BotState.MANAGING
+    eng._positions["NFLX"] = _exec_result()  # entry 100, stop 98, leg "stop-1"
+    eng.on_short_candle(_candle(ts=_BLACKOUT_TS))
+    assert closer.moved == [("stop-1", 107.8)]  # trailed, blackout notwithstanding
     assert eng.state("NFLX") is BotState.MANAGING
 
 

@@ -191,6 +191,19 @@ class Config:
     # Market hours (US Eastern)
     market_open: time
     market_close: time
+    # Opening-range blackout: refuse NEW entries before this wall-clock time (IMP-017).
+    # The ribbon has no edge in the first 30 minutes — across 219 live trades the
+    # pre-10:00 ET bucket lost $407 (41 trades, 36.6% win, PF 0.45) while the other 178
+    # made +$236 (PF 1.17); those 41 were 19% of the book but 48% of all stop-out
+    # damage, averaging −$35 per stop-out against −$15 for the rest of the day. A
+    # replay sweeping the cutoff over the full history shows a smooth plateau (09:50
+    # +$390, 09:55 +$435, 10:00 +$407, 10:15 +$425, decaying to +$198 by 11:00), and
+    # the gain holds in BOTH regimes (June trend +$175, July chop +$233) and in 6 of
+    # 7 weeks — a real effect, not a fitted one. 10:00 is chosen over the 09:55 argmax
+    # deliberately: mid-plateau on a conventional boundary rather than on the sample's
+    # noise peak. Entries only — exits, trailing and the EOD flatten are untouched.
+    # Set equal to MARKET_OPEN to disable.
+    entry_start: time
     # Intraday flatten: close all positions and stop opening new ones within this
     # many minutes of the close, so nothing carries overnight (where the bracket's
     # DAY stop/target legs would otherwise expire and leave the position naked).
@@ -264,6 +277,7 @@ class Config:
             trail_percent=_float("TRAIL_PERCENT", 0.02),
             market_open=_hhmm("MARKET_OPEN", "09:30"),
             market_close=_hhmm("MARKET_CLOSE", "16:00"),
+            entry_start=_hhmm("ENTRY_START", "10:00"),
             flatten_before_close_min=_int("FLATTEN_BEFORE_CLOSE_MIN", 15),
             standdown_enabled=_bool("STANDDOWN_ENABLED", True),
             standdown_max_loss_pct=_float("STANDDOWN_MAX_LOSS_PCT", 0.025),
@@ -310,6 +324,11 @@ class Config:
             v = getattr(self, fld)
             if not 0 < v < 1:
                 raise ConfigError(f"{fld.upper()} must be a fraction in (0, 1).")
+        if not self.market_open <= self.entry_start < self.market_close:
+            raise ConfigError(
+                "ENTRY_START must be in [MARKET_OPEN, MARKET_CLOSE) "
+                "(equal to MARKET_OPEN disables the opening-range blackout)."
+            )
         if self.flatten_before_close_min < 0:
             raise ConfigError("FLATTEN_BEFORE_CLOSE_MIN must be >= 0.")
         if not 0 < self.standdown_max_loss_pct <= 1:

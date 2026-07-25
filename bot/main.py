@@ -156,6 +156,14 @@ def main() -> int:
         cfg.rsi_period,
         cfg.entry_threshold,
     )
+    log.info(
+        "Entry window: %s-%s ET (opening-range blackout %s, EOD flatten from %s min "
+        "before the close)",
+        cfg.entry_start.strftime("%H:%M"),
+        cfg.market_close.strftime("%H:%M"),
+        "off" if cfg.entry_start == cfg.market_open else "on, IMP-017",
+        cfg.flatten_before_close_min,
+    )
 
     recorder = TradeRecorder(store) if store is not None else None
     rec_signal = recorder.on_signal if recorder else None

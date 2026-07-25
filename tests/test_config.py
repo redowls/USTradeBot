@@ -28,6 +28,8 @@ def _set_env(monkeypatch, **overrides):
         "SIZE_CONFIDENCE_CAP",
         "WATCHLIST",
         "MARKET_OPEN",
+        "MARKET_CLOSE",
+        "ENTRY_START",
     ]:
         monkeypatch.delenv(k, raising=False)
     for k, v in {**_VALID_ENV, **overrides}.items():
@@ -83,6 +85,31 @@ def test_size_confidence_cap_default_and_override(monkeypatch):
 def test_missing_secret_raises(monkeypatch):
     _set_env(monkeypatch)
     monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+
+
+def test_entry_start_defaults_to_ten_am(monkeypatch):
+    """IMP-017: the opening-range blackout is on by default."""
+    _set_env(monkeypatch)
+    cfg = Config.load(dotenv=False)
+    assert (cfg.entry_start.hour, cfg.entry_start.minute) == (10, 0)
+
+
+def test_entry_start_is_tunable(monkeypatch):
+    _set_env(monkeypatch, ENTRY_START="09:50")
+    cfg = Config.load(dotenv=False)
+    assert (cfg.entry_start.hour, cfg.entry_start.minute) == (9, 50)
+
+
+def test_rejects_entry_start_before_the_open(monkeypatch):
+    _set_env(monkeypatch, ENTRY_START="09:00")  # earlier than MARKET_OPEN
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+
+
+def test_rejects_entry_start_at_or_after_the_close(monkeypatch):
+    _set_env(monkeypatch, ENTRY_START="16:00")  # would block the whole session
     with pytest.raises(ConfigError):
         Config.load(dotenv=False)
 
