@@ -148,16 +148,16 @@ def test_trailing_stop_ratchets_up(cfg):
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
     assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED
-    assert ex.moved == [("stop-1", 107.8)]  # 110 * (1 - 0.02)
+    assert ex.moved == [("stop-1", 108.62)]  # 110 * (1 - 0.0125)
 
 
 def test_trailing_stop_never_lowers(cfg):
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
-    rm.update_trailing_stop(_rising(110.0), _entry())  # stop -> 107.8
-    # price pulls back to 105 -> 102.9 < 107.8, so the stop is left where it is
+    rm.update_trailing_stop(_rising(110.0), _entry())  # stop -> 108.62
+    # price pulls back to 105 -> 103.69 < 108.62, so the stop is left where it is
     assert rm.update_trailing_stop(_rising(105.0), _entry()) is TrailResult.HELD
-    assert ex.moved == [("stop-1", 107.8)]
+    assert ex.moved == [("stop-1", 108.62)]
 
 
 def test_trailing_stop_noop_without_stop_leg(cfg):
@@ -174,7 +174,7 @@ def test_trailing_stop_retries_after_failed_move(cfg):
     assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.HELD
     # the failed move isn't cached as the current stop, so it retries next candle
     assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.HELD
-    assert ex.moved == [("stop-1", 107.8), ("stop-1", 107.8)]
+    assert ex.moved == [("stop-1", 108.62), ("stop-1", 108.62)]
 
 
 def test_trailing_stop_targets_replacement_id_on_next_move(cfg):
@@ -183,9 +183,9 @@ def test_trailing_stop_targets_replacement_id_on_next_move(cfg):
     # not the now-dead original ("stop-1") which would 422 forever.
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
-    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED  # 107.8 stop-1
-    assert rm.update_trailing_stop(_rising(115.0), _entry()) is TrailResult.MOVED  # 112.7 stop-1-r
-    assert ex.moved == [("stop-1", 107.8), ("stop-1-r", 112.7)]
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED  # 108.62 stop-1
+    assert rm.update_trailing_stop(_rising(115.0), _entry()) is TrailResult.MOVED  # 113.56 stop-1-r
+    assert ex.moved == [("stop-1", 108.62), ("stop-1-r", 113.56)]
 
 
 def test_trailing_stop_reports_stop_gone_when_leg_filled(cfg):
@@ -196,7 +196,7 @@ def test_trailing_stop_reports_stop_gone_when_leg_filled(cfg):
     ex = _FakeExecutor(replace_gone=True)
     rm = RiskManager(cfg, executor=ex)
     assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.STOP_GONE
-    assert ex.moved == [("stop-1", 107.8)]  # the move was attempted, then reported gone
+    assert ex.moved == [("stop-1", 108.62)]  # the move was attempted, then reported gone
 
 
 def test_exit_clears_trailing_state(cfg):

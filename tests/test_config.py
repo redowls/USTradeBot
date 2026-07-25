@@ -30,6 +30,9 @@ def _set_env(monkeypatch, **overrides):
         "MARKET_OPEN",
         "MARKET_CLOSE",
         "ENTRY_START",
+        "TRAIL_PERCENT",
+        "STOP_LOSS",
+        "TAKE_PROFIT",
     ]:
         monkeypatch.delenv(k, raising=False)
     for k, v in {**_VALID_ENV, **overrides}.items():
@@ -87,6 +90,27 @@ def test_missing_secret_raises(monkeypatch):
     monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
     with pytest.raises(ConfigError):
         Config.load(dotenv=False)
+
+
+def test_trail_default_is_tighter_than_the_stop(monkeypatch):
+    """IMP-018: a trail at or wider than the stop can never lock in profit, because
+    price must run a full stop-width before the ratchet clears breakeven. The old
+    2%/2% pairing made the trail inert — 2 of 219 live trades ever exited on it."""
+    _set_env(monkeypatch)
+    cfg = Config.load(dotenv=False)
+    assert cfg.trail_percent == 0.0125
+    assert cfg.trail_percent < cfg.stop_loss
+    assert not cfg.trail_is_inert
+
+
+def test_trail_is_inert_when_it_matches_the_stop(monkeypatch):
+    _set_env(monkeypatch, TRAIL_PERCENT="0.02", STOP_LOSS="0.02")
+    assert Config.load(dotenv=False).trail_is_inert
+
+
+def test_trail_is_inert_when_wider_than_the_stop(monkeypatch):
+    _set_env(monkeypatch, TRAIL_PERCENT="0.03", STOP_LOSS="0.02")
+    assert Config.load(dotenv=False).trail_is_inert
 
 
 def test_entry_start_defaults_to_ten_am(monkeypatch):

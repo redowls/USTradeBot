@@ -821,5 +821,85 @@ Entry template:
   before 10:00 ET, (b) entry count/day drops ~19% (7.5 → ~6), (c) the stop-out bucket's average loss
   improves toward the −$15 rest-of-day figure. Do **not** judge on one session — the gate's edge is ~$1.3
   per trade and needs ≥2 weeks to separate from noise.
+- **PARTIAL REVISION (2026-07-25, from the bot/replay.py backtest):** the "+$407" above is a **first-order
+  overestimate**. A full-strategy replay that *does* model capital contention puts the gate at **+$142**
+  over 30 days / 10 symbols. Mechanism: blocking ~25 opening entries reduced the book by only **9** trades —
+  16 replacement trades opened later in the day on the freed capital, and they were mediocre too. The gate
+  is confirmed and stays (win rate 39.8% → 46.8% in replay); it is simply worth about a third of the naive
+  trade-removal estimate. Lesson: trade-removal counterfactuals overstate any entry filter on a
+  capital-constrained book.
+
+---
+
+## IMP-018 — 2026-07-25
+
+- **Problem:** IMP-017 stopped the opening-range bleed but the bot was **still net negative** (30-day replay,
+  10 symbols: 79 trades, 37W/42L, **−$159.25**, PF 0.83). Root arithmetic: **avg win $21.17 vs avg loss
+  $22.44 → payoff 0.94.** At a 46.8% win rate breakeven needs payoff **1.14**; at payoff 0.94 it needs a
+  **51.5%** win rate. The bot was short on *both* sides simultaneously — it loses by arithmetic, not by bad
+  luck.
+- **Root cause — the trailing stop was INERT, so the bot had no exit strategy, only a stop and a clock.**
+  The ratchet sets the stop to `price*(1−TRAIL_PERCENT)`, so it only clears breakeven once price has run a
+  full trail-width above entry. `TRAIL_PERCENT=0.02` **equalled** `STOP_LOSS=0.02`, so a winner had to run
+  >2% before the trail locked a single cent — but the median live winner was **+0.75%**. Consequences,
+  measured: only **2 of 219** live trades (3 of 79 in replay) ever exited on the trailing path; **0 of 219**
+  ever hit the 10% target; **161 of 219 (74%)** exited on the EOD-flatten clock with a median hold of 4.8h.
+  The 2% stop was the only functioning exit, and it only ever fires against you — hence a hard floor at
+  exactly −1R (0/79 worse than −1R) while only **8.9%** of trades ever reached +1R. Symmetric ±0.55R noise
+  with negative drift. The replay exit table is the proof: **stop fired → 12% win, −$559; stop did not fire
+  → 63% win, +$472.**
+- **Change:** `TRAIL_PERCENT` 0.02 → **0.0125** (`.env` + the `bot/config.py` default, so a fresh deploy
+  inherits the fix). Plus a **generalizable guard** so this class of bug cannot silently return:
+  `Config.trail_is_inert` (True when `trail_percent >= stop_loss`) and a startup **WARNING** in `bot/main.py`
+  spelling out that the trail can never lock profit in that configuration. The startup banner now also
+  prints the live exit triple (`Exits: stop −2.00%, target +10.00%, trailing stop 1.25% (active, IMP-018)`)
+  so a review can confirm the ratchet is armed from the log alone. **No entry logic touched, no sizing
+  change, no risk widened** — this only makes an existing exit function.
+- **Why 1.25% and not the argmax:** combined 30-day replay over **20 symbols** (two disjoint 10-symbol sets)
+  is a broad plateau — 0.75% +$49, 0.90% +$158, 1.00% +$177, **1.10% +$220**, **1.25% +$194**, 1.50% +$61,
+  1.75% −$11, 2.00% −$108. 1.10% is the argmax and 1.00% the set-A peak, but **1.25% is the only candidate
+  that beats the old 2% in BOTH halves of the window** (1.00% loses H1: +$252 vs +$264). Chosen mid-plateau
+  on the both-halves criterion rather than on the sample's noise peak — same discipline as IMP-017's 10:00.
+- **Validation:** full suite **278 passed** (was 275; +3 new, 8 updated). TDD — the new config tests were
+  written first and confirmed failing (`AttributeError: 'Config' object has no attribute 'trail_is_inert'`).
+  New: `test_trail_default_is_tighter_than_the_stop`, `_is_inert_when_it_matches_the_stop`,
+  `_is_inert_when_wider_than_the_stop`. The 8 updated tests in `test_risk.py`/`test_strategy.py` had the old
+  default's arithmetic hard-coded (`110*(1−0.02)=107.8` → `110*(1−0.0125)=108.62`) — they were asserting the
+  *value*, not the *behaviour*, so updating them is correct, not a weakening.
+- **Expected impact** (30-day replay, 10 symbols, gate ON, vs the IMP-017 baseline):
+
+  | | before (trail 2%) | after (trail 1.25%) |
+  |---|---|---|
+  | net | −$159.25 | **+$56.88** |
+  | W / L | 37 / 42 (46.8%) | 33 / 49 (40.2%) |
+  | profit factor | 0.831 | **1.077** |
+  | **payoff ratio** | **0.94** | **1.60** |
+  | avg win / avg loss | +$21.17 / −$22.44 | +$24.00 / **−$15.01** |
+  | biggest loss | −$52.65 | −$35.10 |
+  | max drawdown | $372.84 (4.03%) | **$195.22 (2.11%)** |
+
+  Note the win rate **falls** to 40.2% and it is profitable anyway — that is the point. The fix is the
+  payoff ratio, not the hit rate: average loss drops a third while average win rises. Combined 20-symbol
+  net is **+$194**.
+- **Caveats (stated plainly):** ① **absolute profitability is outlier-dependent** — the +$194 combined
+  becomes −$41 excluding the 3 best trades. What survives every removal is the *relative* gain over the 2%
+  trail (~+$300 under both ex-3-best and ex-5-best). So this is "materially better", not "reliably
+  profitable". ② The replay fills stops **exactly at the stop price with no slippage or gap modelling**, so
+  the real loss side is slightly worse than shown (live had trades beyond −2%; the sim has none). ③ Only
+  10/19 symbols are net-positive even after the fix. **The strategy still has no strong edge — this fixes
+  the arithmetic that guaranteed a loss, it does not manufacture alpha.**
+- **Deploy:** restarted and **deploy-gap verified** (`ActiveEnterTimestamp` 04:40:12 UTC > newest source
+  mtime 04:39:04) — the running process logs `trailing stop 1.25% (active, IMP-018)`, warmup primed 21/21,
+  equity $8,927.24, book flat, zero errors.
+- **Commit:** _(recorded in the follow-up commit)_
+- **Observed effect:** ⏳ pending — first live session **Mon 2026-07-28**. Watch: (a) the `trailing stop`
+  exit reason should appear **regularly** now (it was 2 of 219 all-time — if it is still ~0 after a week the
+  ratchet is not firing and something else is wrong), (b) average loss should compress toward ~−$15,
+  (c) win rate should **drop** into the low 40s — that is expected and not a regression. Judge on payoff
+  ratio and PF, **not** on win rate. Needs ≥2 weeks to separate from noise.
+- **Still open (unchanged by this):** the 10% `TAKE_PROFIT` remains never-hit (0/219 live, 0/79 replay), but
+  the replay shows it is **nearly irrelevant** once the trail works — TP 3% or 4% moves the result by ~$10,
+  and TP+trail together add $0.12 over trail alone. Backlog #1 is therefore **downgraded**, not resolved.
+  Also still open: flat non-ATR stop, and the inverted confidence→size ramp above conf 80.
 
 ---

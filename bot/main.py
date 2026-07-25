@@ -164,6 +164,23 @@ def main() -> int:
         "off" if cfg.entry_start == cfg.market_open else "on, IMP-017",
         cfg.flatten_before_close_min,
     )
+    log.info(
+        "Exits: stop -%.2f%%, target +%.2f%%, trailing stop %.2f%% (%s)",
+        cfg.stop_loss * 100,
+        cfg.take_profit * 100,
+        cfg.trail_percent * 100,
+        "INERT — see below" if cfg.trail_is_inert else "active, IMP-018",
+    )
+    if cfg.trail_is_inert:
+        log.warning(
+            "TRAIL_PERCENT (%.2f%%) >= STOP_LOSS (%.2f%%): the trailing stop can never "
+            "lock in a profit — price must run a full %.2f%% before the ratchet clears "
+            "breakeven, by which point the original stop governs. Winners will give "
+            "back everything to the EOD flatten (IMP-018).",
+            cfg.trail_percent * 100,
+            cfg.stop_loss * 100,
+            cfg.trail_percent * 100,
+        )
 
     recorder = TradeRecorder(store) if store is not None else None
     rec_signal = recorder.on_signal if recorder else None

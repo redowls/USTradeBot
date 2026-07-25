@@ -186,6 +186,23 @@ class Config:
     # Trailing stop: once in profit, ratchet the broker stop up to
     # price * (1 - trail_percent) each candle (never down), so winners run and give
     # back at most this fraction from their peak instead of being cut on a 1-min wobble.
+    #
+    # MUST be tighter than ``stop_loss`` or the trail is INERT (IMP-018): the ratchet
+    # sets the stop to price*(1-trail), so it only clears breakeven once price has run
+    # a full trail-width above entry. With the old 2%/2% pairing that needed a >2% move
+    # — the median live winner was +0.75%, so the trail never locked a cent and only
+    # **2 of 219** live trades ever exited on it. 161 of 219 (74%) exited on the EOD
+    # clock instead, leaving the 2% stop as the only functioning exit and pinning the
+    # payoff ratio below 1 (avg win $21.17 vs avg loss $22.44 = 0.94 — the arithmetic
+    # that made the bot lose regardless of win rate).
+    #
+    # 0.0125 comes from a 30-day replay over 20 symbols (bot/replay.py). The curve is a
+    # broad plateau — 0.90% +$158, 1.00% +$177, 1.10% +$220, 1.25% +$194, 1.50% +$61,
+    # 2.00% −$108 — and 1.25% is chosen over the 1.10% argmax deliberately: it is the
+    # only candidate that beats the old 2% in BOTH halves of the window (1.00% loses
+    # H1), and sitting mid-plateau rather than on the peak keeps the sample's noise out
+    # of the config. It fixes the payoff ratio 0.92 → 1.51 (PF 0.92 → 1.20) by nearly
+    # halving the average loss while barely touching the average win.
     trail_percent: float
 
     # Market hours (US Eastern)
@@ -274,7 +291,7 @@ class Config:
             size_confidence_cap=_float("SIZE_CONFIDENCE_CAP", 85.0),
             stop_loss=_float("STOP_LOSS", 0.02),
             take_profit=_float("TAKE_PROFIT", 0.04),
-            trail_percent=_float("TRAIL_PERCENT", 0.02),
+            trail_percent=_float("TRAIL_PERCENT", 0.0125),
             market_open=_hhmm("MARKET_OPEN", "09:30"),
             market_close=_hhmm("MARKET_CLOSE", "16:00"),
             entry_start=_hhmm("ENTRY_START", "10:00"),
@@ -287,6 +304,19 @@ class Config:
         )
         cfg.validate()
         return cfg
+
+    @property
+    def trail_is_inert(self) -> bool:
+        """True when the trailing stop can never lock in a profit (IMP-018).
+
+        The ratchet moves the stop to ``price * (1 - trail_percent)``, so it only
+        clears the entry once price has run a full ``trail_percent`` above it. If that
+        is >= ``stop_loss``, the original stop is hit at least as soon as the trail
+        would ever protect anything — the trail is decoration. Not an error (it is a
+        valid, if pointless, configuration), so this is surfaced as a startup warning
+        rather than a :class:`ConfigError`.
+        """
+        return self.trail_percent >= self.stop_loss
 
     def validate(self) -> None:
         if "paper" not in self.alpaca_base_url:
