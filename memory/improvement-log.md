@@ -816,7 +816,7 @@ Entry template:
      keep running — at +1d **47 improved vs 48 gave back** (net −$370). And it merely levers the regime:
      June +$702 better, July **−$1,489 worse**. Structurally, a 1-min ribbon signal has a horizon of
      minutes and cannot underwrite multi-day risk. **Keep the EOD flatten.**
-- **Commit:** _(recorded in the follow-up commit)_
+- **Commit:** 957a21e
 - **Observed effect:** ⏳ pending — first live session **Mon 2026-07-28**. Watch: (a) zero entries stamped
   before 10:00 ET, (b) entry count/day drops ~19% (7.5 → ~6), (c) the stop-out bucket's average loss
   improves toward the −$15 rest-of-day figure. Do **not** judge on one session — the gate's edge is ~$1.3
