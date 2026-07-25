@@ -891,7 +891,7 @@ Entry template:
 - **Deploy:** restarted and **deploy-gap verified** (`ActiveEnterTimestamp` 04:40:12 UTC > newest source
   mtime 04:39:04) — the running process logs `trailing stop 1.25% (active, IMP-018)`, warmup primed 21/21,
   equity $8,927.24, book flat, zero errors.
-- **Commit:** _(recorded in the follow-up commit)_
+- **Commit:** 6a015a8
 - **Observed effect:** ⏳ pending — first live session **Mon 2026-07-28**. Watch: (a) the `trailing stop`
   exit reason should appear **regularly** now (it was 2 of 219 all-time — if it is still ~0 after a week the
   ratchet is not firing and something else is wrong), (b) average loss should compress toward ~−$15,
