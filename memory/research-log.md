@@ -32,6 +32,60 @@ Entry template:
 
 ---
 
+## 2026-07-27 — Pre-market Research
+
+**No-change day into the Big-Tech earnings week.** Book is CLEAN & FLAT (broker-confirmed **0 positions**,
+equity **$8,927.21** all cash, `last_equity` == `equity` → **no trades Fri 07-25**, last DB entry 07-24
+19:06 UTC) → nothing locked. No enabled watchlist name reports **today**; the week's prints on our names are
+all **after-close** and get parked on their own morning. **Decision: NO CHANGES, no restart.**
+
+### Market context
+- **Risk-on gap-up open.** Futures: **Dow/S&P +0.8%, Nasdaq-100 +1.6%** (Yahoo/Fortune); **SPY +0.94% (~$745.85),
+  QQQ +1.57% (~$695)** pre-market. Driver: **US–Iran weekend de-escalation** (US paused its airstrike campaign,
+  Tehran halted retaliatory strikes) → **oil −~7%, Brent <$86**. Reverses Thu's AI-capex risk-off; S&P closed Fri
+  +0.1% (−0.6% wk), Nasdaq −0.6% Fri (−2.1% wk).
+- **Busiest week of the quarter — but nothing DURING market hours today.** On our enabled list: **MSFT reports
+  Wed 07-29 AH**, **AAPL + AMZN report Thu 07-30 AH**. Also **Fed decision Wed** (≈68% priced hold), **June Core
+  PCE Thu**. None of these are today; earnings-park decisions belong to Wed/Thu pre-market per standing precedent
+  (park = binary overnight earnings, re-enable once the print clears).
+- **AMD** (enabled) **+3% pre-market** on last week's Analyst Day (Anthropic + OpenAI partnerships, new DC
+  products, $1.4T AI-accelerator TAM by 2030) — clean momentum, ribbon-friendly; AMD itself reports early Aug
+  (outside this week). No negative catalysts, halts, or downgrades on any enabled symbol overnight.
+
+### Carried from daily review (07-24 EOD)
+- **Book CLEAN & FLAT into Mon 07-27** — confirmed live (ACTIVE, equity $8,927.21, 0 positions). Nothing locked.
+- **INTC** re-enable (07-24) clean — enabled & `active`, no trade on the soft tape, no issue → keep.
+- **MSFT / SE keep** (07-24 notes: MSFT's loss was the tape not the symbol; SE late-entry churn is data-refuted
+  as a park reason). Both kept.
+- **Open-hour P&L sink** (13Z / 09:30–10:30 ET = −$407 all-time) → acted on today by **NOT adding hyper-volatile
+  gap-up momentum names** into a risk-on open that would feed low-quality first-hour crosses.
+
+### Watchlist review
+- **All 21 enabled kept.** No overnight negative catalyst on any (AAPL/ABNB/AMD/AMZN/AVGO/BABA/C/GOOG/INTC/JPM/
+  MSFT/MU/NFLX/NVDA/QQQ/SE/SPY/TSLA/TSM/UNH/WMT). Mega-liquid, trend-eligible for the ribbon; risk-on tape suits
+  long-only 5m gate.
+- **DB 14-day net −$379.68** noted but **not actionable** — equity is flat/up over the same window
+  ($8,927), the documented DB-exit-price-vs-fill divergence overstates per-symbol losses. No symbol is a true
+  capital loser; no park on DB P&L alone.
+- **Parked names — no re-enable.** COST (07-10 sales miss), ENPH (choppy 10.9% ATR), QCOM (semi laggard + **reports
+  Wed AH**), WPM (downtrend), XOM (**oil −7% today → even more bearish**, broken downtrend), BIRD (micro-cap) — all
+  still fail criteria. Keep parked.
+- **No adds.** Conservative hold; risk-on gap-up open is exactly when to avoid adding momentum gappers (open-hour
+  sink). 21/30, room to spare — quality over churn.
+
+### Flags for later this week (NOT today's action)
+- **Wed 07-29 AM:** park **MSFT** ahead of its after-close print (binary overnight earnings) — re-enable Thu once cleared.
+- **Thu 07-30 AM:** park **AAPL + AMZN** ahead of their after-close prints — re-enable Fri once cleared.
+
+### Changes applied to dbo.watchlist
+- **NONE.** No adds, no parks, no re-enables. 21 enabled unchanged.
+
+### Final watchlist
+- **21 enabled** (unchanged): AAPL, ABNB, AMD, AMZN, AVGO, BABA, C, GOOG, INTC, JPM, MSFT, MU, NFLX, NVDA, QQQ,
+  SE, SPY, TSLA, TSM, UNH, WMT. 6 parked (BIRD, COST, ENPH, QCOM, WPM, XOM). **Service NOT restarted** (no change).
+
+---
+
 ## 2026-07-24 — Pre-market Research
 
 **INTC re-enable day.** Book is CLEAN & FLAT (0 positions, equity **$8,882.24** all cash) → nothing
