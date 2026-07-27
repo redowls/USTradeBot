@@ -2659,3 +2659,81 @@ still awaits its first genuine trip. Shipping anything today would overfit or co
   feed low-quality first-hour crosses.
 
 ---
+
+## 2026-07-27 — Daily Review
+
+### Stats
+- **8 trades, 1W / 7L → 12.5% win rate.** Net DB realized **−$78.20** (avg −$9.78). Only winner **NFLX
+  +$3.62**; avg loss **−$11.69**, **profit factor 0.04**. Account **equity $8,849.01** (cash, **0 open
+  positions** at broker — flat), vs last_equity **$8,927.21** → mark-to-market day **−$78.20**.
+- **📖 Books EXACT.** Broker equity delta (−$78.20) matches DB realized net **to the cent**; broker holds
+  **0 positions**, DB has 0 open rows. No phantom, no naked carry, no reconciliation gap. Clean & flat.
+- **🎯 IMP-018's trailing stop had its first real multi-trade live session — and it works.** journald shows
+  the trail **ratcheting continuously** all session (AAPL 329.27→335.11, NFLX 69.13→70.09, GOOG/AMZN/MSFT
+  likewise) — a total behavioural change from the pre-IMP-018 world (2 trail exits in 219 all-time). It
+  **locked NFLX +$3.62** (trailing-stop exit above entry) and **compressed AAPL to −0.31%** (−$7.21 vs the
+  −2% stop's ~−$47). This is exactly the payoff-ratio fix IMP-018 promised, now visible live.
+- Confidence vs outcome (all-time, robust n): **70-79 the only profitable band** (+$34.39, 71 tr, 49%);
+  60-69 −$72.70 (130 tr, 42%), 80-89 −$67.09 (23 tr, 43%), 90-100 −$144.42 (3 tr, 0%). SE's conf-80.49
+  loss today re-confirms the **inverted high-confidence** pattern.
+
+### Trade-by-trade review (Model A throughout)
+Risk-ON **gap-up open that faded** (Iran de-escalation → oil −7%, Nasdaq futures +1.6%). Six longs opened in
+the first ~26 min after the 10:00 ET blackout lifted, into names that had already gapped — then drifted lower.
+- **AAPL** 14:01 @ $336.17, conf 72.97 (xo 0.30, trend 0.95, **vol 0.68**) → broker-side stop @ $335.14
+  **−$7.21** (−0.31%). Trail ratcheted 329.27→335.11; **loss contained to a third of a stop** — IMP-018 at work.
+- **JPM** 14:04 @ $358.16, conf 65.96 (xo 0.22, **vol 0.29**) → stop @ $353.51 **−$23.25** (−1.30%). Biggest
+  loss; faded straight down, trail never engaged above entry.
+- **GOOG** 14:05 @ $328.26, conf 63.64 (**vol 0.077**) → stop @ $325.63 **−$13.17** (−0.80%), stopped 31 min in.
+- **AMZN** 14:13 @ $234.87, conf 61.54 (**vol 0.33**) → stop @ $231.92 **−$17.69** (−1.26%).
+- **MSFT** 14:14 @ $391.98, conf 65.36 (**vol 0.28**) → EOD flatten @ $389.99 **−$5.97** (−0.51%).
+- **NFLX** 14:26 @ $70.55, conf 71.97 (**vol 0.87** — highest) → **trailing-stop lock @ $70.71 +$3.62**
+  (+0.22%). The lone winner; strongest volume sub-score of the book.
+- **SE** 15:14 @ $105.09, **conf 80.49 (highest of the day, xo 0.35, all sub-scores maxed)** → EOD flatten
+  @ $104.35 **−$13.32** (−0.70%). Highest conviction, still red — inverted-confidence signature again.
+- **BABA** 15:21 @ $114.64, conf 64.46 (**vol 0.0**) → EOD flatten @ $114.53 **−$1.21** (−0.10%). Near-scratch.
+- **Root cause (all):** **market regime, not signal failure.** A gap-up-fade tape gave the long-only ribbon no
+  follow-through; every entry triggered on a clean gate+cross but the tape reversed. Losses were **tightly
+  contained** (worst −1.30%, well inside the −2% stop; no runaway, no naked). Note the volume-sub-score gradient:
+  the winner + smallest loss had the two highest volume scores (0.87, 0.68); the biggest %-losers had the lowest
+  (GOOG 0.077, MSFT 0.28, JPM 0.29) — a signal to *watch*, not yet act on.
+
+### What worked / what didn't
+- **Worked:** IMP-018 trailing stop **proven live** (ratcheting all session, NFLX locked, AAPL compressed);
+  exit infra flawless (wall-clock EOD flatten 19:45 UTC filled all in RTH, books exact, broker flat, no naked
+  carry, no NAKED page); risk control absolute (worst −1.30%, no breach). Service `active`, **NRestarts=0**.
+- **Didn't:** the long-only ribbon has **no edge on a gap-up-fade tape** — 1/8. Same known structural condition
+  (5m gate opens multiple longs on a move that fades). Today's −0.88% MTM bleed was **too shallow to trip the
+  IMP-016 stand-down** (−2% floor) — correct-by-design, not a miss; this was a slow bleed, not a −2% crash.
+
+### Lessons & improvement candidates — **NO CHANGE WARRANTED this run**
+1. **Entry-threshold raise (60→65/70): TESTED and REJECTED.** The all-time confidence view (60-69 = 130-tr
+   −$72.70 loser; 70-79 the only green band) *suggested* raising the floor, so I validated it on the replay
+   harness (30d, 21 symbols) before touching anything. Result **fails the both-halves bar**: T=70 is **worse**
+   than 60 in the full window (−$50.68 vs −$12.22); T=65 wins the combined window (+$19.93) but **only via
+   symbol-set B (+$49); it LOSES set A (−$12.38 vs −$3.74)**. That is a sample noise-peak, not a robust plateau —
+   shipping it would violate the same discipline that chose IMP-017's 10:00 and IMP-018's 1.25%. **Not shipped.**
+2. **IMP-018 needs its observation window.** Today is its *first* real live session; the trail is firing and
+   compressing losses as designed but PF/payoff need ≥2 weeks. Piling an exit change on top now would confound
+   its evaluation. Hold.
+3. **(watch, do not act)** Volume sub-score gradient (winner/small-loss high vol; big losers low vol) — one
+   gap-up-fade day; the volume floor was *refuted* in the last weekly review. Accumulate more clean days.
+4. **(watch)** Inverted high-confidence (SE conf 80.49 red; 80-100 net −$211/26 tr all-time) — the real
+   structural leak, but the ≥80 cohort's proving is bottlenecked on market conditions (IMP-013 @ 85 barely
+   binds); needs deliberate, multi-day work, not a reactive one-day change.
+- **Verdict:** every lever is either replay-refuted (threshold), under active observation (IMP-018), refuted
+  (volume floor), or evidence-gated (≥80 de-rate, crossover). A disciplined **"reviewed, no change"** day.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Tue 07-28** — 0 broker positions, equity **$8,849.01** all cash, nothing locked.
+- **⚠️ EARNINGS PARKS THIS WEEK (unchanged from the 07-27 pre-market flags):** **Wed 07-29 AM → PARK MSFT**
+  (reports AH); **Thu 07-30 AM → PARK AAPL + AMZN** (report AH). Also **Fed decision Wed 07-29**, **Core PCE
+  Thu 07-30**. **Tue 07-28: no watchlist name reports** → no park needed tomorrow.
+- **Gap-up-fade regime watch:** today the bot bought 6 longs right after the 10:00 blackout into a risk-on
+  gap-up that then faded (7/8 red). If futures gap up again, expect the same low-quality first-hour crosses —
+  not a watchlist action, but the regime to watch. No symbol "never signaled"; all 8 filled cleanly.
+- **No quality parks.** Every red was the tape, not the name — JPM/GOOG/AMZN/MSFT/SE/BABA all mega-liquid and
+  behaved; SE's highest-confidence loss is the inverted-confidence pattern (code-side watch), not a symbol issue.
+- **NFLX behaved** — strongest volume sub-score, the only winner, trail locked it green. Keep.
+
+---
