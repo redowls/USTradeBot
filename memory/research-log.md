@@ -32,6 +32,60 @@ Entry template:
 
 ---
 
+## 2026-07-28 — Pre-market Research
+
+**No-change day into a global chip sell-off.** Book is CLEAN & FLAT (broker-confirmed **0 positions**,
+equity **$8,848.98**, `last_equity` == `equity` → no overnight marks, matches 07-27 EOD $8,849.01) →
+nothing locked. **No enabled watchlist name reports today** (per the 07-27 daily-review note); the week's
+prints on our names are all after-close on their own mornings. **Decision: NO CHANGES, no restart.**
+
+### Market context
+- **Mixed, tech-weak tape on a deepening semiconductor sell-off.** Futures: **Dow +0.23% (+121pts)**,
+  **S&P ~flat/just below the line**, **Nasdaq-100 −0.73%** (CNBC/Benzinga). Driver: a **global chip rout
+  spreading from Asia** — **SK Hynix −14.65%, Samsung −13%** at the close → US premarket **MU −4.5%,
+  AMD −3%, INTC −3%+, Marvell −3%, NVDA −1.2%**. Oil extends lower on Iran de-escalation (Trump "good
+  talks" with Iran). Broader market steadier (Dow green on non-tech strength) — it's a semi-specific risk-off.
+- **Nothing DURING market hours today on our list.** 176 companies report Tue but **no enabled watchlist
+  name**. The week's prints: **MSFT Wed 07-29 AH**, **AAPL + AMZN Thu 07-30 AH**; **Fed decision Wed**,
+  **June Core PCE Thu**. Earnings-park decisions belong to Wed/Thu pre-market per standing precedent.
+- No single-name negative catalyst, halt, downgrade, or M&A on any enabled symbol overnight (Perplexity
+  sonar + WebSearch): the chip weakness is a **broad regime move**, not a symbol-quality break.
+
+### Carried from daily review (07-27 EOD)
+- **Book CLEAN & FLAT into Tue 07-28** — confirmed live (ACTIVE, equity $8,848.98, 0 positions). Nothing locked.
+- **"Tue 07-28: no watchlist name reports → no park needed"** → honored. Wed/Thu are the earnings-park days.
+- **Gap-fade regime watch** (07-27: bot bought 6 longs into a gap-up that faded, 7/8 red). Today is the
+  mirror image — a **gap-DOWN, semi-led risk-off** open. The long-only 5m gate self-protects (opens no
+  longs into a downtrend); if the tape breaches −2% intraday it is a candidate for IMP-016's first
+  stand-down trip. Not a watchlist action — the regime to watch, acted on by **NOT adding into weakness**.
+- **No quality parks** (07-27: every red was the tape, not the name) → honored; keep the full list.
+
+### Watchlist review
+- **All 21 enabled kept.** No overnight negative catalyst on any (AAPL/ABNB/AMD/AMZN/AVGO/BABA/C/GOOG/INTC/
+  JPM/MSFT/MU/NFLX/NVDA/QQQ/SE/SPY/TSLA/TSM/UNH/WMT). All mega-liquid, trend-eligible for the ribbon.
+- **Chip cohort (MU/AMD/INTC/NVDA/AVGO/TSM) gapping down −1% to −4.5%** = the Asian semi rout, **regime not
+  symbol quality**. Parking the most-liquid semis mid-selloff is exactly the poor timing the log has warned
+  against for weeks; the long-only gate simply won't open longs while they trend down → **KEEP, on notice**.
+- **No re-enables.** Parked names still fail criteria: BIRD (micro-cap), COST (July sales miss), ENPH
+  (10.9% ATR chop), QCOM (semi laggard — and today's chip rout makes it worse), WPM (downtrend), XOM
+  (oil falling on Iran de-escalation → still bearish). Keep parked.
+- **No adds.** A semi-led risk-off gap-down open is the wrong session to chase momentum, and we're already
+  heavily chip-exposed. 21/30, room to spare — quality over churn.
+
+### Flags for later this week (NOT today's action)
+- **Wed 07-29 AM:** park **MSFT** ahead of its after-close print (binary overnight earnings) — re-enable Thu.
+- **Thu 07-30 AM:** park **AAPL + AMZN** ahead of their after-close prints — re-enable Fri once cleared.
+
+### Changes applied to dbo.watchlist
+- **NONE.** No adds, no parks, no re-enables. 21 enabled unchanged.
+
+### Final watchlist
+- **21 enabled** (unchanged): AAPL, ABNB, AMD, AMZN, AVGO, BABA, C, GOOG, INTC, JPM, MSFT, MU, NFLX, NVDA,
+  QQQ, SE, SPY, TSLA, TSM, UNH, WMT. 6 parked (BIRD, COST, ENPH, QCOM, WPM, XOM). **Service NOT restarted**
+  (no change). 🔒 Locked: none (0 open positions).
+
+---
+
 ## 2026-07-27 — Pre-market Research
 
 **No-change day into the Big-Tech earnings week.** Book is CLEAN & FLAT (broker-confirmed **0 positions**,
