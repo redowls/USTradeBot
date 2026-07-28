@@ -2737,3 +2737,73 @@ the first ~26 min after the 10:00 ET blackout lifted, into names that had alread
 - **NFLX behaved** — strongest volume sub-score, the only winner, trail locked it green. Keep.
 
 ---
+
+## 2026-07-28 — Daily Review
+
+### Stats
+- **0 closed trades. Net P&L $0.00. Win rate n/a.** Account **equity $8,848.98** (broker source of truth,
+  `last_equity` == `equity` → no overnight marks), **0 open positions**, all cash. Equity is **unchanged**
+  from the pre-market read ($8,848.98) and essentially flat vs 07-27 EOD ($8,849.01).
+- **Reconciliation clean:** DB (persistence was off all day — see root cause) recorded 0 trades; broker
+  holds 0 positions; no phantom rows, no naked carry, no qty drift. Nothing to reconcile.
+
+### Trade-by-trade review (no trades → root-cause the zero)
+**The bot did not trade because it ran all day on the wrong 3-symbol watchlist, with persistence off.**
+- **06:04:21 UTC — cold restart** (nightly/maintenance; `NRestarts=0` since, so no crash-loop). At startup
+  `open_store()` opened the SQL Server connection and it **timed out**:
+  `pyodbc.OperationalError HYT00 [ODBC Driver 18] Login timeout expired (SQLDriverConnect)`.
+- Because that single init connect raised, `open_store()` returned **`None`** → **persistence disabled** AND,
+  since `store is None`, `bot.main` never called `load_watchlist()` and **fell back to the `WATCHLIST` env
+  default = `NFLX, BIRD, WPM`** (journal 06:04:43: *"Watchlist (WATCHLIST env): NFLX, BIRD, WPM"*; 06:04:44
+  *"subscribing to NFLX, BIRD, WPM"*, *"warmup primed 3/3"*).
+- So the bot spent the whole session subscribed to **3 symbols — 2 of which are PARKED** (BIRD micro-cap, WPM
+  low-vol downtrend) — instead of the **21 enabled** watchlist names. NFLX chopped in a 15-cent band all
+  afternoon (72.34–72.53); BIRD/WPM are illiquid. No fresh bullish 1m cross gated by a rising 5m ribbon ever
+  fired on that stub → **0 signals, 0 entries** is *correct behaviour for the universe it was given* — but the
+  universe was wrong.
+- **The DB outage was transient:** by report/preflight time the same connection succeeds in **0.10s** and the
+  live `dbo.watchlist` has **21 enabled** rows. A cold SQL Server / network blip at 06:04, nothing more.
+- **P&L impact today: $0** (flat, semi-led risk-off tape — see below — would have produced few longs anyway).
+  **Latent risk: high** — on an active day this same failure silently trades a 3-name stub and logs nothing.
+
+### Market regime (context, not cause)
+- **S&P +0.2% (7,428.78), Nasdaq −0.2% (24,876.91) — mixed/choppy, semi-led risk-off** (Perplexity sonar),
+  exactly the gap-down chip rout the pre-market flagged (SK Hynix −14.6%/Samsung −13% → MU/AMD/NVDA/INTC soft).
+  The long-only 5m gate self-protects on this tape, so even the full 21-symbol list would have traded lightly.
+  This is **regime, not the cause of the zero** — the cause is the stub watchlist.
+
+### What worked / what didn't
+- **Worked:** the graceful-degradation design did what it was built to do — a DB outage did **not** crash the
+  bot or block trading (it stayed up all day, `NRestarts=0`); the broker bracket safety net was never needed;
+  book stayed flat and honest. Warmup, feed, and the EOD watchdog all ran clean.
+- **Didn't:** the fallback is **too silent and too brittle**. (1) A *single* transient login timeout — with no
+  retry — was enough to disable persistence and collapse the watchlist to a 3-name stub for the entire session.
+  (2) There was **no alert**: nothing paged that the bot was running a 3-symbol env-default list instead of 21
+  DB names. The only trace was one ERROR line in journald that no human sees post-close.
+
+### Lessons & improvement candidates (ranked)
+1. **[SHIPPED — IMP-019] Retry the startup DB init before giving up.** Root cause of today's zero. A transient
+   cold-start login timeout must not disable persistence + collapse the watchlist for a whole session. Bounded
+   retry with backoff (3 attempts, 5s apart) rides out the blip; still degrades gracefully if the DB is truly
+   down. Safe: side-channel only, no trading-path/risk change.
+2. **(Backlog) Alert on watchlist fallback / persistence-off.** Even with the retry, if the DB is genuinely
+   down the bot silently trades the `NFLX, BIRD, WPM` env stub. A one-time Telegram page ("running WATCHLIST
+   env default, N=3 — DB unreachable") would make the degradation visible. Deferred — one change per run.
+3. **(Backlog / ops) The `WATCHLIST` env default is a poor safety net** — 2 of its 3 names are parked. Consider
+   seeding it with the core liquid engine (e.g. SPY/QQQ/AAPL/MSFT/NVDA) so a fallback day still trades a sane
+   universe. Config/ops change, not today.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Wed 07-29** — broker-confirmed **0 positions**, equity **$8,848.98** all cash,
+  `last_equity` == `equity` (no marks). Nothing locked.
+- **⚠️ EARNINGS PARKS (unchanged flags):** **Wed 07-29 AM → PARK MSFT** (reports AH) + **Fed decision Wed**;
+  **Thu 07-30 AM → PARK AAPL + AMZN** (report AH) + **Core PCE Thu**.
+- **IMP-019 shipped + service RESTARTED post-close today** — so the bot is now on the **live 21-symbol
+  `dbo.watchlist`** again (verify at your run: journal should say *"Watchlist (dbo.watchlist)"* and warmup
+  *"21/21"*, NOT the 3-symbol env stub). If you see the 3-symbol stub, the DB was unreachable at that restart —
+  IMP-019 will have retried 3×; check journald for the retry warnings.
+- **No trades today = infrastructure, not signals or symbols.** No watchlist action indicated by today's
+  session — every enabled name was simply never subscribed. Keep the 21-name list; the semi cohort gapping
+  down is regime, not symbol quality (pre-market call holds).
+
+---

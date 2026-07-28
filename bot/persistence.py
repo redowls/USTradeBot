@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +50,17 @@ ConnectionFactory = Callable[[], Any]
 
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "sql" / "schema.sql"
 _GO_SEPARATOR = re.compile(r"(?im)^[ \t]*GO[ \t]*$")
+
+# Startup DB-init retry budget (IMP-019). A single transient login timeout at a cold
+# start (SQL Server not yet accepting connections, a network blip) used to disable
+# persistence *and* collapse the watchlist to the 3-symbol WATCHLIST env default for
+# the whole session (observed 2026-07-28: HYT00 login timeout at 06:04 → bot ran all
+# day on NFLX/BIRD/WPM, 2 of them parked, 0 trades recorded). Retrying the one-shot
+# init a few times with a short backoff rides out a transient outage instead. The
+# per-attempt connect still has its own 10s pyodbc timeout; this only governs how many
+# attempts the startup bootstrap makes before falling back.
+_SCHEMA_INIT_ATTEMPTS = 3
+_SCHEMA_INIT_RETRY_DELAY_SEC = 5.0
 
 
 def _sub(breakdown: ConfidenceBreakdown | None, field: str) -> float | None:
@@ -432,21 +444,52 @@ def make_pyodbc_factory(conn_str: str) -> ConnectionFactory:
     return factory
 
 
-def open_store(cfg: Config) -> TradeStore | None:
+def open_store(
+    cfg: Config,
+    *,
+    conn_factory: ConnectionFactory | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> TradeStore | None:
     """Build + initialize a store from config, or ``None`` if persistence is off.
 
     Returns ``None`` when ``SQLSERVER_CONN`` is unset, or when the schema bootstrap
-    fails — in both cases the bot runs without persistence rather than refusing to
-    trade (the DB is a side-channel, the broker bracket is the safety net).
+    fails after ``_SCHEMA_INIT_ATTEMPTS`` tries — in both cases the bot runs without
+    persistence rather than refusing to trade (the DB is a side-channel, the broker
+    bracket is the safety net).
+
+    The schema init is **retried with a short backoff** (IMP-019) so a transient
+    login timeout at a cold start doesn't disable persistence *and* collapse the
+    watchlist to the env default for the entire session. ``conn_factory`` / ``sleep``
+    are injectable for tests; production builds a real pyodbc factory and sleeps for
+    real.
     """
     if not cfg.sqlserver_conn:
         log.info("SQLSERVER_CONN not set — persistence disabled")
         return None
-    store = TradeStore(make_pyodbc_factory(cfg.sqlserver_conn))
-    try:
-        store.ensure_schema()
-    except Exception:
-        log.exception("could not initialize the database — persistence disabled")
-        store.close()
-        return None
-    return store
+    factory = conn_factory or make_pyodbc_factory(cfg.sqlserver_conn)
+    store = TradeStore(factory)
+    for attempt in range(1, _SCHEMA_INIT_ATTEMPTS + 1):
+        try:
+            store.ensure_schema()
+            if attempt > 1:
+                log.info(
+                    "database initialized on attempt %d/%d", attempt, _SCHEMA_INIT_ATTEMPTS
+                )
+            return store
+        except Exception:
+            store.close()  # drop the failed connection so the next attempt reconnects
+            if attempt < _SCHEMA_INIT_ATTEMPTS:
+                log.warning(
+                    "database init attempt %d/%d failed — retrying in %.0fs",
+                    attempt,
+                    _SCHEMA_INIT_ATTEMPTS,
+                    _SCHEMA_INIT_RETRY_DELAY_SEC,
+                )
+                sleep(_SCHEMA_INIT_RETRY_DELAY_SEC)
+            else:
+                log.exception(
+                    "could not initialize the database after %d attempts — persistence "
+                    "disabled (watchlist falls back to the WATCHLIST env var)",
+                    _SCHEMA_INIT_ATTEMPTS,
+                )
+    return None

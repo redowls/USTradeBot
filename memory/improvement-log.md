@@ -903,3 +903,39 @@ Entry template:
   Also still open: flat non-ATR stop, and the inverted confidence→size ramp above conf 80.
 
 ---
+
+## IMP-019 — 2026-07-28
+
+- **Problem:** 0 trades all day. The 06:04:21 UTC cold restart hit a **transient** SQL Server login timeout
+  (`pyodbc HYT00 Login timeout expired`) at the one-shot `open_store()` init. Because that single connect
+  raised, `open_store()` returned `None` → **persistence disabled** AND (since `store is None`) `bot.main`
+  never called `load_watchlist()`, so it **fell back to the `WATCHLIST` env default `NFLX, BIRD, WPM`** — a
+  3-symbol stub, 2 of them parked — instead of the **21 enabled** `dbo.watchlist` names. The bot ran the whole
+  session on that stub (journal: *"Watchlist (WATCHLIST env): NFLX, BIRD, WPM"*, *"warmup primed 3/3"*),
+  recording nothing. The DB was fine by report time (same connect succeeds in 0.10s, 21 enabled rows).
+- **Root cause:** the startup DB init had **no retry** — a single cold-start/network blip disabled the whole
+  DB side-channel *and* collapsed the critical-path watchlist for the entire session, with only one unseen
+  journald ERROR as a trace. Graceful degradation worked (bot didn't crash, book stayed flat) but was far
+  too brittle and too silent.
+- **Change:** `bot/persistence.py::open_store` now **retries `ensure_schema()` with a bounded backoff**
+  (`_SCHEMA_INIT_ATTEMPTS=3`, `_SCHEMA_INIT_RETRY_DELAY_SEC=5.0`) — it drops the failed connection and
+  reconnects between tries, logs a WARNING per retry and (only) after exhausting all attempts logs the
+  fall-back, then returns `None` exactly as before. Added `conn_factory`/`sleep` injection params for testing.
+  **No trading logic, no sizing, no risk limit touched** — this only makes the existing side-channel survive a
+  transient outage so the DB watchlist is used.
+- **Validation:** full suite **281 passed** (was 278; +3 new). New regression tests anchored to today's
+  scenario: `test_open_store_retries_transient_init_failure_then_succeeds` (fails 2×, succeeds on the 3rd →
+  store live, backed off twice), `_returns_none_after_exhausting_retries` (bounded at 3 tries, still degrades),
+  `_succeeds_first_try_without_retrying` (no backoff on the happy path). Preflight all-PASS (DB connects,
+  schema ensured); post-restart journal verified on the live 21-symbol `dbo.watchlist`.
+- **Expected impact:** a transient cold-start DB timeout no longer silently benches the bot on a 3-symbol
+  parked stub for a session — it retries ~10s of extra runway and comes up on the full 21-name watchlist with
+  persistence on. No effect on P&L mechanics; this is an availability/observability fix.
+- **Commit:** _pending_
+- **Observed effect:** ⏳ pending — watch the next few cold restarts: startup should log *"Watchlist
+  (dbo.watchlist)"* + *"warmup primed 21/21"*; if a retry ever fires it logs *"database init attempt k/3
+  failed — retrying in 5s"* then *"database initialized on attempt k/3"*. Backlog (NOT shipped): a Telegram
+  page when the bot falls back to the env watchlist / persistence-off; and re-seed the `WATCHLIST` env default
+  with core liquid names (2 of 3 current defaults are parked).
+
+---

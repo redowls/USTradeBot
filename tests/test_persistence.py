@@ -327,6 +327,17 @@ class _Signal:
 # --- open_store ------------------------------------------------------------
 
 
+def _cfg_with_conn(monkeypatch):
+    monkeypatch.setenv("ALPACA_KEY_ID", "k")
+    monkeypatch.setenv("ALPACA_SECRET", "s")
+    monkeypatch.setenv("TELEGRAM_TOKEN", "t")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "c")
+    monkeypatch.setenv("SQLSERVER_CONN", "Driver=fake;Server=fake")
+    from bot.config import Config
+
+    return Config.load(dotenv=False)
+
+
 def test_open_store_returns_none_when_conn_unset(monkeypatch):
     monkeypatch.setenv("ALPACA_KEY_ID", "k")
     monkeypatch.setenv("ALPACA_SECRET", "s")
@@ -336,6 +347,60 @@ def test_open_store_returns_none_when_conn_unset(monkeypatch):
     from bot.config import Config
 
     assert open_store(Config.load(dotenv=False)) is None
+
+
+class _FlakyFactory:
+    """A connection factory that raises for the first ``fail_times`` calls, then works.
+
+    Mirrors a cold SQL Server that isn't accepting logins yet at startup (the pyodbc
+    ``connect(timeout=10)`` raises ``HYT00 Login timeout expired``), then comes alive.
+    """
+
+    def __init__(self, fail_times: int) -> None:
+        self.fail_times = fail_times
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        if self.calls <= self.fail_times:
+            raise RuntimeError("HYT00 Login timeout expired")
+        return _FakeConn()
+
+
+def test_open_store_retries_transient_init_failure_then_succeeds(monkeypatch):
+    # Regression (2026-07-28): a single HYT00 login timeout at the 06:04 UTC cold start
+    # disabled persistence AND collapsed the watchlist to the 3-symbol WATCHLIST env
+    # default for the whole session (bot ran on NFLX/BIRD/WPM, 0 trades recorded).
+    # IMP-019: the startup init now retries a transient failure instead of giving up.
+    factory = _FlakyFactory(fail_times=2)  # fails twice, succeeds on the 3rd attempt
+    sleeps: list[float] = []
+    store = open_store(_cfg_with_conn(monkeypatch), conn_factory=factory, sleep=sleeps.append)
+
+    assert store is not None  # rode out the transient outage — persistence stays ON
+    assert factory.calls == 3
+    assert sleeps == [5.0, 5.0]  # backed off between the two failed attempts
+
+
+def test_open_store_returns_none_after_exhausting_retries(monkeypatch):
+    # A genuinely-down DB still degrades gracefully (persistence off, env watchlist) —
+    # the retry budget is bounded, it never blocks startup forever.
+    factory = _FlakyFactory(fail_times=99)  # never recovers
+    sleeps: list[float] = []
+    store = open_store(_cfg_with_conn(monkeypatch), conn_factory=factory, sleep=sleeps.append)
+
+    assert store is None
+    assert factory.calls == 3  # exactly _SCHEMA_INIT_ATTEMPTS tries
+    assert sleeps == [5.0, 5.0]  # slept only *between* attempts, not after the last
+
+
+def test_open_store_succeeds_first_try_without_retrying(monkeypatch):
+    factory = _FlakyFactory(fail_times=0)
+    sleeps: list[float] = []
+    store = open_store(_cfg_with_conn(monkeypatch), conn_factory=factory, sleep=sleeps.append)
+
+    assert store is not None
+    assert factory.calls == 1
+    assert sleeps == []  # no backoff when the first attempt works
 
 
 # --- performance_summary (Phase 10 reads) ----------------------------------
