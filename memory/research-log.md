@@ -32,6 +32,52 @@ Entry template:
 
 ---
 
+## 2026-07-29 — Pre-market Research
+
+**Earnings-park day: MSFT out ahead of an AH print + FOMC double-catalyst.** Book is CLEAN & FLAT
+(broker-confirmed **0 positions**, equity **$8,848.98**, `last_equity` == `equity` → no overnight marks,
+matches 07-28 EOD) → **nothing locked**. Acted on the 07-28 daily-review flag: **PARK MSFT** (reports
+AH today + Fed decision today). One change; **21 → 20 enabled**; service restarted clean (warmup 20/20).
+
+### Market context
+- **Risk-on bounce after the chip rout.** Futures higher into the open: **S&P +0.7%, Nasdaq-100 +1.1%**
+  (Perplexity sonar) — a recovery from Tue's semi-led selloff. No single-name negative catalyst, halt,
+  downgrade, or M&A on any enabled symbol overnight.
+- **⚠️ Double-catalyst DURING/AFTER market hours today:** **FOMC rate decision 2:00pm ET + Powell/Warsh
+  presser 2:30pm ET**, then **MSFT fiscal-Q4 FY26 earnings AH** (call 5:30pm ET). MSFT is trading near its
+  **52-week low** ($380s vs 52wk low $349.20), 3rd down session, into AI-capex fear — binary event, no
+  intraday longs into it. Confirmed by WebSearch (TipRanks/StockTitan/WallStreetHorizon) + Perplexity.
+- **Tomorrow's parks pre-staged:** **AAPL + AMZN report Thu 07-30 AH** → park them at Thu pre-market per
+  standing precedent (both confirmed AH Thu; AAPL Street ~$1.88 EPS / ~$108.8B rev, China-AI approval tailwind).
+
+### Carried from daily review (07-28 EOD)
+- **Book CLEAN & FLAT into Wed 07-29** — confirmed live (ACTIVE, equity $8,848.98, 0 positions). Nothing locked.
+- **"Wed 07-29 AM → PARK MSFT (reports AH) + Fed decision"** → honored today.
+- **IMP-019 verified working:** the post-close 07-28 21:17 UTC restart put the bot back on the full
+  `dbo.watchlist` (journal *"Watchlist (dbo.watchlist)"*, warmup **21/21**) — NOT the 3-symbol `NFLX,BIRD,WPM`
+  env stub that caused 07-28's zero-trade day (transient DB login timeout). No stub recurrence this run.
+
+### Watchlist review
+- **20 kept** (post-MSFT-park): AAPL, ABNB, AMD, AMZN, AVGO, BABA, C, GOOG, INTC, JPM, MU, NFLX, NVDA, QQQ,
+  SE, SPY, TSLA, TSM, UNH, WMT — all liquid large-caps/ETFs, no fresh negative catalyst, fit the ribbon.
+- **14-day per-symbol P&L is broadly red** (SE 0/4 −$78, INTC −$71, NVDA −$52 the worst) but this is the
+  **known bot-wide negative-edge issue** being worked in daily-review/improvement, **not a symbol-quality
+  break** — every name is a liquid, trending-capable large cap. Not churning on P&L alone. **SE on watch**
+  (0/4, lowest-liquidity ADR of the set) — flag for a park decision if it keeps signalling and losing.
+- **No adds** — futures-up bounce, but no conviction new name and no reason to churn a sound 20-name list.
+
+### Changes applied to dbo.watchlist
+- **PARK MSFT** (`enabled=0`, note "parked 2026-07-29: Q4 FY26 earnings AH today + FOMC decision (double
+  binary); re-enable post-print"). **Re-enable Thu 07-30 pre-market** once the print + reaction clear.
+- Everything else unchanged.
+
+### Final watchlist
+**20 enabled:** AAPL, ABNB, AMD, AMZN, AVGO, BABA, C, GOOG, INTC, JPM, MU, NFLX, NVDA, QQQ, SE, SPY, TSLA,
+TSM, UNH, WMT. Parked (7): BIRD, COST, ENPH, MSFT, QCOM, WPM, XOM. **Service restarted 11:32 UTC — active,
+warmup 20/20, MSFT dropped, clean startup (no errors).**
+
+---
+
 ## 2026-07-28 — Pre-market Research
 
 **No-change day into a global chip sell-off.** Book is CLEAN & FLAT (broker-confirmed **0 positions**,
