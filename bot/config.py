@@ -282,7 +282,7 @@ class Config:
             volume_ma_period=_int("VOLUME_MA_PERIOD", 20),
             atr_period=_int("ATR_PERIOD", 14),
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
-            min_crossover=_float("MIN_CROSSOVER", 0.20),
+            min_crossover=_float("MIN_CROSSOVER", 0.25),
             warmup_lookback_days=_int("WARMUP_LOOKBACK_DAYS", 5),
             sizing_model=_str("SIZING_MODEL", "A").upper(),
             min_alloc=_float("MIN_ALLOC", 0.10),

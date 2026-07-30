@@ -345,6 +345,48 @@ def test_min_crossover_floor_allows_strong_cross_entry():
     assert d.confidence is not None and d.confidence.crossover >= 0.20
 
 
+def _midweak_xo_trigger() -> RibbonSnapshot:
+    # A confident candidate whose crossover lands in the 0.20-0.25 band: a fresh cross
+    # that is genuine but narrow/slow (width_score 0.30, slope_score 0.10 ->
+    # 0.6*0.30 + 0.4*0.10 = 0.22). This is 2026-07-30's TSLA (crossover 0.206, conf
+    # 69.4) — it cleared the old 0.20 floor, entered, and lost -$8.07. Post-floor the
+    # 0.20-0.25 band was the single worst cohort (40 tr, -$165.93, avg -$4.15), so
+    # IMP-020 raised the default floor to 0.25 to turn this cohort away.
+    return _snap(
+        ribbon=(100.06, 100.03, 100.0),
+        prev_ribbon=(100.05, 100.06, 100.0),
+        close=100.0,
+        rsi=55.0,
+        volume=200.0,
+        avg_volume=100.0,
+        atr=0.1,
+    )
+
+
+def test_midweak_crossover_lands_in_the_0_20_to_0_25_band():
+    # Sanity: the fixture is a confident candidate (total >= 60) with crossover in the
+    # cohort IMP-020 targets — above the old 0.20 floor but below the new 0.25 one.
+    d = evaluate_entry(_midweak_xo_trigger(), _open_gate(), threshold=60.0)
+    assert d.candidate and d.confidence is not None
+    assert d.confidence.total >= 60.0
+    assert 0.20 <= d.confidence.crossover < 0.25
+
+
+def test_imp020_floor_blocks_the_0_20_to_0_25_band_that_0_20_admitted():
+    # IMP-020 (2026-07-30): the old 0.20 floor ADMITS this cohort (as it did TSLA today),
+    # but the new 0.25 default floor turns it away with the crossover reason.
+    admitted = evaluate_entry(
+        _midweak_xo_trigger(), _open_gate(), threshold=60.0, min_crossover=0.20
+    )
+    assert admitted.candidate and admitted.enter
+
+    blocked = evaluate_entry(
+        _midweak_xo_trigger(), _open_gate(), threshold=60.0, min_crossover=0.25
+    )
+    assert blocked.candidate and not blocked.enter
+    assert "crossover" in blocked.reason
+
+
 def test_entry_candidate_below_threshold_does_not_enter():
     # A fresh cross but weak confirmation (thin volume, wide ATR, neutral RSI).
     weak = _snap(

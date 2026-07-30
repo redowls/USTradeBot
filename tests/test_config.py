@@ -59,10 +59,12 @@ def test_warmup_lookback_days_default_and_override(monkeypatch):
 
 
 def test_min_crossover_default_and_override(monkeypatch):
-    # IMP-011: crossover floor defaults to 0.20 (the xo<0.20 chop dead zone), and 0
-    # disables it. Out-of-range values are rejected by validate().
+    # IMP-011: crossover floor introduced (default 0.20, the xo<0.20 chop dead zone);
+    # IMP-020 (2026-07-30) raised the default to 0.25 after the 0.20-0.25 band proved
+    # the single worst post-floor cohort (40 tr, -$165.93, avg -$4.15). 0 disables it;
+    # out-of-range values are rejected by validate().
     _set_env(monkeypatch)
-    assert Config.load(dotenv=False).min_crossover == 0.20
+    assert Config.load(dotenv=False).min_crossover == 0.25
     _set_env(monkeypatch, MIN_CROSSOVER="0")  # 0 disables the floor
     assert Config.load(dotenv=False).min_crossover == 0.0
     _set_env(monkeypatch, MIN_CROSSOVER="1.5")  # > 1 is invalid

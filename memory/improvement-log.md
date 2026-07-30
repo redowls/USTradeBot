@@ -939,3 +939,56 @@ Entry template:
   with core liquid names (2 of 3 current defaults are parked).
 
 ---
+
+## IMP-020 — 2026-07-30
+
+- **Problem:** Second **entry-quality** change (extends IMP-011's crossover floor). On a **green day**
+  (6 trades, 2W/4L, **+$37.37**, broker-reconciled exact), the two winners were the day's two highest crossover
+  sub-scores (MU 0.771 → +$40.29, INTC 1.00 → +$33.90) while **TSLA entered at crossover 0.206 — barely above
+  the current 0.20 floor — and lost −$8.07.** That one trade is the tell for a large-sample leak: across **145
+  post-IMP-011 trades (entry ≥ 2026-06-27, no pre-floor contamination)**, the **0.20–0.25 crossover band is the
+  single worst cohort — 40 trades, −$165.93, avg −$4.15, 40% win**, sitting immediately above the floor.
+  Everything below 0.30 is net-negative; 0.30–0.40 is the first band to turn positive (+$3.81).
+- **Root cause:** IMP-011 set `MIN_CROSSOVER=0.20` on the first week's data (07-03 weekly said "keep at 0.20").
+  With 3× more evidence the dead zone has proven to extend past 0.20 — a fresh cross with crossover 0.20–0.25 is
+  still a narrow, non-accelerating trigger that clears the weighted total (60) on trend/rsi/volume weight and
+  then chops out. The floor was set one notch too low.
+- **Change:** `bot/config.py` — `min_crossover` default **0.20 → 0.25** (env `MIN_CROSSOVER` still overrides;
+  `validate()` unchanged, still `[0,1]`). **Single-line tunable change.** No threshold, no weights, no sizing,
+  no risk limit, no stop/target touched — a **stricter entry filter only** (fewer, higher-quality entries,
+  never more exposure). Same proven family/mechanism as IMP-011; nothing new in the code path.
+- **Validation:** full suite **283 passed** (was 281; +2 net new tests, 1 assertion re-anchored). TDD — new
+  regressions in `tests/test_signals.py` built on **today's TSLA scenario**: `_midweak_xo_trigger` (a confident
+  candidate whose crossover lands in 0.20–0.25, total ≥ 60), `test_midweak_crossover_lands_in_the_0_20_to_0_25_band`,
+  and `test_imp020_floor_blocks_the_0_20_to_0_25_band_that_0_20_admitted` (the 0.20 floor ADMITS it — as it did
+  TSLA today — while the new 0.25 floor turns it away with the crossover reason). `test_config.py::test_min_crossover_default_and_override`
+  updated to assert the 0.25 default. Preflight not required (config value only, no connectivity/schema change).
+- **Expected impact** (30-day 18-symbol replay, gate ON, vs the live 0.20 baseline):
+
+  | | before (floor 0.20) | after (floor 0.25) |
+  |---|---|---|
+  | net | −$287.84 | **−$119.39** |
+  | trades | 105 | 75 |
+  | win % | 35.2 | 36.0 |
+  | profit factor | 0.70 | **0.84** |
+  | avg / trade | −$2.74 | **−$1.59** |
+
+  Removing the ~30 worst-cross entries lifts net **+$168** and PF 0.70 → 0.84 with win% ~flat — the gain is
+  cleaner *quality*, not a hit-rate story. Trade count stays healthy (75, no zero-trade risk). DB attribution
+  (−$165.93 over the 0.20–0.25 band) and the independent engine replay (+$168) agree to within a few dollars.
+- **Caveats (stated plainly):** ① the book is **still net-negative** after the fix (−$119 replay) — this
+  removes the worst cohort, it does **not** manufacture edge; the strategy's lack of a strong edge is unchanged.
+  ② Trade-removal/replay both slightly **overstate** the gain on a capital-constrained book (an entry skipped
+  frees capital for the next, so the counterfactual isn't a clean subtraction — same caveat noted in IMP-017/018).
+  ③ Crossover is **non-monotonic above the floor** (0.40–0.55 and 0.55–1.0 bands are also negative) — 0.25 cuts
+  the clearly-worst *adjacent* band; it does not claim higher-is-better. A further raise to 0.30 was rejected: the
+  0.25–0.30 band is near-scratch (−$37/20 tr, avg −$1.87) and removing it risks the over-filtering IMP-011's
+  weekly explicitly warned about.
+- **Commit:** _pending_
+- **Observed effect:** ⏳ pending — first live session **Fri 2026-07-31**. Watch: (a) the `crossover X.XX < 0.25`
+  skip logs should now fire on the 0.20–0.25 cohort that used to enter, (b) entry count should dip modestly
+  (not collapse — if a session goes to zero trades on a normal tape, the floor is too high), (c) avg loss should
+  compress further. Needs ≥1 week to separate from noise. **Still open (unchanged):** inverted confidence→outcome
+  above ~80 (MSFT 81.95 lost again today — needs its own analysis, not folded here); flat non-ATR stop.
+
+---
