@@ -32,6 +32,63 @@ Entry template:
 
 ---
 
+## 2026-07-30 — Pre-market Research
+
+**Earnings rotation day: MSFT re-enabled (beat cleared), AAPL + AMZN parked (report AH today); plus the
+queued SE liquidity park.** Book is CLEAN & FLAT (broker-confirmed **0 positions**, equity **$8,851.85**,
+`last_equity` == `equity` → no overnight marks) → **nothing locked**. Acted on the 07-29 research flags
+(re-enable MSFT / park AAPL+AMZN Thu) and the standing SE "on notice" flag. Four changes; **20 → 18 enabled**;
+service restarted clean (warmup 18/18).
+
+### Market context
+- **Rebound after Wednesday's rout.** Futures higher into the open: **S&P +0.18%** (US500 ~7328), Nasdaq up,
+  led by **MSFT +8% AH** on its Azure-driven Q4 beat. This follows a **brutal Wed 07-29 selloff** (Dow −2.19%
+  / S&P −1.52% / Nasdaq −1.74%, now >10% off ATH) triggered by the **Fed holding rates + a bond-market revolt**
+  (30-yr yield ~5.24%, highest since 2007). Overnight US strikes on Iranian targets add a geopolitical tail.
+- **⚠️ Macro-heavy morning:** **June Core PCE (Fed's preferred gauge) + Q2 advance GDP + weekly jobless claims
+  all 8:30am ET today.** Then **AAPL fiscal-Q3 + AMZN Q2 both report AFTER today's close** (AAPL Street ~$1.88
+  EPS / ~$108.8B rev; AMZN ~$1.82 EPS / ~$196B rev, ±7.2% implied) — binary overnight events → parked.
+- **MSFT Q4 FY26 verified (WebSearch, CNBC/Investing/24-7WallSt):** EPS **$4.74 vs $4.33** est, rev **$90.01B
+  vs $87.6B** (+18% YoY), Azure strength, **+8% extended-hours** — binary resolved favorably → re-enable.
+- Weak premarket names **META −8.5%, QCOM −4.8%** are **not enabled** (QCOM already parked) — no watchlist bleed.
+- Perplexity sonar confirmed AAPL's after-close timing but was thin on the rest → WebSearch supplied MSFT's
+  print/reaction, AMZN's confirmed after-close date, futures direction, and the PCE/GDP release schedule.
+
+### Carried from daily review (07-28 EOD, latest written) + 07-29 research flags
+- **Book CLEAN & FLAT into Thu 07-30** — confirmed live (ACTIVE, equity $8,851.85, 0 positions). Nothing locked.
+- **"Thu 07-30 AM → PARK AAPL + AMZN (report AH) + Core PCE Thu"** and **"re-enable MSFT Thu once the print +
+  reaction clear"** (07-29 entry) → both honored today.
+- **SE "flag for a park decision if it keeps signalling and losing" (07-29)** → SE kept signalling (5 trades)
+  and kept losing (worst 10d P&L, 1W/5 −$53.42) → parked today (see below).
+
+### Watchlist review
+- **10-day per-symbol P&L is broadly red** (net −$169 over 38 trades) — the **known bot-wide negative-edge
+  issue** worked in daily-review/improvement, not a symbol-quality break. Winners this window: TSM +$34, AAPL
+  +$32, BABA +$29, NFLX +$17 (4W/5). Losers concentrated in the semi/megacap cohort (NVDA −$52, GOOG −$50,
+  INTC −$32, MU −$29) = regime, kept.
+- **SE (parked)** — the exception: **worst 10d P&L (1W/5, −$53.42, 20% win)**, lowest-liquidity ADR of the
+  set (thin IEX feed → recurrent 0.0 volume sub-scores), and on explicit notice two runs. This is a
+  structural liquidity/quality park, not a churn-on-P&L park; re-consider only on a durable liquidity/trend
+  improvement.
+- **17 other enabled kept** — all liquid large-caps/ETFs, no fresh negative catalyst, fit the ribbon.
+- **No adds** — a macro-heavy (PCE/GDP) morning after a −2% bond-driven selloff, with a fragile rebound, is
+  the wrong session to chase momentum; no conviction new name. 18/30, room to spare.
+
+### Changes applied to dbo.watchlist
+- **RE-ENABLE MSFT** (`enabled=1`, note "Q4 FY26 beat 07-29 AH, Azure-driven +8% AH; earnings binary resolved").
+- **PARK AAPL** (`enabled=0`, "fiscal Q3 earnings AH today (binary), re-enable next open once cleared").
+- **PARK AMZN** (`enabled=0`, "Q2 earnings AH today (±7.2% implied, binary), re-enable next open once cleared").
+- **PARK SE** (`enabled=0`, "lowest-liquidity ADR of set, worst 10d P&L 1W/5 −$53.42, on-notice 2 runs").
+- Everything else unchanged. **Re-enable AAPL + AMZN Fri 07-31 pre-market** once their prints + reactions clear.
+
+### Final watchlist
+**18 enabled:** ABNB, AMD, AVGO, BABA, C, GOOG, INTC, JPM, MSFT, MU, NFLX, NVDA, QQQ, SPY, TSLA, TSM, UNH, WMT.
+Parked (9): AAPL, AMZN, BIRD, COST, ENPH, QCOM, SE, WPM, XOM. **Service restarted 11:34 UTC — active, warmup
+18/18, MSFT present / AAPL·AMZN·SE absent, account ACTIVE equity $8,851.85, 0 positions, clean 18-symbol IEX
+subscription, no errors.** 🔒 Locked: none (0 open positions).
+
+---
+
 ## 2026-07-29 — Pre-market Research
 
 **Earnings-park day: MSFT out ahead of an AH print + FOMC double-catalyst.** Book is CLEAN & FLAT
