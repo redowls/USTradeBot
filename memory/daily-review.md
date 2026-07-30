@@ -2807,3 +2807,79 @@ the first ~26 min after the 10:00 ET blackout lifted, into names that had alread
   down is regime, not symbol quality (pre-market call holds).
 
 ---
+
+## 2026-07-30 — Daily Review
+
+### Stats
+- Closed trades (DB): **6** — 2W / 4L → **33% win rate**. Net realized P&L **+$37.37** (avg +$6.23/trade).
+  Avg win **+$37.10**, avg loss **−$9.21**, **profit factor ≈ 4.03** (two strong semis winners dwarf four
+  small chop losses). A **green day.** Account **equity $8,889.22** (all cash, **0 open positions** at the
+  broker after all six exited broker-side).
+- **Broker reconciliation: EXACT.** Alpaca equity **$8,889.22** vs `last_equity` **$8,851.85** = **+$37.37**,
+  matching the DB net to the cent — because every exit was a real broker-side bracket fill (no reversal-candle
+  estimation today), so DB P&L == capital truth. 0 positions, nothing carried overnight, no missed fill, no
+  qty drift. Book clean & flat.
+- Warmup primed 18/18 on the 11:34 UTC restart; ran on the live 18-symbol `dbo.watchlist` (IMP-019 held — no
+  env-stub fallback). One benign IEX websocket reconnect at 16:53 UTC (post-flatten, no trades affected).
+
+### Trade-by-trade review
+All six entered in a tight **14:13–14:26 UTC (10:13–10:26 ET) cluster** — the first ~25 min after the IMP-017
+10:00 ET opening-range blackout lifted — and all exited **broker-side** (stop/trail/target). Model A throughout.
+- **MU** (14:14 @ $833.97, conf 71.75, **crossover 0.771**) → $854.11 **+$40.29 (+2.42%)**. Best trade. Wide,
+  accelerating cross on the semis-momentum leg; rode it to the trail/target. Strong-cross → clean win.
+- **INTC** (14:13 @ $91.68, conf 80.45, **crossover 1.00**) → $92.85 **+$33.90 (+1.28%)**. Second winner; the
+  strongest cross of the day. Both winners are the day's two **highest crossover sub-scores** — the exact
+  crossover-strength signal IMP-011's floor is built on.
+- **AVGO** (14:17 @ $386.19, conf 74.58, crossover 0.569) → $382.64 **−$17.73 (−0.92%)**. Worst loser. Cross
+  cleared the 0.20 floor comfortably but the rebound tape faded it back through the stop. Mid-band chop.
+- **MSFT** (14:26 @ $449.48, conf **81.95**, crossover 0.471) → $446.06 **−$10.26 (−0.76%)**. High-conf
+  (top band) yet lost — consistent with the standing "confidence inverted above ~80" finding; the strong
+  trend/rsi/vol carried a mediocre cross over the line.
+- **TSLA** (14:22 @ $306.72, conf 69.40, **crossover 0.206**) → $305.11 **−$8.07 (−0.53%)**. The one trade in
+  the **0.20–0.25 crossover band** — barely above the current floor — and it lost. This is the IMP-020 cohort
+  (see below).
+- **TSM** (14:18 @ $401.49, conf 68.13, crossover 0.461) → $401.30 **−$0.76 (−0.05%)**. Near-scratch chop.
+- **Safety worked:** after AVGO/TSM/TSLA exited losing in sequence, the **3-consecutive-loss stand-down tripped
+  at 14:55 UTC** and correctly halted all NEW entries for the rest of the session (MSFT, already open, was
+  still managed to its broker exit). No churn after the cluster; the guard behaved exactly as designed.
+
+### What worked / what didn't
+- **Worked:** (1) The two strong-cross semis entries (MU 0.771, INTC 1.00) made the day — crossover strength
+  again separated winners from losers cleanly at the top. (2) Broker-side exits + reconciliation are exact;
+  no naked carry. (3) The stand-down guard fired precisely and prevented a losing-cluster spiral. (4) Losses
+  were tightly contained (worst −$17.73) — the 1.25% trail (IMP-018) is compressing the loss side as intended.
+- **Didn't:** (1) The **entry cluster** — six entries fired in a 13-min burst the moment the blackout lifted;
+  four were mediocre-cross setups into a **choppy Fed-hold-rebound tape** and chopped out. (2) **The 0.20–0.25
+  crossover band admitted TSLA and it lost** — this is the day's cleanest, most actionable leak (see below).
+  (3) The top confidence band (MSFT 81.95) lost again — the inverted-conf-above-80 issue is still open but has
+  no clean single-change fix yet.
+
+### Lessons & improvement candidates
+1. **(SHIPPED — IMP-020)** Raise the `MIN_CROSSOVER` floor **0.20 → 0.25.** Post-IMP-011 attribution (145
+   trades since 06-27) shows the **0.20–0.25 crossover band is the single worst cohort: 40 trades, −$165.93,
+   avg −$4.15, 40% win** — sitting immediately above the current floor. Everything below 0.30 is net-negative;
+   the 0.30–0.40 band is the first to turn positive. 30-day 18-symbol replay confirms: net **−$287.84 →
+   −$119.39 (+$168)**, PF **0.70 → 0.84**, avg/trade **−$2.74 → −$1.59**, trades 105 → 75 (no collapse), win%
+   ~flat. Today's TSLA (crossover 0.206, −$8.07) is the confirming same-day instance. Capital-protective,
+   same proven family as IMP-011 — never widens risk, just removes the worst-quality entries.
+2. *(watch, still open)* **Confidence inverted above ~80:** 80-89 band all-time −$43 (25 tr, 44%), 90-100
+   0% win −$144 (3 tr); MSFT 81.95 lost again today. IMP-013 caps *sizing* at 85 but doesn't block entries.
+   No clean single-change lever yet — needs its own dedicated analysis; do not fold into IMP-020.
+3. *(watch)* **Opening-cluster bunching** — the first 25 min after the 10:00 blackout produced all 6 entries
+   and 4 of them were chop. Consider whether a brief post-blackout throttle or a slightly later ENTRY_START
+   helps, but that overlaps IMP-017's already-tuned window; needs more days before touching.
+
+### Notes for pre-market research
+- **Book CLEAN & FLAT into Fri 07-31** — broker-confirmed **0 positions**, equity **$8,889.22** all cash,
+  `last_equity` marks reconciled. Nothing locked; nothing to protect on the watchlist.
+- **AAPL + AMZN reported AH Thu 07-30** (parked pre-market today) — **re-enable decision for tomorrow** once
+  their prints + reactions clear, per the standing earnings-rotation rule. MSFT (re-enabled today, conf 81.95)
+  traded and lost small on a mediocre cross — regime, not a symbol problem; keep.
+- **Semis led the winners again** (MU +$40, INTC +$34) on strong accelerating crosses — the semi cohort
+  (INTC/MU/AVGO/TSM/NVDA/AMD) is producing the day's best *and* worst; that's crossover-quality dispersion,
+  not symbol quality. Keep the cohort; IMP-020 will thin the weak-cross tail.
+- **Choppy Fed-hold rebound tape** (Wed's −1.5% S&P rout → Thu bounce) — the four losers were mid-band crosses
+  faded by the chop, not catalyst-driven breaks. No symbol flagged for a park on today's evidence.
+- No symbol "never signaled" concern — the 18-name list produced 6 clean triggers in the first half hour.
+
+---
