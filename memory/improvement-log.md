@@ -739,6 +739,21 @@ Entry template:
   observed** — the real test still awaits a risk-off run of ≥3 straight stops or a −2.5% session drawdown
   *while positions are open*. Shipped correctly as the single change on a clean-book calm day; keep watching
   (next week's FOMC + mega-cap earnings + month-end is a plausible first-trip setup).
+- **Observed effect (weekly 07-31) — ✅ FIRST GENUINE TRIPS OBSERVED, mechanism works; VALUE still unproven.**
+  The predicted setup arrived and the latch fired **twice**, both on the consecutive-losses arm, never the
+  −2.5% arm: **07-27 16:39 UTC** (gap-up-fade tape, day −$78.20) and **07-30 14:55 UTC** (day **+$37.37**).
+  Mechanically flawless — it latched, halted only NEW entries, kept managing and flattening open positions,
+  reset next open; no misfire, no interaction with the EOD flatten.
+  **But the P&L case is NOT yet made, and one trip looks actively costly.** On **07-27** the trip came at
+  16:39, *after* all 8 entries were already open (last entry 15:21) — it blocked nothing and saved **$0**. On
+  **07-30** it tripped at 14:55, only ~30 min after the 6-trade entry cluster, then **halted new entries for
+  the remaining ~5 hours of a session that closed GREEN (+$37.37)** — both big winners (MU +$40.29, INTC
+  +$33.90) were already open, so the halt could only have removed upside, not downside. Net across the two
+  trips: **~$0 saved, unquantified opportunity cost.** ⚠️ **Open concern:** the 3-consecutive-losses arm may
+  be **too fast for this bot's entry shape** — entries arrive in one tight post-blackout cluster, so three
+  stop-outs can resolve early on a day that later recovers, latching the bot flat through the recovery.
+  Do **not** retune it yet (n=2 trips). **Instrument first:** log each entry candidate suppressed while
+  latched plus its would-be outcome, so the next review can *price* the arm instead of guessing.
 
 ---
 
@@ -897,6 +912,28 @@ Entry template:
   ratchet is not firing and something else is wrong), (b) average loss should compress toward ~−$15,
   (c) win rate should **drop** into the low 40s — that is expected and not a regression. Judge on payoff
   ratio and PF, **not** on win rate. Needs ≥2 weeks to separate from noise.
+- **Observed effect (weekly 07-31) — ✅ WEEK 1 OF 2: STRONGLY CONFIRMED, and it is the reason the week is green.**
+  This is the single most important result of the week. (a) **The ratchet fires constantly** — 277 `trailing
+  stop` log lines over the week (vs **2 trail exits in 219 trades all-time** pre-change), e.g. GOOG walked
+  351.67 → 353.05 in eight steps on 07-31. The mechanism is unambiguously live. (b) **Average loss compressed
+  past target: −$10.55 this week vs the −$22.44 pre-change baseline** (target was ~−$15) — better than the
+  replay predicted. (c) Cohort comparison on live DB, entries **≥07-28 (post-change) vs 06-28…07-25 (pre)**:
+
+  | | pre-IMP-018 (n=135) | post-IMP-018 (n=14) |
+  |---|---|---|
+  | net | −$459.04 | **+$101.13** |
+  | profit factor | 0.69 | **2.53** |
+  | avg win / avg loss | +$18.68 / −$18.58 | +$23.86 / **−$9.42** |
+  | **payoff ratio** | **1.01** | **2.53** |
+
+  The payoff ratio — the exact quantity IMP-018 targeted — went 1.01 → 2.53, and it is the *loss* side doing
+  the work, precisely as designed. Concrete live catches: AAPL 07-27 held to **−0.31%** (−$7.21) where the flat
+  2% stop would have given ~−$47; NFLX 07-27 **locked green at +$3.62** on a 1/8 day; on 07-31 the trail let
+  GOOG (+$45.11) and BABA (+$23.52) run into the EOD flatten instead of stopping them out early.
+  ⚠️ **Caveats, stated plainly:** n=14 post-change is **small**; win rate did *not* fall as predicted (it rose
+  to 50%), which means part of the gain is favourable tape, not just the fix; and **IMP-020 landed 07-30 inside
+  this observation window**, so the last two sessions are mildly confounded. **Keep TRAIL_PERCENT at 0.0125 and
+  do not touch the exit structure next week** — this needs its second clean week to be called validated.
 - **Still open (unchanged by this):** the 10% `TAKE_PROFIT` remains never-hit (0/219 live, 0/79 replay), but
   the replay shows it is **nearly irrelevant** once the trail works — TP 3% or 4% moves the result by ~$10,
   and TP+trail together add $0.12 over trail alone. Backlog #1 is therefore **downgraded**, not resolved.
@@ -937,6 +974,15 @@ Entry template:
   failed — retrying in 5s"* then *"database initialized on attempt k/3"*. Backlog (NOT shipped): a Telegram
   page when the bot falls back to the env watchlist / persistence-off; and re-seed the `WATCHLIST` env default
   with core liquid names (2 of 3 current defaults are parked).
+- **Observed effect (weekly 07-31) — ✅ VALIDATED LIVE, and it fired in anger within 3 days.** On the
+  **07-31 06:10 UTC** cold restart the exact failure mode recurred and the retry **saved the session**:
+  journald shows `database init attempt 1/3 failed — retrying in 5s`, then `attempt 2/3 failed — retrying in
+  5s`, then success — after which the bot subscribed to the **full 18-symbol `dbo.watchlist`**, not the
+  3-name `NFLX, BIRD, WPM` env stub. Under the old code that restart would have been a **second consecutive
+  zero-trade session**; instead Friday traded 4 names for **+$60.86**, the week's best day. Direct, measurable
+  save. Backlog items (Telegram page on env-watchlist fallback; re-seed the `WATCHLIST` default with liquid
+  names) remain **open and are now better-evidenced** — the retry buys ~10s of runway, it does not cover a
+  genuine multi-minute DB outage, and that degradation is still silent.
 
 ---
 
@@ -990,5 +1036,17 @@ Entry template:
   (not collapse — if a session goes to zero trades on a normal tape, the floor is too high), (c) avg loss should
   compress further. Needs ≥1 week to separate from noise. **Still open (unchanged):** inverted confidence→outcome
   above ~80 (MSFT 81.95 lost again today — needs its own analysis, not folded here); flat non-ATR stop.
+- **Observed effect (weekly 07-31) — ⏳ ONE live session only; floor is binding correctly, verdict PENDING.**
+  Too early to judge, and I am explicitly declining to claim a win off one day. What the single session
+  (07-31) shows: (a) **the floor binds and did not over-filter** — the minimum crossover of all 4 entries was
+  **0.2701**, i.e. nothing in the old 0.20–0.25 dead band got through, and the day still produced a healthy
+  4 entries (**no zero-trade collapse**, the stated failure mode); (b) the day was **3W/1L for +$60.86**, the
+  week's best. (c) Week-level context that *supports* the thesis without proving it: the **<0.25 band was
+  again the week's worst cohort — 7 trades, −$60.45, 1 win**, and every one of those was a **pre-IMP-020**
+  entry (07-27/07-29). The band the change removes kept losing right up until it was removed.
+  ⚠️ **Do not over-read this.** n=4 post-change; Friday's result is far more plausibly IMP-018's trail plus a
+  constructive tape than a crossover-floor effect. **Needs ≥1 more full week.** Keep `MIN_CROSSOVER=0.25`;
+  do **not** raise it toward 0.30 (the 0.25–0.30 band was **+$26.41 on 3 trades** this week — the first live
+  hint that the rejected further-raise would have been actively wrong).
 
 ---

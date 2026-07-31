@@ -423,3 +423,140 @@ possible top-end de-rate once n≥15–20 — do not act yet. If the risk-off re
 opening low-conviction longs that fade until the stand-down lands — that fix is the week's whole job.
 
 ---
+
+---
+
+## Week ending 2026-07-31 — Grade: B
+
+### Stats
+- **22 closed trades, 8W / 14L → 36.4% win rate.** Net realized **+$22.93** (avg **+$1.04**/trade).
+  **Profit factor 1.16** (gross +$170.67 / −$147.74). Avg win **+$21.33** vs avg loss **−$10.55** →
+  **payoff ratio 2.02**. Best **GOOG +$45.11** (07-31), worst **JPM −$23.25** (07-27).
+- **Equity $8,927.21 → $8,950.06 (+$22.85, +0.26%).** Reconciles to the DB net within a cent. Book **flat**
+  at the close, 0 open positions, nothing carried.
+- **Daily curve:** 07-27 **−$78.20** (8 tr, 1W) · 07-28 **$0.00** (0 tr — outage, see below) · 07-29 **+$2.90**
+  (4 tr, 2W) · 07-30 **+$37.37** (6 tr, 2W) · 07-31 **+$60.86** (4 tr, 3W). **Monday was the whole drawdown;
+  the other four sessions were green.** Max intraweek drawdown −0.88% (07-27) — modest, and recovered.
+- **First profitable week since 2026-07-03**, and it lands against a **risk-off, tech-led tape**: Nasdaq
+  −2.9% to −4.2%, S&P 500 −1.5% to −1.9% on the week (Perplexity). A long-only trend bot printing +0.26%
+  while its universe fell ~3% is genuine relative outperformance, not a rising-tide result.
+- **Per symbol:** winners **MU +$40.29**, **INTC +$33.90**, **GOOG +$31.94** (2 tr), **BABA +$18.74** (3 tr),
+  **NFLX +$14.89** (2 tr). Losers **JPM −$23.25**, **SE −$18.12** (3 tr, 1W), **AMZN −$17.69**,
+  **MSFT −$16.23** (2 tr, 0W), **AVGO −$14.01**, **AMD −$11.49**, **TSLA −$8.07**, **AAPL −$7.21**.
+  Semis split hard: MU/INTC carried the week, AVGO/AMD/TSM bled.
+- **Exit reasons:** 15 broker-side stop/target **−$40.19**; 7 end-of-day flatten **+$63.12**. Note the sign
+  flip vs prior weeks — **the flatten bucket is now the profitable one**, because the trail lets winners run
+  into the close instead of stopping them out early.
+- **Crossover bands:** **<0.25 → 7 tr, −$60.45, 1W** (the week's worst cohort, all pre-IMP-020) ·
+  0.25–0.30 → 3 tr, **+$26.41** · 0.30–0.40 → 6 tr, +$2.29 · 0.40–0.55 → 3 tr, −$1.78 · **0.55+ → 3 tr,
+  +$56.46, 2W**. Clean story this week: the bottom band lost, the top band won.
+- **Confidence (this week):** 60-69 → 10 tr, **−$84.38, 1W** · 70-79 → 9 tr, **+$96.99, 6W** · 80-89 → 3 tr,
+  +$10.32. **All-time:** 70-79 **+$134.97** (78 tr, 51%) remains the only profitable band; 60-69 −$95.78
+  (135 tr, 41%), 80-89 −$43.45 (25 tr, 44%), 90-100 −$144.42 (3 tr, 0%).
+- **Service: `NRestarts=0`, `active`, no crash, no naked carry, no risk-limit breach, books exact every
+  trading day.** Only benign noise: two IEX websocket reconnects (07-29 11:53, 07-30 16:53), both self-healed
+  with zero trade impact. **One real availability failure — 07-28, below.**
+
+### Grade rationale
+**A profitable week (+0.26%) against a −3% tape, with the bot's biggest structural fix validating hard — held
+to a B, not an A, by a self-inflicted lost session and a mildly confounded change cadence.**
+
+It is clearly **not a C**: the week was profitable *and* the rules were followed — no risk-limit breach, no
+naked overnight, books exact to the cent every day, worst trade −$23.25, and the one lever the daily review
+was tempted by (raising the entry threshold 60→65/70) was **replay-tested and correctly REJECTED** on 07-27
+for failing the both-halves robustness bar. That is the discipline this routine exists to enforce, applied
+without being asked.
+
+It is **not an A** for two honest reasons. First, the rubric's A requires **"no system errors"** and there
+was one: **07-28 lost an entire trading session** — a single un-retried SQL Server login timeout at the
+06:04 cold start disabled persistence *and* collapsed the watchlist to the 3-name `NFLX, BIRD, WPM` env stub,
+so the bot sat out a full day recording nothing. It degraded gracefully rather than crashing, and it was
+root-caused and fixed the same evening (IMP-019) — but a lost session is a lost session, and the brittleness
+was self-inflicted, not external. Second, **three code changes landed in eight days** (IMP-017/018 on 07-25,
+IMP-019 on 07-28, IMP-020 on 07-30), and **IMP-020 shipped inside IMP-018's stated ≥2-week observation
+window** — so the two most recent sessions confound the very measurement IMP-018 needs. Each change was
+individually well-argued; as a *set* they were shipped slightly faster than they can be evaluated.
+
+What earns the B rather than a lower grade is that the week's improvements **compounded instead of cancelling**.
+IMP-018 (the trail) is doing real, measurable work — payoff ratio 1.01 → 2.53 across the pre/post cohorts,
+average loss compressed −$22.44 → −$10.55, 277 ratchet events vs 2 trail exits in the previous 219 trades.
+IMP-019 fired in anger on 07-31 (two retries, then success) and directly rescued what would have been a second
+zero-trade day into the week's best session, +$60.86. IMP-016's stand-down had its first genuine trips. That
+is a detect → fix → validate loop closing within one week, on live data, three separate times.
+
+**Process demerit carried in from last week, recorded here because it is an audit-trail hole:** the 07-25 run
+shipped **two** IMPs (IMP-017 *and* IMP-018) in a single run, against this routine's explicit one-change-per-run
+rule, and **wrote no `weekly-review.md` entry at all** — it updated IMP-016's observed-effect line "(weekly
+07-24)" and stopped. So this week began with **no recorded weekly focus to be held to**, and the most recent
+standing focus was the 07-17 entry's. That focus — ship the daily-loss stand-down — *was* honored, by IMP-016
+on 07-21. Grading against a missing document is not possible; the gap is noted so it is not repeated.
+
+### What worked / what didn't
+- **Worked:** **IMP-018 is the story of the week** — the exit structure finally functions; the bot now has a
+  way to *keep* a winner (GOOG +$45.11, BABA +$23.52 both rode the trail into the close) and to cut a loser
+  small (AAPL held to −0.31% where the flat stop gave ~−$47). **IMP-019 proved itself in 3 days** with a
+  measurable save. **Evidence discipline was excellent**: the entry-threshold raise was actively refuted with
+  the replay harness rather than shipped on a plausible-looking confidence table, and IMP-020 was backed by
+  two independent methods agreeing (DB attribution −$165.93 vs replay +$168). **Risk control absolute** —
+  no breach, no naked, worst trade −1.3%. **Watchlist churn minimal and justified** (earnings parks only:
+  MSFT for 07-29, AAPL/AMZN for 07-30). Service `NRestarts=0`.
+- **Didn't:** the **07-28 zero-trade session** — one transient DB connect took the whole day, and the
+  degradation was *silent* (one journald ERROR no human sees). The Telegram-page-on-fallback backlog item is
+  now clearly under-prioritised. The **stand-down's value is still unproven and one trip looks costly**:
+  07-27 tripped after all 8 entries were already open (**saved $0**), 07-30 tripped 30 min after the entry
+  cluster and then held the bot flat for ~5 hours of a **green** session. The **60-69 confidence band remains
+  the core leak** (−$84.38 this week, 1W/10; −$95.78 all-time over 135 trades) and the obvious fix is
+  replay-refuted — meaning the problem is real but the cheap remedy is wrong. **80-89 still inverted**
+  all-time (−$43.45). And **MSFT went 0/2 for −$16.23** on the week.
+
+### Improvements shipped this week
+- **IMP-019** (951ea7f, 07-28, daily) — bounded retry on startup DB init. **Observed: ✅ VALIDATED LIVE** —
+  fired 07-31 06:10 (attempts 1/3 and 2/3 failed, 3rd succeeded), bot came up on the full 18-symbol
+  `dbo.watchlist` instead of the 3-name stub; turned a would-be second zero-trade day into **+$60.86**.
+- **IMP-020** (08b9855, 07-30, daily) — `MIN_CROSSOVER` 0.20 → 0.25. **Observed: ⏳ PENDING (1 session).**
+  Floor binds correctly (min crossover 07-31 = **0.2701**) and did **not** over-filter (4 entries, no
+  zero-trade collapse). The band it removes lost **−$60.45 (1W/7)** this week right up until removal. But
+  n=4 post-change — Friday is far more plausibly IMP-018 plus tape. **Needs ≥1 more week.**
+- **IMP-018** (6a015a8, shipped 07-25, evaluated here) — trail 2% → 1.25%. **Observed: ✅ WEEK 1 OF 2,
+  STRONGLY CONFIRMED** — payoff 1.01 → **2.53**, avg loss −$22.44 → **−$10.55**, PF 0.69 → 2.53 on the
+  pre/post cohorts, 277 ratchet events. Caveat: n=14 post-change, and win rate *rose* to 50% rather than
+  falling as predicted, so some of the gain is tape. **Second clean week required before calling it done.**
+- **IMP-016** (af56b67, shipped 07-21, evaluated here) — broad-adverse stand-down. **Observed: ✅ mechanism
+  proven (2 first genuine trips), ⚠️ value unproven** — ~$0 saved across both trips, with real
+  opportunity cost on 07-30. See its log entry for the full accounting.
+
+### Strategy verdict
+**Viable and improving — upgraded from "structurally losing" to "marginally positive, cause identified" —
+but the edge is in the EXIT, not yet in the ENTRY.** The honest read: IMP-018 fixed an arithmetic defect that
+*guaranteed* a loss (a trailing stop set equal to the hard stop, so it never engaged and the payoff ratio sat
+at 1.01 against a sub-50% win rate). Removing that defect is worth roughly the whole turnaround. The entry
+signal itself still shows **no demonstrated edge**: 36.4% win rate this week, 60-69 confidence still bleeding
+over 135 all-time trades, confidence still inverted above 80. The bot is now profitable *because it manages
+trades well*, not because it picks them well. That is a legitimate way to make money and it is a real
+improvement — but it must not be mistaken for signal alpha, and one green week on n=22 is not proof of
+anything. Verdict: **keep running, keep it on paper, protect IMP-018's second observation week.**
+
+### Focus for next week
+**Protect the measurement — this is a "let it run" week, not a shipping week.** IMP-018 needs its **second
+clean week** and IMP-020 needs its **first full week**; both are mid-window. Do **not** touch the exit
+structure, `TRAIL_PERCENT`, or `MIN_CROSSOVER`, and do **not** raise `MIN_CROSSOVER` toward 0.30 (the
+0.25–0.30 band printed **+$26.41** this week — the first live sign that the further raise, already rejected,
+would have been actively wrong). Judge both on **payoff ratio and PF, never win rate**.
+Ranked candidates for the one change, if any is warranted:
+1. **Instrument the IMP-016 stand-down before retuning it** (highest value, zero risk). It has tripped twice
+   for ~$0 saved and plausibly cost real upside on 07-30. Log every entry candidate **suppressed while
+   latched** and its would-be outcome, so the next review can *price* the consecutive-losses arm instead of
+   guessing. Pure observability — no behavioural change, safe to ship inside the observation window.
+2. **Telegram page on watchlist-fallback / persistence-off** (backlog, now well-evidenced by 07-28). Makes a
+   silent whole-session outage visible. Side-channel only.
+3. **(analysis, do NOT ship)** The 60-69 confidence leak. It is the largest remaining structural loss
+   (−$95.78 / 135 tr) and the naive threshold raise is **replay-refuted** — so the work is to find *what
+   distinguishes* the winners inside that band (the volume sub-score gradient is the standing hypothesis),
+   not to re-run a rejected experiment. Accumulate evidence; act only when a robust both-halves result exists.
+4. **(watch, do not act)** 80-89 inversion; flat non-ATR stop; MSFT 0/2 this week.
+**Risk posture unchanged and non-negotiable:** position size, loss limits, kill switch and the paper-only
+setting stay exactly as they are. Any move toward live trading requires explicit human approval — not this
+routine's call. **Next week's scheduled catalysts:** the **jobs report / NFP** is the dominant event, plus
+Fed-speaker follow-through after the 07-29 FOMC and continued mega-cap earnings digestion — expect
+gap-sensitive opens and headline-driven reversals, exactly the tape that produced 07-27's 1/8 session.
+
