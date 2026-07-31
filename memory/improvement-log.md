@@ -1050,3 +1050,62 @@ Entry template:
   hint that the rejected further-raise would have been actively wrong).
 
 ---
+
+## REJECTED — 2026-07-31 (daily) — breakeven-gated trailing stop
+
+**Status: built, A/B-tested, REFUTED, reverted. NOT SHIPPED. `IMP-021` remains unassigned.**
+Recorded so no future run burns another evening re-deriving it.
+
+- **Hypothesis (looked very strong):** `RiskManager.update_trailing_stop` seeds the ratchet from the
+  bracket's *original* stop (`current = self._trail_stops.get(key, entry.stop_price)`) and then moves it to
+  `close × (1 − trail_percent)` on the **first managed candle**. Because IMP-018 set trail 1.25% < stop 2%,
+  that first move *always* tightens the stop, so **every position's stop silently goes from −2% to −1.25%
+  the instant it opens, before the trade has earned anything.** IMP-018 shipped as "let winners run"; what it
+  also did, unnoticed, was narrow the stop on every trade. Live evidence since IMP-018 fit perfectly:
+  **11 of 11 losing broker-side exits landed inside −1.31%** (TSM −0.05%, BABA −0.18%, AAPL −0.31%,
+  TSLA −0.53%, AMD −0.78% on 07-31, JPM −1.30%…), **none near the designed −2%**; exit buckets split
+  **EOD flatten +$63.12 / 7 tr** vs **stop-leg −$40.19 / 15 tr**.
+- **Change built:** `bot/config.py` — new `trail_locks_profit_only: bool` (env `TRAIL_LOCKS_PROFIT_ONLY`,
+  default True); `bot/risk.py` — after the `new_stop <= current` check, `if cfg.trail_locks_profit_only and
+  new_stop < entry.entry_price: return TrailResult.HELD`. I.e. the ratchet may only move the stop to a price
+  **at or above the entry** — the trail locks breakeven-or-better and nothing else, and below that the
+  *designed* `stop_loss` governs (which is what sizing already assumes). **Zero free parameters** — the gate
+  is the entry price, not a fitted constant. Never widens a stop beyond the configured `stop_loss`.
+- **A/B validation (30-day replay, 07-01→07-31, all 20 enabled symbols, identical seed/config otherwise):**
+
+  | | gate OFF (live behavior) | gate ON (proposed) |
+  |---|---|---|
+  | trades | 84 | 84 |
+  | net | **−$131.06** | −$264.58 |
+  | win % | 36.9 | **48.8** |
+  | profit factor | **0.84** | 0.74 |
+  | avg / trade | **−$1.56** | −$3.15 |
+  | stop-leg exits | 52 tr, −$499.66 | 27 tr, −$406.11 |
+  | true EOD flattens | 32 tr, +$368.60 | 57 tr, +$141.54 |
+
+- **Verdict: REFUTED, decisively — the proposal would have cost ~$134 over 30 days.** Reverted with
+  `git checkout`; tree returned to HEAD, full suite **283 passed**, nothing deployed.
+- **Why it failed — the durable lesson (this is the valuable part):** **this bot's losers do not recover.**
+  Gating the trail lifts win rate **+11.9 points** (36.9 → 48.8) exactly as predicted — those cut-early
+  trades really do end green — but the trades that *don't* recover then run the full 2% instead of 1.25%,
+  and the extra loss on that tail outweighs everything the rescued winners bring back. Note the shape:
+  gate ON converts 25 stop-leg exits into EOD flattens, yet the EOD bucket's total *falls* from +$368.60 to
+  +$141.54 — the converted trades arrive at the close as losers.
+- **Consequences for future work:**
+  1. **Do not re-propose "let the trade breathe", breakeven gates, +0.5R/+1R trail activation, or any wider
+     effective stop.** The direction is settled on 84 trades: for this strategy, **tighter is better**.
+  2. IMP-018's tight trail is best understood **not as a trail but as a tight stop that happens to ratchet.**
+     Its win is real but its stated mechanism ("winners run") is only half the story.
+  3. The open todo item "flat non-ATR stop" should be re-framed: any future stop work goes **tighter or
+     adaptive-tighter**, never wider. Low priority — IMP-018 already swept trail 0.9–2.0% (broad plateau).
+  4. **Harness caveat:** `bot.replay`'s default `--symbols` resolved to only **3** symbols in a bare CLI
+     process (config-watchlist fallback, not the DB's 20). **Always pass `--symbols` explicitly.** Also
+     unexplained: IMP-018's 30-day replay scored **+$194** at trail 1.25%; the same window shifted +6 days
+     with the current watchlist scores **−$131**. Verify harness stability before the next sizing/stop call.
+- **Why no other change shipped tonight:** IMP-020 (07-30) has only **2 live sessions** and the weekly
+  review explicitly deferred its verdict for a full week; the next-best candidate (a crossover *ceiling*
+  for the inverted 80+ confidence band) is in the **same entry-filter family** and would confound that
+  evaluation. Today was 3W/1L +$60.86 on a +2.8% Nasdaq — no failure demanding a fix. Shipping a second
+  change tonight would be thrash, so the day's deliverable is the refutation above.
+
+---

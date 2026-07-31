@@ -2883,3 +2883,102 @@ All six entered in a tight **14:13–14:26 UTC (10:13–10:26 ET) cluster** — 
 - No symbol "never signaled" concern — the 18-name list produced 6 clean triggers in the first half hour.
 
 ---
+
+## 2026-07-31 — Daily Review
+
+### Stats
+- Closed trades (DB): **4** — 3W / 1L → **75% win rate**. Net realized P&L **+$60.86** (avg +$15.21/trade).
+  Avg win **+$24.12**, avg loss **−$11.49**, **profit factor ≈ 6.30**. Best day of the week and the second
+  green day running. Account **equity $8,950.06** (all cash, **0 open positions**).
+- **Broker reconciliation: EXACT.** Alpaca equity **$8,950.06** vs `last_equity` **$8,889.20** = **+$60.86**,
+  matching the DB net to the cent. 0 positions at the broker, DB also flat — nothing carried overnight, no
+  missed fill, no qty drift. Book clean.
+- Service **active** all session. Two benign `database init attempt 1-2/3 failed — retrying` warnings at
+  06:10 UTC on the nightly restart, recovered on attempt 3 — **IMP-019 working exactly as designed** (second
+  confirmed live save). Watchlist loaded 20 symbols, no env-stub fallback. No errors during RTH.
+- **Market context (Perplexity):** strong **risk-on trending rebound** — S&P **+1.7%**, Nasdaq **+2.8%**,
+  tech leading a broad recovery off the midweek Fed-driven selloff. No single-name catalyst identified for
+  BABA / AMD / GOOG / AVGO. **Today's result is substantially regime, not demonstrated edge** — a long-only
+  momentum bot should win on a +2.8% Nasdaq day, and that is most of what happened.
+
+### Trade-by-trade review
+All four Model A, all entered after the 10:00 ET blackout (IMP-017), spread across the session rather than
+in a burst (unlike 07-30's 13-min cluster). **Three of four exited on the EOD flatten; only the loser
+exited broker-side.**
+- **BABA** (14:12 @ $120.65, conf **79.44**, crossover 0.396) → $121.77 **+$23.52 (+0.93%)**, EOD flatten,
+  held 333 min. Solid mid-band cross, rode the risk-on tape all day. Clean win.
+- **GOOG** (15:51 @ $350.23, conf 71.95, crossover **0.2701**) → $357.75 **+$45.11 (+2.15%)**, EOD flatten,
+  held 234 min. **Best trade of the day and of the week.** Note the crossover — 0.2701 is *just* above the
+  new IMP-020 floor of 0.25. Under the old 0.20 floor this trade also enters, so IMP-020 neither created nor
+  cost this winner; it is the *nearest miss* to the new floor and a caution against raising it further.
+- **AVGO** (16:52 @ $388.26, conf 70.44, crossover 0.324) → $389.19 **+$3.72 (+0.24%)**, EOD flatten,
+  held 173 min. Near-scratch win; entered late into a move that had mostly already run.
+- **AMD** (15:06 @ $492.21, conf 61.63, crossover 0.289) → $488.38 **−$11.49 (−0.78%)**, exited broker-side
+  after **16 minutes** — the day's only loss. **Root cause: exit logic, not signal or regime.** The stop sat
+  2% away at $483.25; the trade exited at −0.78%, i.e. it was cut by the **1.25% trail (IMP-018) ratcheting
+  down onto a position that had barely moved**, not by the designed stop. Weakest confidence and lowest
+  volume sub-score (conf_volume **0.00**) of the four — a thin-participation cross into a strong tape.
+
+### What worked / what didn't
+- **Worked:** (1) The tape — a +2.8% Nasdaq is the regime this strategy is built for, and it delivered.
+  (2) **Letting winners run to the EOD flatten produced the entire day's P&L** (+$72.35 across three names);
+  GOOG's +2.15% over ~4h is exactly the payoff profile IMP-018 was trying to unlock. (3) IMP-020's floor
+  bound correctly a second session — minimum crossover taken was 0.2701, nothing from the old 0.20–0.25
+  dead band entered, and the day still produced 4 entries (**no over-filtering**). (4) IMP-019's DB retry.
+- **Didn't:** (1) AMD was cut in 16 minutes by the trail before it had earned anything. (2) AVGO's entry at
+  16:52 (12:52 ET) captured +0.24% — late entries into an already-extended move are near-scratch at best.
+  (3) n=4. **Nothing about today validates the strategy** — three EOD-flatten winners on a broad rally day is
+  the market paying, not the signal working.
+
+### Lessons & improvement candidates
+1. **[TESTED AND REFUTED TONIGHT — do not retry]** *"The trail pre-empts the designed stop."* The ratchet
+   (`RiskManager.update_trailing_stop`) starts from the bracket's original stop and moves to
+   `close × (1 − trail_percent)` on the **first managed candle**, so with trail 1.25% < stop 2% every
+   position has its stop silently tightened from −2% to −1.25% the moment it opens, before earning a cent.
+   The live evidence looked damning: since IMP-018, **11 of 11 losing broker-side exits landed inside
+   −1.31%** (AAPL −0.31%, TSM −0.05%, BABA −0.18%, AMD −0.78% today…), **none near the designed −2%**, and
+   the EOD-flatten bucket was **+$63.12 / 7 trades** vs the stop-leg bucket **−$40.19 / 15**. I implemented
+   the principled fix (gate the ratchet on breakeven: the trail may only move the stop to a price ≥ entry,
+   leaving the designed stop to govern below that — zero free parameters) and **A/B'd it on the 30-day
+   20-symbol replay. It is WORSE:**
+
+   | | trail from entry (live) | breakeven-gated |
+   |---|---|---|
+   | net | **−$131.06** | −$264.58 |
+   | win % | 36.9 | **48.8** |
+   | profit factor | **0.84** | 0.74 |
+   | stop-leg exits | 52 tr, −$499.66 | 27 tr, −$406.11 |
+
+   **The finding that matters: this bot's losers do not recover.** Win rate *rises* 12 points when you stop
+   cutting them early (those trades do end green), but the ones that keep going down go a full 2% instead of
+   1.25%, and that costs more than the rescued winners earn. The "wrong" mechanism is doing the right job —
+   IMP-018's tight trail is functioning as a **tight stop**, and that is why it worked. Reverted, not shipped.
+2. **Consequence for the open "flat non-ATR stop" item (todo.md):** re-frame it. The evidence now says the
+   effective ~1.25% stop **beats** the designed 2%, so the next stop experiment is *tighter/adaptive*, never
+   wider. IMP-018 already swept trail 0.9–2.0% and found a broad plateau, so this is not urgent.
+3. **Replay-vs-live drift worth a look (not tonight):** IMP-018's 30-day replay at trail 1.25% scored
+   **+$194**; the same command over 07-01→07-31 scores **−$131**. Different window (+6 days) and a changed
+   watchlist (SE/QCOM/COST disabled since). Confirm the harness is stable before trusting it for the next
+   sizing/stop decision. Also note `bot.replay`'s default `--symbols` resolved to only **3** symbols in a
+   bare CLI process (config watchlist fallback, not the DB's 20) — **always pass `--symbols` explicitly**.
+4. **Still open, unchanged:** confidence inverted above ~80 (all-time 80+ = 28 tr, **−$187.87**, 39% win, vs
+   70-79 = 78 tr, **+$134.97**, 51% win). `SIZE_CONFIDENCE_CAP=85` (IMP-013) already trims size on the worst
+   band; the residual is an *entry* question with no clean single-change fix yet. Sub-score forensics on the
+   80+ cohort show it is distinguished by **high crossover (0.68 vs 0.40 for the 70-79 band)** — consistent
+   with IMP-020's note that crossover is non-monotonic and the 0.40–1.0 bands are also negative. **A crossover
+   *ceiling* is the leading candidate**, but must not ship until IMP-020's floor has its full week.
+
+### Notes for pre-market research
+- **GOOG — trade of the week (+2.15%, +$45.11).** Trended cleanly all session on the risk-on tape. Keep.
+- **BABA** — second clean patient winner in a row (+0.93% today). Keep.
+- **AMD** — entered on the day's weakest signal (conf 61.6, **conf_volume 0.00**) and was cut in 16 min.
+  Not a park candidate on one trade, but watch whether AMD keeps triggering on thin participation.
+- **AVGO** — two sessions running of late, near-scratch-or-losing entries (+0.24% today after −0.92% on
+  07-30). Entries are arriving *after* the move. Watch; not yet a park.
+- Watchlist is **20 enabled** (SE, QCOM, COST, XOM, ENPH, WPM, BIRD disabled). 4 triggers from 20 names on a
+  strongly trending day is on the thin side — worth watching whether IMP-020's floor is costing entries on
+  quiet tapes. **If a normal session goes to zero trades, that is the signal the floor is too high.**
+- Regime note for Monday: today was a sharp risk-on rebound (Nasdaq +2.8%). Expect mean-reversion /
+  consolidation risk into Monday; late-session entries (AVGO 12:52 ET) are the most exposed to that.
+
+---
