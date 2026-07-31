@@ -1952,3 +1952,53 @@ service already `active` since the Fri 07-17 11:35 UTC restart). 🔒 Locked: no
 **Wed 07-22 routine: PARK GOOG + TSLA** (after-close prints). **Thu 07-23 routine: PARK INTC.**
 
 ---
+
+## 2026-07-31 — Pre-market Research
+
+### Market context
+Risk-on tape: S&P 500 futures ~+0.9%, Nasdaq 100 ~+1.3% pre-market, led by **AMZN**'s blowout
+print. Perplexity `sonar` briefing ran (AAPL premarket direction came back **conflicting** — +4.3%
+vs −7.4% — so both earnings reactions were re-verified via WebSearch before acting). Two mega-cap
+prints from Thu 07-30 AH are the day's whole story; no watchlist symbol reports **during** today's
+session.
+
+### Carried from daily review (07-30 "Notes for pre-market research")
+- Book **CLEAN & FLAT** into 07-31 — broker-confirmed **0 open positions**, equity **$8,889.20** all
+  cash. Nothing locked; nothing to protect. ✔ verified via /v2/account + /v2/positions.
+- Standing directive: **re-enable AAPL + AMZN today** once their Thu-AH prints + reactions clear
+  (both were parked pre-market 07-30 for the binary). Acted on — see below.
+- Semis cohort (INTC/MU/AVGO/TSM/NVDA/AMD) is producing best *and* worst — crossover-quality
+  dispersion, not symbol quality; keep. MSFT lost small on a mediocre cross = regime, keep. No
+  symbol flagged for a park on 07-30 evidence.
+
+### Watchlist review
+Account **ACTIVE**, equity **$8,889.20**, BP $35,556, **0 open positions = nothing locked.** 18
+enabled reviewed; both re-enable candidates cleared their binary:
+- **AMZN → RE-ENABLE.** Blowout Q2: net sales >$200B (first ever), **AWS reaccelerated to +37%**
+  (5yr high, beat 31% est), stock **+8–10% AH**. Q3 revenue guide slightly soft but tape looked
+  through it to AWS. Bullish gap, mega-liquid megacap, clean momentum — ideal ribbon fuel. Verified
+  tradable=true/active on /v2/assets.
+- **AAPL → RE-ENABLE, on notice.** Fiscal Q3 beat top+bottom (rev $109.4B, EPS $2.02, iPhone +22%)
+  but **−6.6% AH to ~$311** on a Services miss ($30.7B vs $31.2B), soft "supply-constrained" guide,
+  and China weakness ($18.8B). Binary is **resolved** (no more overnight surprise); the long-only 5m
+  gate simply won't open longs if the gap-down downtrend persists — same self-protecting precedent as
+  the NFLX/TSM post-earnings re-enables. Verified tradable=true/active.
+- **All 18 enabled kept.** Every laggard in the 14d P&L (NVDA/GOOG/INTC/TSLA red) is regime/chop per
+  the dailies, not a liquidity or signal-quality park. NFLX stays on notice (post-earnings downtrend,
+  liquid, gate self-protects). No new park today.
+- **Parked stay parked:** BIRD (micro-cap), COST (June-sales-miss downtrend 0/4), ENPH (10.9% ATR
+  whipsaw), QCOM (−14% vs 20/50MA thin $vol), SE (lowest-liquidity ADR, worst 14d −$53.42 / 1W5),
+  WPM (dead-vol downtrend), XOM (broken oil downtrend). No fresh bullish catalyst on any.
+
+### Changes applied to dbo.watchlist
+- **Re-enabled AAPL and AMZN** (`enabled 0→1`, dated notes set). Both were pre-existing parked rows
+  (re-enabled, not re-inserted), both verified tradable & active on Alpaca first.
+- No parks, no new inserts. No churn on the kept list.
+
+### Final watchlist
+**20 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C GOOG INTC JPM MSFT MU NFLX NVDA QQQ SPY TSLA
+TSM UNH WMT. Parked (7): BIRD COST ENPH QCOM SE WPM XOM. Service **RESTARTED** 11:34 UTC (watchlist
+changed) — `active`, warmup primed **20/20** symbols, subscribed to all 20 on iex, no positions,
+clean startup. 🔒 Locked: none (0 open positions).
+
+---
