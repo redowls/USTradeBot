@@ -165,11 +165,17 @@ def main() -> int:
         cfg.flatten_before_close_min,
     )
     log.info(
-        "Exits: stop -%.2f%%, target +%.2f%%, trailing stop %.2f%% (%s)",
+        "Exits: stop -%.2f%%, target +%.2f%%, trailing stop %.2f%% (%s)%s",
         cfg.stop_loss * 100,
         cfg.take_profit * 100,
         cfg.trail_percent * 100,
         "INERT — see below" if cfg.trail_is_inert else "active, IMP-018",
+        # Surface the two-stage trail on the banner so a post-close review can confirm
+        # from journald alone that the deployed process really is running IMP-021.
+        f", tightening to {cfg.trail_percent_tight * 100:.2f}% once +"
+        f"{cfg.trail_tighten_after * 100:.2f}% in profit (IMP-021)"
+        if cfg.trail_tighten_after > 0
+        else "",
     )
     if cfg.trail_is_inert:
         log.warning(
