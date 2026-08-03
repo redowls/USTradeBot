@@ -31,6 +31,8 @@ def _set_env(monkeypatch, **overrides):
         "MARKET_CLOSE",
         "ENTRY_START",
         "TRAIL_PERCENT",
+        "TRAIL_PERCENT_TIGHT",
+        "TRAIL_TIGHTEN_AFTER",
         "STOP_LOSS",
         "TAKE_PROFIT",
     ]:
@@ -193,3 +195,26 @@ def test_market_hours_are_eastern(monkeypatch):
     # close (was 5) so the flatten runs while the tape is still liquid and the close
     # market orders fill before 16:00 ET — preventing the 2026-06-18 naked-overnight carry.
     assert cfg.flatten_before_close_min == 15
+
+
+def test_two_stage_trail_may_not_widen(monkeypatch):
+    # Hard invariant (IMP-021): stage two may only tighten. A wider second stage is a
+    # stealth stop-widening, the direction the 2026-07-31 A/B refuted decisively.
+    _set_env(monkeypatch, TRAIL_PERCENT="0.0125", TRAIL_PERCENT_TIGHT="0.02",
+             TRAIL_TIGHTEN_AFTER="0.01")
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+
+
+def test_two_stage_trail_accepts_tighter_second_stage(monkeypatch):
+    _set_env(monkeypatch, TRAIL_PERCENT="0.0125", TRAIL_PERCENT_TIGHT="0.010",
+             TRAIL_TIGHTEN_AFTER="0.010")
+    cfg = Config.load(dotenv=False)
+    assert cfg.trail_percent_tight == 0.010
+    assert cfg.trail_tighten_after == 0.010
+
+
+def test_trail_tighten_after_must_be_fraction(monkeypatch):
+    _set_env(monkeypatch, TRAIL_TIGHTEN_AFTER="1.5")
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)

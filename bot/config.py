@@ -203,7 +203,39 @@ class Config:
     # H1), and sitting mid-plateau rather than on the peak keeps the sample's noise out
     # of the config. It fixes the payoff ratio 0.92 → 1.51 (PF 0.92 → 1.20) by nearly
     # halving the average loss while barely touching the average win.
+    #
+    # ⚠️ CORRECTION (IMP-021, 2026-08-03): the "broad plateau" above does NOT hold on
+    # current data. Re-swept over 20 symbols, the 30-day curve is a steep monotonic
+    # gradient (0.6% +$25, 1.0% −$128, 1.25% −$153, 1.5% −$302) — but the ranking
+    # INVERTS at 60 days (0.6% +$51 vs 1.25% +$154). The single-width optimum is a
+    # window artifact in both directions, which is why IMP-021 changed the *shape* of
+    # the trail rather than this number, and why 0.0125 is retained. Rule of thumb
+    # established there: no replay-derived parameter ships on one window — require >=3
+    # windows agreeing in sign.
     trail_percent: float
+    # Two-stage trail (IMP-021). A single flat width cannot both survive the noise of an
+    # unproven trade and keep a winner that has actually run. With trail 1.25% and a
+    # typical winner peaking 1.0-2.0%, the give-back is arithmetically almost the whole
+    # move: over the 25 live trades since IMP-018 the MFE 1.0-2.0% cohort captured just
+    # **17%** of its own favourable excursion (avg peak +1.42%, avg exit +0.28%), and on
+    # 2026-08-03 both AMD and MU peaked +1.69% and banked +0.4%. Once price has run
+    # ``trail_tighten_after`` above entry the trade has proven itself, so the ratchet
+    # switches to the narrower ``trail_percent_tight``. Below that threshold behaviour is
+    # byte-identical to the flat trail — the region the 2026-07-31 A/B established must
+    # not be loosened. Stage two may only ever tighten (enforced in ``validate``).
+    #
+    # 1.0% after +1.0% is chosen from a replay sweep over 20 symbols. Unlike a flat
+    # tightening — which looked great at 30 days (+$25 vs −$153) but REVERSED at 60
+    # (+$51 vs +$154), i.e. window-fitted noise — the two-stage version beats the flat
+    # trail in EVERY window tested: 15d +$26 vs −$23, 20d −$41 vs −$93, 30d −$100 vs
+    # −$153, 45d +$130 vs +$82, 60d +$198 vs +$154. It is also the centre of a broad
+    # plateau on both axes (threshold 0.008/0.010/0.012 and width 0.009/0.010/0.011 all
+    # beat baseline); only over-tightening to 0.6-0.8% fails, so the chosen point sits
+    # away from that edge. Win rate rises too (42.1% -> 45.3% at 60d) — unusually, this
+    # change does not trade hit-rate for payoff. Set ``trail_tighten_after`` to 0 to
+    # disable and fall back to the single flat width.
+    trail_tighten_after: float
+    trail_percent_tight: float
 
     # Market hours (US Eastern)
     market_open: time
@@ -292,6 +324,8 @@ class Config:
             stop_loss=_float("STOP_LOSS", 0.02),
             take_profit=_float("TAKE_PROFIT", 0.04),
             trail_percent=_float("TRAIL_PERCENT", 0.0125),
+            trail_tighten_after=_float("TRAIL_TIGHTEN_AFTER", 0.010),
+            trail_percent_tight=_float("TRAIL_PERCENT_TIGHT", 0.010),
             market_open=_hhmm("MARKET_OPEN", "09:30"),
             market_close=_hhmm("MARKET_CLOSE", "16:00"),
             entry_start=_hhmm("ENTRY_START", "10:00"),
@@ -350,10 +384,19 @@ class Config:
                 "SIZE_CONFIDENCE_CAP must be in [ENTRY_THRESHOLD, 100] "
                 "(cap below the threshold would flatten sizing to MIN_ALLOC)."
             )
-        for fld in ("stop_loss", "take_profit", "trail_percent"):
+        for fld in ("stop_loss", "take_profit", "trail_percent", "trail_percent_tight"):
             v = getattr(self, fld)
             if not 0 < v < 1:
                 raise ConfigError(f"{fld.upper()} must be a fraction in (0, 1).")
+        if not 0 <= self.trail_tighten_after < 1:
+            raise ConfigError("TRAIL_TIGHTEN_AFTER must be a fraction in [0, 1) (0 disables).")
+        if self.trail_percent_tight > self.trail_percent:
+            # Hard invariant: stage two may only ever TIGHTEN. A wider second stage would
+            # be a stealth stop-widening, which the 2026-07-31 A/B refuted decisively.
+            raise ConfigError(
+                "TRAIL_PERCENT_TIGHT must be <= TRAIL_PERCENT — the two-stage trail may "
+                "only tighten once in profit, never widen."
+            )
         if not self.market_open <= self.entry_start < self.market_close:
             raise ConfigError(
                 "ENTRY_START must be in [MARKET_OPEN, MARKET_CLOSE) "

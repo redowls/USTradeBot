@@ -2982,3 +2982,121 @@ exited broker-side.**
   consolidation risk into Monday; late-session entries (AVGO 12:52 ET) are the most exposed to that.
 
 ---
+
+## 2026-08-03 — Daily Review
+
+### Stats
+- Closed trades (DB): **3** — 2W / 1L → **67% win rate**. Net realized P&L **−$1.29** (avg −$0.43/trade).
+  Avg win **+$8.60**, avg loss **−$18.49**, **payoff 0.47**, **profit factor 0.93**. A scratch day: the
+  headline win rate is good and the money is flat, because the one loser was worth both winners combined.
+  Account **equity $8,948.75** (all cash, **0 open positions**).
+- **Broker reconciliation: EXACT.** Alpaca equity **$8,948.75** vs `last_equity` **$8,950.04** = **−$1.29**,
+  matching the DB net to the cent. 0 positions at the broker, DB flat too — nothing carried overnight, no
+  missed fill, no qty drift. Book clean.
+- Service **active** all session, **zero errors, zero warnings, no restarts** in journald. All three exits
+  reconciled cleanly (`reconcile_exit` → `EXIT` → `DB exit` → `WAITING`) with no 422 loops.
+- ⚠️ **The pre-market routine did NOT run today.** `ustradebot-premarket` died `rc=1` eight seconds after
+  starting at 11:30 UTC; `uswisbot-premarket` died identically at 11:45. Both were on `claude-opus-5`;
+  `cryptoauto-daily` (sonnet-4-6) ran fine at 17:00. **Environmental/model-availability blip, not bot code
+  and not routine config.** Consequence: **no `research-log.md` entry for 08-03 and no watchlist review** —
+  today traded Friday's 20-name list, which was still current, so no harm done. Flagged, not fixed here
+  (the routine scaffold lives in `/root/claude-routines`, outside this repo).
+- **Market context (Perplexity):** **choppy risk-on, not a trend day.** Nasdaq finished **+1.0%** but had
+  been **down 117.85 points intraday**, and **6 of 11 S&P sectors closed lower** despite the index gain.
+  Driver was US-Iran de-escalation (oil and yields lower), not a tech-specific catalyst. No single-name
+  catalyst for AMZN/AMD/MU — all three moved with the mega-cap/AI tape. **An index that round-trips a
+  118-point intraday hole and closes green with most sectors red is precisely the tape that pays a
+  long-only momentum bot on entry and then takes it back — which is exactly what the tape did.**
+
+### Trade-by-trade review
+All three Model A, all entered after the 10:00 ET blackout (IMP-017), **all three exited broker-side on the
+IMP-018 trailing stop** — none reached the EOD flatten, and none came close to the 2% designed stop or the
+10% target. Strikingly, **all three exits landed inside an 18-minute window (14:18–14:36 ET)**: this was one
+market-wide afternoon pullback taking out three trails at once, not three independent signal failures.
+- **AMZN** (11:24 ET @ $285.30, conf **66.57**, crossover **0.2552**, conf_volume **0.2610**) → $282.66
+  **−$18.49 (−0.93%)**, 174 min. **The day's only loss, and the day's weakest entry.** Crossover 0.2552 is
+  the *nearest miss* to IMP-020's 0.25 floor — it cleared by 0.005 — and participation was thin
+  (conf_volume 0.26). It never worked: **MFE only +0.38%** against **MAE −0.93%**, i.e. the trade was
+  essentially never in profit. Root cause: **signal quality**, not exit logic. Worth noting the exit logic
+  did its job — the trail cut it at −0.93% instead of letting the designed −2% stop take $37.
+- **AMD** (12:31 ET @ $482.50, conf **77.96**, crossover 0.2934, all other sub-scores ~1.00) → $484.68
+  **+$10.91 (+0.45%)**, 125 min. **Cleanest signal of the day** — trend 0.96, rsi 1.00, volume 1.00,
+  volatility 1.00. Ran to a high of **$490.85 (+1.69%)** and handed back a full trail width to bank +0.45%.
+  Root cause of the shortfall: **exit logic** — the signal was right and the trade was right.
+- **MU** (12:46 ET @ $822.54, conf **63.97**, crossover 0.3104, conf_volume **0.0709**) → $825.685
+  **+$6.29 (+0.38%)**, 102 min. Same shape as AMD: peaked **+1.69%**, banked +0.38%. Won *despite*
+  near-zero volume participation (conf_volume 0.07), which is luck rather than signal — flag, don't credit.
+- **Entries rejected** (the gates worked, and were the reason the day was quiet): C rejected **4×** on
+  crossover (0.06/0.10/0.10/0.07), SPY 2× (0.03/0.01), NVDA (0.10), TSLA (0.16), TSM (0.07); plus
+  confidence-floor rejections TSM 58.3/58.5, SPY 59.3, AVGO 59.3, GOOG 57.6. **3 entries from 20 names is
+  thin but not the zero-trade collapse that would condemn IMP-020's floor.**
+
+### What worked / what didn't
+- **Worked:** (1) **Execution and reconciliation were flawless** — clean startup, no errors, three
+  broker-side exits reconciled first time, broker matches DB to the cent. (2) **The trail protected the
+  loser** — AMZN exited −0.93% where the designed stop would have cost −2% (≈ −$37 instead of −$18.49);
+  this is the IMP-018 mechanism doing the job the 07-31 refutation proved it does. (3) **IMP-020's floor
+  bound a third session** and rejected 9 sub-floor crosses; the one entry nearest the floor (AMZN 0.2552)
+  was the day's only loser, which is weak but directionally supportive evidence.
+- **Didn't:** (1) **The trail gave back 73% of both winners.** AMD and MU each peaked at **+1.69%** and
+  banked **+0.45% / +0.38%**. (2) The day's best *signal* (AMD, sub-scores ~1.0) produced +$10.91 while the
+  day's worst *signal* (AMZN, barely over the floor) lost $18.49 — **the payoff asymmetry, not the hit
+  rate, is what kept the day flat.** (3) n=3; nothing here validates or condemns the strategy on its own.
+
+### Lessons & improvement candidates
+1. **[SHIPPED TONIGHT — IMP-021]** **The flat trail width is arithmetically incapable of keeping a winner
+   this strategy actually produces.** I pulled 1-min bars for every trade since IMP-018 (n=25, 07-25→08-03)
+   and measured max-favourable-excursion capture:
+
+   | MFE bucket | n | avg MFE | avg realized | **capture** | net |
+   |---|---|---|---|---|---|
+   | < 0.5% | 4 | 0.23% | −0.75% | — | −$50.71 |
+   | 0.5–1.0% | 8 | 0.63% | −0.60% | −97% | −$77.01 |
+   | **1.0–2.0%** | **9** | **1.42%** | **+0.28%** | **17%** | +$53.31 |
+   | > 2.0% | 3 | 2.96% | +1.95% | 69% | +$119.30 |
+
+   With trail = 1.25% and the modal winner peaking at 1.0–2.0%, max achievable capture is
+   (MFE − 1.25%)/MFE — for the 1.42% average that is **12%**. The bot is not mis-executing; **the width is
+   mis-specified relative to the size of the move it catches.** Seven trades since IMP-018 ran ≥1.0% and
+   exited under +0.5%. Fix shipped as a **two-stage trail** — see IMP-021 below.
+2. **[TESTED AND REJECTED TONIGHT — do not retry]** *"Just tighten `TRAIL_PERCENT`."* The 30-day replay is
+   seductive: trail 0.6% scores **+$24.58 / PF 1.06** against 1.25%'s **−$153.28 / PF 0.80**, and the whole
+   0.2–0.7% region is positive. **It does not survive the window test.** At 45 days 1.25% wins (+$82.29 vs
+   +$49.95) and at 60 days it wins decisively (**+$154.31 vs +$51.42**). The tight-trail advantage is
+   **an artifact of the 30-day window**, and it also explains the harness instability flagged on 07-31
+   (IMP-018's +$194 vs the same window's −$131). **Corrects the record: `config.py` claims trail is a
+   "broad plateau 0.9–2.0%" — on current data it is not, it is a steep monotonic gradient on 30 days and
+   the opposite ranking on 60. Treat any single-window replay number as noise; require ≥3 windows.**
+3. **Still open, unchanged:** confidence inverted above ~80 (all-time 80–89 = 25 tr −$43.45 44% win;
+   90–100 = 3 tr −$144.42 0% win, vs 70–79 = 79 tr **+$145.88** 52% win). Deliberately NOT touched tonight:
+   it is an *entry-filter* change and IMP-020 (crossover floor, shipped 07-30) has only **3 live sessions**;
+   the weekly review explicitly deferred its verdict for a full week, and a second entry filter would
+   confound it. Earliest candidate for next week once IMP-020 has its verdict.
+4. **`conf_volume` is not doing useful work.** Today: AMZN lost with 0.26, MU won with **0.07**, AMD won with
+   1.00. Two of three trades had near-dead volume sub-scores and the outcomes split. Not actionable on n=3 —
+   logged for the sub-score forensics that the 80+ confidence analysis will need anyway.
+
+### Notes for pre-market research
+- ⚠️ **No 08-03 research-log entry exists** — the pre-market routine failed (rc=1, model blip, both bots).
+  Today ran on **Friday's 20-name list unchanged**, which was fine. **Tomorrow's run starts from the 07-31
+  research entry**, not from a 08-03 one. If the 11:30 UTC run fails again, that is now a pattern worth
+  escalating rather than a one-off.
+- **Book CLEAN & FLAT into 08-04** — broker-confirmed **0 positions**, equity **$8,948.75** all cash.
+  Nothing locked, nothing to protect.
+- **AMZN — watch.** Entered on crossover **0.2552**, the closest any trade has come to IMP-020's 0.25 floor,
+  with thin volume (0.26), and was the day's only loser (MFE +0.38% — it never worked). Second consecutive
+  session where the weakest-cross entry was the loser. Not a park on one trade; a data point for the floor.
+- **AMD — best trade of the day and the cleanest signal** (trend 0.96 / rsi 1.00 / volume 1.00 / vol 1.00).
+  Keep. Note it also peaked +1.69% — IMP-021 is aimed squarely at this trade.
+- **MU — won on a near-zero volume sub-score (0.07).** Treat as luck, not signal quality. Watch.
+- **C — signalled 4 times and was rejected 4 times** on crossover (0.06–0.10), never trading. SPY likewise
+  (0.03/0.01). These two are burning gate cycles without ever producing a tradeable cross; if that persists
+  another week they are the first candidates for a park on *dead-signal* grounds rather than P&L grounds.
+- **TSM / GOOG / AVGO repeatedly rejected on the confidence floor** (57.6–59.3, i.e. just under 60) —
+  consistently near-miss, never entering. Worth a look at whether these names sit structurally just below
+  the threshold.
+- Regime note for Tuesday: today was **choppy risk-on that round-tripped a 118-point Nasdaq hole**. Six of
+  eleven sectors closed red on a green index — breadth is weak. Expect more give-back tapes; IMP-021 should
+  bank more of the intraday runs if this persists.
+
+---

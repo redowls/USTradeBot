@@ -1109,3 +1109,86 @@ Recorded so no future run burns another evening re-deriving it.
   change tonight would be thrash, so the day's deliverable is the refutation above.
 
 ---
+
+## IMP-021 — 2026-08-03 (daily) — two-stage trailing stop: tighten to 1.0% once +1.0% in profit
+
+**Status: SHIPPED & LIVE.**
+
+- **Problem (measured, not guessed):** the flat 1.25% trail is arithmetically incapable of keeping the
+  winners this strategy actually produces. I pulled 1-min bars for all 25 trades since IMP-018 went live
+  (07-25 → 08-03) and computed max-favourable-excursion capture:
+
+  | MFE bucket | n | avg MFE | avg realized | capture | net |
+  |---|---|---|---|---|---|
+  | < 0.5% | 4 | 0.23% | −0.75% | — | −$50.71 |
+  | 0.5–1.0% | 8 | 0.63% | −0.60% | −97% | −$77.01 |
+  | **1.0–2.0%** | **9** | **1.42%** | **+0.28%** | **17%** | +$53.31 |
+  | > 2.0% | 3 | 2.96% | +1.95% | 69% | +$119.30 |
+
+  The modal winner peaks at 1.0–2.0%, so with a 1.25% give-back the *ceiling* on capture is
+  (1.42−1.25)/1.42 = **12%**. Today AMD and MU each peaked **+1.69%** and banked **+0.45% / +0.38%**.
+  Seven trades since IMP-018 ran ≥1.0% and exited under +0.5%. This is a spec error, not an execution bug.
+- **Change:** `bot/config.py` — two new fields `trail_tighten_after` (env `TRAIL_TIGHTEN_AFTER`, default
+  **0.010**) and `trail_percent_tight` (env `TRAIL_PERCENT_TIGHT`, default **0.010**); `bot/risk.py` —
+  `update_trailing_stop` selects the width per candle: once `close >= entry_price * (1 + tighten_after)`
+  the trade has proven itself and the ratchet uses the narrower width, otherwise it uses the unchanged
+  1.25%. **Below the threshold behaviour is byte-identical to before** — the region the 07-31 A/B proved
+  must not be loosened is untouched. The `new_stop <= current` ratchet guard is unchanged, so stops still
+  never move down. `validate()` gained a hard invariant: **`TRAIL_PERCENT_TIGHT` must be <= `TRAIL_PERCENT`**
+  — stage two may only ever tighten, so this can never become a stealth stop-widening. Shipped as config
+  defaults (the IMP-020 pattern); `.env` untouched. `TRAIL_TIGHTEN_AFTER=0` restores the old flat trail.
+- **A/B validation — replay, 20 enabled symbols, every window tested:**
+
+  | window | flat 1.25% (live) | **two-stage (shipped)** |
+  |---|---|---|
+  | 15d | −$23.01 · PF 0.94 · 44.2% | **+$25.72 · PF 1.07 · 48.8%** |
+  | 20d | −$92.61 · PF 0.81 · 39.6% | **−$40.76 · PF 0.91 · 43.4%** |
+  | 30d | −$153.28 · PF 0.80 · 36.6% | **−$99.88 · PF 0.87 · 39.8%** |
+  | 45d | +$82.29 · PF 1.07 · 41.9% | **+$129.57 · PF 1.12 · 45.6%** |
+  | 60d | +$154.31 · PF 1.10 · 42.1% | **+$197.66 · PF 1.13 · 45.3%** |
+
+  **Better in all five windows, on net AND profit factor AND win rate simultaneously** — this change does
+  not trade hit-rate for payoff, which is unusual here and is the main reason I trust it.
+- **Parameter choice is mid-plateau, not argmax.** On the 60-day window the threshold axis
+  (0.008 / 0.010 / 0.012) and the width axis (0.009 / 0.010 / 0.011) *all* beat baseline (+$145 to +$198).
+  The only failure mode is **over**-tightening: width 0.008 scores +$54.83 and 0.006 scores +$51.42, i.e.
+  the cliff is on the tight side, so 0.010 is deliberately chosen away from that edge. 1.0% after +1.0% is
+  also the interpretable point — at exactly +1.0% the new stop lands on breakeven, so the trade locks
+  breakeven the moment it proves itself and then trails 1% behind the peak.
+- **Tests:** 6 new (`tests/test_risk.py`: wide width below threshold, tightening above it, shipped-defaults
+  pin, `TRAIL_TIGHTEN_AFTER=0` disable path, ratchet-never-lowers across the width switch, and an
+  **AMD 2026-08-03 regression** built from the real trade — entry $482.498, peak $490.85 — asserting the
+  stop rides at $485.94 rather than the $484.68 it actually exited at; `tests/test_config.py`: the
+  may-only-tighten invariant, the accept case, and the fraction bound). Nine legacy trail assertions in
+  `test_risk.py` / `test_strategy.py` were updated: they exercise the ratchet at +10%/+15% profit, which is
+  past the new threshold, so their expected stop moves 108.62 → 108.90 (the properties they cover —
+  ratcheting, never-lowering, Alpaca id rotation, `STOP_GONE` — are unchanged).
+- **Validation:** full suite **292 passed**. `bot.preflight` **OK with 1 warning** (market closed) — Alpaca
+  ACTIVE, SQL Server connected, Telegram delivered. Replay re-run with **no env overrides** reproduces the
+  shipped numbers exactly (30d −$99.88, 45d +$129.57, 60d +$197.66).
+- **Caveats (stated plainly):** ① The book is **still net-negative on the 30-day window** (−$99.88). This
+  banks more of each winner; it does **not** manufacture edge, and the strategy's lack of a demonstrated
+  edge is unchanged. ② Replay fills bracket legs at the exact stop price with **no slippage modelling**, so
+  a tighter trail is flattered slightly — live give-back will be marginally worse than modelled. ③ The
+  tighter width means **more order-replace churn** at the broker (already ~13 replaces per position today);
+  watch for 422s, though the IMP-012 `STOP_GONE` path and the id-rotation fix both cover that ground.
+- **Commit:** _see below_
+- **Observed effect:** ⏳ pending — first live session **Tue 2026-08-04**. Watch: (a) `trailing stop`
+  log lines should show the width narrowing once a position is +1% (stop ≈ close × 0.99 rather than
+  × 0.9875); (b) the MFE-capture rerun should lift the 1.0–2.0% bucket well above 17%; (c) **win rate should
+  RISE, not fall** — if it falls, the replay's no-slippage assumption is flattering the change and it should
+  be reconsidered. Needs ≥1 week to separate from noise.
+
+### Rejected the same evening — flat `TRAIL_PERCENT` tightening (recorded so it is not re-derived)
+Tightening the single flat width looks excellent on 30 days — 0.6% scores **+$24.58 / PF 1.06** vs 1.25%'s
+**−$153.28 / PF 0.80**, and the entire 0.2–0.7% region is positive with a broad plateau. **It reverses on
+longer windows**: 45d 1.25% wins (+$82.29 vs +$49.95), 60d 1.25% wins decisively (**+$154.31 vs +$51.42**).
+The apparent edge is a **30-day-window artifact**, and it retrospectively explains the harness instability
+flagged on 07-31 (IMP-018's +$194 vs the same window's −$131 — same phenomenon, not a harness bug).
+**Two corrections to the record:** (1) `config.py`'s claim that the trail curve is a "broad plateau
+0.90–2.00%" does **not** hold on current data — it is a steep monotonic gradient over 30 days and the
+opposite ranking over 60. (2) **Methodology rule going forward: no replay-derived parameter ships on a
+single window. Require ≥3 windows agreeing in sign.** IMP-021 was held to that bar; this rejected variant
+would have failed it.
+
+---

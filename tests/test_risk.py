@@ -148,16 +148,16 @@ def test_trailing_stop_ratchets_up(cfg):
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
     assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED
-    assert ex.moved == [("stop-1", 108.62)]  # 110 * (1 - 0.0125)
+    assert ex.moved == [("stop-1", 108.9)]  # 110 * (1 - 0.010), past the tighten threshold
 
 
 def test_trailing_stop_never_lowers(cfg):
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
-    rm.update_trailing_stop(_rising(110.0), _entry())  # stop -> 108.62
-    # price pulls back to 105 -> 103.69 < 108.62, so the stop is left where it is
+    rm.update_trailing_stop(_rising(110.0), _entry())  # stop -> 108.90
+    # price pulls back to 105 -> 103.95 < 108.90, so the stop is left where it is
     assert rm.update_trailing_stop(_rising(105.0), _entry()) is TrailResult.HELD
-    assert ex.moved == [("stop-1", 108.62)]
+    assert ex.moved == [("stop-1", 108.9)]
 
 
 def test_trailing_stop_noop_without_stop_leg(cfg):
@@ -174,7 +174,7 @@ def test_trailing_stop_retries_after_failed_move(cfg):
     assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.HELD
     # the failed move isn't cached as the current stop, so it retries next candle
     assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.HELD
-    assert ex.moved == [("stop-1", 108.62), ("stop-1", 108.62)]
+    assert ex.moved == [("stop-1", 108.9), ("stop-1", 108.9)]
 
 
 def test_trailing_stop_targets_replacement_id_on_next_move(cfg):
@@ -183,9 +183,9 @@ def test_trailing_stop_targets_replacement_id_on_next_move(cfg):
     # not the now-dead original ("stop-1") which would 422 forever.
     ex = _FakeExecutor()
     rm = RiskManager(cfg, executor=ex)
-    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED  # 108.62 stop-1
-    assert rm.update_trailing_stop(_rising(115.0), _entry()) is TrailResult.MOVED  # 113.56 stop-1-r
-    assert ex.moved == [("stop-1", 108.62), ("stop-1-r", 113.56)]
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED  # 108.90 stop-1
+    assert rm.update_trailing_stop(_rising(115.0), _entry()) is TrailResult.MOVED  # 113.85 stop-1-r
+    assert ex.moved == [("stop-1", 108.9), ("stop-1-r", 113.85)]
 
 
 def test_trailing_stop_reports_stop_gone_when_leg_filled(cfg):
@@ -196,7 +196,7 @@ def test_trailing_stop_reports_stop_gone_when_leg_filled(cfg):
     ex = _FakeExecutor(replace_gone=True)
     rm = RiskManager(cfg, executor=ex)
     assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.STOP_GONE
-    assert ex.moved == [("stop-1", 108.62)]  # the move was attempted, then reported gone
+    assert ex.moved == [("stop-1", 108.9)]  # the move was attempted, then reported gone
 
 
 def test_exit_clears_trailing_state(cfg):
@@ -514,3 +514,86 @@ def test_standdown_and_feed_halt_compose(cfg):
     assert rm.entries_allowed is False
     rm.roll_session(date(2026, 7, 18))  # stand-down cleared, feed already ok
     assert rm.entries_allowed is True
+
+
+# --- two-stage trail (IMP-021) -------------------------------------------
+
+
+@pytest.fixture
+def cfg_two_stage(monkeypatch):
+    """Live IMP-021 settings: trail 1.25%, tightening to 1.0% once +1.0% in profit."""
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("TRAIL_TIGHTEN_AFTER", "0.010")
+    monkeypatch.setenv("TRAIL_PERCENT_TIGHT", "0.010")
+    return Config.load(dotenv=False)
+
+
+def test_two_stage_trail_uses_wide_width_below_threshold(cfg_two_stage):
+    # +0.5% is not yet "proven": the trade keeps the full 1.25% width, i.e. behaviour
+    # below the threshold is byte-identical to the flat trail.
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg_two_stage, executor=ex)
+    assert rm.update_trailing_stop(_rising(100.5), _entry()) is TrailResult.MOVED
+    assert ex.moved == [("stop-1", 99.24)]  # 100.5 * (1 - 0.0125)
+
+
+def test_two_stage_trail_tightens_once_in_profit(cfg_two_stage):
+    # At +1.0% the trade has proven itself and the width drops to 1.0%.
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg_two_stage, executor=ex)
+    assert rm.update_trailing_stop(_rising(110.0), _entry()) is TrailResult.MOVED
+    assert ex.moved == [("stop-1", 108.9)]  # 110 * (1 - 0.010), not 108.62
+
+
+def test_two_stage_trail_is_the_shipped_default(cfg):
+    # IMP-021 ships the two-stage trail on by default, so a bare config already
+    # tightens; this pins the shipped values so silent config drift fails loudly.
+    assert cfg.trail_tighten_after == 0.010
+    assert cfg.trail_percent_tight == 0.010
+    assert cfg.trail_percent == 0.0125
+
+
+def test_two_stage_trail_can_be_disabled(monkeypatch):
+    # TRAIL_TIGHTEN_AFTER=0 -> single flat width, i.e. the pre-IMP-021 behaviour.
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("TRAIL_TIGHTEN_AFTER", "0")
+    flat = Config.load(dotenv=False)
+    ex = _FakeExecutor()
+    rm = RiskManager(flat, executor=ex)
+    rm.update_trailing_stop(_rising(110.0), _entry())
+    assert ex.moved == [("stop-1", 108.62)]  # 110 * (1 - 0.0125)
+
+
+def test_two_stage_trail_never_lowers_after_tightening(cfg_two_stage):
+    # The ratchet invariant must survive the width switch: once the tight stop is set,
+    # a pullback back below the threshold must not hand the position a looser stop.
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg_two_stage, executor=ex)
+    rm.update_trailing_stop(_rising(110.0), _entry())            # tight -> 108.90
+    assert rm.update_trailing_stop(_rising(100.4), _entry()) is TrailResult.HELD
+    assert ex.moved == [("stop-1", 108.9)]
+
+
+def test_two_stage_trail_amd_2026_08_03_regression(cfg_two_stage):
+    """Regression for the trade that motivated IMP-021.
+
+    AMD entered 2026-08-03 16:31 UTC @ $482.498, ran to a high of ~$490.85 (+1.69%),
+    then gave back a full 1.25% trail width and exited @ $484.68 for +$10.91 — banking
+    27% of the move it had actually earned. Under the two-stage trail the position is
+    past the +1.0% threshold at the peak, so the stop rides 1.0% behind instead.
+    """
+    ex = _FakeExecutor()
+    entry = ExecutionResult(
+        symbol="AMD", order_id="o1", qty=5, notional=2412.49,
+        entry_price=482.498, stop_price=472.85, take_profit_price=530.75,
+        confidence=77.96, status="accepted", model="A", stop_order_id="stop-1",
+    )
+    rm = RiskManager(cfg_two_stage, executor=ex)
+    rm.update_trailing_stop(_rising(490.85), entry)
+    tightened = ex.moved[-1][1]
+    assert tightened == pytest.approx(485.94, abs=0.01)  # 490.85 * (1 - 0.010)
+    # Strictly better than what actually happened, and still below the peak.
+    assert tightened > 484.68
+    assert tightened < 490.85

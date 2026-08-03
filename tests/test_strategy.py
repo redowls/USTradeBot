@@ -326,8 +326,8 @@ def test_managing_trails_stop_up(cfg):
     eng._positions["NFLX"] = _exec_result()  # entry 100, stop 98, leg "stop-1"
     sig = eng.on_short_candle(_candle())
     assert sig is None
-    # 110 * (1 - 0.0125) = 108.62 > 98 -> stop moves up, position stays open (no close)
-    assert closer.moved == [("stop-1", 108.62)]
+    # 110 * (1 - 0.010) = 108.90 > 98 -> stop moves up, position stays open (no close)
+    assert closer.moved == [("stop-1", 108.9)]
     assert closer.closed == []
     assert eng.state("NFLX") is BotState.MANAGING
 
@@ -359,7 +359,7 @@ def test_open_positions_are_still_managed_during_the_blackout(cfg):
     eng._state["NFLX"] = BotState.MANAGING
     eng._positions["NFLX"] = _exec_result()  # entry 100, stop 98, leg "stop-1"
     eng.on_short_candle(_candle(ts=_BLACKOUT_TS))
-    assert closer.moved == [("stop-1", 108.62)]  # trailed, blackout notwithstanding
+    assert closer.moved == [("stop-1", 108.9)]  # trailed, blackout notwithstanding
     assert eng.state("NFLX") is BotState.MANAGING
 
 
@@ -408,7 +408,7 @@ def test_managing_reconciles_and_frees_when_stop_filled(cfg):
     eng._positions["NFLX"] = _exec_result()  # entry 100, stop 98, leg "stop-1"
     sig = eng.on_short_candle(_candle())
     assert sig is None
-    assert closer.moved == [("stop-1", 108.62)]    # the ratchet was attempted, reported gone
+    assert closer.moved == [("stop-1", 108.9)]    # the ratchet was attempted, reported gone
     assert closer.reconciled == ["NFLX"]          # exit reconciled from broker order history
     assert eng.state("NFLX") is BotState.WAITING   # freed, not stuck MANAGING
     assert "NFLX" not in eng._positions

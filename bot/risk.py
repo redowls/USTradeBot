@@ -270,7 +270,14 @@ class RiskManager:
         if not key:
             return TrailResult.HELD
         current = self._trail_stops.get(key, entry.stop_price)
-        new_stop = round_price(trigger.close * (1.0 - self._cfg.trail_percent))
+        width = self._cfg.trail_percent
+        tighten_at = self._cfg.trail_tighten_after
+        if tighten_at > 0.0 and trigger.close >= entry.entry_price * (1.0 + tighten_at):
+            # The trade has proven itself by running `tighten_at` above entry; switch to
+            # the narrower width so a winner banks its move instead of handing back a
+            # full flat trail-width from the peak (IMP-021).
+            width = self._cfg.trail_percent_tight
+        new_stop = round_price(trigger.close * (1.0 - width))
         if new_stop <= current:
             return TrailResult.HELD
         live_id = self._live_stop_oid.get(key, key)  # replace the current order, not the original
