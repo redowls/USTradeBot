@@ -2002,3 +2002,102 @@ changed) — `active`, warmup primed **20/20** symbols, subscribed to all 20 on 
 clean startup. 🔒 Locked: none (0 open positions).
 
 ---
+
+## 2026-08-04 — Pre-market Research
+
+**One change: AMD parked for tonight's after-close Q2 print.** Book is CLEAN & FLAT (broker-confirmed
+**0 positions**, equity **$8,948.73**, `last_equity` == `equity` → nothing carried, nothing marked) →
+**nothing locked**. This is the first run since **07-31** — the 08-03 routine died `rc=1` (model blip),
+so there is no 08-03 research entry and Monday traded Friday's list unchanged. Started from the 07-31
+entry + the 08-03 daily review, as that review instructed.
+
+### Market context
+Risk-on, tech-led, and **thin at the top**. Nasdaq-100 futures **+0.7%**, Dow futures **+201 (+0.5%)**,
+S&P 500 futures **+0.2%** — a narrower, more selective bid than Monday's record Dow close. Drivers are
+carry-over, not fresh: Trump halting further strikes on Iran took WTI down >5% Monday to $80.34 (crude
+is +2% back this morning on supply worries), and the momentum unwind in chips/AI paused. **Semis are
+bouncing** — MU **+4% pre**, MRVL +7% — after a brutal stretch (MU had its worst month in 11 years,
+−8.2% vs its 20-day / −14.2% vs its 50-day even after yesterday's gain). Session movers are earnings
+names outside our book: PLTR **+16%** on a blowout Q2, CAT +6%. Macro in-session: **June factory orders
++ international trade data**; 10y 4.69%, 2y 4.25%. **Perplexity `sonar` ran but came back near-empty**
+(no futures data, "no catalyst found" for 19 of 20 names) — fell back to WebSearch for the whole
+briefing, and every trade-critical claim below was verified there independently.
+
+### Carried from daily review (08-03 "Notes for pre-market research")
+- **Book CLEAN & FLAT into 08-04** — ✔ verified live: `/v2/account` ACTIVE, equity **$8,948.73** all
+  cash, `/v2/positions` **0**, `/v2/orders?status=open` **0**. Nothing locked, nothing to protect.
+- **⚠️ "If the 11:30 UTC run fails again that is a pattern"** — it did **not** fail: this run executed
+  normally. Treating 08-03 as the one-off it was claimed to be; no escalation needed.
+- **AMD flagged as the day's best trade and cleanest signal** (trend 0.96 / rsi 1.00 / vol 1.00) →
+  ordinarily a clear keep. **Overridden today by an earnings binary** — see below.
+- **AMZN on watch** (entered on crossover 0.2552, the closest any trade has come to IMP-020's floor, and
+  was 08-03's only loser). Keep — one trade is not a park, and it is the strongest chart on the list.
+- **MU won on a near-zero volume sub-score (0.07) = luck, not quality.** Keep, watch. Note MU is
+  bouncing +4% pre today, so it will likely signal again.
+- **C and SPY are burning gate cycles without producing a tradeable cross** — C rejected 4× on crossover
+  (0.06–0.10), SPY 2× (0.03/0.01); last actual trade **C 07-10**, **SPY 06-26**. The review set the bar
+  explicitly: *"if that persists another week."* Today is **one session** into that window → **no park
+  today**, flag carried. Data supporting the mechanism, not the park: SPY's ATR is **1.17%** and QQQ's
+  **2.15%**, the two lowest on the board — index ETFs structurally produce fewer sharp 1-min crosses.
+  That is the diversifier trade-off, not a broken symbol.
+- **TSM / GOOG / AVGO repeatedly rejected just under the 60 confidence floor** (57.6–59.3). Noted as a
+  scoring question for the post-close routine — it is not a watchlist action and I did not treat it as one.
+
+### Watchlist review
+Account **ACTIVE**, equity **$8,948.73**, BP $35,794.92, **0 open positions = nothing locked.** Service
+`active` since the 08-03 21:59 UTC IMP-021 restart, NRestarts=0. 20 enabled reviewed against overnight
+news + 60-day daily bars (close vs 20/50-day MA, ATR%, 20-day avg $ volume):
+- **⚠️ AMD → PARK (the one change).** AMD reports **fiscal Q2 2026 today, Tuesday 2026-08-04, AFTER the
+  market close** (call 5:00 pm ET). This is the routine's standard binary-event park and it is
+  **independently verified** — AMD's own 07-08 IR announcement (via StockTitan), the Seeking Alpha and
+  Schwab week-ahead calendars, TIKR, and this morning's Benzinga pre-market piece all name the same date
+  and time; Perplexity did **not** surface it, which is precisely why the fallback search matters. Street
+  looks for ~$11.2–11.3B revenue (+46–47% y/y) and ~$1.61–1.67 EPS. Same precedent as GOOG+TSLA (07-22),
+  MSFT (07-29), AAPL+AMZN (07-30): a long opened intraday would be held into an unhedgeable overnight
+  gap — the EOD flatten is designed for it, but the trail-managed winner that runs into the close is
+  exactly the trade that gets caught. **Not locked** (0 positions), so the park is safe. **Re-enable
+  Wed 08-05** once the print and the reaction clear.
+- **Core megacap engine kept:** MSFT (**+21.3% vs 20MA**, strongest trend on the board), AMZN (+15.5%,
+  post-AWS-blowout leader), GOOG (+7.2%, +14.1% on the week), BABA (+10.8%, last week's best P&L +$52.10
+  over 10 sessions), NVDA (+1.4%), JPM (+2.2% / +7.3% vs 50MA). All liquid, all trending, ideal ribbon fuel.
+- **Post-earnings downtrends kept, on notice:** AAPL (−6.3% vs 20MA, −9.9% on the week after the Services
+  miss, but **+$31.89 over 10 sessions** and $17.8B/day), NFLX (−4.5% vs 50MA), TSLA (**−10.3% vs 20MA,
+  −17.2% vs 50MA**, 0/2 and −$32.42 over 10 sessions), TSM (−1.6%), UNH, WMT. Every one is mega-liquid and
+  the long-only 5-min gate simply will not open longs while the trend is down — the same self-protecting
+  logic that has justified holding these names since the NFLX/TSM re-enables. Downtrend alone is not a park.
+- **Semis kept (regime, not symbol quality):** INTC (−18.9% vs 50MA, ATR 8.75%) and MU (−14.2% vs 50MA,
+  **ATR 10.73%**) look ugly on the 50-day but were **last week's two best earners** (+$33.90 / +$40.29) and
+  both are bouncing this morning. AVGO flat-ish (+1.7% vs 20MA). The dailies have been consistent that the
+  semi cohort's dispersion is crossover quality, not liquidity or symbol quality.
+- **Dead-signal watch (no action):** C (−0.2% vs 20MA, ATR 2.64%) and SPY (ATR **1.17%**) — see above,
+  one session into the review's stated one-week window. ABNB has not traded since 07-15 either and is the
+  thinnest name enabled ($499M/day, vs $1.4B for the next-thinnest BABA) — **and it reports Thu 08-06 after
+  close**, so it is on the calendar for a park in Thursday's run regardless.
+- **Parked stay parked:** BIRD (micro-cap), COST (June-sales-miss downtrend, 0/4), ENPH (10.9% ATR whipsaw),
+  QCOM (thin $vol, lone chip laggard), SE (lowest-liquidity ADR, worst 10-day −$53.42 on 1W/5), WPM
+  (dead-vol downtrend), XOM (oil gave back >5% Monday on the Iran de-escalation — the *opposite* of a
+  bullish catalyst). No fresh reason to re-enable any.
+- **Adds considered and declined.** PLTR (+16% on its Monday-AH blowout, $4.65B/day) is the obvious
+  momentum candidate and its binary is resolved — but a **+16% gap day is the most fade-prone session a
+  name has**, and this log's standing rule is not to chase a gap on the day it happens. MRVL (+7%, but
+  −19.1% vs its 50MA) and CAT (+6% on an earnings gap, −9.7% vs 50MA) are both bounces inside downtrends.
+  The stronger structural reason: the book is **capital-constrained** ($8.9k equity), so on a 3–8 trade
+  day a 20th name mostly *displaces* a trade rather than adding one — IMP-017 made exactly this point.
+  Nothing gets added to fill the slot AMD vacated.
+
+### Changes applied to dbo.watchlist
+- **AMD → `enabled = 0`** (row kept, note set: *"parked 2026-08-04: Q2 earnings AFTER CLOSE today (binary
+  event); re-enable 08-05 once print clears"*). Parameterized UPDATE, 1 row affected, committed.
+- **No adds, no re-enables, no deletes.** One change is the whole diff.
+
+### Final watchlist
+**19 enabled** (≤30 ✓): AAPL ABNB AMZN AVGO BABA C GOOG INTC JPM MSFT MU NFLX NVDA QQQ SPY TSLA TSM UNH
+WMT. Parked (8): AMD BIRD COST ENPH QCOM SE WPM XOM. Service **RESTARTED** 11:35:29 UTC (watchlist
+changed) — `active`, NRestarts=0, warmup primed **19/19** symbols from history, subscribed to all 19 on
+the iex feed, account ACTIVE $8,948.73, **no open positions**, and the startup banner confirms IMP-021 is
+live (*"trailing stop 1.25% (active, IMP-018), tightening to 1.00% once +1.00% in profit (IMP-021)"*).
+Clean startup, zero errors. 🔒 Locked: none (0 open positions).
+**Wed 08-05 routine: RE-ENABLE AMD** after tonight's print. **Thu 08-06 routine: PARK ABNB** (Q2 after
+Thursday's close). Carry the **C / SPY dead-signal** flag — the review's one-week window runs to ~08-10.
+
+---
