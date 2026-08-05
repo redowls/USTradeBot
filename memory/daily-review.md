@@ -3100,3 +3100,192 @@ market-wide afternoon pullback taking out three trails at once, not three indepe
   bank more of the intraday runs if this persists.
 
 ---
+
+## 2026-08-04 — Daily Review (backfilled 2026-08-05)
+
+**The 08-04 post-close routine did not run** — no entry was written that evening and no
+IMP was shipped. Backfilled here from the DB, broker and journal so the record is
+continuous and IMP-021's first live session is not lost. Kept short: it is reconstruction,
+not same-evening analysis.
+
+### Stats
+- Closed trades: **7 — 7W / 0L, 100% win rate.** Net **+$139.38** (avg +$19.91/trade,
+  avg +0.88%). The best session in the book's recorded history and the **first live
+  session under IMP-021** (two-stage trail; service restarted 11:35:29 UTC by the
+  pre-market routine, so the code was live from the open).
+- Trades: AVGO +$55.35 (+2.24%), INTC +$24.62 (+0.93%), INTC +$24.07 (+1.15%),
+  NVDA +$16.72 (+0.99%), MU +$10.08 (+1.14%), MSFT +$4.50 (+0.45%), TSM +$4.04 (+0.24%).
+- **5 of 7 exited on the EOD flatten, 2 on the trail — and both trail exits were WINNERS**
+  (+0.93%, +1.14%). Against the all-time trail-exit record of 26% win, two trail exits
+  banking ~+1% each is the IMP-021 mechanism doing precisely what it was designed to do.
+- Tape: QQQ **+2.15% open→close** — the strongest trend day in the 38-session sample.
+
+### Root cause
+Not a strategy insight so much as a regime one: on the best trending tape of the sample the
+long-only book went 7/7. That is the same fact IMP-022 is built on tonight, seen from the
+happy end of the distribution.
+
+### Notes carried
+- **AMD was parked for its 08-04 after-close print and was never re-enabled** — the 08-05
+  pre-market routine did not run either. AMD is still `enabled=0`. See tonight's entry.
+
+---
+
+## 2026-08-05 — Daily Review
+
+### Stats
+- Closed trades: **3** — 1W / 2L → **33% win rate**. Net realized **−$12.20**
+  (avg −$4.07/trade). Avg win **+$16.53**, avg loss **−$14.37**, **payoff 1.15**,
+  **profit factor 0.58**. Account **equity $9,075.88** (all cash, **0 open positions**).
+- **Broker reconciliation: EXACT.** Alpaca equity **$9,075.88** vs `last_equity`
+  **$9,088.08** = **−$12.20**, matching the DB net to the cent. All 6 fills (3 entries,
+  3 exits) match the DB on price and qty; 0 positions at the broker, DB flat. Nothing
+  carried overnight, no missed fill, no qty drift. Book clean.
+- Service **active** all session, **NRestarts=0**, running since the 08-04 11:35:29 UTC
+  restart — so today traded under IMP-021, as intended, with no deploy gap.
+- ⚠️ **Two routines did not run.** There is **no 08-04 daily review** (backfilled above)
+  and **no 08-05 research-log entry** — the 08-05 pre-market routine never executed. This
+  is the *second* failure in three sessions (08-03 died rc=1 too). The 08-04 entry called
+  08-03 "the one-off it was claimed to be"; **that call is now wrong — this is a pattern
+  and it should be escalated.** Concrete consequence: **AMD was parked on 08-04 for its
+  after-close earnings and the 08-05 run was supposed to re-enable it. It did not. AMD is
+  still `enabled=0` and has now missed a full session for a binary event that resolved
+  yesterday.** The watchlist is 19 names, not the intended 20.
+- ⚠️ **Alpaca API instability, ~17:55–17:57 UTC.** `entry_fill_price` for MU order
+  `24fbc144` failed repeatedly — first `[Errno 111] Connection refused`, then two nginx
+  `500`s. **Handled correctly**: the errors are logged and swallowed, the DB kept the
+  submit-time price, and the position stayed managed and exited normally at 19:25. No
+  trading impact; recorded because it is a broker-side outage, not a bot defect.
+
+### Market context (Perplexity `sonar` + bar data)
+- **S&P 500 closed 7,398.93 (+0.84%) and the Nasdaq Composite 26,247.08 (+1.71%), both
+  record closes.** Perplexity found no single-name catalyst for MU or INTC.
+- **This framing is misleading for an intraday bot and I nearly mis-read the day on it.**
+  Those are *close-over-close* numbers and the gains were an overnight gap. **QQQ's
+  intraday open→close was −1.27%** — the tape the bot actually traded opened at the highs
+  and faded all day. Today was a **fade day, not a trend day.** Against the −$33.12
+  average for down-tape sessions, **−$12.20 is a comfortably better-than-typical result
+  for the regime**, not a disaster.
+- AMD's Q2 print (after the 08-04 close) landed with upbeat guidance that **failed to
+  impress**; the reaction was negative. The 08-04 park was the right call — and it makes
+  AMD's failed re-enable a missed *recovery*, not a missed opportunity.
+
+### Trade-by-trade review
+All three Model A, all after the 10:00 ET blackout, **all three exited broker-side on the
+IMP-021 trail** — none reached the EOD flatten, none came near the −2% stop or +10% target.
+- **MU #1** (10:09 ET @ $918.31, qty 3, conf **80.67**, xo 0.834, trend 1.00, rsi 1.00,
+  volume 0.369) → $912.197, **−$18.34 (−0.67%)**, 14 min. Stop ratcheted 899.85 → 906.06 →
+  909.02 → 911.23 → **912.71**, filled at **912.1967** — i.e. **$0.51/share of slippage
+  through the stop** (~$1.54 on the trade). Peak close ≈ $924.26 (**+0.65%**), so it never
+  reached IMP-021's +1.0% trigger and rode the **wide** 1.25% width the whole way.
+  **The day's biggest loser was also the day's highest-confidence signal** (80.67, the
+  strongest crossover at 0.834). Root cause: **market regime** — MU could not hold a
+  +0.65% pop while the tape faded; the signal itself was the cleanest of the three.
+- **INTC** (11:54 ET @ $100.6829, qty 21, conf **66.83**, xo 0.596, volume 0.224) →
+  $101.47, **+$16.53 (+0.78%)**, 84 min. **The one trade that proves IMP-021 fired live:**
+  the final stop sat at **101.50**, which is self-consistent *only* with the narrow 1.0%
+  width (101.50/0.99 = 102.53 peak, +1.83% — past the +1% trigger; the old 1.25% width
+  would have placed it at 101.25). **IMP-021 added ≈ +$0.25/share ≈ +$5.25 on this trade
+  versus the flat trail.** 17 stop replaces — high churn, exactly IMP-021's caveat ③, and
+  **zero 422s**, so the id-rotation fix is holding.
+- **MU #2** (12:40 ET @ $924.39, **qty 1**, conf **62.11**, xo 0.252, volume **0.000**) →
+  $914.00, **−$10.39 (−1.12%)**, 165 min. Peak close ≈ $925.57 (**+0.13%**) — **it was
+  never in profit.** Root cause: **signal quality + regime** — crossover 0.252 is a
+  hair over IMP-020's 0.25 floor (the third session running where the weakest-cross entry
+  of the day lost) and volume participation was **exactly zero**.
+- **Rejections** (the gates worked): NVDA 3× on crossover (0.20 / 0.15 / 0.08), AVGO 4×
+  (0.02 / 0.11 + confidence 52.0 / 50.6 / 57.9 / 61.6), INTC 59.8, TSM 49.5, AAPL 49.9.
+
+### What worked / what didn't
+- **Worked:** (1) **Execution and reconciliation flawless** — broker matches DB to the
+  cent, three broker-side exits reconciled first time, zero 422s across ~25 stop replaces,
+  and a real Alpaca outage absorbed without trading impact. (2) **IMP-021 is confirmed
+  live and additive** on its one qualifying trade (+$5.25 on INTC). (3) Combined with
+  08-04, **IMP-021's first two sessions are 10 trades, +$127.18, 8W/2L** — early, small-n,
+  but the win rate has *risen* as the IMP-021 entry required it to.
+- **Didn't:** (1) **Two of three entries were MU, and MU was the wrong horse** — it chopped
+  914–926 all day while the tape faded. (2) **Confidence was inverted again**: the 80.67
+  entry lost the most, the 66.83 entry was the only winner. (3) **qty=1 on MU #2** — a
+  $924 position against $36k buying power. Whole-share flooring quantises a $900+ name so
+  coarsely that the confidence→size mapping barely functions on it (logged below, not
+  acted on).
+
+### Lessons & improvement candidates
+1. **[SHIPPED TONIGHT — IMP-022] The bot has no view on the tape, and the tape is nearly
+   the whole P&L.** Bucketing all 38 live sessions (2026-06-08 → 08-05, 254 closed trades)
+   by QQQ's intraday open→close move:
+
+   | QQQ intraday | sessions | trades | win rate | net | per session |
+   |---|---|---|---|---|---|
+   | **up >0.5%** | 12 | 104 | **54.8%** | **+$755.65** | +$62.97 |
+   | up 0–0.5% | 4 | 32 | 62.5% | −$49.70 | −$12.42 |
+   | **down** | 22 | 118 | **33.1%** | **−$728.75** | −$33.12 |
+
+   The book earns +$756 on up-tape and gives back −$729 on down-tape, netting ≈ −$23.
+   **This is long beta, not alpha.** The 5-min gate asks only whether *the name* is
+   trending; nothing in the system asks what the market is doing. Fixed by requiring the
+   index proxy's own 5-min ribbon to be bullish before any long opens — see IMP-022.
+2. **The "flat non-ATR stop" backlog item is much weaker than it looks — correcting the
+   record.** It has been carried as an open defect since IMP-018 on the reasoning that a
+   flat 1.25% trail is absurd across names ranging from SPY (1.17% daily ATR) to MU
+   (10.73%). But the trail is compared against the *1-minute* ATR, and today's recorded
+   `conf_volatility` inverts cleanly to it: **MU 1-min ATR ≈ $2.07 (0.224% of price),
+   INTC ≈ $0.246 (0.244%)** — i.e. the trail width is **≈5.6× the 1-min ATR on MU and
+   ≈5.1× on INTC**. It is already *near-normalised in ATR terms*, because
+   `score_volatility` (ATR/price, `_ATR_GOOD` 0.20% → `_ATR_BAD` 1.00%) is itself an ATR
+   filter that only admits names in a narrow 1-min-ATR band. **Daily ATR dispersion is not
+   the dispersion this bot's stop actually faces.** Downgrade this item; do not spend a
+   session on it before re-deriving the premise.
+3. **A second dead mechanism: `STOP_LOSS` (2%) is unreachable and has been since IMP-018.**
+   The trail seeds at the bracket stop and ratchets whenever `close × (1 − 0.0125)` clears
+   it, which happens as soon as price trades above **−0.76%** from entry. In practice the
+   trail is always the binding constraint and the −2% stop never fills. Today confirms it:
+   all 3 exits were trail fills. **Tuning `STOP_LOSS` is therefore a no-op** — worth
+   knowing before someone spends a day on it. (Not a defect: the trail is strictly tighter,
+   so this is *more* protective, not less.)
+4. **Confidence remains inverted, and today added to it** (80.67 lost $18.34; 66.83 was the
+   only winner). All-time: 90–100 = 3 tr / 0% / −$144.42; 80–89 = 28 tr / 46% / −$13.10;
+   **70–79 = 82 tr / 54% / +$221.99**; 60–69 = 141 tr / 42% / −$87.27. The 70–79 band is
+   the only profitable one and the 60–69 band is the largest and negative. **Deliberately
+   NOT touched tonight** — IMP-022 is itself an entry filter and will cut trade count by
+   ~40%; stacking a second entry filter in the same evening would make both unmeasurable.
+   This is the first candidate once IMP-022 has a week.
+5. **Whole-share quantisation on high-priced names (new, logged not acted).** MU #2 sized
+   to **qty 1 = $924** against $36k buying power. On a $900+ stock the floor-to-integer
+   step is ~10% of a typical position, so Model A's confidence→size curve is effectively
+   destroyed for MU/AVGO/TSM/MSFT/NFLX. Cannot be fixed by sizing alone (brackets require
+   whole shares — a hard Alpaca constraint), so any fix is structural. Needs its own study.
+
+### Notes for pre-market research
+- 🚨 **RE-ENABLE AMD.** It was parked 08-04 for its after-close print, the 08-05 routine
+  was supposed to re-enable it and **never ran**. The print is out (upbeat guidance, weak
+  reaction) so the binary is resolved. The watchlist is currently **19 enabled, not 20**.
+- 🚨 **Escalate the pre-market routine failures.** 08-03 died rc=1, 08-05 did not run at
+  all, and the 08-04 post-close routine also did not run. **Three misses in three
+  sessions is not a model blip** — the scaffold lives in `/root/claude-routines`, outside
+  this repo, and needs an operator look.
+- ⚠️ **NEW — `QQQ` is now load-bearing infrastructure, not just a tradeable symbol.**
+  IMP-022 reads QQQ's 5-min ribbon as the market gate. **QQQ must stay `enabled=1` on
+  `dbo.watchlist`.** If it is parked, the gate fails **open** (the bot trades exactly as
+  it did before) and logs a `WARNING` — safe, but the filter is silently gone. The
+  standing "C / SPY dead-signal park" review, whose window runs to ~08-10, **must not
+  park QQQ**; SPY remains free to park.
+- **Book CLEAN & FLAT into 08-06** — broker-confirmed 0 positions, equity **$9,075.88**
+  all cash. Nothing locked.
+- **MU — the day's whole loss, and a pattern worth watching.** Signalled twice, lost both
+  (−$18.34, −$10.39), chopping 914–926 while the tape faded. But it is still the book's
+  **second-best earner over 60 days (+$177.84 / 21 trades)** and was +$10.08 yesterday.
+  **Not a park candidate** — it is a high-beta name having a bad day in a fading tape,
+  which is exactly the cohort IMP-022 now filters. Watch whether the gate fixes it.
+- **INTC — best name in the book** (+$191.26 / 20 trades over 60 days) and the only winner
+  today. Keep.
+- **NVDA and AVGO are the emerging dead-signal names, not C/SPY.** NVDA was rejected 3×
+  today on crossover (0.20/0.15/0.08) and AVGO 4× — both repeatedly reach candidacy and
+  never clear the floor. Worth watching alongside the existing C/SPY flag.
+- **Note for the 08-06 pre-market: ABNB reports Thursday 08-06 after the close** — the
+  08-04 entry flagged it for a park in Thursday's run. Still outstanding.
+- Regime note: two consecutive sessions of violent regime alternation (QQQ **+2.15%** on
+  08-04 → **−1.27%** on 08-05). Expect IMP-022 to cut trade count materially on days like
+  today and to be roughly transparent on days like yesterday.
+
+---
