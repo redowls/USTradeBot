@@ -236,6 +236,41 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
 - [ ] **Late-day / low-conviction entry quality (watch).** 2026-06-17: TSLA (conf 61, at the 60
       gate) and MU (entered 19:07, ~1h before close) both went straight to their stops. Consider
       a time-of-day entry cutoff and/or a higher entry gate — needs more days of data first.
+- [ ] **Confidence is inverted above ~70 — the next entry-filter candidate.** All-time bands:
+      90–100 = 3 tr / 0% win / −$144.42; 80–89 = 28 tr / 46% / −$13.10; **70–79 = 82 tr / 54% /
+      +$221.99**; 60–69 = 141 tr / 42% / −$87.27. The 70–79 band is the *only* profitable one and
+      60–69 is the biggest and negative. Deferred 2026-08-05 because IMP-022 is itself an entry
+      filter and will cut trade count ~40% — stacking two would make both unmeasurable. **Revisit
+      once IMP-022 has a full week (≥ 2026-08-12).**
+- [~] ~~**Flat non-ATR stop.**~~ **Downgraded 2026-08-05 — the premise was wrong.** Carried since
+      IMP-018 on the reasoning that a flat 1.25% trail is absurd across SPY (1.17% *daily* ATR) to
+      MU (10.73%). But the trail is faced against the **1-minute** ATR, and `score_volatility`
+      (ATR/price, `_ATR_GOOD` 0.20% → `_ATR_BAD` 1.00%) is *itself* an ATR filter that only admits
+      names in a narrow 1-min-ATR band. Measured on 2026-08-05: MU 1-min ATR ≈ $2.07 (0.224% of
+      price) and INTC ≈ $0.246 (0.244%) — the trail is **≈5.6× and ≈5.1× the 1-min ATR**
+      respectively, i.e. already near-normalised. Re-derive the premise before spending a session.
+- [~] ~~**Tune `STOP_LOSS` (2%).**~~ **Dead knob — do not spend a session on it.** Since IMP-018 the
+      trail seeds at the bracket stop and ratchets whenever `close × (1 − TRAIL_PERCENT)` clears
+      it, which happens as soon as price trades above ≈ **−0.76%** from entry. The trail is
+      therefore always the binding constraint and the −2% stop effectively never fills (all 3
+      exits on 2026-08-05 were trail fills). Not a defect — the trail is strictly tighter, so this
+      is more protective, not less — but changing `STOP_LOSS` is a no-op.
+- [ ] **Whole-share quantisation wrecks Model A sizing on high-priced names.** 2026-08-05: MU sized
+      to **qty 1 = $924** against $36k buying power. On a $900+ stock the floor-to-integer step is
+      ~10% of a typical position, so the confidence→size curve barely functions for MU / AVGO /
+      TSM / MSFT / NFLX. Cannot be fixed in sizing alone — Alpaca refuses brackets on fractional
+      orders — so any fix is structural. Needs its own study.
+- [ ] **⚠️ OPERATOR: the pre-market / post-close routine scaffold is failing.** 08-03 pre-market
+      died rc=1, the 08-04 post-close routine never ran, and the 08-05 pre-market never ran. Real
+      consequence: **AMD was parked 08-04 for earnings and never re-enabled**, so the watchlist ran
+      a session at 19 names instead of 20. The scaffold is `/root/claude-routines`, outside this
+      repo. Three misses in three sessions is a pattern, not a model blip.
+- [ ] **⚠️ RISK — needs human approval, do NOT self-authorise.** IMP-022 makes the bot decline to
+      trade a falling tape, which is capital protection. The *symmetric* idea — taking the short
+      side when the gate is inverted — would give the book a second direction and is the only
+      obvious route out of "long beta". It is a materially different risk profile (shorting,
+      borrow, unbounded loss) and is **explicitly out of scope for an unattended routine.**
+      Proposing it here only.
 
 ---
 

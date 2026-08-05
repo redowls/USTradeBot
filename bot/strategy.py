@@ -127,6 +127,33 @@ class StrategyEngine:
         # only ever flatten inside the close window, so this lock is the only shared
         # mutation point — re-entrant in case a future caller nests.
         self._flatten_lock = threading.RLock()
+        # Latch so a missing market-filter ribbon warns once, not once per candle.
+        self._market_gate_warned = False
+
+    def _market_gate_open(self) -> bool:
+        """Is the broad tape bullish enough to open a new long? (IMP-022)
+
+        Reads the market-filter symbol's *own* 5-min gate ribbon — the same
+        ``gate_open`` rule (21>34>55 stacked and rising) each name is already held to,
+        applied to the index proxy. Fails **open** when the filter is disabled or the
+        symbol has no ribbon yet (not on the watchlist, or still warming up): a
+        watchlist edit must never silently halt trading, so the miss warns instead.
+        """
+        sym = self._cfg.market_filter_symbol
+        if not sym:
+            return True
+        snap = self._gate_snap.get(sym)
+        if snap is None or not snap.ribbon_ready:
+            if not self._market_gate_warned:
+                self._market_gate_warned = True
+                log.warning(
+                    "market filter %s has no ready 5m ribbon — gate failing OPEN "
+                    "(is %s on the watchlist?)",
+                    sym,
+                    sym,
+                )
+            return True
+        return snap.gate_open
 
     def reconcile(self, positions) -> None:
         """Mark symbols already held at Alpaca as MANAGING (startup / post-reconnect).
@@ -251,6 +278,20 @@ class StrategyEngine:
         )
         if not decision.enter:
             self._log_skip(symbol, decision)
+            return None
+
+        # Market-regime veto (IMP-022). Deliberately applied *after* scoring rather
+        # than before: the decision is fully computed and logged, so the journal
+        # records exactly which qualifying entries the filter turned away and the
+        # daily review can price what it cost or saved.
+        if not self._market_gate_open():
+            log.info(
+                "no entry %s: market gate closed (%s 5m ribbon not bullish) (conf=%.1f%%)",
+                symbol,
+                self._cfg.market_filter_symbol,
+                decision.confidence.total if decision.confidence else float("nan"),
+            )
+            self._set(symbol, BotState.WAITING)
             return None
 
         assert decision.confidence is not None  # enter implies a scored candidate

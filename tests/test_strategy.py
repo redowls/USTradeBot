@@ -883,3 +883,141 @@ def test_non_candidate_skip_logs_at_debug(cfg, caplog):
     assert len(skip) == 1
     assert skip[0].levelno == logging.DEBUG
     assert not [r for r in skip if r.levelno >= logging.INFO]
+
+
+# --- IMP-022: market-regime gate -------------------------------------------------
+#
+# The per-symbol 5-min gate only asks whether that one name is trending; it says
+# nothing about the tape the name has to swim in. Bucketing the 38 live sessions
+# 2026-06-08..08-05 by QQQ's intraday move: QQQ up >0.5% = 104 trades, 54.8% win,
+# +$755.65; QQQ down = 118 trades, 33.1% win, -$728.75. These cover the veto that
+# turns the adverse half away, and the fail-open behaviour that keeps a watchlist
+# edit from silently halting the bot.
+
+
+def _market_gate_engine(open_gate: bool) -> _FakeEngine:
+    """Gate engine yielding the index snapshot first, then the traded symbol's."""
+    index = _open_gate() if open_gate else _shut_gate()
+    return _FakeEngine([index, _open_gate()])
+
+
+def _shut_gate() -> RibbonSnapshot:
+    """Ribbon ready but rolling over — stacked False, sloping_up False."""
+    return _ribbon_snap((100.0, 101.0, 102.0), (100.5, 101.5, 102.5), interval_seconds=300)
+
+
+def _feed_index_then_symbol(eng, *, index_symbol="QQQ"):
+    eng.on_long_candle(_candle(symbol=index_symbol))  # index 5m ribbon
+    eng.on_long_candle(_candle())  # traded symbol's own 5m gate
+
+
+def test_market_gate_blocks_a_qualifying_entry_when_the_tape_is_not_bullish(cfg, caplog):
+    ex = _FakeExecutor(_exec_result())
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_market_gate_engine(open_gate=False),
+    )
+    _feed_index_then_symbol(eng)
+    with caplog.at_level(logging.INFO, logger="ustradebot.strategy"):
+        sig = eng.on_short_candle(_candle())
+    assert sig is None  # scored and qualified, then vetoed
+    assert ex.calls == []  # nothing reached the broker
+    assert eng.state("NFLX") is BotState.WAITING
+    assert any("market gate closed (QQQ" in r.getMessage() for r in caplog.records)
+
+
+def test_market_gate_allows_the_same_entry_when_the_tape_is_bullish(cfg):
+    """The mirror of the veto: a gate, not a filter that suppresses entries outright."""
+    ex = _FakeExecutor(_exec_result())
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_market_gate_engine(open_gate=True),
+    )
+    _feed_index_then_symbol(eng)
+    sig = eng.on_short_candle(_candle())
+    assert sig is not None
+    assert len(ex.calls) == 1
+    assert eng.state("NFLX") is BotState.MANAGING
+
+
+def test_market_gate_fails_open_when_the_index_has_no_ribbon(cfg, caplog):
+    """QQQ off the watchlist must not silently halt trading — trade on, but warn."""
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())  # only the traded symbol; no QQQ ribbon ever
+    with caplog.at_level(logging.WARNING, logger="ustradebot.strategy"):
+        sig = eng.on_short_candle(_candle())
+    assert sig is not None  # fails OPEN
+    warns = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warns) == 1 and "failing OPEN" in warns[0].getMessage()
+
+
+def test_market_gate_missing_ribbon_warns_only_once(cfg, caplog):
+    """Latched: a missing index ribbon must not spam a warning every candle."""
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger(), _fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    with caplog.at_level(logging.WARNING, logger="ustradebot.strategy"):
+        eng.on_short_candle(_candle())
+        eng.on_short_candle(_candle())
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
+
+
+def test_market_gate_disabled_by_empty_symbol(monkeypatch):
+    """MARKET_FILTER_SYMBOL='' restores pre-IMP-022 behaviour exactly."""
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("MARKET_FILTER_SYMBOL", "")
+    cfg_off = Config.load(dotenv=False)
+    eng = StrategyEngine(
+        cfg_off,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_market_gate_engine(open_gate=False),
+    )
+    _feed_index_then_symbol(eng)
+    assert eng.on_short_candle(_candle()) is not None  # shut tape, entry still taken
+
+
+def test_mu_2026_08_05_second_entry_is_vetoed_by_the_real_qqq_ribbon(cfg, caplog):
+    """Regression from the live 2026-08-05 session.
+
+    MU's second entry fired at 16:40 UTC (conf 62.11) and lost $10.39. QQQ's 5-min
+    gate ribbon on that exact bar was (721.9659, 722.4467, 722.4473) over a prior
+    (721.9934, 722.4925, 722.4754) -- not stacked, not rising, i.e. the tape was
+    rolling over while the bot opened a long. Real values, pulled from the IEX 5m
+    bar. This asserts the gate turns that entry away.
+    """
+    ts = datetime(2026, 8, 5, 16, 40, tzinfo=UTC)
+    qqq = _ribbon_snap(
+        (721.9659, 722.4467, 722.4473),
+        (721.9934, 722.4925, 722.4754),
+        ts=ts,
+        close=721.69,
+        interval_seconds=300,
+    )
+    assert not qqq.gate_open  # the tape really was shut on that bar
+
+    ex = _FakeExecutor(_exec_result(symbol="MU"))
+    eng = StrategyEngine(
+        cfg,
+        executor=ex,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([qqq, _open_gate()]),
+    )
+    eng.on_long_candle(_candle(ts=ts, symbol="QQQ"))
+    eng.on_long_candle(_candle(ts=ts))
+    with caplog.at_level(logging.INFO, logger="ustradebot.strategy"):
+        sig = eng.on_short_candle(_candle(ts=ts))
+    assert sig is None
+    assert ex.calls == []
+    assert any("market gate closed (QQQ" in r.getMessage() for r in caplog.records)

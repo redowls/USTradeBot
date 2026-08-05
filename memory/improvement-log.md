@@ -1192,3 +1192,103 @@ single window. Require ≥3 windows agreeing in sign.** IMP-021 was held to that
 would have failed it.
 
 ---
+
+## IMP-022 — 2026-08-05 (daily) — market-regime gate: no new long unless QQQ's 5m ribbon is bullish
+
+**Status: SHIPPED & LIVE.**
+
+- **Problem (measured, not guessed).** The bot has **no view on the market**. The 5-min
+  21/34/55 gate asks only whether *the individual name* is trending; nothing in the system
+  asks what the tape that name has to swim in is doing. Bucketing all **38 live sessions
+  (2026-06-08 → 08-05, 254 closed trades)** by QQQ's intraday open→close move:
+
+  | QQQ intraday | sessions | trades | win rate | net | per session |
+  |---|---|---|---|---|---|
+  | **up >0.5%** | 12 | 104 | **54.8%** | **+$755.65** | +$62.97 |
+  | up 0–0.5% | 4 | 32 | 62.5% | −$49.70 | −$12.42 |
+  | **down** | 22 | 118 | **33.1%** | **−$728.75** | −$33.12 |
+
+  The book earns +$756 on up-tape and hands back −$729 on down-tape for a net of ≈ −$23.
+  **That is long beta, not alpha** — and it is the honest answer to "why does this thing
+  not compound": for 22 of 38 sessions it was structurally on the wrong side and had no
+  mechanism to notice.
+- **Change.** `bot/config.py` — one new field `market_filter_symbol`
+  (env `MARKET_FILTER_SYMBOL`, default **`QQQ`**), normalised to upper-case and validated
+  as a plain ticker (a typo like `QQQ,SPY` now fails at startup rather than failing open
+  for a whole session); `""` disables and restores pre-IMP-022 behaviour exactly.
+  `bot/strategy.py` — new `_market_gate_open()` plus a veto in `on_short_candle`.
+  `bot/main.py` — the gate is reported on the startup banner (the IMP-021 precedent, so a
+  post-close review can confirm from journald alone that the deployed process really runs it).
+- **Three design choices worth defending:**
+  1. **No new parameter to overfit.** The gate reuses the *existing* `gate_open` rule
+     (21 > 34 > 55 stacked and rising) applied to the index's own 5-min ribbon. There is no
+     threshold, lookback or width to tune — the change has **zero free parameters**, which
+     is the main structural reason it is unlikely to be a fit.
+  2. **Zero new data.** QQQ is already an enabled watchlist symbol, so its 5-min ribbon is
+     already built every session. No new subscription, no new fetch, no new failure mode.
+  3. **Veto placed *after* scoring, not before.** The decision is fully computed and the
+     skip logged (`no entry SYM: market gate closed (QQQ 5m ribbon not bullish) (conf=…)`),
+     so the journal records exactly which qualifying entries the filter turned away and
+     tomorrow's review can price what it cost or saved. Cheaper to gate earlier; not worth
+     losing the counterfactual.
+- **Fails OPEN by design.** If the filter symbol has no ready ribbon — parked from
+  `dbo.watchlist`, or still warming — the bot trades exactly as before and logs a single
+  latched `WARNING`. A watchlist edit must never be able to *silently halt* trading. The
+  cost of this choice is that the filter can disappear quietly; the warning plus the
+  startup banner are the mitigations, and the daily review now carries a standing
+  "QQQ must stay enabled" note.
+- **A/B validation — replay, 19 enabled symbols, every window tested:**
+
+  | window | OFF (live today) | **QQQ gate (shipped)** |
+  |---|---|---|
+  | 15d | n=43 · +$70.02 · PF 1.22 · 48.8% | **n=24 · +$163.24 · PF 2.20 · 58.3%** |
+  | 20d | n=53 · +$53.77 · PF 1.12 · 49.1% | **n=31 · +$173.18 · PF 1.82 · 58.1%** |
+  | 30d | n=82 · **−$28.03** · PF 0.96 · 41.5% | **n=45 · +$222.86 · PF 1.69 · 55.6%** |
+  | 45d | n=127 · +$146.14 · PF 1.13 · 46.5% | **n=68 · +$318.29 · PF 1.61 · 55.9%** |
+  | 60d | n=169 · +$240.97 · PF 1.17 · 46.7% | **n=100 · +$353.97 · PF 1.45 · 53.0%** |
+
+  **Better in all five windows on net AND profit factor AND win rate simultaneously**, and
+  it flips the stubborn 30-day window — negative through IMP-018 and IMP-021 alike — from
+  −$28.03 to **+$222.86**. Trade count roughly halves (169 → 100 on 60d) while net *rises*,
+  so per-trade edge more than doubles. Clears the IMP-021 methodology bar (≥3 windows
+  agreeing in sign) with five for five.
+- **Robustness — it is not a QQQ artifact.** Re-run with **SPY** as the filter: 30d
+  +$139.42 (PF 1.38), 45d +$349.33 (PF 1.62), 60d +$329.54 (PF 1.44) — beats baseline on
+  3 of 4 windows, failing only 15d (−$17.56). The *market-regime* effect survives changing
+  the proxy; QQQ is simply the better proxy for what is structurally a **Nasdaq book**
+  (AAPL AMZN AVGO GOOG INTC MSFT MU NVDA TSM QQQ). That is an economic reason for the
+  choice, not a fitted one.
+- **Tests:** 10 new. `tests/test_strategy.py` — veto blocks a qualifying entry (nothing
+  reaches the broker, state returns to WAITING, skip logged); the mirror case admits the
+  same entry when the tape is bullish; fails-open with no index ribbon; the warning is
+  latched to once; `MARKET_FILTER_SYMBOL=""` disables; and a **2026-08-05 regression built
+  from the real session** — MU's second entry (16:40 UTC, conf 62.11, −$10.39) asserted
+  vetoed against QQQ's actual 5-min ribbon on that bar, `(721.9659, 722.4467, 722.4473)`
+  over `(721.9934, 722.4925, 722.4754)`, pulled from the IEX 5m bar. `tests/test_config.py`
+  — default is QQQ, whitespace/case normalisation, empty disables, non-ticker rejected.
+- **Validation:** full suite **302 passed**. `bot.preflight` **OK with 1 warning** (market
+  closed) — Alpaca ACTIVE (equity $9,075.88), SQL Server connected, Telegram delivered.
+  (`ruff` is not installed in the VPS venv — lint not run; it is a dev-only dependency.)
+- **Caveats, stated plainly:**
+  ① **On today's own trades this change would have LOST money.** QQQ's gate was open at
+  MU #1 (the −$18.34 loser, kept) and shut at both INTC (+$16.53 winner, blocked) and MU #2
+  (−$10.39 loser, blocked): today would have been **−$18.34 instead of −$12.20, i.e. $6.14
+  worse.** The case for this change is 254 trades over 5 windows and 2 proxies — **not
+  today.** Recorded loudly so no future run mistakes one bad day for refutation.
+  ② The gate was open only **11 of 79 QQQ 5-min bars (14%)** today. On tapes like this it
+  will cut trade count hard; a run of near-flat sessions is the expected texture, not a
+  malfunction.
+  ③ It **does not manufacture edge** — it declines to bet when the tape is against the
+  strategy's only direction. The book is still long-only with no short side, and the
+  underlying signal's edge is unchanged.
+  ④ Replay models no slippage on stop fills; today's MU #1 slipped **$0.51/share** through
+  its stop, so live results will run modestly behind the modelled ones.
+- **Commit:** _see below_
+- **Observed effect:** ⏳ pending — first live session **Thu 2026-08-06**. Watch:
+  (a) the banner line `Market gate: QQQ 5m ribbon must be bullish to open a long (IMP-022)`;
+  (b) `no entry … market gate closed` lines — count them and price the blocked entries
+  against what they would have done; (c) **trade count should fall ~40%** while net per
+  trade rises; (d) if a week passes with the gate blocking >80% of entries, the proxy is
+  too strict for this watchlist and SPY should be reconsidered. Needs ≥1 week.
+
+---

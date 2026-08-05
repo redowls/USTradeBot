@@ -35,6 +35,7 @@ def _set_env(monkeypatch, **overrides):
         "TRAIL_TIGHTEN_AFTER",
         "STOP_LOSS",
         "TAKE_PROFIT",
+        "MARKET_FILTER_SYMBOL",
     ]:
         monkeypatch.delenv(k, raising=False)
     for k, v in {**_VALID_ENV, **overrides}.items():
@@ -216,5 +217,30 @@ def test_two_stage_trail_accepts_tighter_second_stage(monkeypatch):
 
 def test_trail_tighten_after_must_be_fraction(monkeypatch):
     _set_env(monkeypatch, TRAIL_TIGHTEN_AFTER="1.5")
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+
+
+# --- IMP-022: market-regime filter symbol ---------------------------------------
+
+
+def test_market_filter_symbol_defaults_to_qqq(monkeypatch):
+    _set_env(monkeypatch)
+    assert Config.load(dotenv=False).market_filter_symbol == "QQQ"
+
+
+def test_market_filter_symbol_is_normalised(monkeypatch):
+    _set_env(monkeypatch, MARKET_FILTER_SYMBOL="  spy ")
+    assert Config.load(dotenv=False).market_filter_symbol == "SPY"
+
+
+def test_market_filter_symbol_empty_disables_the_gate(monkeypatch):
+    _set_env(monkeypatch, MARKET_FILTER_SYMBOL="")
+    assert Config.load(dotenv=False).market_filter_symbol == ""
+
+
+def test_market_filter_symbol_rejects_a_non_ticker(monkeypatch):
+    """Catch a typo'd/quoted value at startup rather than failing open all session."""
+    _set_env(monkeypatch, MARKET_FILTER_SYMBOL="QQQ,SPY")
     with pytest.raises(ConfigError):
         Config.load(dotenv=False)

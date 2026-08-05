@@ -158,6 +158,20 @@ class Config:
     # chop entries away. 0.0 disables the floor (pre-IMP-011 behavior). Tightens
     # entry selectivity only; never widens risk.
     min_crossover: float
+    # Market-regime gate (IMP-022): ticker whose *own* 5-min gate ribbon must be open
+    # before ANY new long is allowed. The per-symbol 5-min gate only asks whether that
+    # one name is trending; it says nothing about the tape the name has to swim in, and
+    # this book's P&L is overwhelmingly a function of the tape. Over the 38 sessions
+    # 2026-06-08..08-05, bucketing by QQQ's intraday (open→close) move: QQQ up >0.5%
+    # = 104 trades, 54.8% win, +$755.65; QQQ down = 118 trades, 33.1% win, −$728.75.
+    # The whole book is long beta. This is the standing market filter that turns the
+    # adverse half of that distribution away; it reuses the existing ``gate_open``
+    # rule (21>34>55 stacked and rising) on this symbol's already-streamed 5-min
+    # ribbon, so it costs no extra subscription. "" disables the filter. The symbol
+    # must be on the watchlist for the gate to have data — when it has none the
+    # filter fails OPEN (trades as before) and warns, so a watchlist edit can never
+    # silently halt trading. Tightens entry selectivity only; never widens risk.
+    market_filter_symbol: str
     # Startup warmup: replay this many calendar days of historical bars through the
     # ribbons on startup so the bot can trade from the open instead of waiting hours
     # for the live stream to seed the 55-period 5m gate. 0 disables warmup.
@@ -315,6 +329,7 @@ class Config:
             atr_period=_int("ATR_PERIOD", 14),
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
             min_crossover=_float("MIN_CROSSOVER", 0.25),
+            market_filter_symbol=_str("MARKET_FILTER_SYMBOL", "QQQ").strip().upper(),
             warmup_lookback_days=_int("WARMUP_LOOKBACK_DAYS", 5),
             sizing_model=_str("SIZING_MODEL", "A").upper(),
             min_alloc=_float("MIN_ALLOC", 0.10),
@@ -373,6 +388,11 @@ class Config:
             raise ConfigError("ENTRY_THRESHOLD must be in [0, 100].")
         if not 0 <= self.min_crossover <= 1:
             raise ConfigError("MIN_CROSSOVER must be in [0, 1].")
+        if self.market_filter_symbol and not self.market_filter_symbol.isalpha():
+            raise ConfigError(
+                "MARKET_FILTER_SYMBOL must be a plain ticker (letters only) or empty to disable, "
+                f"got {self.market_filter_symbol!r}."
+            )
         if self.sizing_model not in ("A", "B"):
             raise ConfigError(f"SIZING_MODEL must be 'A' or 'B', got {self.sizing_model!r}.")
         if not 0 < self.min_alloc <= self.max_alloc <= 1:

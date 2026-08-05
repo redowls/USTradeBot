@@ -164,6 +164,14 @@ def main() -> int:
         "off" if cfg.entry_start == cfg.market_open else "on, IMP-017",
         cfg.flatten_before_close_min,
     )
+    # Same reason as the trail line below: a post-close review must be able to confirm
+    # from journald alone that the deployed process really is running the market gate.
+    log.info(
+        "Market gate: %s (IMP-022)",
+        f"{cfg.market_filter_symbol} 5m ribbon must be bullish to open a long"
+        if cfg.market_filter_symbol
+        else "OFF — entries not filtered by the broad tape",
+    )
     log.info(
         "Exits: stop -%.2f%%, target +%.2f%%, trailing stop %.2f%% (%s)%s",
         cfg.stop_loss * 100,
