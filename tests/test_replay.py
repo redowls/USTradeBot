@@ -13,7 +13,7 @@ import pytest
 from bot.candles import Candle
 from bot.config import Config
 from bot.executor import StopOrderGone
-from bot.replay import SimBroker
+from bot.replay import SimBroker, resolve_symbols
 
 _T0 = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
 _T1 = datetime(2026, 6, 2, 14, 1, tzinfo=UTC)
@@ -154,3 +154,79 @@ def test_trailed_stop_fills_at_the_trailed_price_not_the_original(broker):
     filled = broker.reconcile_exit("NFLX")
     assert filled is not None
     assert filled[1] == pytest.approx(103.0)
+
+
+# --- replay universe resolution (IMP-023) ---------------------------------
+#
+# Regression cohort for the 2026-08-06 review: a bare `python -m bot.replay` silently
+# backtested the WATCHLIST bootstrap stub (NFLX,BIRD,WPM) instead of the 19 enabled
+# dbo.watchlist rows. Because QQQ — the IMP-022 market-filter symbol — was absent from
+# the stub, the gate failed OPEN in both arms of that night's A/B and the filter looked
+# like a no-op. These pin the precedence so the harness can never again disagree with
+# the deployed watchlist without saying so.
+
+
+class _FakeStore:
+    def __init__(self, symbols):
+        self._symbols = tuple(symbols)
+        self.closed = False
+
+    def load_watchlist(self):
+        return self._symbols
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.fixture
+def db_watchlist(monkeypatch):
+    """Patch bot.persistence.open_store; returns a setter for the DB's reply."""
+    holder = {}
+
+    def _set(symbols):
+        store = _FakeStore(symbols) if symbols is not None else None
+        holder["store"] = store
+        monkeypatch.setattr("bot.persistence.open_store", lambda cfg: store)
+        return store
+
+    return _set
+
+
+def test_default_universe_comes_from_the_db_watchlist_not_the_env_stub(cfg, db_watchlist):
+    live = ["AAPL", "AMD", "INTC", "MSFT", "MU", "QQQ"]
+    store = db_watchlist(live)
+    symbols, source = resolve_symbols(cfg)
+    assert symbols == live
+    assert source == "dbo.watchlist"
+    assert cfg.watchlist == ("NFLX", "BIRD", "WPM")  # the stub it must NOT have used
+    assert store.closed  # connection released, harness is a short-lived CLI
+
+
+def test_default_universe_includes_the_market_filter_symbol(cfg, db_watchlist):
+    """The 08-06 failure in one assertion: the gate needs QQQ's bars to evaluate."""
+    db_watchlist(["AAPL", "AMD", "INTC", "MSFT", "MU", "QQQ"])
+    symbols, _ = resolve_symbols(cfg)
+    assert cfg.market_filter_symbol in symbols
+    assert cfg.market_filter_symbol not in cfg.watchlist  # stub would have failed open
+
+
+def test_explicit_symbols_win_over_the_db(cfg, db_watchlist):
+    db_watchlist(["AAPL", "QQQ"])
+    symbols, source = resolve_symbols(cfg, "mu, intc ")
+    assert symbols == ["MU", "INTC"]  # upper-cased, trimmed, order preserved
+    assert source == "--symbols"
+
+
+def test_falls_back_to_env_when_the_db_is_unavailable(cfg, db_watchlist):
+    db_watchlist(None)  # open_store returns None (SQLSERVER_CONN unset / init failed)
+    symbols, source = resolve_symbols(cfg)
+    assert symbols == ["NFLX", "BIRD", "WPM"]
+    assert source == "WATCHLIST env"
+
+
+def test_falls_back_to_env_when_the_watchlist_table_is_empty(cfg, db_watchlist):
+    store = db_watchlist([])
+    symbols, source = resolve_symbols(cfg)
+    assert symbols == ["NFLX", "BIRD", "WPM"]
+    assert source == "WATCHLIST env"
+    assert store.closed

@@ -22,7 +22,11 @@ Fidelity limits (read these before trusting a number):
 
 Usage::
 
-    python -m bot.replay --days 30 --symbols AAPL,MSFT,... [--entry-start 09:30]
+    python -m bot.replay --days 30 [--symbols AAPL,MSFT,...] [--entry-start 09:30]
+
+With no ``--symbols`` the universe is the enabled ``dbo.watchlist`` — the same source
+the live service uses — so a bare invocation backtests what the bot actually trades.
+The header line names the source it resolved.
 """
 from __future__ import annotations
 
@@ -374,6 +378,51 @@ def summarize(broker: SimBroker, equity0: float) -> str:
     return "\n".join(lines)
 
 
+def resolve_symbols(cfg: Config, explicit: str = "") -> tuple[list[str], str]:
+    """Pick the replay universe the way the **live service** picks it (IMP-023).
+
+    Precedence mirrors ``bot.main``: an explicit ``--symbols`` wins, otherwise the
+    enabled rows of ``dbo.watchlist``, otherwise the ``WATCHLIST`` env var. Returns
+    ``(symbols, source)`` so the caller can print which one was used.
+
+    Why this exists: ``WATCHLIST`` is a three-name bootstrap stub (``NFLX,BIRD,WPM``,
+    two of them long since parked) that the live bot overwrites from the DB on every
+    start. Defaulting the harness to it meant a bare ``python -m bot.replay`` silently
+    backtested a universe the bot has never traded — and, because the market-filter
+    symbol was absent from the stub, the IMP-022 gate **failed open in both arms** of an
+    A/B, making the filter look like a no-op. A backtest that quietly disagrees with the
+    deployed watchlist is worse than no backtest, because it is trusted.
+    """
+    symbols = [s.strip().upper() for s in explicit.split(",") if s.strip()]
+    if symbols:
+        return symbols, "--symbols"
+
+    # Local import: the harness stays usable (on the env fallback) in environments
+    # without the DB driver installed, exactly like persistence is optional live.
+    try:
+        from bot.persistence import open_store
+
+        store = open_store(cfg)
+    except Exception:  # pragma: no cover - driver missing / unimportable
+        log.exception("could not open the trade store — falling back to WATCHLIST env")
+        store = None
+
+    if store is not None:
+        try:
+            db_watchlist = store.load_watchlist()
+        finally:
+            store.close()
+        if db_watchlist:
+            return list(db_watchlist), "dbo.watchlist"
+
+    log.warning(
+        "dbo.watchlist empty or unavailable — replaying the WATCHLIST env var (%s), "
+        "which is NOT what the live bot trades",
+        ",".join(cfg.watchlist),
+    )
+    return list(cfg.watchlist), "WATCHLIST env"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Replay the live strategy over historical bars.")
     ap.add_argument("--days", type=int, default=30, help="window length ending now (default 30)")
@@ -400,11 +449,11 @@ def main(argv=None) -> int:
         logging.disable(logging.CRITICAL)
 
     cfg = Config.load()
-    symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()] or list(cfg.watchlist)
+    symbols, source = resolve_symbols(cfg, args.symbols)
     end = datetime.now(UTC)
     start = end - timedelta(days=args.days)
     broker = run_replay(cfg, symbols, start, end, equity=args.equity)
-    print(f"window {start.date()} -> {end.date()}  symbols={len(symbols)}  "
+    print(f"window {start.date()} -> {end.date()}  symbols={len(symbols)} ({source})  "
           f"entry_start={cfg.entry_start:%H:%M} trail={cfg.trail_percent} "
           f"tp={cfg.take_profit} stop={cfg.stop_loss}")
     print(summarize(broker, args.equity))

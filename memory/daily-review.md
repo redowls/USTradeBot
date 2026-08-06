@@ -3289,3 +3289,152 @@ IMP-021 trail** — none reached the EOD flatten, none came near the −2% stop 
   today and to be roughly transparent on days like yesterday.
 
 ---
+
+## 2026-08-06 — Daily Review
+
+### Stats
+- **Closed trades: 0.** Net P&L **$0.00**. Win rate n/a. Account **equity $9,075.74**,
+  all cash, **0 open positions** — `equity == last_equity`, i.e. the account did not move
+  a cent today.
+- **Broker reconciliation: perfect and trivial.** Alpaca `GET /v2/orders?status=all&after=
+  2026-08-06T00:00Z` → **[] (zero orders placed all day)**; `/v2/positions` → **[]**;
+  `/v2/account` → ACTIVE, equity/cash **$9,075.74**, not blocked. DB `dbo.trades` → **0 rows**
+  touching today. **Broker, DB and journal agree on nothing-happened** — no missed fill, no
+  qty drift, no position the DB thinks is flat while the broker holds it.
+- **Service healthy.** `active`, **NRestarts=0**, up since **11:36:32 UTC** (the pre-market
+  routine's watchlist restart — expected, not a crash). Zero errors, zero exceptions, zero
+  422s. Two benign `data websocket error … no close frame received` reconnects at 01:20 UTC,
+  both self-healed inside 10s and hours before the open.
+- **This was IMP-022's first live session, and it is the entire story of the day.**
+
+### Trade-by-trade review
+No trades to review, so the reviewable evidence is **what the bot decided not to do**.
+
+**The market gate was open for 0 of 85 QQQ 5-min bars today — never, not once, all session.**
+(Recomputed independently from IEX 5m bars through `RibbonEngine.gate`, not read off the log.)
+QQQ's 21/34/55 ribbon was never stacked-and-rising, so every long was vetoed by construction.
+
+**Four entries passed every other gate — scoring, crossover floor, 10:00 ET blackout — and
+were turned away by IMP-022 alone.** These are the day's only real decisions:
+
+| time (ET) | symbol | confidence | outcome |
+|---|---|---|---|
+| 10:17 | **MSFT** | **70.2** | vetoed — market gate closed |
+| 10:34 | **TSM** | 63.6 | vetoed — market gate closed |
+| 10:36 | **AVGO** | 60.8 | vetoed — market gate closed |
+| 13:19 | **AMD** | 68.1 | vetoed — market gate closed |
+
+Other rejections (the older gates, working normally): **10 on crossover** (MSFT×3, MU×2,
+AMZN×2, AVGO, AMD, AAPL) and **11 on confidence** 49–59 (MSFT×3, TSM×2, AVGO×2, AMD×2, AAPL).
+So the signal engine was **healthy and productive** — 25 candidates evaluated, 4 fully
+qualified. Zero trades is **not** a dead watchlist or a stuck feed; it is one filter, firing.
+
+**What those four would have done — priced, not guessed.** Replay over the same session with
+the real engines, 19 enabled symbols, gate ON vs gate OFF:
+
+| arm | trades | net | win% | PF |
+|---|---|---|---|---|
+| **gate ON (what shipped, what happened)** | **0** | **$0.00** | — | — |
+| gate OFF (pre-IMP-022 behaviour) | 5 | **−$47.11** | 20.0% | 0.25 |
+
+**IMP-022 saved ≈ $47 on its first live day** (−0.47% of equity), and the counterfactual book
+was ugly in texture as well as sign: **4 of 5 exits were EOD flatten**, i.e. entries that
+never went anywhere and bled into the close — the classic no-trend-tape signature.
+
+**Market context corroborates the veto rather than contradicting it.** Perplexity `sonar`
+post-close: **S&P 500 −0.17% to −0.2%** (≈7,723.55), **Nasdaq −0.8% to −0.83%** (≈26,363.44),
+regime **risk-off / choppy**, Dow outperforming on **rotation out of mega-cap tech and AI**
+on AI-spending and higher-yield concerns. No name-specific catalyst on MSFT / TSM / AVGO /
+AMD / NVDA / INTC / MU — all four vetoed names were moving **as sector beta in a tech
+selloff**, which is exactly the cohort IMP-022 was built to decline. **Root cause of the
+zero-trade day: market regime, correctly identified and correctly acted on.**
+
+### What worked / what didn't
+- **Worked — IMP-022 did precisely what it was shipped to do, on day 1.** It vetoed 4 longs
+  into a −0.8% Nasdaq and avoided ≈ −$47. Its own log entry flagged that on 08-05 it would
+  have *lost* $6.14; the honest scoreboard after two sessions of evidence (one hypothetical,
+  one live) is **−$6.14 then +$47.11**. Still n=1 live — this is a data point, not a verdict.
+- **Worked — the "log the veto, then skip" design paid for itself immediately.** Because the
+  decision is fully scored *before* the veto, tonight's review could name the four blocked
+  entries, their confidences and their timestamps. Had the gate been applied earlier (cheaper),
+  today would be an unanalysable blank. That design call is vindicated.
+- **Worked — infrastructure.** Clean reconciliation, no errors, no 422s, watchlist restart
+  landed cleanly with 19/19 symbols warmed.
+- **Didn't — nothing traded, so there is zero new evidence on signal quality, exits, sizing
+  or the confidence inversion.** Tonight buys no information about the open questions. That
+  is the cost of a filter this strict, and it must be counted honestly: **a filter that never
+  opens generates no edge, it only avoids losses.** Watch it.
+- **Didn't — the 100% block rate is at the boundary of the tripwire I set myself.** IMP-022's
+  caveat ② says if the gate blocks **>80% of entries for a week**, the QQQ proxy is too strict
+  and SPY should be reconsidered. Today was **100%**. One risk-off day is exactly when 100% is
+  *correct*, so this is **not** a trigger yet — but it is day 1 of 5, and I am on notice.
+
+### Lessons & improvement candidates
+1. **[SHIPPED TONIGHT — IMP-023] The backtest harness silently disagreed with the live
+   watchlist, and it produced a false result in this very session.** `bot/main.py` sources the
+   watchlist from `dbo.watchlist` (19 enabled). `bot/replay.py` fell back to the `WATCHLIST`
+   env var — the **three-name bootstrap stub `NFLX,BIRD,WPM`, two of which are long since
+   parked**. My first A/B tonight ran `--days 1` with no `--symbols` and reported
+   `trades=3 net=+2.38` for a day the bot took **zero** trades, and gate-ON vs gate-OFF came
+   back **byte-identical** — because QQQ was absent from the stub, so IMP-022 **failed open in
+   both arms** and the filter looked like a no-op. Had I trusted that, tonight's conclusion
+   would have been "IMP-022 does nothing, revert it" — the exact opposite of the truth. Fixed:
+   replay now resolves its universe DB-first, exactly like the live service, and prints the
+   source. **A backtest that quietly disagrees with the deployed watchlist is worse than no
+   backtest, because it is trusted.** This is the instrument every remaining question on the
+   backlog will be measured with, and it was miscalibrated.
+2. **Do NOT ship an entry-side change until IMP-022 has its week.** Restating deliberately,
+   because the standing #1 candidate (the **60–69 confidence leak**, 141 tr / 42% / −$87.27,
+   and the inversion above 80) is entry-side and tempting. IMP-022 cut trade count from ~3/day
+   to **0** today; stacking a second entry filter now would make **both** unmeasurable and is
+   precisely the thrash the mandate forbids. The weekly's standing focus is *"protect the
+   measurement."* **Earliest sensible date: after 5 live sessions (~2026-08-12).**
+3. **The observation window needs trade-count texture, not just P&L.** Today's useful numbers
+   (gate-open bar %, blocked-entry count and their confidences, the ON/OFF replay delta) were
+   all produced by hand tonight. If IMP-022 survives its week, the next *non-behavioural*
+   candidate is to have the daily report emit them automatically — cheap, zero risk, and it
+   makes the weekly's verdict evidential instead of anecdotal. Ranked below #2 only because
+   the window is 4 sessions from done.
+4. **Ops gotcha, newly confirmed and worth recording: the bot's log timestamps are WIB
+   (UTC+7), not UTC.** The VPS default TZ moved to Asia/Jakarta on 2026-08-02 and the service's
+   log formatter follows system local time, while `dbo.trades`, `systemctl` and this review are
+   all **UTC**. Tonight's veto lines read `21:17` / `00:19 (08-07)` and are really **14:17 UTC /
+   17:19 UTC** = 10:17 / 13:19 ET. Cross-check: banner logged `18:36:34` vs
+   `ActiveEnterTimestamp=11:36:32 UTC` — a clean +7h. **A future review that reads journal
+   timestamps as UTC will place trades outside market hours and misdiagnose.** Not worth a code
+   change (the service is correct; only the display TZ shifted), but it must be known.
+5. **Still-open items, unchanged and deliberately untouched tonight** (no new evidence, since
+   nothing traded): confidence inversion above 80; the 60–69 band leak; whole-share
+   quantisation destroying the size curve on $900+ names (MU/AVGO/TSM/MSFT/NFLX); `STOP_LOSS`
+   being structurally unreachable behind the trail (a no-op to tune — do not spend a day on it);
+   and the downgraded "flat non-ATR stop" item (premise re-derived 08-05 and found much weaker
+   than its reputation).
+
+### Notes for pre-market research
+- 🚨 **RE-ENABLE ABNB tomorrow (Fri 08-07).** It was parked today purely for tonight's
+  after-close Q2 print, which has now happened. The binary is resolved — re-enable and let the
+  long-only gate plus IMP-022 handle the reaction, same precedent as AMD/MSFT/AAPL/AMZN. The
+  watchlist is currently **19 enabled**.
+- ✅ **AMD's re-enable is already validated.** Re-enabled this morning after its 08-04 print, it
+  produced a **fully qualifying entry (conf 68.1) on its very first session back**, plus 2
+  confidence rejects and 1 crossover reject. The name is alive and generating signal — only the
+  market gate stopped it. Keep.
+- ⚠️ **QQQ is load-bearing twice over now — it must stay `enabled=1`.** It was already the
+  IMP-022 market gate (parking it makes the gate fail **open** and silently vanish); as of
+  IMP-023 it is **also** how the backtest harness gets a correct universe. The **C / SPY
+  dead-signal review window still runs to ~08-10 and must not park QQQ.** SPY remains free.
+- **Signal generation is healthy across the megacaps — today's blank is not a watchlist
+  problem.** 25 candidates were scored: MSFT was the most active name by far (**3 crossover +
+  3 confidence rejects + the day's best signal at conf 70.2**), then AVGO (3), AMD (3), TSM (2),
+  MU (2), AMZN (2), AAPL (2). **No park candidates from today.** Do not read the zero-trade day
+  as dead names.
+- **Expect more zero-trade days and do not treat them as malfunctions.** IMP-022 blocks 100% of
+  entries on a session like this one. A blank day with `market gate closed` lines in the journal
+  is the filter working; a blank day *without* them would be a real problem worth escalating.
+- **Book CLEAN & FLAT into 08-07** — broker-confirmed **0 positions**, equity **$9,075.74** all
+  cash, zero orders outstanding. Nothing locked, nothing to reconcile.
+- Regime: three sessions of violent alternation — QQQ **+2.15%** (08-04) → **−1.27%** (08-05) →
+  **Nasdaq −0.8%** (08-06), on rotation out of mega-cap tech / AI-spending concerns. If that
+  rotation persists, tomorrow is likely another low- or zero-trade day.
+
+---

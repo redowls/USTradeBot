@@ -1292,3 +1292,66 @@ would have failed it.
   too strict for this watchlist and SPY should be reconsidered. Needs ≥1 week.
 
 ---
+
+## IMP-023 — 2026-08-06 (daily) — replay resolves its universe from `dbo.watchlist`, like the live bot
+
+- **Problem — the measuring instrument was miscalibrated, and it lied tonight.**
+  `bot/main.py` sources the watchlist from **`dbo.watchlist`** (19 enabled symbols) and only
+  falls back to the `WATCHLIST` env var when the DB is unavailable. `bot/replay.py` had **no
+  such fallback chain**: with no `--symbols` it went straight to `cfg.watchlist`, i.e. the
+  **`NFLX,BIRD,WPM` bootstrap stub** — a three-name list, **two of which (BIRD, WPM) have been
+  parked for weeks**. Every bare `python -m bot.replay` since the harness was built (25fa3f6,
+  07-25) has therefore backtested a universe **the bot has never traded**.
+- **How it was caught — it produced a false negative on the change under observation.**
+  Pricing IMP-022's first live session, `--days 1` with no `--symbols` returned
+  `symbols=3 … trades=3 net=+2.38` for a day the live bot took **zero** trades, and — the
+  damning part — **gate ON and gate OFF returned byte-identical output**. Cause: the market
+  filter symbol **QQQ was not in the stub**, so `_market_gate_open()` found no ribbon and
+  **failed open in both arms**. The naive reading is *"IMP-022 changes nothing, revert it."*
+  Re-run with the real 19 symbols, the same session prints **0 trades vs −$47.11 (PF 0.25,
+  20% win)** — the filter saved ≈$47. **The tool would have argued for reverting a change that
+  worked.** That is the whole justification for spending tonight's one change here.
+- **The change (`bot/replay.py`).** New `resolve_symbols(cfg, explicit) -> (symbols, source)`
+  mirroring `bot.main`'s precedence exactly:
+  1. explicit `--symbols` wins (source `--symbols`);
+  2. else enabled `dbo.watchlist` via `open_store(cfg).load_watchlist()` (source `dbo.watchlist`);
+  3. else `WATCHLIST` env, now with a **`log.warning` naming the symbols and stating plainly
+     that this is NOT what the live bot trades** (source `WATCHLIST env`).
+  The store is opened lazily inside the function (so the harness still runs on the env fallback
+  where the ODBC driver is absent, exactly as persistence is optional live) and **closed in a
+  `finally`** — this is a short-lived CLI, not a daemon. The resolved source is **printed in the
+  header line** (`symbols=19 (dbo.watchlist)`) so no future run can be misled without ignoring
+  it in writing.
+- **Scope — deliberately zero trading-behaviour change, and that is the point.** `bot/replay.py`
+  is **offline-only**: verified by grep that nothing under `bot/` imports it, so it is not on
+  the live path and the running service is byte-for-byte unaffected in behaviour. Chosen
+  *because* tonight sits on **day 1 of IMP-022's ≥1-week observation window**, where the
+  standing weekly focus is *"protect the measurement"*: an entry-side change tonight (the
+  tempting 60–69 confidence leak) would have made both changes unmeasurable. Fixing the
+  instrument is the one improvement that is both justified by today's evidence and **incapable
+  of confounding** the experiment it serves.
+- **Tests: 5 new** in `tests/test_replay.py`, written as a regression cohort around tonight's
+  actual failure — DB watchlist beats the env stub (and the store is closed); **the market
+  filter symbol is present in the default universe but absent from the stub** (the 08-06 bug in
+  one assertion); explicit `--symbols` wins and is upper-cased/trimmed with order preserved;
+  fallback to env when `open_store` returns `None`; fallback to env when the table is empty.
+- **Validation:** full suite **307 passed** (302 → 307), no regressions. `bot.preflight` **OK
+  with 1 warning** (market closed) — Alpaca ACTIVE $9,075.74, SQL Server connected, Telegram
+  delivered. End-to-end: a bare `--days 1` now reports `symbols=19 (dbo.watchlist)` and
+  **`no trades`, reproducing the live session exactly**, where before the fix it reported a
+  fictitious 3 trades / +$2.38.
+- **Caveats, stated plainly:**
+  ① **This earns $0 by itself.** It is a correctness fix to an analysis tool; it does not touch
+  the strategy and will never show up in the equity curve. Its value is entirely in the wrong
+  decisions it prevents — starting with the one it prevented tonight.
+  ② **Every replay number recorded before tonight that did not pass `--symbols` explicitly is
+  suspect** and should be re-derived before being cited. IMP-022's own A/B tables state 19
+  symbols and so appear sound; older bare-invocation figures do not.
+  ③ Replay now touches the DB on startup, so a DB outage changes its default universe (loudly —
+  it warns). Acceptable: the same is true of the live bot, which is the point of the change.
+- **Commit:** _see below_
+- **Observed effect:** ⏳ n/a by construction (no behavioural change). The check is that every
+  future replay header names `dbo.watchlist` — if one ever prints `WATCHLIST env`, the DB is
+  down and that run's numbers must be discarded.
+
+---
