@@ -1349,7 +1349,7 @@ would have failed it.
   symbols and so appear sound; older bare-invocation figures do not.
   ③ Replay now touches the DB on startup, so a DB outage changes its default universe (loudly —
   it warns). Acceptable: the same is true of the live bot, which is the point of the change.
-- **Commit:** _see below_
+- **Commit:** `5cc500d` (pushed to `origin/main`).
 - **Observed effect:** ⏳ n/a by construction (no behavioural change). The check is that every
   future replay header names `dbo.watchlist` — if one ever prints `WATCHLIST env`, the DB is
   down and that run's numbers must be discarded.
