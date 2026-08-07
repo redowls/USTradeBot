@@ -6,14 +6,14 @@ so these pin the fill semantics every backtest number rests on.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from bot.candles import Candle
 from bot.config import Config
 from bot.executor import StopOrderGone
-from bot.replay import SimBroker, resolve_symbols
+from bot.replay import LONG, SHORT, SimBroker, build_stream, resolve_symbols
 
 _T0 = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
 _T1 = datetime(2026, 6, 2, 14, 1, tzinfo=UTC)
@@ -230,3 +230,106 @@ def test_falls_back_to_env_when_the_watchlist_table_is_empty(cfg, db_watchlist):
     assert symbols == ["NFLX", "BIRD", "WPM"]
     assert source == "WATCHLIST env"
     assert store.closed
+
+
+# --- gate-bar sequencing (IMP-024) -----------------------------------------
+#
+# Regression cohort for the 2026-08-07 failure: replay entered ABNB 14:45 and MSFT
+# 14:47 because the 5m gate bar starting 14:45 had already been folded into the
+# ribbon. Live, that bar does not exist until 14:50, and live correctly refused
+# both entries ("market gate closed"). The harness was reading the future.
+
+_GATE_SECONDS = 300
+
+
+def _stamped_bar(symbol: str, start: datetime) -> Candle:
+    """A flat bar that exists only to carry a timestamp — these tests assert on
+    sequencing, never on price."""
+    return Candle(
+        symbol=symbol, start=start, open=1.0, high=1.0, low=1.0, close=1.0,
+        volume=1.0, trades=1,
+    )
+
+
+def _session(minutes: int, *, at: datetime, symbol: str = "ABNB"):
+    """(short, long) bar maps for ``minutes`` of one session, 1m and 5m."""
+    short = {
+        symbol: [_stamped_bar(symbol, at + timedelta(minutes=i)) for i in range(minutes)]
+    }
+    long = {
+        symbol: [
+            _stamped_bar(symbol, at + timedelta(minutes=i)) for i in range(0, minutes, 5)
+        ]
+    }
+    return short, long
+
+
+def test_gate_bar_is_sequenced_at_its_close_not_its_start():
+    """The 08-07 bug in one assertion: the 14:45 gate bar must land at 14:50."""
+    at = datetime(2026, 8, 7, 14, 45, tzinfo=UTC)
+    short, long = _session(10, at=at)
+    stream = build_stream(["ABNB"], short, long, at, at + timedelta(hours=1), _GATE_SECONDS)
+
+    gate_bars = [(ts, c.start) for ts, kind, c in stream if kind == LONG]
+    assert gate_bars == [
+        (at + timedelta(minutes=5), at),
+        (at + timedelta(minutes=10), at + timedelta(minutes=5)),
+    ]
+
+
+def test_trigger_bars_never_see_a_gate_bar_that_has_not_closed():
+    """The invariant itself, over a full session: no lookahead at any bar."""
+    at = datetime(2026, 8, 7, 13, 30, tzinfo=UTC)
+    short, long = _session(390, at=at)
+    stream = build_stream(["ABNB"], short, long, at, at + timedelta(days=1), _GATE_SECONDS)
+
+    folded: list[datetime] = []
+    for ts, kind, candle in stream:
+        if kind == LONG:
+            folded.append(candle.start)
+            continue
+        # Every gate bar the ribbon has seen must already have closed by ``ts``.
+        assert all(s + timedelta(seconds=_GATE_SECONDS) <= ts for s in folded), (
+            f"trigger bar {ts:%H:%M} saw gate bar {folded[-1]:%H:%M} before its close"
+        )
+    assert folded, "sanity: the session must contain gate bars"
+
+
+def test_gate_bar_folds_before_the_trigger_bar_of_the_same_minute():
+    """Live's order at the boundary: 5m closing at 14:50 lands before 1m 14:50."""
+    at = datetime(2026, 8, 7, 14, 45, tzinfo=UTC)
+    short, long = _session(10, at=at)
+    stream = build_stream(["ABNB"], short, long, at, at + timedelta(hours=1), _GATE_SECONDS)
+
+    boundary = at + timedelta(minutes=5)
+    kinds = [kind for ts, kind, _ in stream if ts == boundary]
+    assert kinds == [LONG, SHORT]
+
+
+def test_sequencing_does_not_change_which_bars_are_replayed():
+    """Close-time keying moves order only — the window must select the same bars."""
+    at = datetime(2026, 8, 7, 13, 30, tzinfo=UTC)
+    end = at + timedelta(minutes=60)
+    short, long = _session(390, at=at)
+    stream = build_stream(["ABNB"], short, long, at, end, _GATE_SECONDS)
+
+    replayed_long = {c.start for _, kind, c in stream if kind == LONG}
+    replayed_short = {c.start for _, kind, c in stream if kind == SHORT}
+    assert replayed_long == {c.start for c in long["ABNB"] if at <= c.start < end}
+    assert replayed_short == {c.start for c in short["ABNB"] if at <= c.start < end}
+
+
+def test_multiple_symbols_stay_in_true_chronological_order():
+    """Capital contention is only real if symbols interleave by time, not by name."""
+    at = datetime(2026, 8, 7, 14, 45, tzinfo=UTC)
+    short_a, long_a = _session(10, at=at, symbol="ABNB")
+    short_m, long_m = _session(10, at=at, symbol="MSFT")
+    short = {**short_a, **short_m}
+    long = {**long_a, **long_m}
+    stream = build_stream(
+        ["ABNB", "MSFT"], short, long, at, at + timedelta(hours=1), _GATE_SECONDS
+    )
+
+    stamps = [ts for ts, _, _ in stream]
+    assert stamps == sorted(stamps)
+    assert len(stream) == 2 * (10 + 2)  # both symbols, 10 trigger + 2 gate bars each

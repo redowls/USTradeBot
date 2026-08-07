@@ -303,6 +303,49 @@ def fetch_bars(cfg: Config, symbols, start: datetime, end: datetime):
     return out["short"], out["long"]
 
 
+LONG, SHORT = 1, 2  # stream kinds; ordered so a gate bar folds before a trigger bar
+
+
+def build_stream(symbols, short_bars, long_bars, start: datetime, end: datetime,
+                 long_interval_seconds: int):
+    """Interleave gate (5m) and trigger (1m) bars into the order live would see them.
+
+    Returns ``(effective_time, kind, candle)`` tuples sorted by both, where *kind*
+    is :data:`LONG` or :data:`SHORT`. Capital contention is therefore real: every
+    symbol's bars compete for buying power in true chronological order.
+
+    A gate bar is sequenced at its **close**, not its start (IMP-024). Live, a
+    candle is emitted only once a trade lands in a later bucket, so the 5m bar
+    spanning 14:45-14:50 first reaches ``on_long_candle`` at 14:50 — every 1m
+    trigger bar from 14:45 to 14:49 is judged against gate data ending at 14:45.
+    Keying the gate bar at ``candle.start`` handed the gate ribbon (and with it
+    the IMP-022 market filter) a full gate interval of lookahead on every trigger
+    bar. ``LONG`` sorts ahead of ``SHORT`` at equal stamps, which is also live's
+    order: the 5m closing at 14:50 is folded before the 1m bar starting at 14:50
+    is evaluated at 14:51.
+
+    Both ends are filtered here, not only at fetch time — a pre-fetched ``bars``
+    pair is usually wider than the requested window (a sweep fetches once and
+    replays sub-windows), and letting bars past ``end`` through would silently
+    replay the full span instead of the slice asked for. The window test stays on
+    ``candle.start`` for both timeframes so the set of bars replayed is unchanged
+    by the close-time sequencing; only their order moves.
+    """
+    long_step = timedelta(seconds=long_interval_seconds)
+    stream = []
+    for sym in symbols:
+        stream += [
+            (c.start + long_step, LONG, c)
+            for c in long_bars.get(sym, [])
+            if start <= c.start < end
+        ]
+        stream += [
+            (c.start, SHORT, c) for c in short_bars.get(sym, []) if start <= c.start < end
+        ]
+    stream.sort(key=lambda x: (x[0], x[1]))
+    return stream
+
+
 def run_replay(cfg: Config, symbols, start: datetime, end: datetime, *, equity: float,
                warmup_days: int = 5, bars=None):
     """Replay ``symbols`` over ``[start, end)`` and return the simulated broker.
@@ -327,20 +370,13 @@ def run_replay(cfg: Config, symbols, start: datetime, end: datetime, *, equity: 
         for c in (c for c in short_bars.get(sym, []) if c.start < start):
             strat.warmup_trigger(c)
 
-    # Interleave every symbol's bars by timestamp so capital contention is real.
-    # Both ends are filtered here, not only at fetch time — a pre-fetched ``bars``
-    # pair is usually wider than the requested window (a sweep fetches once and
-    # replays sub-windows), and letting bars past ``end`` through would silently
-    # replay the full span instead of the slice asked for.
-    stream = []
-    for sym in symbols:
-        stream += [(c.start, 1, c) for c in long_bars.get(sym, []) if start <= c.start < end]
-        stream += [(c.start, 2, c) for c in short_bars.get(sym, []) if start <= c.start < end]
-    stream.sort(key=lambda x: (x[0], x[1]))
+    stream = build_stream(
+        symbols, short_bars, long_bars, start, end, cfg.long_interval_seconds
+    )
 
     for ts, kind, candle in stream:
         broker.now = ts
-        if kind == 1:
+        if kind == LONG:
             strat.on_long_candle(candle)
             continue
         broker.on_bar(candle)  # resting bracket legs fill intrabar first
