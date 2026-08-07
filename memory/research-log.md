@@ -2226,3 +2226,142 @@ IMP-022's first live session** — the post-close review should count `market ga
 them; a low trade count today is the expected texture, not a malfunction.
 
 ---
+
+## 2026-08-07 — Pre-market Research
+
+**One change, and it is exactly the one the 08-06 review ordered: ABNB re-enabled after a beat-and-raise
+print.** Book is CLEAN & FLAT (broker-confirmed **0 positions**, **0 open orders**, equity **$9,075.74**,
+`last_equity` == `equity` → nothing carried, nothing marked) → **nothing locked**. **19 → 20 enabled**;
+service restarted clean (warmup 20/20). **No adds, deliberately — day 2 of IMP-022's 5-session
+observation window.**
+
+### Market context
+**Constructive and tech-led into the jobs print.** Pre-market futures **mixed-to-higher with Nasdaq
+leading**: Nasdaq 100 **+0.5%**, S&P 500 **+0.2%**, Dow **+0.1%** (+41 pts). Thursday closed soft and
+split (Dow **−0.85%**, S&P **−0.18%**, Nasdaq Composite **−0.06%**), but the week is shaping up as the
+**second straight weekly gain**, with the Nasdaq on track for its **best week since May** on a
+semiconductor bounce (iShares Semiconductor ETF **+5% on the week**). Rates **10y 4.67% / 2y 4.24%**;
+crude lower again (**WTI $76.85 −0.6%, Brent $81.90 −0.7%**).
+- **🚨 The July jobs report at 08:30 ET is the day's dominant event — but it lands PRE-OPEN, not during
+  market hours.** Consensus is soft and dispersed: **83k** (CNBC), **80k** (Bloomberg survey), **97.5k**
+  (FactSet), unemployment held at **4.2%**, against June's **57k**. CME FedWatch prices **54.7%** for a
+  September Fed move. This matters to the bot only through the *shape* of the open, and the **10:00 ET
+  opening-range blackout (IMP-017) already keeps it out of the first 30 minutes of the reaction** — which
+  is precisely the structure IMP-017 was built for. No watchlist action warranted.
+- **Earnings today are light and clean: no enabled watchlist symbol reports.** ~**74** reports scheduled
+  (vs **323** on Thursday); the notable names are **Vistra, Take-Two, Under Armour, Wendy's, Oklo** —
+  none of them ours. Verified against the Friday calendar, not assumed.
+- **Pre-market movers:** **ABNB +7%** (see below), **NET +16%** (guidance), **DKNG −3%** (revenue miss).
+- **⚠️ Perplexity `sonar` was thin for the third consecutive run AND actively misleading on one name.**
+  It returned "no catalyst" for 19 of 20 tickers and gave **no futures tick at all**. It did correctly
+  flag the **08:30 ET NFP/jobless-claims releases**. But both of its **AAPL** items — "$100B U.S.
+  investment / semiconductor tariff relief" and "federal court decision risk on the Google default-search
+  agreement" — are **stale 2025 stories recycled as overnight news**. Verified against WebSearch: Judge
+  Mehta's remedy ruling was **September 2025**, final judgment **2025-12-05**, and the case is now on
+  **appeal at the D.C. Circuit** with **no ruling due today**. **There is no AAPL binary today and AAPL
+  was not parked.** Recording this explicitly: had the "court decision risk" line been trusted, a healthy
+  mega-liquid name would have been parked on a year-old headline. **Treat sonar as a lead generator only;
+  WebSearch carried this run entirely.**
+
+### Carried from daily review (08-06 "Notes for pre-market research")
+- **🚨 RE-ENABLE ABNB** — the review's one explicit order. **Done today** (see below). ✔
+- **✅ AMD's re-enable already validated** — it produced a fully qualifying entry (conf **68.1**) on its
+  first session back, plus 2 confidence and 1 crossover rejects. **Kept.** ✔
+- **⚠️ QQQ is load-bearing twice over** (IMP-022 market gate — parking it makes the gate fail *open* and
+  silently vanish — **and** IMP-023's replay universe). Verified `enabled=1` before and after, and the
+  check is asserted in the apply script. ✔
+- **"No park candidates from today — do not read the zero-trade day as dead names."** Honored: **zero
+  parks this run.** ✔
+- **"Expect more zero-trade days."** Noted — but today's setup is materially different from 08-06, when
+  the QQQ gate was open for **0 of 85** 5-min bars. QQQ now sits **+2.0% vs its 20MA** (and flat vs the
+  50MA) with Nasdaq futures **+0.5%**, so the gate has a realistic chance of opening. Not a prediction,
+  just the distinction the post-close review will need.
+- **Book CLEAN & FLAT into 08-07** — ✔ verified live: `/v2/account` ACTIVE, equity **$9,075.74** all cash,
+  `/v2/positions` **0**, `/v2/orders?status=open` **0**. Nothing locked.
+- **C / SPY dead-signal window runs to ~08-10** — today is inside it, **no park**. Supporting data below.
+
+### Watchlist review
+Account **ACTIVE**, equity **$9,075.74**, BP $36,302.96, **0 open positions = nothing locked.** Service was
+`active` since 08-06 21:19:26 UTC, NRestarts=0. 19 enabled + ABNB reviewed against overnight news and 60-day
+daily bars (close vs 20/50-day MA, 5-day change, ATR%, 20-day avg $ volume on the IEX tape):
+- **✅ ABNB → RE-ENABLE (the one change).** Q2 reported **08-06 after close** and it is a **beat *and* a
+  raise**: EPS **$1.37** vs $1.25 est, revenue **$3.61B** vs $3.58B est (**+17% y/y**), net income **$816M**
+  (from $642M), FCF **+30% to $1.25B**, GBV **+16% to $27.2B**, 148M nights booked, $1.1B repurchased.
+  Q3 revenue guided **$4.69–4.77B** vs $4.61B consensus and the FY adj-EBITDA margin outlook **raised to
+  ≥35.5%** from 35%. Stock **+7% to +10% after hours (~$165)** on ~**1.7× average volume**; first-time
+  booker growth **+11%**, the best in four years. **This is the cleanest re-enable of the whole earnings
+  cycle** — every prior one (AMD, AAPL, NFLX, TSM, GOOG) was a re-enable into a post-print *sell-off*;
+  this one resolves the binary *favourably* and into expanding volume. Verified on `/v2/assets`:
+  **`tradable=true`, `status=active`**, NASDAQ. Row **re-enabled, not re-inserted**. **Kept on notice for
+  exactly one reason:** it remains the **thinnest name on the board** (**$23M/day** of IEX-tape dollar
+  volume vs **$46M** for the next-thinnest, BABA) and it has **not produced a trade since 07-15**
+  (all-time **+$0.78 / 10 tr**). Today's post-earnings volume expansion is the best chance it will get to
+  justify its slot.
+- **The board is the healthiest it has looked in weeks.** Above the 20MA: **MSFT +19.6%** (and **+23.4%**
+  vs 50MA — still the best chart enabled), AMZN **+8.9%**, AVGO **+7.7%**, BABA **+7.3%**, NVDA **+6.1%**,
+  ABNB **+2.8%**, SPY **+2.6%**, INTC **+2.6%**, GOOG **+2.5%**, NFLX **+2.5%**, JPM **+2.3%**,
+  QQQ **+2.0%**, TSM **+2.0%**, C **+0.3%**. Below: WMT −0.0%, MU −1.3%, AAPL −3.4%, AMD −3.5%,
+  UNH −4.1%, **TSLA −8.0%** (−16.5% vs 50MA — still the weakest chart enabled). 5-day momentum confirms
+  the semis bounce is broad: AMZN **+15.5%**, NVDA **+12.2%**, MSFT **+10.7%**, INTC **+9.6%**,
+  BABA **+9.0%**, AVGO **+8.4%**. Ideal ribbon fuel; nothing here is a park candidate on trend.
+- **⚠️ Volatility outliers, kept and noted:** **MU ATR 9.48%**, **AMD 8.25%**, **INTC 7.68%** — the three
+  highest on the board and well above where a 1-min ribbon behaves best. All three are mega-liquid, and
+  INTC/MU are the book's **two best all-time earners (+$191.26 and +$177.84)**. This is a *sizing* question
+  for the post-close routine, **not** a watchlist park.
+- **The two worst symbols in the book were reviewed for parking and deliberately KEPT.** **AMZN**
+  (all-time **−$108.51 / 14 tr**, and **−$36.18 / 0W-2** over the last 14 days) and **AVGO** (all-time
+  **−$109.77 / 13 tr**). Neither is parked, for a decisive reason: **the bulk of those losses predate
+  IMP-018 (working trail), IMP-020 (crossover floor), IMP-021 and IMP-022.** Parking a name on a P&L
+  record produced by an exit structure that has since been *replaced* is churn against stale evidence.
+  Both are mega-liquid and both are trending hard right now, and **AVGO has in fact printed +$41.34
+  (2W/3) over the last 14 days**. Revisit only if they keep losing *under the current rules*.
+- **Last-14-day P&L is broadly GREEN — 40 closed trades, +$193.82.** Winners: **INTC +$99.12 (4W/4)**,
+  AVGO +$41.34, **NFLX +$36.97 (3W/3)**, GOOG +$31.94, AAPL +$31.89, MU +$27.93, BABA +$18.74,
+  NVDA +$16.72, WMT +$5.88, TSM +$3.28. Losers: AMZN −$36.18, SE −$26.80 (**already parked**),
+  MSFT −$25.11 (1W/4), JPM −$23.25 (0/1), TSLA −$8.07, AMD −$0.58. **No enabled symbol has a park-worthy
+  record under the current rules.**
+- **MSFT explicitly NOT a park candidate** despite 1W/4 for −$25.11: it is simultaneously the **best chart
+  on the board** and the **most productive signal generator** (08-06: 3 crossover rejects, 3 confidence
+  rejects, and the day's single best signal at **conf 70.2**). Its problem is *conversion*, not candidacy —
+  a scoring question for the post-close routine.
+- **Dead-signal watch, no action (window open to ~08-10):** **SPY has not traded since 2026-06-26 — 42
+  days** — and **C not since 07-10 — 28 days**. The mechanism is structural, not broken: SPY's daily ATR is
+  **1.20%**, the lowest on the board, so an index ETF simply produces fewer sharp 1-min crosses. That is
+  the diversifier trade-off. **QQQ (ATR 2.09%) is excluded from this review entirely** because IMP-022 and
+  IMP-023 both depend on it. Of the two remaining, **C is now the stronger park candidate** — 28 days
+  silent *and* all-time **−$39.84 on 1W/5** — whereas SPY is merely quiet (−$11.24 / 4 tr).
+- **Parked stay parked:** BIRD (micro-cap), COST (June-sales-miss downtrend, 0/4), ENPH (10.9% ATR
+  whipsaw), QCOM (thin $vol, lone chip laggard), SE (lowest-liquidity ADR, worst 10-day −$53.42), WPM
+  (dead-vol downtrend), XOM (**crude fell again today — WTI $76.85 −0.6%, Brent $81.90 −0.7% — so the
+  park holds for the third consecutive run**). No fresh reason to re-enable any. **Forward note: SE
+  reports Q2 on Tue 08-11** — irrelevant while parked, but it must not be re-enabled on 08-10 or 08-11
+  without accounting for that print.
+- **Adds considered and DECLINED — same reason as 08-06, with one more session to run.** IMP-022 is on
+  **day 2 of a 5-session observation window (to ~08-12)**, and the entire measurement is the trade-count
+  and per-trade-edge delta it produces; adding a symbol changes the candidate pool *underneath* that
+  measurement, and the weekly's standing focus is explicitly *"protect the measurement."* The structural
+  argument also still holds: at **$9.1k equity** the book is capital-constrained, so on a 3–8 trade day an
+  extra name mostly **displaces** a trade rather than adding one (IMP-017). ABNB's return already takes the
+  board back to 20. **Earliest sensible add: after 08-12.**
+
+### Changes applied to dbo.watchlist
+- **ABNB → `enabled = 1`** (pre-existing parked row **re-enabled, not re-inserted**; note set: *"re-enabled
+  2026-08-07: Q2 beat+raised FY guide (08-06 AH), +7% pre-mkt; binary resolved; thinnest $vol, on notice"*
+  — 113 chars, checked against the **VARCHAR(128)** limit before the write).
+- One parameterized UPDATE, **1 row affected**, committed. **No inserts, no deletes, no parks.** Post-apply
+  assertions passed: **20 enabled ≤ 30** and **QQQ `enabled = 1`**.
+
+### Final watchlist
+**20 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA C GOOG INTC JPM MSFT MU NFLX NVDA QQQ SPY TSLA TSM
+UNH WMT. Parked (7): BIRD COST ENPH QCOM SE WPM XOM. Service **RESTARTED** 11:35:31 UTC (watchlist
+changed) — `active`, NRestarts=0, warmup primed **20/20** symbols from history, subscribed to all 20 on the
+iex feed, account ACTIVE $9,075.74, **no open positions**, zero errors. Startup banner confirms the live
+config: *"Market gate: QQQ 5m ribbon must be bullish to open a long (IMP-022)"*, *"Entry window: 10:00-16:00
+ET (opening-range blackout on, IMP-017…)"* and *"trailing stop 1.25% (active, IMP-018), tightening to 1.00%
+once +1.00% in profit (IMP-021)"*. 🔒 Locked: none (0 open positions).
+**Mon 08-10 routine: the C / SPY dead-signal window expires** — **C is the stronger park candidate** (28
+days silent, −$39.84 all-time) and **QQQ remains exempt and must stay enabled**. **No adds until IMP-022
+clears ~08-12.** Post-close review should again count `market gate closed` skips and price them — today is
+**session 2 of 5** for IMP-022, and unlike 08-06 the gate started the day with a plausible path to opening.
+
+---
