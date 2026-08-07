@@ -560,3 +560,217 @@ routine's call. **Next week's scheduled catalysts:** the **jobs report / NFP** i
 Fed-speaker follow-through after the 07-29 FOMC and continued mega-cap earnings digestion — expect
 gap-sensitive opens and headline-driven reversals, exactly the tape that produced 07-27's 1/8 session.
 
+---
+
+## Week ending 2026-08-07 — Grade: C
+
+### Stats
+- **13 closed trades, 10W / 3L → 76.9% win rate.** Net realized **+$125.89** (avg **+$9.68**/trade).
+  **Profit factor 3.67** (gross +$173.11 / −$47.22). Avg win **+$17.31** vs avg loss **−$15.74** → payoff
+  **1.10**. Best **AVGO +$55.35** (+2.24%, 08-04), worst **AMZN −$18.49** (−0.93%, 08-03).
+- **Equity $8,950.04 → $9,075.74 = +$125.70 (+1.40%).** Reconciles to the DB net within $0.19. Book **flat**
+  every single night, 0 open positions, nothing carried. **Best week by percentage since the book began.**
+- **Daily curve:** 08-03 **−$1.29** (3 tr) · 08-04 **+$139.38** (7 tr, **7W/0L**) · 08-05 **−$12.20** (3 tr) ·
+  08-06 **$0.00** (0 tr) · 08-07 **$0.00** (0 tr). Max intraweek drawdown **−0.01%**. No down day worse than
+  −$12.20.
+- **⚠️ Read the curve before believing the headline. The week IS one session.** Strip 08-04 and the other
+  four sessions are **6 trades, −$13.49, 3W/3L**. 08-04 was the strongest trending tape in the 38-session
+  sample (QQQ **+2.15%** open→close) and the long-only book went 7/7 on it. **+1.40% on the week is a beta
+  print, not an alpha print**, and the 76.9% win rate / PF 3.67 are the statistics of a single lucky day, not
+  of an edge. This is the same fact IMP-022 was built on, seen from the happy end of the distribution.
+- **Two zero-trade sessions (08-06, 08-07)** — 40% of the week. Both were IMP-022 vetoes and both were
+  correct (below). Friday's blank was **not** mostly the gate, though: 48 rejections broke down as
+  **23 confidence-floor, 21 crossover-floor, 4 market-gate**. The signal engine was healthy and productive
+  on both blank days (25 candidates scored 08-06, 48 rejection events 08-07) — these were not dead feeds.
+- **Per symbol:** **INTC +$65.22 (3 tr, 3W)** — best name in the book and it carried the week; **AVGO
+  +$55.35**, **NVDA +$16.72**, **AMD +$10.91**, **MSFT +$4.50**, **TSM +$4.04**. Losers: **MU −$12.36
+  (4 tr, 2W)** — most-traded name and net negative; **AMZN −$18.49**.
+- **Exit reasons:** 5 end-of-day flatten **+$104.68 (5W/0L)**; 8 broker-side stop/trail **+$21.21 (5W/3L)**.
+  **83% of the week's P&L came from positions that simply survived to the close** — on 08-04. The trail
+  produced $21 across 8 fills. Worth noting against IMP-021's thesis.
+- **Confidence (this week):** 60-69 → 6 tr, +$8.52, 4W · 70-79 → 4 tr, **+$87.02, 4W** · 80-89 → 3 tr,
+  +$30.35, 2W. **All-time (`vw_confidence_outcome`):** 70-79 **+$221.99** (82 tr, 53.7%) is still the only
+  profitable band; 60-69 **−$87.27** (141 tr, 41.8%), 80-89 **−$13.10** (28 tr, 46.4%), 90-100 **−$144.42**
+  (3 tr, 0%). The inversion above 80 narrowed slightly this week but the all-time shape is unchanged.
+- **Service: `NRestarts=0`, `active`, zero crashes, zero naked carry, zero risk-limit breaches, books exact
+  to the cent every trading day.** The 149 `TimeoutError` tracebacks in the 7-day journal all belong to
+  pid 3809572 on **Aug 01** — last week's process, outside this window. This week's only errors were **three
+  Alpaca-side failures on 08-05** (one `ECONNREFUSED`, two nginx `500`s reading a fill price for MU order
+  `24fbc144`) — **broker outage, correctly swallowed, no trading impact**. Clean week operationally.
+- **Market context (Perplexity `sonar-deep-research`, truncated mid-report — see note):** the week was
+  "highly regime-dependent — Monday and Tuesday, with record-adjacent index levels, a strong risk-on bid and
+  broad participation, were **unusually friendly to multi-timeframe trend-following**, while Wednesday
+  through Friday" turned "increasingly choppy, catalyst-driven" with reversals, on rising long-end yields,
+  volatile oil and a July jobs report that **surprised to the downside**. **The bot's P&L maps onto that
+  description almost exactly** — it made all its money Tue, gave a little back Wed, and declined to trade
+  Thu/Fri. The regime read and the equity curve agree, which is the single most reassuring thing in this
+  review.
+
+### Grade rationale
+**A +1.40% week — the best on record — graded C, because the rubric's C is "profitable but rules broken,"
+and the rule that was broken was the one this routine wrote down seven days ago in bold.**
+
+Last week's entry set an unambiguous focus: *"Protect the measurement — this is a 'let it run' week, not a
+shipping week… Do **NOT** touch the exit structure, `TRAIL_PERCENT`, or `MIN_CROSSOVER`."* IMP-018 needed its
+second clean week; IMP-020 needed its first full one. **On Monday — session one — IMP-021 changed
+`TRAIL_PERCENT` into a two-stage trail.** That is precisely and specifically the forbidden change, and it
+was made by a review that demonstrably *had read* the weekly (its own item 3 cites "the weekly review
+explicitly deferred its verdict for a full week" as its reason for **not** touching the confidence bands).
+So the constraint was understood, applied to entry filters, and overridden on the exit structure. Then
+**IMP-022 shipped Wednesday** — a second, entry-side filter, landing while IMP-020 was still mid-window and
+IMP-021 was two sessions old. **Three IMPs in four sessions during a declared measurement-protection week.**
+
+The cost is not hypothetical, and it is the reason this is a C and not a B. **IMP-020 has now never received
+a clean verdict and never will** — it was confounded first by IMP-021, then by IMP-022, then by two blank
+days. **IMP-021's own window was destroyed by IMP-022** two sessions after it shipped: it has exactly **one**
+qualifying trade of live evidence (INTC 08-05, +$5.25) and cannot be judged. Each change was individually
+well-argued, evidence-backed and multi-window tested — and as a *set* they left the bot **less measurable
+than it was on Monday**. That is the exact failure mode this routine exists to catch: improvements that
+compound in code but cancel in knowledge.
+
+It is emphatically **not a D or an F**: no risk-limit breach, no naked position, no crash, no sizing
+violation, worst trade −$18.49 (−0.93%), books reconciled to the cent on all five days, `NRestarts=0`, and
+the one real error burst was Alpaca's, absorbed cleanly. Nor was the week's work sloppy — the standard of
+*analysis* was the highest yet recorded (the rejected flat-trail tightening, the MFE-capture table, the
+gate ON/OFF counterfactual pricing, the ATR premise re-derivation). It is not a B because "flat-to-positive,
+**minor** process slips" does not describe overriding an explicit, specific, one-week prohibition on day one
+and then shipping twice more.
+
+**Held at C rather than lower by the single best piece of evidence this bot has ever generated** — the
+IMP-022 four-window A/B below. A week that both breaks the rules and produces the strategy's first
+robustly-validated edge is genuinely a mixed week, and C is what mixed looks like.
+
+**Process credits, recorded so the grade is not read as a verdict on the work's quality:** ① the 08-03
+review **actively refuted** a seductive change (flat `TRAIL_PERCENT` → 0.6%, +$24.58 on 30 days) by testing
+45 and 60-day windows where the ranking reverses, and wrote the methodology rule "**no replay-derived
+parameter ships on a single window; require ≥3 windows agreeing in sign**" — then held IMP-021 to it. ② the
+08-06 review caught that **the backtest harness disagreed with the live watchlist** and fixed it (IMP-023)
+rather than trusting a convenient result. ③ the 08-05 review **downgraded its own long-standing backlog
+item** (the "flat non-ATR stop") after re-deriving the premise and finding it much weaker than its
+reputation, and separately established that **`STOP_LOSS` is structurally unreachable** behind the trail, so
+tuning it is a no-op. Correcting the record against your own prior conclusions is the rarest good habit
+here, and it happened three times in five days.
+
+**Operational demerits outside the repo (not graded, but escalating):** the **08-03 pre-market died `rc=1`**,
+the **08-04 post-close routine never ran**, and the **08-05 pre-market never ran** — three misses in three
+sessions. Direct consequence: **AMD was parked 08-04 for earnings and stayed `enabled=0` for a full extra
+session** because the run that was supposed to re-enable it did not happen, and there is **no research-log
+entry for 08-03 or 08-05**. The scaffold lives in `/root/claude-routines`, outside this repo. The 08-06 and
+08-07 runs executed normally and ABNB was correctly re-enabled Friday (watchlist now **20 enabled**,
+QQQ among them) — but this needs an operator look, not another week of flagging.
+
+### What worked / what didn't
+- **Worked — IMP-022 is the real result of the week, and it is a big one.** Tested through the
+  IMP-023-corrected harness across four windows, the market gate wins on **net, win rate, profit factor and
+  average-per-trade simultaneously, in every window**: 60d **+$494.08 / 53.2% / PF 1.54** (109 tr) vs
+  **+$252.33 / 46.0% / PF 1.15** (187 tr) with it off; 30d **+$241.91 / PF 1.64** vs **+$6.12 / PF 1.01**.
+  Gate-ON win rate is **53.1 / 53.2 / 53.3%** across 5/30/60 days — a stability the entry signal has never
+  shown. It cuts trade count 42–46% and it is the **only change in this bot's history to clear the
+  ≥3-window robustness bar**. Live: it blocked 8 qualifying entries across 08-06/08-07 and the 08-06
+  counterfactual priced the saving at ≈ **+$47**.
+- **Worked — IMP-023 paid for itself in under 24 hours.** Every one of tonight's eight replay runs printed
+  `symbols=20 (dbo.watchlist)`. Before the fix they would have used the three-name `NFLX,BIRD,WPM` stub,
+  which **contains no QQQ**, so the gate would have failed open in *both* arms and returned identical ON/OFF
+  results — and this review would have concluded "IMP-022 does nothing, revert it." **The week's
+  highest-leverage change was not a strategy change; it was fixing the instrument.**
+- **Worked — risk and reliability were flawless.** Flat every night, exact reconciliation daily, no crash,
+  no 422s across ~25 stop replaces on 08-05, a genuine Alpaca outage absorbed without trading impact.
+- **Didn't — the week's P&L is one session, and the review must not be seduced by it.** 08-04 = +$139.38 of
+  a +$125.89 week. Six trades outside it, net −$13.49. **77% win / PF 3.67 are artifacts of n=13 with one
+  outlier day** and should not be quoted as evidence of anything.
+- **Didn't — the shipping cadence destroyed two measurement windows** (IMP-020's, IMP-021's) and produced
+  the only genuinely unresolvable items on the board. See the grade rationale.
+- **Didn't — two zero-trade days mean the week bought almost no information** about the questions that
+  actually matter: signal quality, the confidence inversion, exit capture, sizing. A filter that never opens
+  avoids losses but generates no knowledge, and 40% of the week was spent that way. This is IMP-022's real
+  cost and it is now visible.
+- **Didn't — MU was the most-traded name (4 tr) and lost money (−$12.36)**, including the week's
+  highest-confidence entry (80.67 on 08-05, −$18.34). **Confidence remained inverted at the top for a third
+  straight week.** Also unaddressed: whole-share quantisation put **qty=1 ($924)** on MU against $36k buying
+  power, which flattens the confidence→size curve to nothing on $900+ names.
+
+### Improvements shipped this week
+- **IMP-022** (08-05, daily) — market-regime gate; no new long unless QQQ's 5m ribbon is bullish.
+  **Observed: ✅ VALIDATED, four windows, strongest result in the bot's history. KEEP — DO NOT TOUCH.**
+  Its own **>80%-block tripwire is formally hit** (8 of 8 qualifying entries blocked, 100%, over its two live
+  sessions) and is being **deliberately not actioned**: both counterfactuals were negative, both blank days
+  were correct, and two sessions is not the week the tripwire specifies. **Do not switch the proxy to SPY on
+  this evidence.** Re-read the tripwire after a week containing at least one up-tape session.
+- **IMP-021** (08-03, daily) — two-stage trail, tighten to 1.0% once +1.0% in profit.
+  **Observed: ⏳ MECHANISM CONFIRMED (n=1), EFFECT UNMEASURED — verdict deferred, window destroyed.**
+  Proven live exactly once (INTC 08-05: final stop 101.50 is consistent only with the 1.0% width, ≈ +$5.25,
+  17 replaces, zero 422s). The week's win-rate rise is **not** attributable to it — 5 of 08-04's 7 winners
+  exited on the flatten and never touched the trail. **Do not re-tune the trail.** Needs two clean weeks.
+  *Also the change that violated last week's explicit prohibition — see grade rationale.*
+- **IMP-023** (5cc500d, 08-06, daily) — replay resolves its universe from `dbo.watchlist`.
+  **Observed: ✅ VALIDATED — prevented this review from reverting IMP-022.** No P&L by construction; the
+  highest-value change of the week regardless.
+- **Did they compound or cancel?** **IMP-022 and IMP-023 compounded** — the harness fix is what made the
+  gate's validation possible, and together they are the first genuine step forward since IMP-018.
+  **IMP-021 and IMP-022 cancelled in measurement terms**: the gate starved the trail change of the data it
+  needed, two sessions after it shipped. Net for the week: **one strong validated change, one unmeasurable
+  change, one excellent tool fix — and two dead observation windows.**
+
+### Strategy verdict
+**VIABLE, and upgraded: for the first time the bot has a filter with demonstrated, robust, out-of-window
+edge. But the edge is in deciding WHEN NOT TO BE LONG — it is still not in the signal.**
+
+Last week's verdict was "the edge is in the exit, not yet in the entry." That is now too generous to the
+entry *signal* and not generous enough to the *system*. The IMP-022 A/B is unambiguous: removing longs taken
+while QQQ's ribbon is not bullish takes 60 days from **+$252 / PF 1.15 / 46% win** to **+$494 / PF 1.54 /
+53.2% win** on 42% fewer trades. That is a real, robust, four-window improvement, and it is the first thing
+this bot has ever produced that survives its own methodology bar. Combined with IMP-018's trail, the system
+now has two working parts: **it manages trades well, and it declines to trade in the wrong regime.**
+
+**What it still does not have is signal alpha, and this week added nothing to that column.** The 60-69
+confidence band remains the largest structural leak (**141 trades, 41.8%, −$87.27** all-time); confidence
+is still inverted above 80 (**−$13.10** at 80-89, **−$144.42** at 90-100); the week's highest-confidence
+entry was its second-worst trade. The honest summary: **the strategy is profitable because of two exposure-
+management filters bolted onto an entry signal that has never demonstrated an edge.** That is a legitimate
+and improving way to make money on paper — but every remaining unit of upside is in the signal, and the
+signal has not been touched because it cannot be safely touched until the current changes are measured.
+**Keep running, keep it on paper, and let it trade long enough to learn something.**
+
+### Focus for next week
+**SHIPPING FREEZE. This is the "let it run" week that last week asked for and did not get.** The bot has
+**two live sessions of IMP-022, one qualifying trade of IMP-021, and no verdict at all on IMP-020**. It
+traded on three of five days. There is not enough live data on the board to justify any behavioural change,
+and a fourth change in six sessions would repeat exactly the mistake this entry grades down.
+**Explicit instruction to the daily reviews 08-10 → 08-14: default to analysis-only. Ship code only if a
+NEW failure appears — a crash, a naked position, a reconciliation break, a silent outage. Do NOT ship a
+tuning change, and specifically do NOT touch `TRAIL_PERCENT` / the two-stage trail, `MIN_CROSSOVER`,
+`MARKET_FILTER_SYMBOL`, `ENTRY_THRESHOLD`, or the confidence weights.** If a change looks compelling,
+write it up with its evidence and hand it to next Friday.
+- **The one measurement that matters next week:** does IMP-022 let the bot trade on an up-tape? Its tripwire
+  reads >80% blocked *for a week*; it is at 100% over two sessions. **Count gate-open bar % and blocked-entry
+  count every day.** If a genuinely bullish session still produces zero entries, the QQQ proxy *is* too
+  strict and SPY becomes a live candidate — but that verdict belongs to next Friday, on a full week.
+- **Permitted exception (the only one):** the **pure-observability** item both this and last week's entries
+  have now ranked #1 — have `bot.report` emit gate-open %, blocked-entry count and their confidences
+  automatically, instead of the weekly reconstructing them by hand from journald. Zero behavioural change,
+  zero measurement disturbance, and it makes next Friday's IMP-022 verdict evidential rather than anecdotal.
+  Ship it only if a session is otherwise quiet.
+- **Escalate to the operator (outside this repo):** three routine misses in three sessions (08-03 `rc=1`,
+  08-04 post-close absent, 08-05 pre-market absent) cost a research-log gap and left AMD parked an extra
+  day. `/root/claude-routines` needs a look.
+- **Standing, do not act yet:** the 60-69 confidence leak and the >80 inversion — **still the largest
+  remaining structural loss and still the first candidate once IMP-022 has a full week.** Whole-share
+  quantisation destroying the size curve on $900+ names (MU/AVGO/TSM/MSFT/NFLX) — needs its own study, and
+  note it cannot be fixed by sizing alone (Alpaca brackets require whole shares). `STOP_LOSS` is a no-op to
+  tune (structurally unreachable behind the trail) — do not spend a session on it. The "flat non-ATR stop"
+  item stays **downgraded** (premise re-derived 08-05).
+- **Ops gotcha, carried forward:** the service's log timestamps are **WIB (UTC+7)** since the 2026-08-02 TZ
+  change, while `dbo.trades`, `systemctl` and these reviews are **UTC**. A review that reads journal
+  timestamps as UTC will place trades outside market hours and misdiagnose.
+- **Risk posture unchanged and non-negotiable:** position size, loss limits, kill switch and paper-only stay
+  exactly as they are. Any move toward live trading requires explicit human approval — not this routine's
+  call.
+- **Next week's scheduled catalysts (08-10 → 08-14):** **July CPI on Wednesday is the dominant event**
+  (consensus headline ~3.4% YoY, core ~2.5%), with **PPI Thursday** and **retail sales Friday**. Note the
+  unusual asymmetry — with the July jobs report soft and the Fed's risk skewed toward *hikes* rather than
+  cuts, a hot core print would raise September hike odds and produce exactly the gap-and-reverse tape that
+  IMP-022 should veto. Earnings are in a **lull** (AMAT, CSCO, CRWV, SMCI, JD) — relevant because the book
+  is semi-heavy. **Watch semiconductor volatility**: the SOX is +70% YTD but **−17% from its late-June high**
+  and swinging hard daily, and INTC/MU/AVGO/NVDA/TSM/AMD are the core of this watchlist. Expect the gate to
+  keep trade count low around Wednesday.
+

@@ -1178,6 +1178,21 @@ Recorded so no future run burns another evening re-deriving it.
   × 0.9875); (b) the MFE-capture rerun should lift the 1.0–2.0% bucket well above 17%; (c) **win rate should
   RISE, not fall** — if it falls, the replay's no-slippage assumption is flattering the change and it should
   be reconsidered. Needs ≥1 week to separate from noise.
+- **Observed effect (weekly 08-07) — ⏳ MECHANISM CONFIRMED, EFFECT STILL UNMEASURED. Verdict deferred: the
+  observation window was destroyed, not completed.** Criterion (a) is met **exactly once**: INTC on 08-05
+  settled its final stop at **101.50**, arithmetically consistent only with the narrow 1.0% width
+  (101.50/0.99 = 102.53 peak, +1.83%, past the +1% trigger; the old flat 1.25% would have placed it at
+  101.25) — worth **≈ +$0.25/share ≈ +$5.25** on that trade, with **17 stop replaces and zero 422s**, so the
+  id-rotation fix holds under the extra churn this change causes. That is the entire body of direct
+  evidence: **n=1 qualifying trade in five sessions.** Criterion (c) is superficially satisfied — the week
+  ran **76.9% win** vs 36.4% the prior week — but it is **not attributable**: 7 of the week's 10 wins landed
+  on **08-04 alone**, the strongest trending tape in the 38-session sample (QQQ **+2.15%** open→close), and
+  **5 of those 7 exited on the EOD flatten, never touching the trail at all.** Criterion (b) was not rerun —
+  with 13 closed trades and only 5 trail exits all week, the MFE-capture table cannot be refreshed with any
+  power. **Root cause of the non-measurement is IMP-022**, shipped two sessions later: the market gate took
+  trade count to **zero on 08-06 and 08-07**, so this change's window contains three trading days, not five.
+  **Do not re-tune the trail.** Two consecutive weeks of live trading are required before IMP-021 can be
+  judged; until then any further change to the exit structure is being made blind.
 
 ### Rejected the same evening — flat `TRAIL_PERCENT` tightening (recorded so it is not re-derived)
 Tightening the single flat width looks excellent on 30 days — 0.6% scores **+$24.58 / PF 1.06** vs 1.25%'s
@@ -1290,6 +1305,36 @@ would have failed it.
   against what they would have done; (c) **trade count should fall ~40%** while net per
   trade rises; (d) if a week passes with the gate blocking >80% of entries, the proxy is
   too strict for this watchlist and SPY should be reconsidered. Needs ≥1 week.
+- **Observed effect (weekly 08-07) — ✅ VALIDATED, AND IT IS THE STRONGEST RESULT THIS BOT HAS EVER
+  PRODUCED. Keep. Do not touch.** Two live sessions (08-06, 08-07) plus a **four-window replay A/B**
+  through the IMP-023-corrected harness (20 enabled symbols resolved from `dbo.watchlist`, gate toggled
+  via `MARKET_FILTER_SYMBOL`):
+
+  | window | gate ON | gate OFF | Δ net |
+  |---|---|---|---|
+  | 2d (08-05→08-07) | 2 tr, **−$41.60**, 0% win, PF 0.00 | 9 tr, −$83.85, 22.2%, PF 0.22 | **+$42.25** |
+  | 5d (08-02→08-07) | 15 tr, **+$113.94**, 53.3%, PF **2.05** | 23 tr, +$50.55, 43.5%, PF 1.26 | **+$63.39** |
+  | 30d (07-08→08-07) | 49 tr, **+$241.91**, 53.1%, PF **1.64** | 90 tr, +$6.12, 42.2%, PF 1.01 | **+$235.79** |
+  | 60d (06-08→08-07) | 109 tr, **+$494.08**, 53.2%, PF **1.54** | 187 tr, +$252.33, 46.0%, PF 1.15 | **+$241.75** |
+
+  **The gate wins in all four windows on every metric simultaneously** — net, win rate, profit factor and
+  average per trade — while cutting trade count **42–46%** (criterion (c) predicted ~40%: met). Win rate
+  with the gate ON is remarkably stable at **53.1 / 53.2 / 53.3%** across the 5, 30 and 60-day windows,
+  against 42–46% with it off. This clears the ≥3-window robustness bar set on 08-03 with room to spare,
+  and it is the *only* change in this bot's history to do so.
+  **Live corroboration:** 08-06 blocked 4 qualifying entries and the ON/OFF replay of that session priced
+  the saving at **≈ +$47**; 08-07 blocked 4 more (NFLX 66.5, ABNB 74.1, ABNB 71.9, MSFT 78.0) into a second
+  choppy, rotation-driven tape. Both blank days were correct.
+  **Criterion (d) — the >80% tripwire — is formally hit and is being deliberately NOT actioned.** The gate
+  blocked **8 of 8** fully-qualified entries (100%) across its two live sessions. But (i) that is two
+  sessions, not the week the tripwire specifies; (ii) both counterfactuals are *negative*, i.e. the veto was
+  right both times; and (iii) the same two sessions sit inside the 2-day A/B window where gate-ON loses
+  **half** as much as gate-OFF. A 100% block rate during a two-day tech selloff is the filter working, not
+  the proxy being too strict. **Do not switch the proxy to SPY on this evidence.** Re-read the tripwire
+  after a full week that contains at least one up-tape session.
+  **Cost, stated honestly:** a filter this binding produces zero-trade days, and zero-trade days generate no
+  information about the signal, the exits or the sizing. IMP-021's window was collateral damage. That is a
+  real price and it is why nothing further ships until the book is trading again.
 
 ---
 
@@ -1353,5 +1398,13 @@ would have failed it.
 - **Observed effect:** ⏳ n/a by construction (no behavioural change). The check is that every
   future replay header names `dbo.watchlist` — if one ever prints `WATCHLIST env`, the DB is
   down and that run's numbers must be discarded.
+- **Observed effect (weekly 08-07) — ✅ VALIDATED, and it paid for itself inside 24 hours.** All eight
+  replay runs behind tonight's IMP-022 verdict printed `symbols=20 (dbo.watchlist)`. Without this fix every
+  one of them would have silently used the three-name `NFLX,BIRD,WPM` stub, which **contains no QQQ** — so
+  the market gate would have failed *open in both arms* and all four windows would have returned identical
+  ON/OFF results. **The conclusion would have been "IMP-022 is a no-op, revert it," and this review would
+  have deleted the single most valuable change the bot has.** The highest-leverage work this week was not a
+  strategy change at all; it was fixing the instrument. Rule confirmed: **calibrate the measuring device
+  before trusting anything it says.**
 
 ---
