@@ -3438,3 +3438,135 @@ zero-trade day: market regime, correctly identified and correctly acted on.**
   rotation persists, tomorrow is likely another low- or zero-trade day.
 
 ---
+
+---
+
+## 2026-08-07 — Daily Review
+
+### Stats
+- **No trades today.** Closed trades (DB): **0**. Orders at Alpaca: **0**. Open positions: **0**.
+  Net realized P&L **$0.00**. Account **equity $9,075.74**, all cash (`last_equity == equity`,
+  nothing carried, nothing marked). Second consecutive zero-trade session (08-06, 08-07).
+- **Reconciliation: CLEAN.** `dbo.trades` has 0 rows for today; `/v2/orders?status=all&after=…`
+  returns an empty list; `/v2/positions` is empty; equity is unchanged from the pre-market read.
+  DB and broker agree exactly — no missed fill, no qty drift, no naked overnight position.
+- **Service:** `active` all session, started 11:35:31 UTC, **NRestarts=0**, warmup primed **20/20**
+  symbols, IEX stream subscribed to all 20. No errors, no reconnects, no exceptions in journald.
+- Last live trade remains **08-05** (MU). The book has now been flat for three sessions.
+
+### Trade-by-trade review
+No trades to review. Root-causing the *absence* of trades instead, which is the reviewable
+evidence tonight.
+
+**The day's tape (Perplexity `sonar`, corroborated):** strongly **risk-on and trending** — S&P 500
+**+0.6% to 7,757.64, a new all-time high**; Nasdaq Composite **+1.3% to 26,690.62**, outperforming
+and led by tech and semiconductors. The July jobs report landed **pre-open at 08:30 ET** and was
+taken well; futures were already firming into it. No company-specific catalyst on any of our names
+— this was a broad, index-led melt-up on the chip complex. **This is the bullish-tape scenario the
+weekly review explicitly asked to be tested against.**
+
+**The signal funnel — 48 candidate signals, 0 entries:**
+
+| stage | rejects | note |
+|---|---|---|
+| confidence < 60 | **23** | incl. near-misses 59.6 (AAPL), 59.5 (NFLX), 59.3 (ABNB), 58.8 (NFLX) |
+| crossover < 0.25 | **21** | incl. near-misses 0.24 (AVGO), 0.24 (TSLA), 0.23 (NVDA), 0.22 (NVDA) |
+| **market gate closed (IMP-022)** | **4** | NFLX 66.5, ABNB 74.1, ABNB 71.9, **MSFT 78.0** |
+
+The gate is evaluated **after** full scoring (by design, so the journal prices what it turns away),
+so those 4 were **fully qualifying entries** — and they were the four **highest-confidence** signals
+of the entire session, including the day's best at conf 78.0.
+
+**Gate-open timeline today** (reconstructed from QQQ 5m bars under live close-time semantics, and
+validated: all four live blocks fall exactly inside reconstructed *closed* windows):
+- full session 13:30–20:00 UTC: **gate open 52.6%** of minutes
+- **entry window 14:00–19:45 UTC: gate open 46.4%** (160 of 345 minutes)
+- blocks: `14:00-14:19 closed · 14:20-14:39 OPEN · 14:40-14:49 closed · 14:50-16:24 OPEN ·
+  16:25-16:49 closed · 16:50-16:54 OPEN · 16:55-17:09 closed · 17:10-17:14 OPEN ·
+  17:15-17:39 closed · 17:40-17:44 OPEN · 17:45-19:14 closed · 19:15-19:44 OPEN`
+
+**The decisive finding: the gate was NOT the binding constraint today.** All 4 gate blocks landed in
+the 14:13–14:48 closed window. For the **160 minutes the gate was open**, the entry signal produced
+**zero qualifying candidates** — **21 of the 44 signal-threshold rejects fell inside open-gate
+minutes** (23 fell in closed ones), every one of them failing on crossover or confidence, several by
+a hair. The bot did not sit out because the regime filter forbade it; it sat out because **its own
+entry signal never once qualified while the tape was green.**
+
+**What the gate cost or saved (honest counterfactual, post-IMP-024 semantics):** replaying today with
+the gate disabled takes **3 trades for −$27.96** (33% win, PF 0.23). With the gate on: **0 trades,
+$0.00**. **The gate SAVED ≈$28 on a day the market closed at an all-time high.** The naive reading
+of "bullish tape + zero trades ⇒ the QQQ proxy is too strict, switch to SPY" is **refuted by its own
+counterfactual** — the entries it blocked were losers.
+
+### What worked / what didn't
+- **Worked — IMP-022 (market gate), again, and under the hardest test it has faced.** The weekly's
+  tripwire was "if a genuinely bullish session still produces zero entries, the QQQ proxy *is* too
+  strict." Today was that session, and the tripwire's premise does not survive contact with the data:
+  the gate was **open 46.4% of the entry window** (not >80% blocked), and the trades it declined
+  would have lost money. **Do not switch the filter symbol to SPY on the strength of a green index
+  print.** The gate is behaving as designed on a choppy-underneath, index-led tape.
+- **Worked — risk and plumbing.** Zero errors, zero restarts, clean 20/20 warmup, exact DB/broker
+  reconciliation, no capital at risk. A flat day on a tape you have no edge in is a *correct* outcome,
+  not a failure.
+- **Didn't work — the entry signal, and this is now the whole story.** On the most favourable regime
+  in weeks, with 160 minutes of open gate, the signal generated **not one** qualifying entry. 44 of
+  48 rejects were the signal's own thresholds. The multi-timeframe ribbon is not finding the trend on
+  a day the trend was the single most obvious feature of the market.
+- **Didn't work — the measuring instrument, again (see IMP-024).** Tonight's first replay of today's
+  session claimed **2 trades / −$41.60** for a day the live bot took **0**. That divergence was not
+  noise: it was **lookahead bias**, and it has been silently inflating every backtest this harness has
+  ever produced.
+
+### Lessons & improvement candidates
+1. **[SHIPPED — IMP-024] The replay harness was reading the future on every gate decision.**
+   `run_replay` sequenced 5m gate bars at their **start**, so the bar spanning 14:45–14:50 was folded
+   into the ribbon at 14:45 and every 1m trigger bar from 14:45–14:49 was judged against **five
+   minutes of data that had not happened yet**. Live emits a candle only once a trade lands in a later
+   bucket (`bot/candles.py`), i.e. at start+interval. Proven on today's session: replay's gate read
+   `True` at 14:45–14:48 where live correctly read `False`, and replay's two "trades" (ABNB 14:45,
+   MSFT 14:47) are **exactly the two entries live blocked** at 14:46/14:48. The two gates disagreed on
+   **15.4% of today's session minutes**. This contaminated the per-symbol 5m gate as well as the
+   IMP-022 market filter — i.e. the core of the multi-timeframe strategy. Fixed; details below.
+2. **Ranked #1 for next week, unchanged and now urgent: the entry signal has no demonstrated edge.**
+   Two filters (IMP-018 trail, IMP-022 regime gate) are carrying the entire system. Today removes the
+   last comfortable explanation — this was not a bad tape, and the signal still produced nothing while
+   the gate was open. The 60-69 confidence band (**141 tr, 41.8%, −$87.27**) and the inversion above 80
+   (**−$13.10** at 80-89, **−$144.42** at 90-100) remain the largest structural leaks. **Hand to the
+   weekly with a full week of IMP-022 data.**
+3. **Near-miss clustering is worth a study, NOT a threshold tweak.** Four confidence rejects at
+   58.8–59.6 and four crossover rejects at 0.22–0.24 sit just under their floors. The temptation is to
+   loosen `ENTRY_THRESHOLD`/`MIN_CROSSOVER`; the weekly has explicitly forbidden exactly that, and it
+   would be fitting a threshold to one day. The honest question is whether those near-misses would have
+   *won* — answerable now that the harness is trustworthy, and only over a multi-week window.
+4. **Every backtest figure recorded before tonight is overstated.** Re-derive before citing (see the
+   IMP-024 entry for the corrected 60-day table).
+
+### Notes for pre-market research
+- **Book is CLEAN & FLAT into 08-10** — broker-confirmed 0 positions, 0 open orders, equity
+  **$9,075.74** all cash, `last_equity == equity`. Nothing locked, nothing carried.
+- **Do NOT park anything on the strength of two zero-trade days.** 08-06 and 08-07 both produced zero
+  trades for *structural* reasons (regime gate + signal thresholds), not because names went dead. No
+  park candidates from today.
+- **Most productive signal generators today** (48 candidates in total, worth keeping healthy):
+  **NFLX 9** and **BABA 9** — the two busiest names, though only NFLX produced a qualifying entry and
+  all 9 of BABA's died on crossover/confidence; then **TSM 4**, **ABNB 4**, **UNH / SPY / NVDA /
+  MSFT / AAPL 3 each** (MSFT's three include the day's best signal at conf 78.0), **INTC 2**, and
+  **TSLA / QQQ / JPM / AVGO / AMZN 1 each**.
+- **✅ ABNB's re-enable is already earning its slot.** On its **first session back** it produced
+  **4 candidates including two fully-qualifying entries** (conf 74.1 and 71.9) — more than it managed
+  in the three weeks before it was parked. The thin-liquidity concern stands, but the post-earnings
+  volume expansion did exactly what the 08-07 research predicted. **Keep.**
+- **Never signalled at all today (0 candidates): MU, AMD, GOOG, WMT, C.** **MU and AMD are the
+  notable pair** — the two highest-ATR names on the board (9.48%, 8.25%) produced nothing on a
+  chip-led rally day. Not a park signal yet; worth watching whether high ATR is actively *preventing*
+  ribbon alignment rather than helping it.
+- **SPY / C dead-signal window closes ~08-10.** SPY produced 3 candidates today (all confidence
+  rejects, 50.4–54.8) so it is *evaluating*, just never qualifying — consistent with the structural
+  low-ATR explanation, not a broken feed. **C produced nothing at all again.** Decide C at the 08-10
+  review; note it has now gone 28+ days without a trade.
+- **QQQ remains load-bearing twice over** (IMP-022 market gate + IMP-023 replay universe). Verify
+  `enabled=1` before and after any watchlist edit — parking it makes the gate fail **open** and vanish
+  silently.
+- **Next week's catalysts:** **July CPI Wednesday** is the dominant event, PPI Thursday, retail sales
+  Friday. Earnings are in a lull (AMAT, CSCO, SMCI, JD) — none of ours. Expect the gate to keep trade
+  count low into Wednesday, and expect that to be **correct** behaviour.

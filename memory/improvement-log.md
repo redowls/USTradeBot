@@ -1408,3 +1408,83 @@ would have failed it.
   before trusting anything it says.**
 
 ---
+
+## IMP-024 — 2026-08-07 (daily) — the replay harness sequences gate bars at their CLOSE, not their start
+
+- **Problem — every backtest this bot has ever run was reading the future.**
+  `run_replay` built its event stream by keying **both** timeframes at `candle.start`:
+  ```python
+  stream += [(c.start, 1, c) for c in long_bars...]   # 5m gate bar
+  stream += [(c.start, 2, c) for c in short_bars...]  # 1m trigger bar
+  ```
+  with long sorted ahead of short at equal stamps. So the 5m gate bar spanning **14:45–14:50**
+  was folded into the gate ribbon at **14:45**, and every 1m trigger bar from 14:45 to 14:49 was
+  then evaluated against **five minutes of price action that had not happened yet**. Live cannot
+  do this: `bot/candles.py` closes a candle only when a trade lands in a *later* bucket
+  (`bucket > builder.start` → `_close`), so `on_long_candle` first sees that bar at **14:50**.
+  The harness had a **full gate interval of lookahead on every single trigger bar**, and it
+  contaminated **both** the per-symbol 5m gate ribbon consumed by `evaluate_entry` *and* the
+  IMP-022 market filter — i.e. the entire multi-timeframe premise of the strategy.
+- **How it was caught — the harness contradicted the live bot on today's session.**
+  Live took **0 trades** today and logged four `market gate closed` rejects. Replaying the same
+  session reported **2 trades / −$41.60**: an ABNB entry at **14:45** (conf 71.6) and an MSFT entry
+  at **14:47** (conf 77.8). Those are **exactly the two entries live refused** at 14:46 (ABNB,
+  conf 71.9) and 14:48 (MSFT, conf 78.0). Reconstructing QQQ's gate both ways proved it directly:
+
+  | decision minute | replay gate (start-keyed) | live gate (close-keyed) |
+  |---|---|---|
+  | 14:13, 14:14 | False | False |
+  | **14:45, 14:46, 14:47, 14:48** | **True** | **False** |
+
+  Across today's 390 session minutes the two gates **disagreed on 60 (15.4%)**. The close-keyed
+  reconstruction reproduces live exactly: all four live blocks land inside reconstructed *closed*
+  windows.
+- **The change (`bot/replay.py`).** Sequencing extracted into a testable
+  `build_stream(symbols, short_bars, long_bars, start, end, long_interval_seconds)` returning
+  `(effective_time, kind, candle)`, with named `LONG`/`SHORT` kinds. Gate bars are now keyed at
+  **`c.start + long_interval`**; trigger bars stay at `c.start`. `LONG` still sorts ahead of `SHORT`
+  at equal stamps because that is *also* live's order — the 5m closing at 14:50 is folded before the
+  1m bar starting 14:50 is evaluated at 14:51. The **window test stays on `candle.start` for both
+  timeframes**, so the *set* of bars replayed is unchanged and only their order moves; the warmup
+  partition (`c.start < start`) is untouched, so there is no double-fold and no gap at the seam.
+- **Scope — offline only, zero live behaviour change.** `bot/replay.py` is not imported by anything
+  under `bot/` on the live path (re-verified). The running service is unaffected. This is the same
+  class of change as IMP-023 and was chosen for the same reason: **the instrument must be right
+  before anything it says can be acted on**, and tonight it was demonstrably wrong.
+- **What it costs — every pre-existing backtest number is overstated. Corrected 60-day table
+  (2026-06-08 → 2026-08-07, 20 symbols from `dbo.watchlist`):**
+
+  | | trades | net | win% | PF |
+  |---|---|---|---|---|
+  | gate ON — **before** (as cited by the 08-07 weekly) | 109 | **+$494.08** | 53.2 | 1.54 |
+  | gate ON — **after (honest)** | **90** | **+$456.87** | **54.4** | **1.62** |
+  | gate OFF — before | 187 | +$252.33 | 46.0 | 1.15 |
+  | gate OFF — **after (honest)** | **168** | **+$224.38** | **45.8** | **1.15** |
+
+  Net was inflated by **$37.21 (7.5%)** and **17% of all trades were lookahead artifacts**.
+- **The verdict that matters: IMP-022 SURVIVES, and reads slightly better.** Under honest semantics
+  the gate still turns **+$224.38 / PF 1.15 / 45.8% win** into **+$456.87 / PF 1.62 / 54.4% win** on
+  46% fewer trades — a **+$232.49** edge (was +$241.75). The weekly's headline conclusion stands; it
+  was simply measured with a ruler that was 7.5% long. Today's own session says the same thing more
+  sharply: gate OFF would have taken **3 trades for −$27.96** on a day the S&P closed at an all-time
+  high, so **the gate saved ≈$28** while the live bot risked nothing.
+- **Tests: 5 new** in `tests/test_replay.py`, anchored on tonight's actual failure — the 14:45 gate
+  bar must land at 14:50 (the bug in one assertion); the invariant over a full 390-minute session
+  (no trigger bar may ever see an unclosed gate bar); LONG-before-SHORT at the boundary; the window
+  selects the same bar *set* as before; and multi-symbol streams stay in true chronological order so
+  capital contention is real. **Verified as genuine regression tests**: reintroducing `c.start`
+  fails 2 of them, and they pass on the fix.
+- **Validation:** full suite **312 passed** (307 → 312), no regressions. End-to-end, `--days 1` now
+  reports **`no trades`, reproducing the live session exactly**, where before the fix it invented
+  2 trades and −$41.60.
+- **Caveats, stated plainly:**
+  ① **This earns $0 by itself** — like IMP-023 it is a correctness fix to an analysis tool and will
+  never appear in the equity curve. Its value is the wrong decisions it prevents.
+  ② **Every replay figure recorded before tonight is optimistic** by roughly the margin above and
+  should be re-derived before being cited — including IMP-017's and IMP-018's original A/B tables.
+  ③ 1m trigger bars retain the *self-consistent* convention that a signal fills at its own bar's
+  close, which matches live (live evaluates the 14:45 bar at 14:46 and buys at that close). Only the
+  cross-timeframe seam was wrong.
+- **Commit:** `8951734` (pushed to `origin/main`).
+- **Observed effect:** ⏳ n/a by construction. The check is that a `--days N` replay of a session the
+  live bot traded now matches the live trade list; any future divergence is a real bug, not noise.
