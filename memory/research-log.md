@@ -2365,3 +2365,124 @@ clears ~08-12.** Post-close review should again count `market gate closed` skips
 **session 2 of 5** for IMP-022, and unlike 08-06 the gate started the day with a plausible path to opening.
 
 ---
+
+## 2026-08-10 — Pre-market Research
+
+**One change, and it is the one both prior entries queued for today: C parked as the dead-signal window
+expires.** Book is CLEAN & FLAT (broker-confirmed **0 positions**, **0 open orders**, equity **$9,075.74**,
+`last_equity` == `equity` → nothing carried, nothing marked) → **nothing locked**. **20 → 19 enabled**;
+service restarted clean (warmup 19/19). **No adds — IMP-022's observation window runs to ~08-12.**
+
+### Market context
+**Modestly higher and tech-led, into a CPI week.** Futures: **S&P 500 +0.13%**, **Nasdaq 100 +0.25%**,
+Dow −0.02%, Russell 2000 −0.02%; **QQQ ~+0.42%** pre-market, with tech and energy bid and real estate /
+consumer staples lagging. This follows **Friday's record close — S&P +0.6% to 7,758 (all-time high),
+Nasdaq +1.3%, Dow +152** — driven by a *weak* labour print (**nonfarm payrolls unexpectedly FELL 23k**).
+Rates have eased with it: **10y ~4.60%**, 1-yr inflation expectations **3.6%**. Crude roughly flat
+(**WTI $78.08 −0.13%, Brent $83.64 +0.11%**) — still no case to un-park XOM.
+- **No macro release during market hours today** (only a tentative Cleveland Fed inflation-expectations
+  number). **July CPI on Wednesday is the week's dominant event**, PPI Thursday, retail sales Friday.
+- **No enabled watchlist symbol reports this week.** Today: **FERG / MNDY / CAMT** pre-open and **SPG**
+  after the close — none ours. The week's headliners are **CSCO** (Wed AH) and **AMAT** (Thu AH), plus
+  CoreWeave, Cerebras and Lumentum. **WMT verified separately: it reports Thu 2026-08-20**, outside this
+  week — checked because August is its reporting month and it sits enabled. **No earnings park today.**
+- **Pre-market movers are all non-watchlist:** ZTS **−6.0%** (cut FY26 revenue and EPS guidance),
+  RMD **−5.1%**, STX **−4.7%**. No bleed onto the board.
+- **MU presents at the KeyBanc Capital Markets Technology Leadership Forum today, 8:00am MDT = 10:00 ET.**
+  Verified against Micron's own IR release (announced 2026-07-15) and it is a **recurring annual
+  appearance, not a guidance event** — it attended the same forum on 2025-08-11. It does land exactly on
+  the IMP-017 entry-window open, in the **highest-ATR name on the board (9.54%)**. **NOT a park** — MU is
+  the book's #1 all-time earner (**+$177.84**) and mega-liquid — but the headline risk is recorded.
+- **AAPL trades ex-dividend today** ($0.27, pay 08-13): a mechanical **−0.09%** open adjustment on a $313
+  stock, immaterial against a 1.25% trail. **No action.** (One aggregator dissents with 08-11; either
+  date is noise at this magnitude.)
+- **⚠️ Perplexity `sonar` was thin for the FOURTH consecutive run.** It returned "no catalyst confirmed"
+  for **18 of 20** tickers, gave **no futures direction at all**, and quoted a stale **AAPL $311.45
+  pre-market** against a verified 08-07 close of **$313.29**. To its credit it surfaced the two genuine
+  items above (the MU forum and the AAPL ex-div) — both of which **WebSearch then confirmed** before they
+  were written down. Its role is now demonstrably **lead-generation only**; WebSearch carried the run, as
+  it did on 08-07.
+
+### Carried from daily review (08-07 "Notes for pre-market research")
+- **🚨 "Decide C at the 08-10 review"** — the review's one explicit order. **Done: C parked.** ✔
+- **"Book CLEAN & FLAT into 08-10"** — ✔ verified live: `/v2/account` ACTIVE, equity **$9,075.74** all
+  cash, `/v2/positions` **0**, `/v2/orders?status=open` **0**. Nothing locked.
+- **"Do NOT park anything on the strength of two zero-trade days."** Honored — C was parked on **30 days
+  without a trade plus its all-time record**, not on 08-06/08-07. **Nothing else parked.** ✔
+- **"QQQ remains load-bearing twice over"** (IMP-022 gate + IMP-023 replay universe) — asserted
+  `enabled = 1` *before* the commit and re-verified in the restart banner. ✔
+- **"SPY / C dead-signal window closes ~08-10"** — **C parked, SPY kept**; the asymmetry is argued below.
+- **"ABNB… Keep."** Kept, and its chart is now the strongest on the board. ✔
+
+### Watchlist review
+Account **ACTIVE**, equity **$9,075.74**, BP $36,302.96, **0 open positions = nothing locked.** Service had
+been `active` since 08-07 21:26:44 UTC, NRestarts=0. All 20 enabled reviewed against overnight news and
+60-day daily bars (close vs 20/50-day MA, 5-day change, ATR%, 20-day avg $ volume on the IEX tape):
+- **➖ C → PARKED (the one change).** The dead-signal window the last two entries opened expires today, and
+  C is the name that fails it: **30 days since its last trade (07-10)**, all-time **−$39.84 on 1W/5** — the
+  **worst win rate on the board** — with **ATR 2.49%** and **$71.9M/day** of IEX-tape dollar volume, i.e.
+  the low-volatility, thin end of the book, which is precisely the profile that yields few sharp 1-min
+  crosses. **This is not a broken feed and the log proves it:** 466 one-minute candles on Friday alone and
+  **3 scored candidates in 5 sessions** (two crossover near-misses at conf **67.3** and **61.1** on 08-04,
+  last activity 08-05). **C evaluates; it just never converts, and it has not converted in six weeks.**
+  JPM already covers financials. Row **parked (`enabled = 0`), not deleted** — re-enable if it starts
+  converting.
+- **✅ SPY → KEPT, deliberately, even though it is quieter still** (44 days, last trade 06-26). Three
+  reasons, and they are why the two names split. ① Its **ATR is 1.18%, the lowest on the board** — the
+  silence is *structural* for a broad index ETF and expected, not evidence of decay. ② It is **more active
+  than the name being parked**: 5 scored candidates in the last 5 sessions vs C's 3. ③ The weekly review
+  names **SPY as the live fallback candidate for `MARKET_FILTER_SYMBOL`** if IMP-022's tripwire ever fires
+  — parking the one symbol the strategy may need to test would be self-defeating. **Next review point:
+  end-August if still tradeless.**
+- **The board is healthy and the trend is intact.** Above the 20MA: **ABNB +19.5%** (and **+17.7% on 5
+  days** — the post-earnings move is still extending), **MSFT +17.9%** (+22.8% vs 50MA), AVGO **+9.1%**,
+  AMZN **+9.1%**, NVDA **+8.3%**, BABA **+7.9%**, INTC **+4.8%**, QQQ **+3.2%**, SPY **+3.1%**,
+  NFLX **+3.1%**, TSM **+2.6%**, JPM **+2.3%**, GOOG **+1.6%**. Below: WMT −0.1%, MU −1.1%, AAPL −3.1%,
+  UNH −3.1%, AMD −4.0%, **TSLA −4.3%** (−13.6% vs 50MA, still the weakest chart enabled — but **+2.8%
+  Friday and +5.6% on 5 days**, i.e. mending, not breaking). **Nothing here is a park candidate on trend.**
+- **⚠️ Volatility outliers, kept and noted (unchanged from 08-07):** **MU 9.54%**, **AMD 8.27%**,
+  **INTC 7.52%** — well above where a 1-min ribbon behaves best. All three are mega-liquid and INTC/MU are
+  the book's **two best all-time earners (+$191.26 and +$177.84)**. A **sizing** question for the post-close
+  routine, **not** a watchlist park.
+- **Last-14-day P&L is GREEN — 35 closed trades, +$148.82.** Winners: **INTC +$99.12 (4W/4)**,
+  AVGO +$41.34, GOOG +$31.94, MU +$27.93, BABA +$18.74, NVDA +$16.72, **NFLX +$14.89 (2W/2)**, TSM +$3.28.
+  Losers: AMZN −$36.18 (0W/2), JPM −$23.25 (0/1), SE −$26.80→−$18.12 (**already parked**), MSFT −$11.73,
+  TSLA −$8.07, AAPL −$7.21, AMD −$0.58. **No enabled symbol has a park-worthy record under the current
+  rules.**
+- **AMZN and AVGO reviewed for parking again and KEPT again**, same reasoning as 08-07: their all-time
+  deficits (**−$108.51** and **−$109.78**) were overwhelmingly earned *before* IMP-018, IMP-020, IMP-021 and
+  IMP-022, and **AVGO is +$41.34 over the last 14 days under the current rules**. Parking on an exit
+  structure that has since been replaced is churn against stale evidence.
+- **Parked stay parked:** BIRD, COST, ENPH, QCOM, SE, WPM, XOM — no fresh re-enable case, and crude is flat
+  so XOM's park holds for a fourth run. **⚠️ SE reports Q2 tomorrow (Tue 08-11)** — it must not be
+  re-enabled today or tomorrow without pricing that print.
+- **Adds considered and DECLINED for the third consecutive run.** IMP-022 is at **session 3 of its
+  5-session observation window (to ~08-12)** and the weekly's standing instruction is to **protect the
+  measurement**; an add changes the candidate pool *underneath* the thing being measured. The capital
+  argument also still holds — at **$9.1k equity** the book is capital-constrained, so an extra name mostly
+  **displaces** a trade rather than adding one (IMP-017). **Earliest sensible add: after 08-12.**
+  *Note the asymmetry that makes today's park compatible with the freeze:* C contributed **0 trades and
+  ~0.6 candidates/session** to the pool, so removing it perturbs the measurement about as little as any
+  edit could — whereas an add would inject a fresh, unmeasured candidate stream.
+
+### Changes applied to dbo.watchlist
+- **C → `enabled = 0`** (row **parked, not deleted**; note set: *"parked 2026-08-10: dead-signal window
+  expired - 30d no trade (last 07-10), all-time -$39.84 on 1W/5, ATR 2.5% thin crosses"* — **122 chars**,
+  checked against the **VARCHAR(128)** limit before the write).
+- One parameterized UPDATE, **1 row affected**, committed only after the assertions passed. **No inserts,
+  no deletes, no re-enables.** Post-apply assertions: **19 enabled ≤ 30 ✓** and **QQQ `enabled = 1` ✓**.
+
+### Final watchlist
+**19 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA GOOG INTC JPM MSFT MU NFLX NVDA QQQ SPY TSLA TSM UNH
+WMT. Parked (8): BIRD **C** COST ENPH QCOM SE WPM XOM. Service **RESTARTED** 11:36:31 UTC (watchlist
+changed) — `active`, NRestarts=0, warmup primed **19/19** symbols from history, subscribed to all 19 on the
+iex feed, account ACTIVE $9,075.74, **no open positions**, zero errors. Startup banner confirms the live
+config is unchanged: *"Market gate: QQQ 5m ribbon must be bullish to open a long (IMP-022)"*, *"Entry
+window: 10:00-16:00 ET (opening-range blackout on, IMP-017…)"*, *"trailing stop 1.25% (active, IMP-018),
+tightening to 1.00% once +1.00% in profit (IMP-021)"*. 🔒 Locked: none (0 open positions).
+**Tue 08-11 routine: SE reports Q2** — keep it parked, do **not** re-enable on the print. **Wed 08-12 is
+July CPI *and* the end of IMP-022's observation window** — expect the gate to suppress trades around the
+print and expect that to be **correct**; **earliest sensible add is after 08-12**. SPY's next review point
+is **end-August** if it is still tradeless.
+
+---
