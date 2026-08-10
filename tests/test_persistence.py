@@ -6,6 +6,8 @@ without a driver or a network, mirroring the executor/market-data test style.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from bot.executor import ExecutionResult
@@ -484,6 +486,52 @@ def test_performance_summary_returns_none_on_error():
             pass
 
     assert TradeStore(lambda: _BoomConn()).performance_summary() is None
+
+
+# --- closed_trades (IMP-025) ----------------------------------------------
+
+
+class _ClosedTradesConn:
+    def __init__(self, rows, raise_it=False):
+        self._rows = rows
+        self._raise = raise_it
+        self.sql = None
+        self.params = None
+
+    def cursor(self):
+        return self
+
+    def execute(self, sql, params=()):
+        if self._raise:
+            raise RuntimeError("db down")
+        self.sql = " ".join(sql.split())
+        self.params = tuple(params)
+        return self
+
+    def fetchall(self):
+        return self._rows
+
+    def close(self):
+        pass
+
+
+def test_closed_trades_maps_rows_and_windows_by_days():
+    t0 = datetime(2026, 8, 10, 16, 17)
+    t1 = datetime(2026, 8, 10, 19, 45)
+    conn = _ClosedTradesConn([(" mu ", t0, t1, 879.35, 872.25, -14.20, "trail")])
+    rows = TradeStore(lambda: conn).closed_trades(days=7)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r.symbol == "MU"  # trimmed + upper-cased
+    assert (r.entry_price, r.exit_price, r.pnl) == (879.35, 872.25, -14.20)
+    assert (r.entry_time_utc, r.exit_time_utc) == (t0, t1)
+    assert conn.params == (7,)
+    assert "status = 'CLOSED'" in conn.sql
+    assert "exit_time_utc IS NOT NULL" in conn.sql
+
+
+def test_closed_trades_returns_empty_on_error():
+    assert TradeStore(lambda: _ClosedTradesConn([], raise_it=True)).closed_trades() == []
 
 
 # --- load_watchlist --------------------------------------------------------

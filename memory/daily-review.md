@@ -3570,3 +3570,182 @@ counterfactual** — the entries it blocked were losers.
 - **Next week's catalysts:** **July CPI Wednesday** is the dominant event, PPI Thursday, retail sales
   Friday. Earnings are in a lull (AMAT, CSCO, SMCI, JD) — none of ours. Expect the gate to keep trade
   count low into Wednesday, and expect that to be **correct** behaviour.
+
+---
+
+## 2026-08-10 — Daily Review
+
+### Stats
+- **4 closed trades — 2W / 2L → 50% win rate. Net realized +$9.71** (avg +$2.43/trade).
+  Avg win **+$17.76**, avg loss **−$12.90**, **profit factor 1.38**, payoff 1.38.
+  Account **equity $9,085.45**, all cash, **0 open positions**.
+- **Reconciliation: EXACT.** Broker `last_equity` $9,075.74 → `equity` $9,085.45 = **+$9.71**,
+  matching DB realized P&L **to the cent**. Alpaca shows 4 bracket entries (all filled), 3 exits on
+  the **stop leg**, 1 EOD market sell; `dbo.trades` has exactly those 4 rows; `/v2/positions` empty;
+  no open orders. No missed fill, no qty drift, nothing carried overnight.
+- **Service healthy.** `active`, **NRestarts=0**, up since 11:36:31 UTC (pre-market watchlist
+  restart, expected), warmup primed **19/19**, subscribed 19/19 on IEX. **Zero errors, zero
+  exceptions, zero 422s** across 9,593 journal lines — including ~67 trailing-stop order replaces.
+- **First traded session in four** (last trade before today: MU on 08-05). 08-06 and 08-07 were blanks.
+
+### Trade-by-trade review
+All times UTC. **Note: journal app-timestamps are WIB (+7); journald prefixes are UTC** — the
+figures below are UTC throughout.
+
+**1. AVGO — LOSS −$11.60 (−0.67%).** Entry 14:02:04 @ $429.83, 4 sh ($1,719), conf **64.4**
+(xo 0.29 / trend 0.84 / rsi 1.00 / vol 0.27 / vlt 0.99). Exit 14:54:50 @ $426.93 on the **trailing
+stop leg**. **MFE +0.66%** (peak $432.66, 11 min in), MAE −0.81%, **capture −102%**.
+*Root cause: excursion smaller than the give-back.* It ran +0.66%, the trail ratcheted 421.06 →
+426.95 in six moves, then it round-tripped. With a 1.25% give-back, a peak of +0.66% **arithmetically
+guarantees** a ≈−0.6% exit unless the peak is exceeded. Not stop placement, not slippage, not regime
+timing — **the trade was never large enough to pay for its own exit.**
+
+**2. ABNB — WIN +$26.21 (+1.44%), the day's best.** Entry 14:15:04 @ $181.479, 10 sh ($1,815),
+conf **62.9** — the *lowest* of the four — (xo 0.26 / trend 1.00 / rsi 1.00 / **vol 0.00** / vlt 1.00).
+Exit 19:16:28 @ $184.10 on the trailing stop leg after **5h01m**. **MFE +2.45%**, MAE −0.61%,
+**capture 59%**. **The only trade all day whose excursion exceeded the give-back — and it out-earned
+the other three combined.**
+- **IMP-021 CONFIRMED LIVE, instance #2.** Final stop $184.09 against a window peak of $185.92:
+  185.92 × 0.99 = **184.06 ✓**, whereas 185.92 × 0.9875 = **183.60 ✗**. The flat 1.25% width **cannot**
+  produce a 184.09 stop from any close in the window, so the narrow 1.0% second stage demonstrably
+  engaged. Worth ≈ **+$4.60** on this trade vs. the old flat trail (first instance: INTC 08-05, ≈+$5.25).
+
+**3. MU — LOSS −$14.20 (−0.81%).** Entry 16:17:02 @ $879.35, 2 sh ($1,758), conf **73.4 — the day's
+highest** (xo 0.31 / trend 0.70 / rsi 1.00 / vol 1.00 / vlt 1.00). Exit 19:45:00 @ $872.25 on the
+**trailing stop leg** (stop 872.26). **MFE +0.60%** (peak $884.65, 53 min in), MAE −0.81% — it exited
+**at its worst price of the entire hold**. **Capture −134%.**
+- ⚠️ **Label correction for the exit-bucket accounting:** the DB reason reads *"end-of-day flatten
+  (stop/target filled broker-side)"*, but the broker record is unambiguous — the stop leg was
+  triggered at **19:45:00.20 and filled at 19:45:00.24**, and the EOD flatten only ran at 19:45:13,
+  finding it already flat. **MU died on the trail, not on the clock**, 13 seconds apart. A future
+  review bucketing this as an EOD flatten would draw the wrong conclusion.
+- The pre-market note flagged MU's KeyBanc forum appearance at 10:00 ET; entry was 12:17 ET and the
+  whole move was +0.6%. **No catalyst effect visible — this was ordinary chop.**
+
+**4. BABA — WIN +$9.30 (+0.47%).** Entry 16:18:04 @ $131.50, 15 sh ($1,973), conf 70.6
+(xo **0.25 — exactly the floor** / trend 1.00 / rsi 1.00 / vol 0.54 / vlt 1.00). Exit 19:45:21 @
+$132.12 on the **EOD flatten**. **MFE +0.59%**, MAE −0.14%, capture 79%.
+- **This trade won because the clock arrived before the trail did.** Its stop sat at $130.60
+  (−0.68%) and was simply never reached. Structurally it is the *same trade* as AVGO and MU —
+  +0.6% peak, sub-give-back excursion — and got the opposite sign purely from where the session
+  ended. **Do not count it as evidence the entry works.** On a 2W/2L day, one of the two wins is timing luck.
+
+### Market context (Perplexity was wrong — verify before citing)
+- ⚠️ **Perplexity `sonar` returned FRIDAY's numbers for a question explicitly dated 2026-08-10**:
+  "S&P 500 +0.62% at 7,757.64, a record close; Nasdaq +1.30% at 26,690.62; regime trending/risk-on."
+  Those are the **08-07** prints, already recorded in that day's review. **Fifth consecutive thin or
+  stale run.** It also found no catalyst on any of the four traded names.
+- **Actual tape, from IEX daily bars (authoritative):** **QQQ −0.25% open→close** (722.58 → 720.80),
+  **SPY +0.03%** (772.77 → 773.02). The session was **flat, directionless chop**, not a melt-up.
+  That is *exactly* consistent with three of four trades peaking at ≈+0.6%. Had I taken Perplexity at
+  face value I would have concluded the strategy failed in a strong trend, which is the opposite of the truth.
+
+### Signal funnel — 23 scored candidates, 4 entries
+| stage | rejects | detail |
+|---|---|---|
+| confidence < 60 | **11** | BABA 50.9, QQQ 51.1, UNH 54.9, TSLA 55.1, QQQ 55.8, BABA 57.0, AMZN 57.3, TSM 57.4, TSM 57.6, JPM 58.1, **NFLX 59.0** |
+| crossover < 0.25 | **7** | WMT 0.07, JPM 0.08, AMZN 0.09, JPM 0.09, TSLA 0.11, AMZN 0.16, **AMZN 0.24 (conf 75.9)** |
+| **market gate (IMP-022)** | **1** | TSM, conf 64.4, 15:04 |
+
+**IMP-022 — session 3 of 5.** It blocked **one** entry today, vs 4 on 08-06 and 4 on 08-07; today's
+block rate ≈20%, nowhere near the >80%-for-a-week tripwire. **Critically, this is the first session
+inside its own window that the gate actually let through** — the filter is not a permanent off-switch.
+Running scoreboard: 08-05 −$6.14 (hypothetical), 08-06 +$47.11, 08-07 +$27.96, 08-10 one block (TSM).
+**Verdict still due Wed 08-12.**
+
+### The 30-day excursion table (new tonight — IMP-025)
+The table IMP-021 specified but could never refresh, now computed automatically over 86 closed trades:
+
+| MFE band | n | avg MFE | avg exit | capture | net |
+|---|---|---|---|---|---|
+| **<0.5%** | **28** | **+0.20%** | **−1.18%** | **−599%** | **−$605.91** |
+| 0.5–1.0% | 27 | +0.73% | −0.43% | −60% | −$214.03 |
+| 1.0–2.0% | 15 | +1.45% | +0.50% | 34% | +$155.61 |
+| >2.0% | 16 | +2.43% | +1.43% | 59% | +$443.18 |
+
+- **59 of 86 trades (69%) peaked below the 1.25% give-back** — i.e. more than two thirds of this
+  book's trades are structurally incapable of finishing green on the trail, whatever the ratchet does.
+- **IMP-021's criterion (b) is now MET.** The 1.0–2.0% bucket's capture went **17% → 34%** (exactly the
+  doubling IMP-021 predicted) and 0.5–1.0% went **−97% → −60%**. *Honest caveat:* IMP-021's baseline was
+  25 trades over 10 days and this is 86 over 30, so the samples overlap but are not the same — this is
+  **strongly suggestive, not a clean A/B.** It is nonetheless the first real evidence IMP-021 works.
+- 🚨 **The `<0.5%` band is the book's dominant leak: 28 trades, −$605.91, avg MFE +0.20%.** These trades
+  essentially **never traded above their entry price**. No exit structure can rescue them — this is a
+  pure **entry-selection** failure and it is roughly 2.7× the size of the next-worst band. Removing that
+  cohort turns the 30-day book from **−$221 to +$385**. *Caveat (IMP-017): trade-removal overstates entry
+  filters on a capital-constrained book — the freed capital would have gone somewhere.*
+
+### What worked / what didn't
+- **Worked — exit plumbing, unambiguously.** Three broker-side stop fills all reconciled within
+  **13–30 seconds**, DB exit prices match broker fills **to the cent** (incl. BABA at 132.12 where the
+  candle close was 132.05), ~67 stop replaces with **zero 422s**. The IMP-012/id-rotation work holds.
+- **Worked — IMP-021**, mechanism confirmed live a second time (ABNB, ≈+$4.60), and now corroborated
+  in aggregate by the capture table above.
+- **Worked — IMP-022 is not a permanent veto.** The worry after two blank sessions was that the gate had
+  simply switched the bot off. It let a session through and blocked only its worst-timed candidate.
+- **Didn't — the entry signal, again, and now quantified rather than asserted.** **All four entries had
+  crossover sub-scores of 0.25–0.31 — every one within 0.06 of the 0.25 floor.** Three of four peaked at
+  ≈+0.6% into a directionless tape. The signal is selecting marginal crosses.
+- **Didn't — confidence remains inverted.** Today the two **70+** trades netted **−$4.90**; the two
+  **sub-65** trades netted **+$14.61**. All-time: 70–79 **+$217.09**, but 60–69 **−$72.66** and 80+
+  **−$157.52** on 31 trades. The score is not ranking trades, and sizing scales *with* it.
+
+### Lessons & improvement candidates
+1. **[SHIPPED TONIGHT — IMP-025] MFE was measured nowhere, so the one number that decides
+   entry-vs-exit blame was hand-derived every time.** Three consecutive reviews rebuilt it by hand;
+   IMP-021's own validation criterion (b) went **unmeasured for a week** for exactly this reason. It is
+   now `python -m bot.report --days N --mfe`. Zero trading-path change.
+2. **Ranked #1 and now precisely targeted: the `<0.5%`-MFE cohort.** Previous reviews said "the entry
+   signal has no demonstrated edge"; tonight names the specific failure — **28 trades that never traded
+   above entry, −$605.91.** The question for the post-08-12 work is concrete: *is there a pre-entry
+   discriminator for that cohort?* Today's four entries all clustered at crossover 0.25–0.31, which is
+   the obvious first place to look — but **note the trap**: today's *best* trade (ABNB) had xo 0.26 and
+   the day's near-miss at xo 0.24 carried conf 75.9. A naive crossover-floor raise would have cut the
+   winner. Needs the harness, ≥3 agreeing windows, and it is **entry-side, therefore frozen until 08-12**.
+3. **Deliberately shipped NO behavioural change tonight, and this is a judgement, not an omission.**
+   Both axes today's evidence points at are frozen by standing decisions I endorse on the merits:
+   **(a) entry side** — IMP-022 is at session 3 of 5, and today is the *first traded session in its
+   window*; stacking a second entry filter now destroys the only measurement in progress.
+   **(b) exit side** — the weekly of 08-07 recorded *"do not re-tune the trail; two consecutive weeks of
+   live trading are required before IMP-021 can be judged."* Tonight ADDS evidence for IMP-021 rather
+   than replacing it. Shipping a trail change on a 4-trade day would be textbook thrash.
+   The temptation was real: three trades died to the give-back and "just tighten the trail" is one
+   config line. It is also **already refuted** — the 07-31 A/B showed a tighter flat width is a
+   30-day-window artifact that reverses at 45d and 60d, and the breakeven-gate variant cost ~$134.
+4. **Perplexity has now failed five consecutive runs and tonight it failed *dangerously*** — not thin
+   but **confidently wrong**, returning a prior session's record close as today's. **Rule: never write a
+   market-regime line from `sonar` without an independent price check.** The IEX daily bars are free,
+   local, and authoritative; use them first and treat `sonar` as lead-generation only.
+5. **Still open, untouched, no new evidence tonight:** whole-share quantisation flattening the size
+   curve (today conf 62.9 got $1,815 while conf 73.4 got $1,758 — **inverted**); `STOP_LOSS` structurally
+   unreachable behind the trail; the 60–69 band leak.
+
+### Notes for pre-market research
+- **Book is CLEAN & FLAT into 08-11** — broker-confirmed **0 positions, 0 open orders**, equity
+  **$9,085.45** all cash. Nothing locked, nothing carried.
+- **🚨 SE reports Q2 tomorrow (Tue 08-11) — it is parked and must STAY parked.** Do not re-enable on the print.
+- **⚠️ Wed 08-12 is July CPI *and* the close of IMP-022's 5-session window.** Expect suppressed trade
+  count around the print and expect that to be correct.
+- **✅ ABNB is the strongest name on the board and today proves it in P&L, not just chart terms.** Its
+  **+2.45% MFE was the only excursion all day to clear the give-back**, and it delivered +$26.21 — more
+  than the other three trades combined. Third consecutive session generating quality signal since its
+  re-enable. **Keep, emphatically.**
+- **⚠️ AMZN is the name to watch, in a bad way: 4 crossover rejects today** (0.24, 0.16, 0.09, 0.09),
+  including one at **conf 75.9 / xo 0.24** — a hair under the floor. AMZN is **0W/2 and −$36.18 over 14
+  days** and carries the board's largest all-time deficit. The crossover floor is currently the only
+  thing keeping it out of the book. **Not a park recommendation yet** — but if it converts one of those
+  near-misses and loses, park it.
+- **Never signalled at all today (0 candidates): AAPL, AMD, GOOG, INTC, MSFT, NVDA, SPY.** **MSFT is the
+  notable absence** — it was the single most productive generator on both 08-06 (3 rejects + the day's
+  best signal at conf 70.2) and 08-07 (conf 78.0), and produced **nothing** today. One quiet session is
+  not a park signal; flag it if it repeats. **INTC also silent**, and it is the book's best all-time
+  earner (+$191.26) — worth noting, not acting on.
+- **SPY produced 0 candidates today** (it had 3 on 08-07). Its review point remains **end-August**;
+  today does not change that, and it must stay enabled as the IMP-022 fallback symbol.
+- **QQQ remains load-bearing twice over** (IMP-022 market gate + IMP-023 replay universe) — verify
+  `enabled = 1` before and after any watchlist edit. Parking it makes the gate fail **open** and vanish silently.
+- **No park candidates from today's trading.** All four traded names behaved normally; the losses were
+  structural (excursion < give-back), not name-specific decay.
+- **New tool for tomorrow's routines:** `python -m bot.report --days N --mfe` prints the excursion table.
+  Use it instead of hand-deriving MFE — and prefer it over `sonar` for judging whether a day's losses
+  were regime or signal.

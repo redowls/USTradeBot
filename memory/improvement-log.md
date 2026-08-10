@@ -1488,3 +1488,75 @@ would have failed it.
 - **Commit:** `8951734` (pushed to `origin/main`).
 - **Observed effect:** ⏳ n/a by construction. The check is that a `--days N` replay of a session the
   live bot traded now matches the live trade list; any future divergence is a real bug, not noise.
+
+---
+
+## IMP-025 — 2026-08-10 (daily) — measure max favourable/adverse excursion: `bot.report --mfe`
+
+**Status: SHIPPED & LIVE. Instrumentation only — zero change to the trading path.**
+
+- **Problem (procedural, and it has already cost a shipped change its validation).** Every
+  exit-structure decision this bot has made turns on one number — **how far a trade runs in our favour
+  versus what the trail gives back** — and that number is recorded **nowhere**. `dbo.trades` stores
+  entry, exit and P&L but no high-water mark; journald has the trail ladder only for trades that
+  trailed, and only back to 07-29. So the MFE table has been rebuilt **by hand, from bars, three
+  reviews running** (08-06, 08-07, 08-10). The concrete cost: **IMP-021's own validation criterion (b)**
+  — *"the MFE-capture rerun should lift the 1.0-2.0% bucket well above 17%"* — was recorded by the
+  08-07 weekly as **"not rerun"**, so a shipped change sat unvalidated for a week purely because
+  measuring it was manual labour. An analysis that is redone by hand every night is one that will
+  eventually be skipped on the night it matters.
+- **Change (4 files, no behavioural surface):**
+  - **`bot/excursion.py` (new)** — the arithmetic, **pure and fully unit-tested**: `compute_excursion`
+    (MFE/MAE/realized/capture from a holding window's bar highs+lows), `bucket_of` (the *same* 0.5/1.0/2.0
+    edges IMP-021 used, so new tables are directly comparable with that entry's), `summarize`,
+    `format_excursions`. The only I/O is `alpaca_bar_fetcher`, injected as a callable so tests run
+    network-free — same pattern as `bot/warmup.py`. Bars come from **`cfg.alpaca_data_feed` (IEX)**, the
+    feed the bot actually trades on: measuring excursion on a richer feed would overstate what was reachable.
+  - **`bot/persistence.py`** — `ClosedTrade` + `TradeStore.closed_trades(days)`, read-only and wrapped
+    exactly like `performance_summary` (DB error → log, reset, return `[]`).
+  - **`bot/report.py`** — `--mfe` flag. **Opt-in** (it costs one bars call per trade) and prints to
+    **stdout only**, so the Telegram digest stays the short headline it has always been.
+    `excursion_report()` catches everything: a reporting extra must degrade, never break the report.
+- **Design calls worth recording.** ① MFE is **clamped at zero** — a trade that never traded above entry
+  has *no* favourable excursion, not a negative one, and the bucket edges assume MFE ≥ 0. ② `capture` is
+  `None` rather than a huge number when MFE ≈ 0 (no dividing by ~0). ③ A trade with **no bars** is
+  **skipped and counted**, not scored as flat — a missing window is not a quiet one. ④ Bucket-level
+  capture is avg-realized / avg-MFE, matching IMP-021's table rather than a weighted variant.
+- **Validation.** Full suite **343 passed** (312 baseline + **31 new**: 24 in `tests/test_excursion.py`,
+  5 in `tests/test_report.py`, 2 in `tests/test_persistence.py`). `bot.preflight` **OK with 1 warning**
+  (market closed) — Alpaca ACTIVE, SQL Server connected, Telegram delivered.
+  **The regression tests are built from today's real session** (AVGO/ABNB/MU/BABA, measured highs and
+  lows), pinning the finding that motivated the module: three of four trades peaked below the give-back,
+  and MU's capture is −134%.
+  **End-to-end check against an independent hand computation:** run live on today's trades it reproduces
+  the by-hand figures **exactly** (MFE 0.66 / 2.45 / 0.60 / 0.59; capture −102% / 59% / −134% / 79%).
+- **First result — it paid for itself on the first run.** 30-day table, 86 closed trades:
+
+  | MFE band | n | avg MFE | avg exit | capture | net |
+  |---|---|---|---|---|---|
+  | **<0.5%** | **28** | **+0.20%** | **−1.18%** | **−599%** | **−$605.91** |
+  | 0.5–1.0% | 27 | +0.73% | −0.43% | −60% | −$214.03 |
+  | 1.0–2.0% | 15 | +1.45% | +0.50% | 34% | +$155.61 |
+  | >2.0% | 16 | +2.43% | +1.43% | 59% | +$443.18 |
+
+  ① **59 of 86 trades (69%) peaked below the 1.25% give-back** — structurally unable to finish green on
+  the trail regardless of how the ratchet is tuned. ② **IMP-021's criterion (b) is met**: 1.0–2.0%
+  capture **17% → 34%**, 0.5–1.0% **−97% → −60%**. *Caveat: IMP-021's baseline was 25 trades over 10 days
+  vs 86 over 30 here — overlapping, not identical samples, so this is strongly suggestive, not a clean
+  A/B.* ③ **The `<0.5%` band is the book's dominant leak** and it is an **entry** failure, not an exit one:
+  those trades never traded above their entry price, so no exit structure could have saved them.
+- **Why this and not a strategy change tonight.** Today's evidence points squarely at the entry signal —
+  and the entry side is frozen until **08-12** while IMP-022 completes its 5-session window (today was the
+  *first traded session* in it), while the exit side is frozen by the 08-07 weekly's *"do not re-tune the
+  trail."* Both freezes are correct on the merits. Shipping the measurement instead is the change that
+  makes the 08-12 and Friday verdicts **evidential rather than anecdotal** — and note IMP-023/IMP-024 are
+  the precedent: twice now a miscalibrated instrument nearly produced an inverted conclusion.
+- **Caveats.** ① It costs one historical-bars call per closed trade, hence opt-in; a 30-day window is ~86
+  calls and takes ~1 minute. ② Excursion is measured on **1-minute bar highs/lows**, so it is an upper
+  bound on what a stop could actually have captured intra-bar. ③ It reads IEX; a trade whose tape was thin
+  will under-report its true excursion — the same limitation the bot itself trades under, deliberately.
+- **Commit:** _see below_
+- **Observed effect:** ⏳ pending. Watch: (a) the daily/weekly routines should now cite the excursion table
+  instead of hand-deriving it; (b) the `<0.5%` band's share of trades is the headline number to track — if
+  a future entry filter is worth shipping, **that share must fall**; (c) re-run the table after 08-12 to
+  give IMP-022 a capture-based verdict, not just a P&L one.

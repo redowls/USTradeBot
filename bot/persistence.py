@@ -81,6 +81,19 @@ class PerfBand:
 
 
 @dataclass(frozen=True)
+class ClosedTrade:
+    """One closed round trip, enough to rebuild its excursion (IMP-025)."""
+
+    symbol: str
+    entry_time_utc: Any  # naive UTC datetimes, as stored
+    exit_time_utc: Any
+    entry_price: float
+    exit_price: float
+    pnl: float
+    exit_reason: str
+
+
+@dataclass(frozen=True)
 class PerformanceSummary:
     """Aggregate trading performance for the Phase 10 daily/weekly report."""
 
@@ -405,6 +418,43 @@ class TradeStore:
             log.exception("failed to build performance summary")
             self._reset()
             return None
+
+    def closed_trades(self, days: int = 1) -> list[ClosedTrade]:
+        """Closed round trips over the last ``days``, oldest first (IMP-025).
+
+        Feeds the excursion report. Read-only and wrapped like the rest: a DB error
+        logs, resets the connection, and returns ``[]`` so the report degrades to
+        its headline figures instead of failing.
+        """
+        try:
+            conn = self._connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT symbol, entry_time_utc, exit_time_utc, entry_price, "
+                "exit_price, pnl, exit_reason "
+                "FROM dbo.trades "
+                "WHERE status = 'CLOSED' AND pnl IS NOT NULL "
+                "AND exit_time_utc IS NOT NULL AND entry_time_utc IS NOT NULL "
+                "AND exit_time_utc >= DATEADD(day, -?, SYSUTCDATETIME()) "
+                "ORDER BY entry_time_utc",
+                (days,),
+            )
+            return [
+                ClosedTrade(
+                    symbol=str(r[0]).strip().upper(),
+                    entry_time_utc=r[1],
+                    exit_time_utc=r[2],
+                    entry_price=float(r[3]),
+                    exit_price=float(r[4]),
+                    pnl=float(r[5]),
+                    exit_reason=str(r[6] or ""),
+                )
+                for r in (cur.fetchall() or [])
+            ]
+        except Exception:
+            log.exception("failed to load closed trades")
+            self._reset()
+            return []
 
 
 class TradeRecorder:
