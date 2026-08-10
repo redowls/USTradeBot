@@ -1555,7 +1555,7 @@ would have failed it.
   calls and takes ~1 minute. ② Excursion is measured on **1-minute bar highs/lows**, so it is an upper
   bound on what a stop could actually have captured intra-bar. ③ It reads IEX; a trade whose tape was thin
   will under-report its true excursion — the same limitation the bot itself trades under, deliberately.
-- **Commit:** _see below_
+- **Commit:** `82d1914`
 - **Observed effect:** ⏳ pending. Watch: (a) the daily/weekly routines should now cite the excursion table
   instead of hand-deriving it; (b) the `<0.5%` band's share of trades is the headline number to track — if
   a future entry filter is worth shipping, **that share must fall**; (c) re-run the table after 08-12 to
