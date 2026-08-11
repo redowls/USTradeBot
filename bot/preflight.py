@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 
 from bot.config import EASTERN, Config, ConfigError
+from bot.logsetup import setup_logging
 from bot.market_data import MarketDataClient
 from bot.notifier import TelegramNotifier, open_notifier
 from bot.persistence import TradeStore, open_store
@@ -180,9 +181,7 @@ def _format(results: list[CheckResult]) -> str:
 
 
 def main() -> int:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)-8s %(name)s | %(message)s"
-    )
+    setup_logging()
     try:
         cfg = Config.load()
     except ConfigError as e:

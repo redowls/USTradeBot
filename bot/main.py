@@ -24,6 +24,7 @@ from typing import TypeVar
 
 from bot.config import Config, ConfigError
 from bot.executor import ExecutionResult, OrderExecutor
+from bot.logsetup import setup_logging
 from bot.market_data import MarketDataClient
 from bot.notifier import AlertReporter, open_notifier
 from bot.persistence import TradeRecorder, open_store
@@ -71,11 +72,7 @@ def _chain(*callbacks: Callable[[_T], None] | None) -> Callable[[_T], None]:
     return run
 
 
-def setup_logging(level: str) -> None:
-    logging.basicConfig(
-        level=getattr(logging, level, logging.INFO),
-        format="%(asctime)s %(levelname)-8s %(name)s | %(message)s",
-    )
+__all__ = ["setup_logging", "main"]  # setup_logging re-exported from bot.logsetup
 
 
 def _on_signal(signal: TradeSignal) -> None:

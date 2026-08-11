@@ -3749,3 +3749,155 @@ The table IMP-021 specified but could never refresh, now computed automatically 
 - **New tool for tomorrow's routines:** `python -m bot.report --days N --mfe` prints the excursion table.
   Use it instead of hand-deriving MFE — and prefer it over `sonar` for judging whether a day's losses
   were regime or signal.
+
+---
+
+## 2026-08-11 — Daily Review
+
+### Stats
+- **Closed trades: 0. Entries: 0. Net realized P&L $0.00.** Broker-confirmed flat: `/v2/positions`
+  **0**, `/v2/orders` (status=all, after 08-11T00:00Z) **0**, equity **$9,085.28** with
+  `last_equity` **$9,085.28** — i.e. the account did not move a cent today, which is the correct
+  signature of a genuine no-trade day rather than a day whose P&L merely netted to zero.
+- **Reconciliation: DB ⇄ broker agree perfectly.** `dbo.trades` has 0 rows dated today, `dbo.positions`
+  is empty, and the broker holds nothing. No missed fill, no qty drift, nothing carried overnight.
+- Service `active`, **NRestarts=0**, up since **08-10 21:27:44 UTC**. Zero errors, zero warnings, zero
+  reconnects in the whole session — 9,303 journald lines, of which **15** are non-candle.
+- Context: **14-day book 31 trades, 61% win, +$236.73.** A blank day did not disturb that.
+
+### Trade-by-trade review
+No trades to review, so the reviewable evidence is **the 15 candidates that were refused**, and which
+filter refused each. Times below are **UTC** (journald rendered them in WIB all day — see IMP-026):
+
+| # | UTC | symbol | conf | refused by |
+|---|---|---|---|---|
+| 1 | 14:24 | TSLA | 64.8 | **market gate (IMP-022)** |
+| 2 | 14:26 | TSM | 69.1 | **market gate (IMP-022)** |
+| 3 | 14:30 | SPY | 61.8 | crossover 0.04 < 0.25 |
+| 4 | 15:01 | SPY | 51.1 | confidence < 60 |
+| 5 | 15:24 | ABNB | 57.8 | confidence < 60 |
+| 6 | 15:30 | ABNB | 53.7 | confidence < 60 |
+| 7 | 15:34 | ABNB | 69.7 | crossover 0.10 < 0.25 |
+| 8 | 16:06 | JPM | 55.6 | confidence < 60 |
+| 9 | 16:35 | ABNB | 73.3 | **market gate (IMP-022)** |
+| 10 | 17:57 | JPM | 67.1 | crossover 0.02 < 0.25 |
+| 11 | 18:09 | JPM | 67.0 | crossover 0.03 < 0.25 |
+| 12 | 18:11 | ABNB | 63.3 | crossover 0.2499 < 0.25 |
+| 13 | 18:25 | JPM | 64.1 | crossover 0.09 < 0.25 |
+| 14 | 19:04 | AMD | 53.3 | confidence < 60 |
+| 15 | 19:13 | AMD | 68.5 | crossover 0.10 < 0.25 |
+
+**Refusal split: crossover floor 7, confidence threshold 5, market gate 3.** Note the ordering in
+`strategy.on_short_candle` — `evaluate_entry` runs first, so the market gate only ever sees
+**fully-qualified** entries. The three it blocked were real trades the bot wanted to take.
+
+**Counterfactual — what the market gate turned away (priced against real IEX 1-min bars, live sizing
+Model A off BP $36,341, live exits: 2% stop, trail 1.25% → 1.0% after +1%, 10% TP, EOD flatten 19:45):**
+
+| symbol | conf | qty | entry | exit | reason | MFE | MAE | P&L |
+|---|---|---|---|---|---|---|---|---|
+| TSLA | 64.8 | 6 | 335.310 | 331.158 | stop/trail | **+0.09%** | −1.34% | **−$24.91** |
+| TSM | 69.1 | 5 | 423.640 | 420.815 | EOD flatten | **+0.30%** | −0.92% | **−$14.12** |
+| ABNB | 73.3 | 13 | 185.845 | 186.430 | EOD flatten | **+0.69%** | −0.41% | **+$7.61** |
+| | | | | | | | | **−$31.43** |
+
+**The gate saved $31.43 today.** Independently, a full replay of the session with
+`MARKET_FILTER_SYMBOL=` (gate off) takes 1 trade for **−$13.65**; gate on reproduces live **exactly
+(no trades)**. Two methods, same sign.
+
+### What worked / what didn't
+- **The blank day was correct, and this is the strongest single-session evidence IMP-022 has produced.**
+  QQQ ran **open 723.01 → close 718.49 = −0.63%**, SPY −0.51%: a *down* session. IMP-022's own 38-session
+  bucketing puts down-tape at **33.1% win, −$33.12 per session**. The gate's measured saving today
+  (**−$31.43** avoided) lands within a dollar and a half of that historical average. The filter did
+  precisely the job it was specified to do, on precisely the tape it was specified for.
+- **Perplexity `sonar` corroborates the regime and nothing else** — "choppy with a risk-off bias",
+  Nasdaq −0.3%/−0.6%, weakness attributed to Intel and chipmakers on Strait-of-Hormuz doubt; **no
+  ticker-specific catalyst** for TSLA, TSM, ABNB, JPM or AMD. Seventh consecutive thin run. Regime read
+  only, as the standing rule says — the QQQ tape, not `sonar`, is what carried this conclusion.
+- **All three blocked entries peaked under +0.7% MFE.** None of them reached the 1.25% give-back, so
+  none could have finished green on the trail regardless of exit tuning. They sit squarely in IMP-025's
+  dominant `<1.0%` leak band. Even the "winner" (ABNB +$7.61) was an EOD-flatten scrape, not a trade
+  that worked.
+- **The crossover floor did more blocking than the market gate (7 vs 3) and is invisible in the P&L.**
+  Nobody has ever priced what `MIN_CROSSOVER=0.25` refuses. Four of its seven refusals today carried
+  conf **64–70** — these are not obvious junk. One (ABNB, #12) missed by **0.0001**. This is now the
+  largest unmeasured filter in the system.
+- **JPM is newly loud: 5 candidates today, its most in the sample, and 4 died on the crossover floor**
+  with conf 64–67. It has been a quiet name. Worth watching, not acting on.
+- **What did not happen is as informative as what did:** no feed loss, no reconnect, no 422, no
+  stop-replace churn, no DB error, no restart. Every failure mode the last ten IMPs hardened stayed shut.
+
+### Lessons & improvement candidates
+1. **(Shipped tonight — IMP-026) The post-close evidence base was reading seven hours wrong.** Since the
+   2026-08-02 VPS move to Asia/Jakarta, journald's `asctime` prefix has been **WIB** while every
+   timestamp *inside* the same line — candle starts, `entry_time_utc`, the market-hours gate — stayed
+   **UTC**. Today that cost real work: pairing each `no entry` line to the candle that produced it (the
+   whole basis of the −$31.43 counterfactual above) required shifting every line by hand, and a reviewer
+   who took the prefix at face value would have concluded the bot was signalling at 23:35 — seven hours
+   after the close. **Verified negative, and it matters: the trading path was never affected.** Every
+   clock read in `bot/` is `datetime.now(UTC)`; the only naive-looking call, `candles.py:109`, is
+   `fromtimestamp(aligned, tz=UTC)` and is correct. So the market-hours gate, the IMP-017 blackout and
+   the IMP-007 EOD-flatten watchdog all ran on correct time throughout. **This was an instrument fault,
+   not a capital fault** — but tomorrow night's IMP-022 verdict is read off this instrument.
+2. **Price the crossover floor — this is the next real strategy question, and it is now the biggest one.**
+   `MIN_CROSSOVER=0.25` is the single most active filter in the book and has never been A/B'd. The
+   analysis is ready to run the moment the entry freeze lifts: replay across ≥3 windows at 0.20 / 0.25 /
+   0.30, and price today's seven refusals directly. **Deliberately NOT shipped tonight** — see below.
+3. **`<1.0%` MFE remains the structural leak** (IMP-025: 59 of 86 trades over 30 days peaked below the
+   give-back). Today added three more examples and zero counterexamples. It is an *entry* problem.
+4. Unchanged and still open from 08-10: the sizing ladder is inverted above conf ~80 (conf 62.9 drew a
+   larger notional than conf 73.4); the 90–100 band is **0% win on 3 trades, −$144.42**; `STOP_LOSS` is
+   structurally unreachable behind the trail.
+
+### Why tonight's change is instrumentation and not strategy
+Both P&L surfaces are under deliberate, well-reasoned freezes that I am not entitled to break on one
+session's data:
+- **Entry side is frozen until 08-12** — today was session 4 of IMP-022's 5-session window. Shipping an
+  entry-side change tonight would contaminate the final session of the measurement, and IMP-022 is the
+  best-validated change this bot has (4-window A/B, every metric, same sign).
+- **Exit side is frozen by the 08-07 weekly's explicit "do not re-tune the trail"** — IMP-021 still has
+  n=1 qualifying live trade and needs two clean weeks.
+Both expire imminently (08-12 and Friday), and **both verdicts will be reached by reading journald.**
+Fixing the timebase tonight is therefore not filler — it is the precondition for two verdicts due within
+72 hours, and it is the same call IMP-023/IMP-024/IMP-025 made three times: when the trading surfaces are
+frozen, fix the instrument. The improvement log already records that a miscalibrated instrument twice
+nearly produced an inverted conclusion.
+**Honest statement of what this does NOT do: it adds no edge and moves no P&L.** The bot's underlying
+signal still has no demonstrated standalone edge — the gate is doing the work, by declining to bet.
+
+### Notes for pre-market research
+- **Book is CLEAN & FLAT into 08-12** — broker-confirmed **0 positions, 0 open orders**, equity
+  **$9,085.28**, all cash, `last_equity` identical. Nothing locked, nothing carried.
+- **🚨 Wed 08-12 is a triple event: July CPI (8:30am ET), IMP-022's verdict day (session 5 of 5), and
+  INTC's $20B offering closes.** Expect a low trade count and expect that to be correct. Do not read a
+  quiet CPI morning as signal death.
+- **📌 Hand tomorrow's post-close routine this: IMP-022 is now 3 for 3 on live counterfactuals** —
+  08-06 ≈ +$47 saved, 08-07 both blank days correct, **08-11 +$31.43 saved (priced above)**. The
+  5-session verdict should be a formality unless 08-12 inverts it. Also re-run `--days 30 --mfe` after
+  the close for the capture-based verdict (IMP-025 criterion (c)); **today added no trades, so the
+  30-day excursion table is byte-identical to the one in the 08-10 entry — do not re-derive it.**
+- **✅ ABNB is again the most productive generator on the board — 5 of today's 15 candidates**, including
+  the day's highest-confidence signal (73.3) and the only blocked entry that would have made money.
+  Fourth consecutive session of quality signal. **Keep, emphatically.**
+- **⚠️ JPM produced 5 candidates today, its most ever, and 4 died on the crossover floor at conf 64–67.**
+  It has historically been quiet. This is a *positive* liveness observation, not a park signal — flag it
+  if the near-misses keep accumulating without conversion.
+- **AMZN: zero candidates today**, after 4 crossover rejects on 08-10. The 08-10 entry's park test —
+  "if it converts one of those near-misses and loses, park it" — is **still not met**. No park. It stays
+  on notice.
+- **Never signalled at all today (0 candidates): AAPL, AVGO, BABA, GOOG, INTC, MSFT, MU, NFLX, NVDA,
+  QQQ, UNH, WMT.** That is 12 of 19 silent, which on a −0.63% QQQ tape with a bullish-only signal is
+  **expected, not decay** — do not park anything on today's silence. **MSFT is now quiet two sessions
+  running** (flagged 08-10 as "flag it if it repeats") — it has now repeated, so it is formally on
+  notice, but a 12-name-silent tape is the wrong day to judge it. Re-check 08-12/08-13.
+- **WMT: still 0 trades since 07-24 and still 0 candidates today.** Its dead-signal decision was
+  scheduled for the **08-13 run**; today does not advance it either way. Remember its earnings park is
+  due **08-19** and the two decisions have different re-enable conditions — do not let one become the other.
+- **QQQ remains load-bearing twice over** (IMP-022 market gate + IMP-023 replay universe) — verify
+  `enabled = 1` before and after any watchlist edit. Parking it makes the gate fail **open** and vanish
+  silently. It is also the symbol whose ribbon produced today's entire (correct) stand-down.
+- **From 08-13 the add-freeze expires** — arrive with a screened add candidate or an explicit reason not to.
+- **Reading journald from tomorrow on: timestamps are UTC and carry an explicit `UTC` marker** (IMP-026).
+  Lines written *before* tonight's restart are WIB (UTC+7) — subtract 7 hours when reading back over
+  08-02 → 08-11.

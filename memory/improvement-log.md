@@ -1560,3 +1560,82 @@ would have failed it.
   instead of hand-deriving it; (b) the `<0.5%` band's share of trades is the headline number to track — if
   a future entry filter is worth shipping, **that share must fall**; (c) re-run the table after 08-12 to
   give IMP-022 a capture-based verdict, not just a P&L one.
+
+---
+
+## IMP-026 — 2026-08-11 (daily) — pin log timestamps to UTC (the 2026-08-02 WIB regression)
+
+**Status: SHIPPED & LIVE. Diagnostics only — the trading path is byte-identical.**
+
+- **Problem (found while root-causing today's zero-trade session, not theorised).** Every timestamp this
+  bot *reasons* about is UTC — candle starts, `entry_time_utc`/`exit_time_utc`, the market-hours gate,
+  the IMP-017 blackout, the IMP-007 EOD-flatten watchdog. Until **2026-08-02** the VPS clock was UTC too,
+  so `logging`'s default **local-time** `asctime` agreed with all of them *by coincidence*. On 08-02 the
+  host moved to **Asia/Jakarta (UTC+7)** and the coincidence broke. Since that date every line in journald
+  has disagreed with itself by seven hours:
+
+  `2026-08-11 21:24:00,223 INFO ustradebot.data | candle TSLA [1m] 2026-08-11T14:23:00+00:00 …`
+
+  Nine days of the evidence base the post-close review reads have been silently mislabelled. **The cost is
+  concrete, not hypothetical:** today's review priced what the IMP-022 market gate turned away
+  (**−$31.43**), and that number depends entirely on pairing each `no entry` line with the candle that
+  produced it — which required shifting every line by hand. A reviewer taking the prefix at face value
+  would have concluded the bot was signalling **ABNB at 23:35, seven hours after the close.**
+- **Verified negative, and it is the important half of this entry: NO trading behaviour was affected.**
+  Audited every clock read in `bot/` — `main.py:55` (watchdog) `datetime.now(UTC)`, `preflight.py:148`,
+  `replay.py:489`, `warmup.py:68` all `datetime.now(UTC)`; the only `fromtimestamp` is
+  `candles.py:109 fromtimestamp(aligned, tz=UTC)`, tz-aware and correct. **No `utcnow()`, no naive
+  `now()`, no `date.today()` anywhere in the package.** So the market-hours gate, the opening-range
+  blackout and the EOD flatten all ran on correct time through the migration. This was an **instrument**
+  fault, never a **capital** fault. Recorded explicitly so no future run re-opens the question.
+- **Change (4 files + 1 new, zero behavioural surface):**
+  - **`bot/logsetup.py` (new)** — one `setup_logging(level)`. Pins `logging.Formatter.converter =
+    time.gmtime` (class-level, so *any* formatter renders UTC) **and** sets it on our own formatter
+    explicitly rather than relying on inheritance. Format gains an explicit `UTC` marker —
+    `"%(asctime)s UTC %(levelname)-8s %(name)s | %(message)s"` — so the timebase is **stated in every
+    line rather than inferred from the host**, which is the whole failure mode.
+  - **`bot/main.py` / `bot/flatten.py` / `bot/preflight.py`** — three near-identical copies of the same
+    local-time `basicConfig` (which is how this drifted in the first place) collapsed into one import.
+    `bot.main.setup_logging` still resolves, so nothing that referenced it breaks.
+- **Three design calls worth defending.**
+  1. **Default `datefmt` deliberately kept.** Setting `datefmt` would have produced a tidier
+     `%Y-%m-%dT%H:%M:%SZ` but silently **drops milliseconds** — and pairing a `no entry` line to its
+     candle is done *on the millisecond* (both lines land in the same second). Losing ms would have
+     broken the exact analysis that found this bug. The `UTC` marker after the ms field is slightly
+     unusual placement; correctness of the data beat tidiness of the format.
+  2. **`force=True`.** Plain `basicConfig` is a **no-op once the root logger has any handler**, so if any
+     import configured logging first our UTC formatter would be silently discarded and local time would
+     come straight back. This module exists precisely so the timebase can't depend on ambient conditions,
+     so the call has to be authoritative. Caught by the tests, which failed until this was added.
+  3. **Not fixed by pinning `TZ=UTC` in the systemd unit.** That would work today and break the next time
+     someone runs the bot, the kill switch or preflight from a shell — and it would leave the format
+     still *unlabelled*, so the same silent drift could recur. Fix it in the code, once, and say so in
+     the line.
+- **Tests: 9 new (`tests/test_logsetup.py`), all passing.** The headline one is the **2026-08-02
+  regression itself, built from today's real session**: `monkeypatch.setenv("TZ", "Asia/Jakarta")` +
+  `time.tzset()`, then format a record created at the real TSLA signal moment (epoch 1786458240.0 =
+  `2026-08-11T14:24:00Z`, the "market gate closed, conf=64.8%" line) and assert the output contains
+  **`14:24:00`** and **not `21:24:00`** — the exact string journald actually printed today. Verified it is
+  a real regression test by rendering the same record through the *old* formatter under WIB and
+  confirming it produces `21:24:00`. Plus: `UTC` marker present; **milliseconds preserved**
+  (`14:24:00,223`); converter is `gmtime` globally; name/numeric/unknown level handling (unknown falls
+  back to INFO — logging setup must never be why the bot fails to start); all three entrypoints resolve
+  to one function; and a guard asserting **no module re-introduces the local-time format string**.
+- **Validation:** full suite **352 passed** (343 baseline + 9 new), zero regressions.
+  `bot.preflight` **OK with 1 warning** (market closed) — Alpaca ACTIVE equity $9,085.28, SQL Server
+  connected + schema ensured, Telegram delivered — and its own output now renders with the `UTC` marker.
+  (`ruff` is not installed in the VPS venv — dev-only dependency, lint not run, as on IMP-022.)
+- **Caveats, stated plainly.** ① **This adds no edge and moves no P&L**, and it is not dressed up as
+  though it does. It was chosen because both P&L surfaces are under active measurement freezes that
+  expire within 72 hours (entry side 08-12 for IMP-022's window, exit side Friday for IMP-021), **both
+  verdicts are read off journald**, and breaking either freeze on one session's data would be thrash.
+  ② **Journald lines from 08-02 → 08-11 remain WIB** — this fixes forward, it cannot retro-label history.
+  Anyone reading that range must subtract 7 hours; noted in today's daily review.
+  ③ The `UTC` marker changes the log line shape, so any downstream log grep that anchors on the
+  `levelname` column position would need adjusting — nothing in this repo does.
+- **Commit:** _see below_
+- **Observed effect:** ⏳ pending — first live session **Wed 2026-08-12**. Watch: (a) journald lines
+  should read `… UTC INFO …` with the prefix matching the candle payload in the same line — that is the
+  whole acceptance test, checkable in one glance; (b) tomorrow's review should be able to correlate
+  `no entry` lines to candles **without shifting anything by hand**; (c) if any line still shows a 7-hour
+  offset, `setup_logging` is being bypassed on some path and that path needs finding.

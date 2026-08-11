@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from alpaca.trading.client import TradingClient
 
 from bot.config import Config, ConfigError
+from bot.logsetup import setup_logging
 from bot.notifier import TelegramNotifier, open_notifier
 
 log = logging.getLogger("ustradebot.flatten")
@@ -87,9 +88,7 @@ def main(argv: list[str] | None = None) -> int:
             "Re-run: python -m bot.flatten --yes"
         )
         return 2
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)-8s %(name)s | %(message)s"
-    )
+    setup_logging()
     try:
         cfg = Config.load()
     except ConfigError as e:
