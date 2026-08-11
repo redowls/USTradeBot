@@ -1633,7 +1633,7 @@ would have failed it.
   Anyone reading that range must subtract 7 hours; noted in today's daily review.
   ③ The `UTC` marker changes the log line shape, so any downstream log grep that anchors on the
   `levelname` column position would need adjusting — nothing in this repo does.
-- **Commit:** _see below_
+- **Commit:** `49ecb07`
 - **Observed effect:** ⏳ pending — first live session **Wed 2026-08-12**. Watch: (a) journald lines
   should read `… UTC INFO …` with the prefix matching the candle payload in the same line — that is the
   whole acceptance test, checkable in one glance; (b) tomorrow's review should be able to correlate
