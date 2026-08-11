@@ -2486,3 +2486,149 @@ print and expect that to be **correct**; **earliest sensible add is after 08-12*
 is **end-August** if it is still tradeless.
 
 ---
+
+## 2026-08-11 — Pre-market Research
+
+**NO CHANGES — and the biggest overnight event on the board is the reason it stays a no-change day, not a
+reason to act.** Book is CLEAN & FLAT (broker-confirmed **0 positions**, **0 open orders**, equity
+**$9,085.28** all cash, `last_equity` == `equity` → nothing carried, nothing marked) → **nothing locked**.
+**19 enabled, unchanged**; **service NOT restarted** (nothing to reload). **INTC priced a $20B equity
+offering overnight — verified resolved, therefore kept.** IMP-022's observation window closes tomorrow.
+
+### Market context
+**Flat tape into tomorrow's CPI, after a directionless Monday.** Monday 08-10 closed slightly red across the
+board: **S&P 500 −0.06% to 7,753.11**, **Nasdaq Composite −0.32% to 26,605.36**, **Dow −0.11% to 53,975.98**
+— i.e. Friday's record close (7,758) was not extended. Pre-market this morning is flat-to-marginally-lower:
+**SPY −0.03%, QQQ −0.04%, DIA −0.14%, IWM −0.13%**. Confirmed against the IEX daily tape (authoritative, per
+the 08-10 review's rule): **QQQ 720.80 (−0.29% d1)**, **SPY 773.02 (−0.02%)**.
+- **Rates/Fed:** after the soft payrolls print (**−23k**), September *hike* odds have fallen to **~52%** from
+  ~67% a week ago (CME FedWatch).
+- **⚠️ Only one US release today and it is pre-open and low-impact: NFIB Small Business Optimism (July),
+  6:00am ET. NOTHING lands during market hours.** **July CPI is tomorrow, Wed 08-12, 8:30am ET** (consensus
+  ~+0.2% MoM core, headline ~2.9% YoY), **PPI Thursday**, **retail sales + UMich Friday**.
+- **No enabled symbol reports today.** Today's calendar is **SE, ESLT, ONON, VG, CAH, AMTM, TME, ARMK** —
+  **SE is ours and is already parked** (parked 07-30), exactly as the 08-10 review ordered. **It stays
+  parked; it is not to be re-enabled on this print.** CSCO (Wed AH) and AMAT (Thu AH) are the week's
+  headliners and neither is enabled. WMT's own report remains **Thu 08-20**, outside this week.
+
+### 🚨 INTC — the overnight event, verified, and why it is a KEEP
+- **Fact pattern (verified against Intel's own IR press release, CNBC and Investing.com — not taken from
+  `sonar`, which missed it entirely):** Intel announced a **$15B** common-stock offering Monday morning;
+  the stock closed **−4.06% at $97.52**. **Early this morning Intel upsized and PRICED the deal at $20B —
+  210,526,315 shares at $95.00**, a **2.6% discount** to Monday's close, plus a 30-day greenshoe of
+  31,578,947 shares. Reported demand **>$100B**. **The offering closes 2026-08-12.** Dilution ≈ **4%**.
+- **Verdict: KEEP, and this is the same rule the log has applied all along — park PENDING binaries, keep
+  RESOLVED ones.** As of this morning the deal is priced and sized; the uncertainty (does it happen, how
+  big, at what price) is gone before the open. A >5x oversubscribed book is a demand signal, not a
+  distress signal. INTC is the book's **#1 all-time earner (+$191.26 on 20 trades)** and went **4W/4 for
+  +$99.12** in the last 14 days.
+- **What is genuinely still live, and is recorded rather than acted on:** today is a supply/repricing
+  session in a **7.56% ATR** name that will trade around a $95 print. The two structural defences are
+  already in place and need no watchlist edit — the **IMP-017 10:00 ET entry blackout** keeps the bot out
+  of the repricing open, and the **5-min gate + IMP-022 QQQ gate** will simply not open a long into a
+  supply-driven downtape. **If INTC trades heavy and the bot still gets filled and stopped, that is the
+  08-11 daily review's evidence to weigh, not a pre-market guess.**
+
+### Carried from daily review (08-10 "Notes for pre-market research")
+- **"Book CLEAN & FLAT into 08-11"** — ✔ verified live: `/v2/account` **ACTIVE**, equity **$9,085.28**, cash
+  $9,085.28, BP $36,341.12, `/v2/positions` **0**, `/v2/orders?status=open` **0**. Nothing locked.
+- **"🚨 SE reports Q2 tomorrow (Tue 08-11) — it is parked and must STAY parked."** — ✔ honored, and its
+  report today is independently confirmed on the earnings calendar. **Untouched.**
+- **"⚠️ Wed 08-12 is July CPI *and* the close of IMP-022's window."** — ✔ confirmed (CPI Wed 8:30am ET).
+  No add today; see below.
+- **"✅ ABNB… Keep, emphatically."** — ✔ kept. It is **still the strongest chart on the board** (+22.2% vs
+  20MA, **+22.5% on 5 days**, +3.57% Monday) and delivered the 08-10 session's only excursion to clear the
+  give-back.
+- **"⚠️ AMZN is the name to watch… if it converts one of those near-misses and loses, park it."** — the
+  condition was **not met**: AMZN took **no trade** on 08-10 (4 crossover rejects, 0 fills). **Per the
+  review's own test, no park.** It stays on notice; it was the day's busiest generator (4 candidates).
+- **"MSFT is the notable absence… flag it if it repeats."** — ✔ **it did not repeat as a concern**: MSFT is
+  12 candidates over the last 6 sessions, third-most on the board. One quiet session, now closed out.
+- **"QQQ remains load-bearing twice over — verify `enabled = 1`."** — ✔ asserted `enabled = 1` (it is), and
+  since no write was issued there is no edit that could have disturbed it.
+- **"Use `bot.report --mfe` instead of hand-deriving MFE."** — noted; it is a post-close instrument and the
+  08-10 review's table is <24h old, so nothing was re-derived here.
+
+### Watchlist review
+Account **ACTIVE**, equity **$9,085.28**, **0 open positions = nothing locked.** Service `active` since
+**08-10 21:27:44 UTC**, NRestarts=0. All 19 enabled reviewed against overnight news and 60-day daily bars
+(close vs 20/50-day MA, 5-day change, ATR%, 20-day avg $ volume on the IEX tape):
+- **Trend is broadly intact.** Above the 20MA: **ABNB +22.2%** (the clear leader), **MSFT +17.8%**,
+  **BABA +10.3%**, **AMZN +9.8%**, **AVGO +7.3%**, NFLX +5.9%, NVDA +4.8%, QQQ +2.9%, SPY +2.9%, JPM +2.6%,
+  TSM +2.3%, GOOG +2.2%, INTC +0.9%, WMT +0.7%. Below: MU −2.5%, UNH −2.5%, TSLA −2.7%, **AAPL −4.6%**,
+  **AMD −6.1%**. Versus the 50MA the weak names are **TSLA −12.5%**, **INTC −11.4%**, **MU −11.1%**,
+  **AMD −8.5%**. **Nothing here clears the park bar on trend** — and note the semis' 50MA deficits are the
+  SOX drawdown the weekly already flagged, not name-specific decay.
+- **⚠️ Volatility outliers, kept and noted (unchanged for a third run):** **MU 9.09%**, **AMD 8.06%**,
+  **INTC 7.56%** ATR. Still a **sizing** question for the post-close routine, **not** a watchlist park.
+- **AAPL — downgrade verified, and still not a park.** **Jefferies cut it hold → Underperform, PT
+  $285.56 → $263.66** (~16% below spot), on supply-chain checks that Apple has **cancelled the all-glass
+  iPhone** planned for Sept 2027 over yields; **DZ Bank cut to Hold**. This was the one genuine lead
+  `sonar` produced and **WebSearch confirmed it independently** (AppleInsider / Yahoo / Fortune / Seeking
+  Alpha). **It is a rating change, not a binary event, and Monday already traded it** (AAPL −1.63% to
+  $308.17). AAPL is all-time **+$57.45 (7W/10)** and produced **10 candidates in 6 sessions**. **Keep — on
+  notice**, which is what its row already says. Re-examine if it loses the 50MA (−0.5% away).
+- **NVDA — noted, not actionable.** Reports of a **~$500B financing partnership** (Apollo, Blackstone,
+  BlackRock/GIP, Brookfield, Goldman); closed **−2.88%** Monday with the chip complex. **Earnings confirmed
+  for Wed 2026-08-26 AH — outside this week**, so no park is due. Keep.
+- **Signal-liveness audit (new this run, 6 sessions 08-03 → 08-10, from the strategy journal): every one of
+  the 19 enabled symbols scored at least 3 candidates. Nothing on this board is dead.** Most active:
+  **BABA 19, SPY 17, NFLX 15, TSM 14, AVGO 13, QQQ 13, MSFT 12**. Quietest: **INTC 3, WMT 3, AMD 5, ABNB 6,
+  UNH 6**. **This retires two open questions in the log's favour:** SPY's silence is *not* signal death
+  (17 candidates, 2nd-most on the board — it is converting none, which is a different problem and its
+  review point stays **end-August**), and INTC's low count is a *conversion-rate* artifact, not decay — its
+  3 candidates produced 4 winning trades in the window.
+- **14-day P&L is strongly GREEN: 31 closed trades, net +$236.73** (window 07-28 → 08-11; the 08-10 entry's
+  +$148.82 used a window one day earlier — same trades, different edges). Winners: **INTC +$99.12 (4W/4)**,
+  GOOG +$45.11, AVGO +$29.74, BABA +$29.25, **ABNB +$26.21**, NVDA +$16.72, MU +$13.73, NFLX +$11.27,
+  TSM +$3.28. Losers: **AMZN −$18.49 (0W/1)**, TSLA −$8.07, MSFT −$5.76, SE −$4.80 (**already parked**),
+  AMD −$0.58. **No enabled symbol has a park-worthy record under the current rules.**
+- **Parked stay parked:** BIRD, C, COST, ENPH, QCOM, SE, WPM, XOM. **SE reports today and must not be
+  re-enabled on the print** (its 07-30 park was for liquidity + record, and today's print resolves neither).
+  No fresh re-enable case for any of the other seven; **C's park is one session old** and re-enabling it now
+  would be pure churn.
+- **📌 WMT is named here as the NEXT park candidate, for a decision after 08-12.** It is the weakest name on
+  the combined dead-signal test: **tied-quietest at 3 candidates in 6 sessions**, **0 trades in 18 days**
+  (last 07-24), all-time **−$47.51 on 6 trades**, ATR **2.29%**, **$115M/day** — the same low-volatility,
+  low-conversion profile that got C parked. **It does not meet the C bar yet** (C was parked at **30** days
+  tradeless, not 18). **Complication to handle deliberately, not by drift: WMT reports Thu 08-20**, so an
+  earnings park is due 08-19 regardless. **Decide WMT on its own merits at the 08-13 run** — do not let the
+  earnings park silently become the dead-signal park, because the two have different re-enable conditions.
+- **Adds considered and DECLINED for the fourth consecutive run — the last time this reason will be
+  available.** IMP-022 is at **session 4 of its 5-session window, which closes tomorrow (08-12)**, and the
+  weekly's standing instruction is to protect the measurement; an add injects an unmeasured candidate
+  stream underneath the thing being measured, on the eve of its verdict. The capital argument also holds at
+  **$9.1k equity** (IMP-017: an extra name mostly *displaces* a trade rather than adding one). **From 08-13
+  the freeze expires and the burden flips — the next run should arrive with a screened add candidate or an
+  explicit reason it did not.**
+
+### Changes applied to dbo.watchlist
+**NONE. No UPDATE, no INSERT, no DELETE — the table was read, asserted, and left byte-for-byte alone.**
+This is the intended outcome, not an omission: no enabled symbol carries a pending binary today (INTC's
+resolved at pricing, AAPL's is a rating change already traded), no symbol meets the dead-signal park bar,
+and the one measurement in flight closes tomorrow. Assertions re-run against the live table after the
+review: **19 enabled ≤ 30 ✓**, **QQQ `enabled = 1` ✓**, 8 parked rows all still present (none deleted) ✓.
+
+### Final watchlist
+**19 enabled** (≤30 ✓), unchanged: AAPL ABNB AMD AMZN AVGO BABA GOOG INTC JPM MSFT MU NFLX NVDA QQQ SPY
+TSLA TSM UNH WMT. Parked (8): BIRD C COST ENPH QCOM SE WPM XOM. **Service NOT restarted — correctly, because
+nothing changed** (the watchlist is read only at startup, so a restart would have been a pointless
+interruption). Health verified in place instead: `active`, **NRestarts=0**, up since **08-10 21:27:44 UTC**
+(nightly restart), **warmup primed 19/19** from history, **subscribed to all 19** on the IEX feed, account
+ACTIVE $9,085.45 at boot, **no open positions**, clean banner — entry window 10:00–16:00 ET (IMP-017), QQQ
+market gate (IMP-022), trail 1.25% tightening to 1.00% (IMP-018/IMP-021). 🔒 Locked: none (0 positions).
+**Wed 08-12: July CPI at 8:30am ET *and* IMP-022's verdict day *and* INTC's offering closes** — expect a low
+trade count and expect that to be correct. **From Thu 08-13 the add-freeze expires** (bring a screened
+candidate), **WMT gets its dead-signal decision**, and SPY's review point remains **end-August**.
+
+### Perplexity `sonar` — run 6, thin again, and it missed the day's one real event
+`sonar` returned **"no specific overnight/pre-market catalyst"** for **18 of 20** tickers, **no futures
+direction at all** ("not provided in the search results"), and **no in-session calendar**. It produced one
+genuine lead — the **AAPL Jefferies/DZ Bank downgrades**, which WebSearch then confirmed — and it also gave
+**self-contradictory AAPL pre-market prints** (+0.3% in one feed, −1% in another) in the same answer.
+**Most importantly it said nothing about INTC**, whose **$20B overnight pricing** was the single largest
+event affecting an enabled symbol. **Sixth consecutive weak run; the 08-10 review's rule stands and is
+extended: `sonar` is lead-generation only, never a market-regime source, and its silence on a ticker is
+not evidence of no catalyst.** WebSearch + the IEX daily tape carried this run.
+
+---
