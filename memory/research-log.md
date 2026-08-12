@@ -2632,3 +2632,184 @@ extended: `sonar` is lead-generation only, never a market-regime source, and its
 not evidence of no catalyst.** WebSearch + the IEX daily tape carried this run.
 
 ---
+
+## 2026-08-12 — Pre-market Research
+
+**NO CHANGES — CPI morning and the fifth and final session of IMP-022's measurement window, which is
+exactly the day not to touch the board.** Book is CLEAN & FLAT (broker-confirmed **0 positions**,
+**0 open orders**, equity **$9,085.28** all cash, `last_equity` == `equity`) → **nothing locked**.
+**19 enabled, unchanged**; **service NOT restarted** (nothing to reload). Two on-notice triggers fired
+and are recorded rather than acted on (**AAPL lost its 50MA; GOOG has gone quiet under an antitrust
+slide**), and **the add candidate the 08-11 entry demanded is screened, verified and handed to tomorrow:
+PLTR.**
+
+### Market context
+**Futures firm into the July CPI print, after a red Tuesday.** Pre-market: **S&P 500 futures +0.2%,
+Nasdaq-100 +0.6%, Dow flat**; **SPY $772.33 (+0.23%), QQQ $722.62 (+0.58%)**. Tuesday 08-11 closed lower
+across the board — **S&P 500 −0.32% to 7,728.20**, **Nasdaq Composite −0.60% to 26,445.45**, **Dow −0.34%
+to 53,791.85** — i.e. the second consecutive down day and a further step off Friday's record. Confirmed
+against the IEX daily tape (authoritative, per the 08-10 rule): **QQQ 718.30 (−0.35% d1)**, **SPY 770.52
+(−0.32%)**.
+- **⚠️ July CPI, 8:30am ET — and it lands PRE-OPEN, not in-session.** Consensus **headline +0.1% MoM /
+  3.4% YoY** (from 3.5%), **core +0.2% MoM / 2.5% YoY**. **The risk skew is toward tightening, not
+  easing:** multiple FOMC members have signalled a possible **September hike**, so a hot core print is the
+  gap-and-reverse tape IMP-022 exists to veto. 10-year yield ~**4.7%**.
+- **Nothing market-moving lands DURING market hours.** MBA mortgage applications (pre-open), the
+  **10-year note auction 1:00pm ET** and the **Treasury monthly budget 2:00pm ET** are the only in-session
+  items and neither moves single names.
+- **No enabled symbol reports today.** Today's calendar is **CSCO (AMC), NBIS, CBRS, TRMB, GLBE, PAAS** —
+  **none is enabled**. **AMAT is Thursday**, **WMT's own report remains Thu 08-20**, **NVDA Wed 08-26**.
+  Both are outside this week; no earnings park is due today.
+- **Pre-market movers are all outside the book** (WXM +175%, PLAG +105%, SCKT −38%, ONON −16.5% on its
+  miss). **The one book-relevant line: INTC is the most active ticker pre-market at ≈$847M dollar volume**
+  — its $20B offering **closes today**, exactly as the 08-11 entry recorded.
+
+### Carried from daily review (08-11 "Notes for pre-market research")
+- **"Book CLEAN & FLAT into 08-12"** — ✔ verified live: `/v2/account` **ACTIVE**, equity **$9,085.28**,
+  cash $9,085.28, BP $36,341.12, `/v2/positions` **0**, `/v2/orders?status=open` **0**. Nothing locked.
+- **"🚨 Wed 08-12 is a triple event: CPI, IMP-022's verdict day, INTC's offering closes."** — ✔ all three
+  confirmed. **Expect a low trade count and expect that to be correct**; that expectation is why this is a
+  no-change day and not a hedging day.
+- **"✅ ABNB… Keep, emphatically."** — ✔ kept, and it is **still the strongest chart on the board**
+  (**+20.9% vs 20MA, +27.1% vs 50MA, +23.3% on 5 days**), 11 candidates in the 7-day journal.
+- **"⚠️ JPM produced 5 candidates, 4 died on the crossover floor — positive liveness, flag if near-misses
+  accumulate without conversion."** — they **did** accumulate: JPM is **11 candidates in 5 sessions, third-
+  most on the board, and still 0 trades since 07-27**. Recorded for the post-close routine, which owns
+  `MIN_CROSSOVER` — **it is not a watchlist problem** and JPM is not a park candidate on a liveness high.
+- **"MSFT is quiet two sessions running… re-check 08-12/08-13."** — ✔ **re-checked and the concern is
+  retired**: MSFT is **10 candidates over the 5 journal sessions, 7th-most of 19**, and +15.7% vs 20MA /
+  +23.0% vs 50MA. Two quiet sessions on a down tape, not decay.
+- **"AMZN stays on notice; park only if it converts a near-miss and loses."** — condition **still not met**
+  (7 candidates in the window, no new trade since 08-03). No park. Stays on notice.
+- **"WMT's dead-signal decision is scheduled for the 08-13 run."** — ✔ **not advanced today, deliberately**;
+  see below.
+- **"QQQ remains load-bearing twice over — verify `enabled = 1`."** — ✔ asserted `enabled = 1`; no write was
+  issued today, so nothing could have disturbed it.
+- **"From 08-13 the add-freeze expires — arrive with a screened candidate."** — ✔ **done, one day early**:
+  PLTR screened and verified below, ready for tomorrow.
+- **"IMP-026: journald is UTC from tonight's restart."** — ✔ **acceptance test PASSES.** Startup lines read
+  `2026-08-11 21:23:51,776 UTC INFO …` and the prefix matches `ActiveEnterTimestamp=21:23:50 UTC`. Today's
+  post-close review can pair `no entry` lines to candles without shifting anything by hand — which matters,
+  because **IMP-022's verdict is read off this instrument tonight**.
+
+### Watchlist review
+Account **ACTIVE**, equity **$9,085.28**, **0 open positions = nothing locked.** Service `active` since
+**08-11 21:23:50 UTC**, **NRestarts=0**, warmup primed **19/19**, subscribed to all 19 on the IEX feed,
+banner confirms the deployed process runs the QQQ market gate + the two-stage trail. All 19 enabled reviewed
+against overnight news and 100-day daily bars (close vs 20/50-day MA, 5-day change, ATR%, 20-day avg $
+volume on the IEX tape):
+- **Trend has thinned but not broken.** Above the 20MA: **ABNB +20.9%** (the clear leader), **MSFT +15.7%**,
+  **AMZN +7.0%**, **BABA +5.9%**, AVGO +5.3%, NVDA +4.6%, NFLX +3.7%, TSM +3.1%, JPM +3.0%, QQQ +2.5%,
+  SPY +2.4%, INTC +1.6%, WMT +1.3%. Below: **MU −1.2%, TSLA −1.2%, GOOG −1.3%, UNH −3.7%, AMD −4.6%,
+  AAPL −5.4%**. Versus the 50MA the weak names are **TSLA −11.5%, INTC −11.1%, MU −10.2%, AMD −7.5%** —
+  the SOX drawdown the weekly flagged, not name-specific decay. **Nothing clears the park bar on trend.**
+- **⚠️ Volatility outliers, kept and noted (fourth consecutive run):** **MU 8.91%**, **AMD 7.66%**,
+  **INTC 7.39%** ATR. Still a **sizing** question for the post-close routine, **not** a watchlist park.
+- **🔔 AAPL — the 08-11 trigger FIRED, and the answer is still keep-on-notice.** Yesterday's entry set the
+  test "re-examine if it loses the 50MA (−0.5% away)". **It lost it: AAPL closed $304.88, −1.4% vs the 50MA
+  and −5.4% vs the 20MA** (−1.07% Tuesday, −1.35% on 5 days), the follow-through from Monday's Jefferies
+  cut to Underperform. **Re-examined, and it does not park:** it is the book's **third-best name all-time
+  (+$57.45, 7W/10)**, **$638M/day** the second-most liquid single name on the board, ATR **3.10%** —
+  textbook ribbon material — and **6 candidates in 5 sessions** says the signal is alive. A name trading
+  under its MAs is precisely what the **5-min gate + IMP-022** decline to buy; the defence is structural and
+  needs no watchlist edit. **New, tighter test recorded so this cannot drift: park AAPL if it is still below
+  the 50MA on 08-19 AND has taken no trade by then** (last entry 07-27).
+- **🔔 GOOG — new and the more serious of the two, formally ON NOTICE.** It is the **worst 5-day performer
+  on the board (−8.61%)**, fell **−3.62% Tuesday**, and has now lost **both** MAs (−1.3% vs 20MA, −2.9% vs
+  50MA) after being **+2.2% above the 20MA yesterday**. **Cause verified by WebSearch (gurufocus /
+  tradingkey / SEC 8-K), not taken from `sonar`, which was silent on it:** federal enforcers' appellate
+  filings seeking to overturn the search-remedy ruling (targeting the Apple/Mozilla default payments), a
+  French publishers' complaint over AI Overviews, a **$25B senior-notes offering closed 08-10** on top of a
+  $40B ATM programme against **~$205B 2026 capex**, and the departures of chief scientist Jeff Dean and
+  DeepMind's Demis Hassabis. **This is a drift, not a binary — there is nothing scheduled today — so the
+  park rule the log has always applied (park PENDING binaries, keep RESOLVED ones) does not fire.** But
+  the second leg is what makes it notable: **GOOG is the ONLY enabled symbol with ZERO candidates in the
+  5-session journal window**, and it has taken **no trade since 07-31**. **Test recorded: if GOOG is still
+  below both MAs with 0 candidates at the 08-17 run, it parks** — it would then be 12 sessions silent with
+  a broken chart, which is the C/WMT profile.
+- **INTC — the offering closes today, and it stays a KEEP for the same reason it did yesterday.** The deal
+  is priced and sized (**210,526,315 shares at $95.00**, ~4% dilution); today is settlement, not a new
+  binary. It is the most-active ticker pre-market (~$847M), which is a liquidity fact, not a distress one.
+  Book's **#1 all-time earner (+$191.26 on 20 trades)** and **4W/4 for +$99.12** in the 14-day window. The
+  IMP-017 10:00 ET blackout keeps the bot out of the repricing open.
+- **Signal-liveness audit, refreshed (5 sessions 08-05 → 08-11, from journald):** most active **NFLX 12,
+  TSM 12, JPM 11, ABNB 11, BABA 11, AVGO 10, MSFT 10**; quietest **WMT 2, INTC 3, QQQ 3, TSLA 4, MU 4**;
+  **GOOG 0**. Refusal split across the window: **65 confidence/other, 58 crossover floor, 12 market gate** —
+  consistent with the 08-11 review's finding that **the crossover floor, not the market gate, is the largest
+  unmeasured filter**. That is a post-close question and is flagged there, not here.
+- **14-day P&L stays GREEN: 31 closed trades, 19W (61%), net +$236.73** (window unchanged from 08-11 — no
+  trades on 08-11, so these are the same 31 trades, deliberately not re-derived). Winners **INTC +$99.12
+  (4W/4)**, GOOG +$45.11, AVGO +$29.74, BABA +$29.25, ABNB +$26.21, NVDA +$16.72, MU +$13.73, NFLX +$11.27,
+  TSM +$3.28. Losers AMD −$0.58, SE −$4.80 (**already parked**), MSFT −$5.76, TSLA −$8.07, AMZN −$18.49.
+  **No enabled symbol has a park-worthy record under the current rules.**
+- **📌 WMT — decision deliberately NOT taken today, and this is a choice not an oversight.** It is the
+  quietest name on the board (**2 candidates in 5 sessions**), **0 trades in 19 days** (last 07-24),
+  all-time **−$47.51 on 6 trades**, ATR **2.24%**, **$114M/day**. The 08-11 entry scheduled this for the
+  **08-13 run** and there is no new information today that advances it — taking it a day early on a CPI
+  morning would be churn dressed as decisiveness. **Its earnings park is separately due 08-19; the two have
+  different re-enable conditions and must not be merged.**
+- **Parked stay parked:** BIRD, C, COST, ENPH, QCOM, SE, WPM, XOM. Checked for re-enable cases and there is
+  none: **SE** reported yesterday but its park was for liquidity + a 1W/5 −$53.42 record, neither of which a
+  print resolves; **C** (parked 08-10) is +2.4% vs 20MA but two sessions into a 30-day-tradeless park and
+  re-enabling it now would be pure churn; **QCOM −13.6% vs 50MA** and **COST flat at −0.0%/−0.5% with ATR
+  1.90%** both still fail the trending-and-active test on their own numbers.
+
+### Add candidate — screened, verified, and handed to the 08-13 run
+**No add today.** The reason is specific and expires tonight: **today is session 5 of 5 of IMP-022's
+measurement window**, the weekly's standing instruction is to protect that measurement, and injecting an
+unmeasured candidate stream on the final session — of the best-validated change this bot has — to save one
+day is a bad trade. **The 08-11 entry's burden ("arrive with a screened candidate or an explicit reason")
+is met by screening it today so tomorrow can simply act:**
+- **PLTR — the lead candidate. Verified on Alpaca: `tradable: true`, `status: active`, NASDAQ, us_equity.**
+  **Strongest trend on any screened name: +25.5% vs 20MA, +30.9% vs 50MA, +7.58% on 5 days.** Liquidity
+  **$204M/day on the IEX tape** — ahead of every current non-mega-cap on the board (BABA $44M, ABNB $33M)
+  and comparable to AVGO $218M / NFLX $216M. **ATR 5.30%** — high, but below the three outliers already
+  carried (MU 8.91 / AMD 7.66 / INTC 7.39), so it adds no new class of risk. **Earnings binary RESOLVED and
+  far away: reported Q2 08-03 AMC (EPS $0.41 vs $0.34, rev $1.94B vs $1.81B, +93% YoY, FY guide raised to
+  ~$8.15B, +11% AH); next report 2026-11-02** — a full quarter of clear runway, which no other candidate
+  matches.
+- **Alternates, all verified `tradable: true` / `status: active`:** **ANET** (+10.8%/+15.0%, +3.32% Tue,
+  $80M/day, ATR 5.54%), **UBER** (+9.6%/+9.0%, **+9.10% on 5 days**, $87M/day, ATR 3.54%), **CRM**
+  (+10.0%/+14.4%, $83M/day, ATR 4.42%), **LLY** ($136M/day but +3.1%/+4.4% only).
+- **Rejected on their numbers:** META (−1.1% vs 20MA, no trend), ORCL (+10.8% vs 20MA but **−7.6% vs 50MA**,
+  −3.69% Tue — conflicting timeframes), GS (−1.9%/−2.0%), COIN (−5.8%/−6.7%), MRVL (**−11.9% vs 50MA**),
+  SMH/XLK/IWM (index overlap with QQQ/SPY, and **SMH would deepen an already semi-heavy book**).
+- **Sizing caveat to carry into the add:** at **$9.1k equity** an extra name mostly *displaces* a trade
+  rather than adding one (IMP-017), so **PLTR at $174.94 is a better fit than a $400+ name** — whole-share
+  quantisation still flattens the confidence→size curve on expensive tickers (the weekly's open MU/AVGO
+  item).
+
+### Changes applied to dbo.watchlist
+**NONE. No UPDATE, no INSERT, no DELETE — the table was read, asserted, and left byte-for-byte alone.**
+This is the intended outcome: no enabled symbol carries a pending binary today (INTC's resolved at pricing,
+AAPL's and GOOG's are drifts and ratings, not events), no symbol meets the dead-signal park bar, the two
+scheduled decisions (WMT 08-13, GOOG 08-17) are not due, and the one measurement in flight closes tonight.
+Assertions re-run against the live table after the review: **19 enabled ≤ 30 ✓**, **QQQ `enabled = 1` ✓**,
+8 parked rows all still present (none deleted) ✓.
+
+### Final watchlist
+**19 enabled** (≤30 ✓), unchanged: AAPL ABNB AMD AMZN AVGO BABA GOOG INTC JPM MSFT MU NFLX NVDA QQQ SPY
+TSLA TSM UNH WMT. Parked (8): BIRD C COST ENPH QCOM SE WPM XOM. **Service NOT restarted — correctly,
+because nothing changed** (the watchlist is read only at startup, so a restart would have been a pointless
+interruption). Health verified in place instead: `active`, **NRestarts=0**, up since **08-11 21:23:50 UTC**,
+**warmup primed 19/19**, subscribed to all 19, account ACTIVE $9,085.28 at boot, no open positions, banner
+clean — entry window 10:00–16:00 ET (IMP-017), QQQ market gate (IMP-022), trail 1.25% tightening to 1.00%
+(IMP-018/IMP-021), **and log lines now stamped `UTC` (IMP-026 verified live)**. 🔒 Locked: none (0
+positions). **Tonight the post-close routine owns IMP-022's 5-session verdict** — it is 3 for 3 on live
+counterfactuals and the instrument it is read from is now correct. **Tomorrow 08-13: the add-freeze expires
+(PLTR is screened and ready), WMT gets its dead-signal decision.** Then **WMT earnings park 08-19**,
+**GOOG re-examination 08-17**, **AAPL re-examination 08-19**, and SPY's review point stays **end-August**.
+
+### Perplexity `sonar` — run 7, thin again, and wrong on the one number it volunteered
+`sonar` returned **"no specific overnight/pre-market catalyst"** for **17 of 19** tickers — including
+**GOOG, whose −8.6% five-day antitrust-driven slide was the largest single-name development on the board**,
+and **INTC on the day its $20B offering closes**. It called futures **"mixed"** with "no clear directional
+move", which the tape contradicts (**ES +0.2%, NQ +0.6%, QQQ +0.58%**), and its only ticker-level lead was
+the **stale** AAPL Jefferies downgrade already logged on 08-11. It also mislabelled the CPI release as
+**"12:30 ET"** — that is 12:30 **UTC** / 8:30am ET, and a run that took it at face value would have booked
+an in-session macro shock that does not exist. It did correctly identify CPI as the day's dominant catalyst,
+which is the whole of its value today. **Seventh consecutive weak run. The standing rule holds and hardens:
+`sonar` is lead-generation only, never a market-regime source, never a clock, and its silence on a ticker is
+not evidence of no catalyst.** WebSearch + the IEX daily tape carried this run.
+
+---
