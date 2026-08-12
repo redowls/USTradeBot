@@ -1639,3 +1639,61 @@ would have failed it.
   whole acceptance test, checkable in one glance; (b) tomorrow's review should be able to correlate
   `no entry` lines to candles **without shifting anything by hand**; (c) if any line still shows a 7-hour
   offset, `setup_logging` is being bypassed on some path and that path needs finding.
+
+---
+
+## IMP-027 — 2026-08-12 (daily) — an exit may never be attributed to a sell that filled before its entry
+
+**Trigger.** The 08-12 MU trade. The bot logged its exit as
+`reconcile_exit MU: broker-side fill @ 872.25 (order 5434412a…)`. That order is the **2026-08-10** MU
+stop leg — a different trade, two sessions old. The real exit (`c94f6f32`, stop 925.74) filled
+**@926.31 at 18:25:38.99Z**; `reconcile_exit` ran at **18:25:40.07Z**, 1.09 s later.
+
+**Root cause.** `reconcile_exit` confirmed the position was gone and then took *the newest filled sell
+in the closed-order listing* on faith. Alpaca's closed-order listing is **eventually consistent**: a
+fill from ~1 s ago need not be in it yet. Today it wasn't, so the scan fell straight through to the
+previous trade's exit and returned a price from two sessions earlier. Confirming *"the position is
+flat"* proves an exit happened; it does **not** prove the order you found is that exit. Verified after
+the close by re-issuing the identical query — it now returns `c94f6f32` @926.31 first. The data was
+always right; the read was 1 second early.
+
+**Impact.** A **+$4.46 win recorded as a −$103.66 loss** — a $108 error, 1.2% of equity, wrong-signed,
+on the only trade of the day. It would have landed in `dbo.trades`, the confidence-bucket table (80–89),
+the MFE study and every downstream IMP judgement. (It did not, only because a *separate* defect — the
+entry INSERT hitting a dead socket — meant there was no row to write the exit onto. Two bugs cancelling
+is not a safety net.)
+
+This is the **residual half of IMP-015**, which fixed the *entry-not-yet-filled* end of exactly this
+failure (2026-07-20 NVDA: +$41 booked on a −$58 stop-out) and left the *exit-not-yet-listed* end open.
+Third occurrence of the class (07-10 SE, 07-20 NVDA, 08-12 MU). IMP-015 answered it with a timing
+guard; this answers it with an invariant, which is why it should be the last one.
+
+**Change.** `bot/executor.py`, `bot/risk.py`:
+- New `OrderExecutor.entry_filled_at(order_id)` — reads the entry buy's `filled_at` (single read, no
+  poll; by exit time the entry is definitively filled, and the candle thread must not stall).
+- `reconcile_exit(symbol, *, after=None)` skips any candidate whose `filled_at` is missing or precedes
+  `after`. **An exit cannot fill before its own entry** — so a prior trade's sell is now structurally
+  unmatchable, independent of listing lag, sort order or clock skew.
+- `RiskManager._entry_filled_at()` supplies the anchor on **both** paths that reach reconcile
+  (`exit_position`'s close-failed fallback and the poll-driven `reconcile_if_closed`).
+
+**Degrades safely, deliberately.** No qualifying candidate → `None` → the caller leaves the symbol
+`MANAGING` and retries next candle; today that retry reads 926.31 correctly at 18:26. A candidate with
+an unreadable fill time is skipped while anchored — an unverifiable price is precisely what this must
+never book. `after=None` (a startup-reconciled holding, whose entry the bot never saw) leaves behaviour
+unchanged rather than blocking a legitimate exit.
+
+**Validation.** **359 tests pass** (was 352; +7). Six new tests in `test_executor.py` are built from
+today's real timestamps to the microsecond — the 08-10 stale sell @872.25 and today's @926.31 — plus two
+in `test_risk.py` asserting *both* reconcile paths pass the anchor (an unanchored call is the bug).
+**Non-vacuity checked:** with the guard neutralised, `test_reconcile_exit_rejects_sell_that_predates_
+the_entry` fails; restored, it passes. Preflight OK (Alpaca ACTIVE, equity $9,089.74, SQL Server
+connected, Telegram delivered). `bot/replay.py`'s simulated broker mirrors the new surface, so replay
+stays signature-compatible with live.
+
+**Risk / no-go check.** Read-only order-history logic. No position size, loss limit, kill switch or
+risk check touched. No entry or exit *decision* changed — the trail, the stop, the gate and the signal
+all behave identically. This changes only which order the bot is willing to call its exit, and it can
+only ever refuse, never invent.
+
+**Commit.** `b810188` — deployed and restarted 2026-08-12.

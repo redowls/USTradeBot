@@ -3901,3 +3901,137 @@ signal still has no demonstrated standalone edge — the gate is doing the work,
 - **Reading journald from tomorrow on: timestamps are UTC and carry an explicit `UTC` marker** (IMP-026).
   Lines written *before* tonight's restart are WIB (UTC+7) — subtract 7 hours when reading back over
   08-02 → 08-11.
+
+---
+
+## 2026-08-12 — Daily Review
+
+### Stats
+- **The DB says 0 trades. The DB is wrong.** The broker took **1 trade today: MU, and it WON.**
+  Entry **924.08 × 2 sh** @ 14:08:01.58Z, exit **926.31 × 2** @ 18:25:38.99Z → **+$4.46 (+0.241%)**.
+  Confirmed three ways: the filled orders, and equity **$9,085.28 → $9,089.74 = +$4.46 to the cent**
+  (`last_equity` vs `equity`). Flat at the close: **0 positions, 0 open orders**, all cash.
+- `dbo.trades` has **zero rows** dated today and `bot.report --days 1` reports "0 closed trades".
+  **This is a reporting failure, not a quiet day** — see the two defects below.
+- Trailing context (DB, therefore now understated by one winner): 14-day **27 trades, 63% win,
+  +$233.83**; 30-day **84 trades, 43% win, −$169.67**.
+- Service `active`, **NRestarts=0**, up since 08-11 21:23:50 UTC. 9,369 journald lines, **1 ERROR**.
+
+### Trade-by-trade review
+
+**MU — model A, conf 80.5 (xo 0.66 / trend 1.00 / rsi 1.00 / vol 0.67 / vlt 0.71) — +$4.46 WIN**
+
+| | |
+|---|---|
+| entry | 14:08:01.58Z @ **924.08** (signal 924.36), qty 2, notional $1,848.72 |
+| initial stop / target | 905.87 (−2.0%) / 1,016.80 (+10%) |
+| MFE | **+1.26%** (high **935.73** @ 17:50) · MAE ≈ −1.0% (low 914.84 @ 14:20) |
+| exit | 18:25:38.99Z @ **926.31** — trailing stop, filled 0.06% *above* its 925.74 trigger |
+| vs. holding | MU closed **911.30**; the EOD flatten would have booked ≈ **−$10**. The trail saved ≈$14 |
+
+**Root cause of the win: IMP-021's two-stage trail, doing exactly what it was specified to do.**
+This is the first *clean, qualifying* live demonstration (n=2 overall). MU crossed +1.0% at 17:45
+(933.32 threshold; hit 933.49 then 935.73), which armed the tightened 1.0% give-back; the trail then
+ratcheted 905.87 → 925.74 across **18 stop replaces**, all successful, no 422s. Price rolled over from
+935.73 and the tightened stop cut it at 926.31 — **above the entry**. Under the old single-stage 1.25%
+trail the stop would have sat ≈924.03, i.e. **at the entry**, and this is a scratch instead of a win.
+Under EOD-flatten-only it is a −$10 loser. Small win, but the exit structure earned every cent of it.
+
+**Regime check.** Perplexity `sonar`: S&P 500 **−0.32% to 7,728.20**, Nasdaq **−0.60% to 26,445.45**,
+"choppy-to-risk-off", rotation out of large-cap tech, **no ticker-specific catalyst for MU, NVDA, INTC,
+TSM or AVGO**. So MU was not a news move — it was a genuine intraday trend leg into a fading tape, and
+the bot exited into strength before the −1.6% afternoon slide. Taking one trade on this tape was right.
+Eighth consecutive thin `sonar` run — regime read only, as standing rule.
+
+**The 31 refusals.** Crossover floor **13**, confidence < 60 **17**, market gate **1** (INTC @ 16:38,
+conf 66.8, QQQ 5m ribbon not bullish). Ratio consistent with 08-11. The crossover floor is again the
+busiest filter and again unpriced — four refusals carried conf 69–74 (TSM 73.6, INTC 73.5, WMT 71.1,
+NVDA 72.9) and INTC missed by **0.01** at 17:20.
+
+### 🔴 Two defects, both found only because the broker was reconciled against the DB
+
+**1. `reconcile_exit` booked a two-day-old fill as today's exit (fixed tonight — IMP-027).**
+At 18:25:40.07Z the bot logged `reconcile_exit MU: broker-side fill @ 872.25 (order 5434412a…)`.
+Order `5434412a` is the **2026-08-10** MU stop, filled @872.25 — a *different trade, two sessions old*.
+Today's real exit (`c94f6f32` @ **926.31**) had filled **1.09 seconds earlier** and was not yet in the
+broker's closed-order listing, which is eventually consistent. `reconcile_exit` took "the newest filled
+sell" on faith, found nothing from today, and fell through to the previous trade's exit.
+**Impact: a +$4.46 win would have been recorded as a −$103.66 loss — a $108 error, 1.2% of equity, on
+the only trade of the day, in the wrong direction.** It also feeds the confidence table (the 80–89
+bucket), the MFE study, and every IMP decision downstream. Verified by re-querying the same endpoint
+after the close: it now returns `c94f6f32` @926.31 first — the data was right, the *read* was early.
+This is the residual half of **IMP-015**, which guarded the *entry-not-yet-filled* end of the same
+failure and left the *exit-not-yet-listed* end open. Third time this class has bitten (2026-07-20 NVDA,
+2026-07-10 SE, today).
+
+**2. The entry never persisted, so the trade is invisible to the DB (NOT fixed — one change per run).**
+`14:08:01,840 ERROR ustradebot.persistence | failed to persist entry for MU` →
+`pyodbc.OperationalError ('08S01', 'TCP Provider: Error code 0x20 (32)')`. The connection had gone
+stale between sessions and the INSERT hit a dead socket. `record_entry` catches, logs, returns `None`
+— and **does not retry**. The exit then had no `trade_id` to attach to (`DB exit MU trade_id=None`), so
+*both* legs were lost. IMP-019 added `_reset()`-on-error, which makes the *next* write reconnect, but
+nothing re-drives the failed one. A single retry after `_reset()` would have saved this row: the
+connection was healthy 12 seconds later (every subsequent DB call today succeeded).
+**Queued as tomorrow's top candidate — recorded in `todo.md`.**
+
+### What worked / what didn't
+- **Worked: the trade itself, and the exit structure specifically.** Entry on a real crossover
+  (xo 0.66 — the strongest signal component in weeks), trend and RSI both maxed, and the exit converted
+  a +1.26% excursion into a realised gain instead of the round-trip that IMP-025 says kills 59 of 86
+  trades. **This is the first live trade where the trail beat both alternatives on the same tape.**
+- **Worked: the market gate stayed quiet and correct.** One block on a −0.60% Nasdaq day. IMP-022's
+  5-session window closes today with the gate never having produced a wrong-signed session.
+- **Didn't work: the recording layer, twice over, in the same trade.** Two independent defects on one
+  trade is not coincidence — it is that *every* write path today ran without a verification step. The
+  bot's P&L truth has been the broker all along; the DB is a derived copy that nothing was checking.
+  **Today's real lesson is that the evidence base this bot improves from is not self-validating.**
+- **Uncomfortable but honest:** had I read only `bot.report --days 1` and the DB, I would have written
+  "no trades today, blank session, no change warranted" — and been wrong about the day, the trade, and
+  the health of the system. The broker reconciliation step in this routine is what caught it.
+
+### Lessons & improvement candidates
+1. **(Shipped tonight — IMP-027)** An exit may never be attributed to a sell that filled *before* its
+   own entry. Hard invariant, not another timing heuristic — it kills the whole class regardless of
+   listing lag, and it degrades safely (no candidate → `None` → symbol stays MANAGING → next candle
+   retries, which today would have read 926.31 correctly at 18:26).
+2. **Retry `record_entry` once after `_reset()`** — highest-impact remaining, and today it cost a
+   whole trade. In `todo.md`.
+3. **Add a post-close DB⇄broker reconciliation assert.** Both of today's defects were invisible to
+   every automated surface and surfaced only because this routine queried Alpaca by hand. A check that
+   compares the day's broker fills against `dbo.trades` and alerts on a mismatch would have paged at
+   18:26 instead of being found at 21:15. Strong candidate for the weekly.
+4. **Price the crossover floor.** Carried unchanged from 08-11 and now overdue: 13 refusals today, four
+   at conf 69–74, one missing by 0.01. `MIN_CROSSOVER=0.25` is still the largest never-A/B'd filter in
+   the system, and the IMP-022 entry freeze expires with today's session.
+5. Unchanged and open: sizing ladder inverted above conf ~80; the 90–100 band is 0% win on 3 trades,
+   −$144.42; `STOP_LOSS` structurally unreachable behind the trail.
+
+### Notes for pre-market research
+- **📌 Correct today's number when you read it: the DB will tell you 08-12 was a blank day. It was
+  not — MU, +$4.46, and it is missing from `dbo.trades` because the entry INSERT hit a dead socket.**
+  Equity **$9,089.74** is the truth. Do not diagnose "signal death" from the empty table.
+- **Book is CLEAN & FLAT into 08-13** — broker-confirmed **0 positions, 0 open orders**, equity
+  **$9,089.74**, all cash. Nothing locked, nothing carried.
+- **✅ MU is the standout and should stay emphatically.** Only name to convert today, did it on the
+  day's strongest crossover (0.66) with trend and RSI maxed, and it is the bot's best generator this
+  week. Note it is also the **highest-ATR name on the board (8.91%)** — that is why it produced a
+  +1.26% excursion on a −0.6% Nasdaq day. The volatility is the edge here, not a defect; keep the
+  sizing question separate from the keep/park question.
+- **⚠️ INTC: 6 candidates, 0 conversions — the most active refused name today**, including a
+  **0.01 miss** on the crossover floor at 17:20 (conf 62.4) and the day's single market-gate block
+  (16:38, conf 66.8). Its $20B offering closed today, so the overhang is now resolved. Positive
+  liveness, not a park signal — but it is the name most sensitive to the `MIN_CROSSOVER` decision the
+  post-close routine owns. Flag it again if it repeats without conversion.
+- **NVDA 5 candidates / 0 conversions, TSM 3, JPM 4, WMT 3, SPY 3, AVGO 3, QQQ 2, UNH 2, AMZN 0.**
+  **AMZN is now three sessions with no candidate at all** — its 08-10 park test ("converts a near-miss
+  and loses") is still **not met**, so still no park, but the silence itself is now worth a look.
+- **Never signalled today (0 candidates): AAPL, ABNB, BABA, GOOG, MSFT, NFLX, TSLA.** **ABNB going
+  silent is a genuine break** — it was the most productive generator for four straight sessions and
+  led yesterday's board with 5. One session, on a risk-off tape, after a +20.9%-vs-20MA run: do not
+  act, but this is the first thing to check tomorrow.
+- **WMT's dead-signal decision is due at the 08-13 run** (3 candidates today, still 0 trades since
+  07-24). Its earnings park is a separate decision due **08-20** — do not merge them.
+- **PLTR was screened and handed over by the 08-12 pre-market entry** and the add-freeze expired
+  today — the add decision is live tomorrow.
+- **QQQ remains load-bearing twice over** (IMP-022 gate + IMP-023 replay universe) — verify
+  `enabled = 1` before and after any watchlist edit. Parking it makes the gate fail **open**, silently.
