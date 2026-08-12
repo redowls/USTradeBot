@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -313,7 +313,9 @@ class RiskManager:
             # the symbol, rather than leaving a phantom-open position (the 2026-06-17
             # bug). A genuine close failure (transient/outage) reconciles to None → the
             # caller keeps the symbol MANAGING and retries on the next candle.
-            reconciled = self._executor.reconcile_exit(symbol)
+            reconciled = self._executor.reconcile_exit(
+                symbol, after=self._entry_filled_at(entry)
+            )
             if reconciled is None:
                 return None
             order_id, exit_price = reconciled
@@ -363,13 +365,27 @@ class RiskManager:
         entry_oid = getattr(entry, "order_id", "") if entry is not None else ""
         if entry_oid and self._executor.entry_fill_price(entry_oid) is None:
             return None  # entry not filled yet → position not open → don't book an exit
-        reconciled = self._executor.reconcile_exit(symbol)
+        reconciled = self._executor.reconcile_exit(
+            symbol, after=self._entry_filled_at(entry)
+        )
         if reconciled is None:
             return None
         order_id, exit_price = reconciled
         return self._record_exit(
             symbol, exit_price, "stop/target filled broker-side", entry, order_id
         )
+
+    def _entry_filled_at(self, entry: ExecutionResult | None) -> datetime | None:
+        """When this trade's entry buy filled — the recency anchor both reconcile paths
+        hand to :meth:`OrderExecutor.reconcile_exit` so a *previous* trade's sell can
+        never be booked as this one's exit (IMP-027; see that method for the MU case).
+
+        ``None`` when there is no entry order to anchor on (a startup-reconciled holding)
+        or the timestamp can't be read — the guard then stands down rather than blocking
+        a legitimate exit.
+        """
+        entry_oid = getattr(entry, "order_id", "") if entry is not None else ""
+        return self._executor.entry_filled_at(entry_oid) if entry_oid else None
 
     def _record_exit(
         self,

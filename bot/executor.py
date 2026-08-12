@@ -23,6 +23,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderClass, OrderSide, QueryOrderStatus, TimeInForce
@@ -535,7 +536,29 @@ class OrderExecutor:
         price = getattr(order, "filled_avg_price", None)
         return float(price) if price else None
 
-    def reconcile_exit(self, symbol: str) -> tuple[str, float] | None:
+    def entry_filled_at(self, order_id: str) -> datetime | None:
+        """Return when a bracket entry's parent buy actually filled, or ``None``.
+
+        This is the timestamp :meth:`reconcile_exit` anchors its recency guard on: an
+        exit cannot have filled *before* its own entry, so any sell order older than this
+        belongs to a previous trade. Single read (no poll) — by the time an exit is being
+        reconciled the entry is definitively filled, so there is nothing to wait for, and
+        the candle thread must not stall. ``None`` on an empty id, an unfilled order, or
+        any read error, which the caller treats as "cannot verify" (see
+        :meth:`reconcile_exit`). Timestamp-side sibling of :meth:`entry_fill_price`.
+        """
+        if not order_id:
+            return None
+        try:
+            order = self._client_or_build().get_order_by_id(order_id)
+        except Exception:
+            log.exception("could not read fill time for entry order %s", order_id)
+            return None
+        return getattr(order, "filled_at", None)
+
+    def reconcile_exit(
+        self, symbol: str, *, after: datetime | None = None
+    ) -> tuple[str, float] | None:
         """Recover an exit the bot didn't drive: a broker-side stop/target fill.
 
         The trailing stop lives broker-side; when it fills, the position vanishes and
@@ -548,6 +571,22 @@ class OrderExecutor:
         transient read error (the position may still be open) returns ``None`` so a
         flaky call is never mistaken for a fill — abandoning a live position. Returns
         ``None`` when a position remains or no filled exit can be found.
+
+        ``after`` (2026-08-12 MU, IMP-027) is the entry's fill time, and no sell order
+        that filled before it may be attributed to this trade. Confirming the position is
+        gone is *not* enough to trust the newest filled sell: the broker's closed-order
+        listing is **eventually consistent**, so a fill that happened seconds ago may not
+        be in it yet, and the scan then falls through to the previous trade's exit — days
+        old — and books its price as today's. That is what happened to MU: the stop filled
+        @926.31 at 18:25:38.99Z, this ran at 18:25:40.07Z, and it returned the **2026-08-10**
+        MU stop @872.25, turning a +$4.46 win into a −$103.66 loss in the record. IMP-015
+        patched the same class of bug at the *entry-not-yet-filled* end; this closes the
+        residual half, and does it as a hard invariant rather than another timing guard.
+        When ``after`` is ``None`` (a startup-reconciled holding, whose entry the bot never
+        saw) the filter is skipped and behaviour is unchanged. A candidate whose fill time
+        cannot be read is skipped while ``after`` is set: an unverifiable price is exactly
+        what this must never book. Returning ``None`` simply leaves the symbol ``MANAGING``
+        so the next candle retries — by then the listing has caught up.
         """
         client = self._client_or_build()
         try:
@@ -569,10 +608,20 @@ class OrderExecutor:
             return None
         for order in orders or []:  # Alpaca returns most-recent first
             price = getattr(order, "filled_avg_price", None)
-            if price:
-                oid = str(getattr(order, "id", "") or "")
-                log.info(
-                    "reconcile_exit %s: broker-side fill @ %s (order %s)", symbol, price, oid
-                )
-                return oid, float(price)
+            if not price:
+                continue
+            oid = str(getattr(order, "id", "") or "")
+            if after is not None:
+                filled_at = getattr(order, "filled_at", None)
+                if filled_at is None or filled_at < after:
+                    log.info(
+                        "reconcile_exit %s: ignoring sell %s filled %s @ %s — predates this "
+                        "trade's entry (%s); listing not caught up yet, retry next candle",
+                        symbol, oid, filled_at, price, after,
+                    )
+                    continue
+            log.info(
+                "reconcile_exit %s: broker-side fill @ %s (order %s)", symbol, price, oid
+            )
+            return oid, float(price)
         return None

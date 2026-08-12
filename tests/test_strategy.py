@@ -295,8 +295,11 @@ class _FakeCloser:
         self.closed.append(symbol)
         return self._order_id
 
-    def reconcile_exit(self, symbol):
+    def reconcile_exit(self, symbol, *, after=None):
         return None  # close succeeds here, so reconcile is never consulted
+
+    def entry_filled_at(self, order_id):
+        return None  # no fill time scripted → IMP-027 recency guard stands down
 
     def close_fill_price(self, order_id):
         return None  # no fill price scripted → exit keeps the candle-close estimate
@@ -378,9 +381,12 @@ class _StopGoneCloser:
         self.closed.append(symbol)
         return None  # already flat broker-side → exit_position falls to reconcile
 
-    def reconcile_exit(self, symbol):
+    def reconcile_exit(self, symbol, *, after=None):
         self.reconciled.append(symbol)
         return self._fill
+
+    def entry_filled_at(self, order_id):
+        return None  # no fill time scripted → IMP-027 recency guard stands down
 
     def close_fill_price(self, order_id):
         return None
@@ -441,8 +447,11 @@ class _FailingCloser:
         self.attempts.append(symbol)
         return None  # 504 / timeout — close never submits
 
-    def reconcile_exit(self, symbol):
+    def reconcile_exit(self, symbol, *, after=None):
         return None  # genuine outage, not an already-flat position — escalation must fire
+
+    def entry_filled_at(self, order_id):
+        return None  # no fill time scripted → IMP-027 recency guard stands down
 
     def replace_stop_price(self, stop_order_id, new_stop_price):
         return True

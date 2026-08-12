@@ -265,6 +265,23 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       consequence: **AMD was parked 08-04 for earnings and never re-enabled**, so the watchlist ran
       a session at 19 names instead of 20. The scaffold is `/root/claude-routines`, outside this
       repo. Three misses in three sessions is a pattern, not a model blip.
+- [ ] **🔴 NEXT UP — retry `record_entry` once after `_reset()`.** 2026-08-12: the MU entry INSERT hit
+      a stale socket (`pyodbc.OperationalError 08S01 — TCP Provider 0x20`), `record_entry` logged,
+      returned `None` and **did not retry**; the exit then had no `trade_id` (`DB exit MU
+      trade_id=None`), so **both legs were lost and the whole winning trade is absent from
+      `dbo.trades`** — `bot.report --days 1` reports a blank day that was not blank. IMP-019 added
+      `_reset()`-on-error so the *next* write reconnects, but nothing re-drives the failed one, and
+      the connection was healthy 12 s later (every later DB call that session succeeded). One retry
+      after `_reset()` recovers this exact case. Apply the same to `record_exit`.
+- [ ] **Post-close DB⇄broker reconciliation assert.** Both 08-12 defects (the above, and IMP-027's
+      stale-fill attribution) were invisible to every automated surface and were caught only because
+      the daily-review routine queried Alpaca by hand. Compare the day's broker fills against
+      `dbo.trades` at the close and alert on any mismatch — count, qty, or fill price. Would have
+      paged at 18:26 instead of being found at 21:15. **Good weekly-review candidate.**
+- [ ] **Price the crossover floor (`MIN_CROSSOVER=0.25`) — now overdue.** The busiest filter in the
+      book and the largest never-A/B'd one: 13 refusals on 08-12 (four at conf 69–74, INTC missing by
+      **0.01**), 7 on 08-11. The IMP-022 entry freeze expired with the 08-12 session, so the analysis
+      is unblocked: replay 0.20 / 0.25 / 0.30 across ≥3 windows and price the refusals directly.
 - [ ] **⚠️ RISK — needs human approval, do NOT self-authorise.** IMP-022 makes the bot decline to
       trade a falling tape, which is capital protection. The *symmetric* idea — taking the short
       side when the gate is inverted — would give the book a second direction and is the only

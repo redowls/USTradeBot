@@ -38,7 +38,7 @@ class _FakeExecutor:
 
     def __init__(
         self, order_id="close-1", replace_ok=True, reconciled=None, close_fill=None,
-        entry_fill=None, replace_gone=False, last_equity=None,
+        entry_fill=None, replace_gone=False, last_equity=None, entry_filled_at=None,
     ):
         self._order_id = order_id
         self._replace_ok = replace_ok
@@ -47,10 +47,12 @@ class _FakeExecutor:
         self._close_fill = close_fill  # actual fill price of the bot's own close, or None
         self._entry_fill = entry_fill  # corrected entry buy fill (delayed fill), or None
         self.last_equity = last_equity  # session-open equity baseline for the stand-down
+        self._entry_filled_at = entry_filled_at  # IMP-027 recency anchor for reconcile
         self.closed = []
         self.moved = []
         self.reconcile_calls = []
         self.entry_fill_calls = []
+        self.reconcile_afters = []  # `after=` each reconcile_exit was anchored on
 
     def close_position(self, symbol):
         self.closed.append(symbol)
@@ -63,8 +65,12 @@ class _FakeExecutor:
         self.entry_fill_calls.append(order_id)
         return self._entry_fill
 
-    def reconcile_exit(self, symbol):
+    def entry_filled_at(self, order_id):
+        return self._entry_filled_at
+
+    def reconcile_exit(self, symbol, *, after=None):
         self.reconcile_calls.append(symbol)
+        self.reconcile_afters.append(after)
         return self._reconciled
 
     def replace_stop_price(self, stop_order_id, new_stop_price):
@@ -340,6 +346,31 @@ def test_reconcile_if_closed_skips_while_entry_unfilled(cfg):
     assert ex.entry_fill_calls == ["o1"]  # checked the entry fill first
     assert ex.reconcile_calls == []  # never looked at order history → no phantom exit
     assert seen == []  # nothing recorded
+
+
+def test_both_reconcile_paths_anchor_on_the_entry_fill_time(cfg):
+    # IMP-027 (2026-08-12 MU): reconcile_exit can only refuse a previous trade's sell if it
+    # is told when THIS trade's entry filled. Both paths that reach it — the poll-driven
+    # sweep and the close-failed fallback in exit_position — must pass that anchor; an
+    # unanchored call is exactly the bug (it booked an 08-10 fill as the 08-12 exit).
+    filled = datetime(2026, 8, 12, 14, 8, 1, 582526, tzinfo=UTC)
+    ex = _FakeExecutor(
+        order_id=None,  # close didn't submit → exit_position falls back to reconcile
+        reconciled=("c94f6f32", 926.31), entry_fill=924.08, entry_filled_at=filled,
+    )
+    rm = RiskManager(cfg, executor=ex)
+    rm.reconcile_if_closed("MU", _entry())
+    rm.exit_position("MU", 926.31, "trailing stop", _entry())
+    assert ex.reconcile_calls == ["MU", "MU"]
+    assert ex.reconcile_afters == [filled, filled]  # neither path went unanchored
+
+
+def test_reconcile_anchor_is_none_without_an_entry(cfg):
+    # A startup-reconciled holding has no entry order, so there is nothing to anchor on and
+    # the guard must stand down (None) rather than block a legitimate exit.
+    ex = _FakeExecutor(reconciled=("stop-se", 113.21), entry_filled_at=None)
+    RiskManager(cfg, executor=ex).reconcile_if_closed("SE", None)
+    assert ex.reconcile_afters == [None]
 
 
 def test_reconcile_if_closed_clears_trailing_state(cfg):

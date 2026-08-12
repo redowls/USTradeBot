@@ -6,6 +6,7 @@ account / order responses — no network, no real keys.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -41,6 +42,7 @@ class _FakeTrading:
         raise_on=None, with_legs=False, open_orders=(), held_until_cancelled=False,
         qty_available_after=0, close_position_gone=False, position_open=True,
         closed_sell_orders=(), close_fills=True, close_fill=None, entry_fill=None,
+        entry_filled_at=None,
     ):
         self.account = SimpleNamespace(buying_power=buying_power, equity=equity)
         self.submitted = []
@@ -80,10 +82,15 @@ class _FakeTrading:
         # filled at, read back via get_order_by_id (2026-06-24: record the real entry fill,
         # not the candle-close estimate the signal sized off).
         self._entry_fill = entry_fill
+        # filled_at the bracket entry's parent order reports, read back by
+        # entry_filled_at — the recency anchor reconcile_exit guards on (IMP-027).
+        self._entry_filled_at = entry_filled_at
 
     def get_order_by_id(self, order_id):
         fill = self._entry_fill if order_id == "order-1" else self._close_fill
-        return SimpleNamespace(id=order_id, filled_avg_price=fill)
+        return SimpleNamespace(
+            id=order_id, filled_avg_price=fill, filled_at=self._entry_filled_at
+        )
 
     def get_account(self):
         if self._raise_on == "account":
@@ -406,3 +413,65 @@ def test_reconcile_exit_none_when_no_filled_exit(cfg):
     unfilled = SimpleNamespace(id="x", filled_avg_price=None, status="canceled")
     fake = _FakeTrading(position_open=False, closed_sell_orders=(unfilled,))
     assert _exec(cfg, fake).reconcile_exit("TSLA") is None
+
+
+# --- IMP-027: a prior trade's sell may never be booked as this trade's exit ----------
+
+# The live 2026-08-12 MU trade, to the timestamp. Entry filled 14:08:01.58Z; its stop
+# filled @926.31 at 18:25:38.99Z; reconcile ran 1.09s later at 18:25:40.07Z and the
+# broker's closed-order listing had not caught up, so the newest filled MU sell it could
+# see was the *2026-08-10* stop @872.25 — a different trade, two sessions old.
+_MU_ENTRY_FILLED = datetime(2026, 8, 12, 14, 8, 1, 582526, tzinfo=UTC)
+_MU_STALE_SELL = SimpleNamespace(  # 08-10's stop leg
+    id="5434412a", filled_avg_price="872.25", status="filled",
+    filled_at=datetime(2026, 8, 10, 19, 45, 0, 244581, tzinfo=UTC),
+)
+_MU_TODAYS_SELL = SimpleNamespace(  # today's real exit
+    id="c94f6f32", filled_avg_price="926.31", status="filled",
+    filled_at=datetime(2026, 8, 12, 18, 25, 38, 990251, tzinfo=UTC),
+)
+
+
+def test_reconcile_exit_rejects_sell_that_predates_the_entry(cfg):
+    # Regression (2026-08-12 MU): confirming the position is gone is NOT enough to trust
+    # the newest filled sell — the closed-order listing is eventually consistent, so
+    # seconds after a fill the scan can fall through to the PREVIOUS trade's exit. Booking
+    # it turned a +$4.46 win into a −$103.66 loss in the record. An exit cannot fill before
+    # its own entry, so the stale sell must be refused outright and the caller left to
+    # retry on the next candle (by which time the listing has caught up).
+    fake = _FakeTrading(position_open=False, closed_sell_orders=(_MU_STALE_SELL,))
+    assert _exec(cfg, fake).reconcile_exit("MU", after=_MU_ENTRY_FILLED) is None
+
+
+def test_reconcile_exit_takes_the_fill_once_the_listing_catches_up(cfg):
+    # The retry that follows: today's fill is now in the listing (newest first) and is
+    # accepted at its true price, while the two-day-old sell behind it stays ignored.
+    fake = _FakeTrading(
+        position_open=False, closed_sell_orders=(_MU_TODAYS_SELL, _MU_STALE_SELL)
+    )
+    assert _exec(cfg, fake).reconcile_exit("MU", after=_MU_ENTRY_FILLED) == (
+        "c94f6f32", 926.31,
+    )
+
+
+def test_reconcile_exit_skips_candidate_with_unreadable_fill_time(cfg):
+    # A filled sell whose fill time can't be read cannot be proven to belong to this
+    # trade, and an unverifiable price is precisely what this must never book.
+    no_time = SimpleNamespace(id="x", filled_avg_price="872.25", status="filled", filled_at=None)
+    fake = _FakeTrading(position_open=False, closed_sell_orders=(no_time,))
+    assert _exec(cfg, fake).reconcile_exit("MU", after=_MU_ENTRY_FILLED) is None
+
+
+def test_reconcile_exit_unfiltered_without_an_anchor(cfg):
+    # A startup-reconciled holding has no entry order to anchor on, so `after` is None and
+    # behaviour is unchanged — the guard stands down rather than blocking a real exit.
+    fake = _FakeTrading(position_open=False, closed_sell_orders=(_MU_STALE_SELL,))
+    assert _exec(cfg, fake).reconcile_exit("MU") == ("5434412a", 872.25)
+
+
+def test_entry_filled_at_reads_the_parent_buys_fill_time(cfg):
+    # The anchor itself: read from the entry order, None on an empty id (nothing to read).
+    fake = _FakeTrading(entry_filled_at=_MU_ENTRY_FILLED)
+    ex = _exec(cfg, fake)
+    assert ex.entry_filled_at("order-1") == _MU_ENTRY_FILLED
+    assert ex.entry_filled_at("") is None

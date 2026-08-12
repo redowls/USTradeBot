@@ -103,6 +103,7 @@ class SimBroker:
         self._stop_owner: dict[str, str] = {}  # stop-leg id -> symbol
         self._filled: dict[str, SimFill] = {}  # symbol -> the leg that filled
         self._entry_fill: dict[str, float] = {}  # entry order id -> fill price
+        self._entry_filled_at: dict[str, datetime] = {}  # entry order id -> fill time
         self._close_fill: dict[str, float] = {}  # close order id -> fill price
         self.trades: list[SimTrade] = []
         self._live: dict[str, SimTrade] = {}
@@ -148,6 +149,7 @@ class SimBroker:
         oid = self._next_id("entry")
         stop_oid = self._next_id("stop")
         self._entry_fill[oid] = plan.entry_price
+        self._entry_filled_at[oid] = self.now  # simulated clock: entries fill at the bar
         self._stop_price[stop_oid] = plan.stop_price
         self._stop_owner[stop_oid] = symbol
         result = ExecutionResult(
@@ -198,11 +200,17 @@ class SimBroker:
         self._close_fill[oid] = self._mark.get(symbol, pos.entry_price)
         return oid
 
-    def reconcile_exit(self, symbol: str):
+    def reconcile_exit(self, symbol: str, *, after: datetime | None = None):
+        # `after` is the live IMP-027 recency guard's anchor. The simulator books each
+        # fill against the position that produced it, so a prior trade's sell can never
+        # be offered here and there is nothing to filter — accepted for signature parity.
         fill = self._filled.get(symbol)
         if fill is None:
             return None
         return fill.order_id, fill.price
+
+    def entry_filled_at(self, order_id: str) -> datetime | None:
+        return self._entry_filled_at.get(order_id)
 
     def close_fill_price(self, order_id: str) -> float | None:
         return self._close_fill.get(order_id)
