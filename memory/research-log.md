@@ -2813,3 +2813,198 @@ which is the whole of its value today. **Seventh consecutive weak run. The stand
 not evidence of no catalyst.** WebSearch + the IEX daily tape carried this run.
 
 ---
+
+## 2026-08-13 — Pre-market Research
+
+**The add-freeze expired and the one add it was held for is live: PLTR is in, 19 → 20 enabled. WMT's
+dead-signal decision came due today and the answer is KEEP** — it fails the log's own 30-day bar by ten days
+and its chart is the healthiest it has been all month. Book is CLEAN & FLAT (broker-confirmed **0 positions**,
+**0 open orders**, equity **$9,089.68**, all cash, `last_equity` == `equity`) → **nothing locked**. One change;
+service **restarted clean, warmup 20/20**.
+
+### Market context
+**Futures modestly higher into PPI, and yesterday's CPI removed the week's dominant risk.** Pre-market: **Dow
+futures +102 (+0.2%), S&P 500 +0.2%, Nasdaq-100 +0.1%**, supported by retreating Treasury yields. **July CPI
+landed exactly in line Wednesday — headline +0.1% MoM / 3.4% YoY, core +0.2% / 2.5%** — the benign resolution
+of the gap-and-reverse tape the 08-12 entry was braced for. The S&P 500 is back **within striking distance of
+a record** and the Nasdaq-100 hit a **one-month high**. Overnight, NQ contracts slipped slightly in Asia after
+**CSCO's print disappointed** (**not enabled** — no book exposure).
+- **⚠️ Everything that matters today lands PRE-OPEN, not in-session.** **July PPI + jobless claims share the
+  8:30am ET tape** (PPI headline +0.2% MoM vs −0.3% prior, YoY easing to 4.9% from 5.5%, core +0.3% MoM /
+  4.1% YoY; initial claims 202K vs 199K, continuing 1,800K vs 1,801K). **Fed's Barkin speaks 8:40am ET**,
+  Hammack also on the docket — **both pre-open**. The bot's IMP-017 blackout means it takes no entry before
+  **10:00 ET**, by which time all of it is priced.
+- **The only in-session item is the 30-year auction at 1:00pm ET**, closing out the refunding. It does not
+  move single names.
+- **No enabled symbol reports today.** Today's calendar is **JD (BMO), BN, NTES, TPR, NU** and **AMAT (AMC)**
+  — none enabled. **AMAT after the close is semi-adjacent** and can move MU/NVDA/AMD/INTC/TSM in tomorrow's
+  pre-market, but not during today's session; the book is flat every night so there is no carry exposure to it.
+  **WMT's own report is confirmed Thu 08-20 BMO** (Q2 FY27, cons. EPS $0.74 on ~$187B) — verified against
+  Walmart IR, not taken from `sonar`. **NVDA remains 08-26.**
+- Brent **−2% to $87.17**, WTI −2.2% to $81.41.
+
+### Carried from daily review (08-12 "Notes for pre-market research")
+- **"📌 The DB will tell you 08-12 was a blank day. It was not."** — ✔ **verified at the broker and the
+  correction is applied throughout this entry.** `/v2/orders` shows **MU buy 2 @ 924.08 (14:08:01.58Z)** and
+  **MU sell 2 @ 926.31 (18:25:38.99Z, stop)** = **+$4.46**. `dbo.trades` still has **no row for it**, so every
+  DB-derived figure below understates MU by one winner. Recorded, not re-diagnosed — the entry-INSERT retry is
+  the post-close routine's queued item, not a watchlist matter.
+- **"Book CLEAN & FLAT into 08-13"** — ✔ live: **ACTIVE**, equity **$9,089.68**, cash $9,089.68, BP
+  $36,358.72, **0 positions, 0 open orders**. (The 08-12 review recorded $9,089.74 at boot; the 6¢ delta is a
+  settle-side adjustment, not a trade — `last_equity` == `equity` confirms nothing moved overnight.)
+- **"✅ MU is the standout and should stay emphatically."** — ✔ kept, no question raised. It converted the
+  only trade of the week, closed **+4.96% Wednesday**, and is **+3.7% vs its 20MA**. Its **8.61% ATR is again
+  the highest on the board** and again a **sizing** question for the post-close routine, not a park question.
+- **"⚠️ INTC: 6 candidates, 0 conversions… flag it again if it repeats."** — ✔ **it did not repeat as a
+  concern**: INTC closed **+3.42% Wednesday**, is **+5.1% vs its 20MA**, and its offering overhang is settled.
+  5 candidates on 08-12 with two near-misses at conf 73.5/62.4. Liveness is healthy; the blocker is the
+  crossover floor, which is the post-close routine's file.
+- **"ABNB going silent is a genuine break — the first thing to check tomorrow."** — ✔ **checked, and it is
+  not a break.** Across the 5-session window ABNB ran **08-07:4, 08-11:5, and 0 on 08-06/08-10/08-12** — lumpy,
+  not a four-session run into silence, and **it converted a winner on 08-10 (+$26.21)**. Its chart is still the
+  strongest on the board (**+16.5% vs 20MA, +23.0% vs 50MA, +18.1% on 5 days**) after a −2.64% Wednesday
+  give-back. **Keep, concern retired.**
+- **"AMZN is now three sessions with no candidate at all."** — its park test ("converts a near-miss and loses")
+  is **still not met**, and the silence claim is **softer than it looked**: AMZN has **7 candidates** in the
+  window (08-06:2, 08-07:1, 08-10:4). Chart fine (+4.8%/+7.9%). **No park. Stays on notice.**
+- **"WMT's dead-signal decision is due at the 08-13 run."** — ✔ **taken today. Decision: KEEP.** See below.
+- **"PLTR was screened and handed over… the add decision is live tomorrow."** — ✔ **acted on: added.**
+- **"QQQ remains load-bearing twice over — verify `enabled = 1` before and after any watchlist edit."** — ✔
+  asserted **both before and after** today's INSERT; `enabled = 1` on both reads.
+
+### Watchlist review
+Account **ACTIVE**, equity **$9,089.68**, **0 open positions = nothing locked.** All 19 incumbents reviewed
+against overnight news and 110-day daily bars off the IEX tape (close vs 20/50-day MA, 5-day and 1-day change,
+ATR%, 20-day avg $ volume), plus a 5-session signal-liveness audit from journald.
+- **Trend broadened this week — the thin-but-not-broken picture of 08-12 improved.** Above the 20MA:
+  **ABNB +16.5%** (leader), **MSFT +11.8%**, **NVDA +7.5%**, AVGO +5.0%, INTC +5.1%, AMZN +4.8%, TSM +4.7%,
+  MU +3.7%, JPM +3.6%, WMT +3.6%, BABA +3.4%, QQQ +3.2%, NFLX +2.9%, SPY +2.6%. Below: **TSLA −1.8%,
+  GOOG −1.1%, AMD −2.3%, UNH −2.8%, AAPL −5.9%**. **Only five names are below their 20MA, versus six on
+  08-12, and the index proxies both firmed** (QQQ +3.2% vs +2.5%, SPY +2.6% vs +2.4%). Versus the 50MA the
+  laggards are **TSLA −12.5%, INTC −7.9%, AMD −5.6%, MU −5.6%** — still the SOX drawdown, still not
+  name-specific decay. **Nothing clears the park bar on trend.**
+- **⚠️ Volatility outliers, kept and noted (fifth consecutive run):** **MU 8.61%**, **AMD 7.32%**,
+  **INTC 7.19%** ATR. Unchanged verdict: a **sizing** question for the post-close routine, **not** a park.
+- **Signal-liveness audit, 5 sessions (08-06 → 08-12), 137 no-entry events:** most active **TSM 14, JPM 12,
+  BABA 11, MSFT 10, NFLX 10, ABNB 9, NVDA 9, AVGO 8, SPY 8**; mid **AMZN 7, INTC 7, AMD 6, UNH 6, AAPL 5,
+  QQQ 5**; quietest **TSLA 4, WMT 4, MU 2** (MU also **converted**, so its true liveness is 3). **GOOG is the
+  only enabled symbol with ZERO candidates across all five sessions.** Refusal split: **crossover floor 63,
+  confidence floor 61, market gate 13** — the crossover floor is again the largest filter, with **30 near-misses
+  at conf ≥ 65**. Post-close's file, not this routine's.
+- **⚙️ METHOD GOTCHA, recorded so the next run does not repeat it.** My first liveness pass returned **only
+  08-12** and would have produced a false "the whole board went dead" reading. Cause: the regex required the
+  ` UTC ` token in the message, and **IMP-026 only added that token on the 08-11 restart** — every pre-08-11
+  line was silently dropped. **Fix: filter and date these audits off journald's own timestamp (`-o short-iso`),
+  never off the message prefix**, which is UTC only after 08-11 and WIB before it. The unit's journal reaches
+  back to **08-02**, so the history is there.
+- **🔔 GOOG — deteriorating, and the dated test is held rather than pulled forward.** It is **0-for-5 sessions
+  on candidates**, has taken **no trade since 07-31 (13 days)**, sits below both MAs (−1.1% / −3.0%) and is
+  **−4.91% on 5 days**. The 08-12 entry set the test at the **08-17 run** and there is no *new* information
+  today — the antitrust/capex drift is the same one already logged. **Pulling a dated test forward by two
+  sessions because the number looks bad is exactly the churn this log exists to prevent.** Test stands: **if
+  GOOG is still below both MAs with 0 candidates at the 08-17 run, it parks.**
+- **🔔 UNH — new, and it gets the same treatment as GOOG rather than a snap park.** Last trade **07-17 (27
+  days)**, below both MAs (−2.8% / −2.1%), ATR **2.53%**, **$102M/day** — the second-thinnest single name after
+  WMT. But it is **all-time positive (+$19.38, 4W/7)** and **alive at the candidate level (6 in the window)**,
+  so it fails the dead-signal profile on both the C precedent and liveness. **Its 30-day mark falls 08-16 →
+  test recorded for the 08-17 run, same day as GOOG's: park UNH if it has taken no trade by then AND is still
+  below both MAs.**
+- **SPY — untouched, review point unchanged.** Longest tradeless streak on the board (**last trade 06-26, 48
+  days**, 4 trades all-time, −$11.24) but **8 candidates in the window** and it is a deliberate diversifier.
+  Its review point remains **end-August**; noted, not advanced.
+- **14-day P&L (DB, therefore understating MU by the missing +$4.46): 27 closed trades, 17W (63%), net
+  +$233.83.** Winners **INTC +$99.12 (4W/4)**, GOOG +$45.11, BABA +$32.82, AVGO +$29.74, ABNB +$26.21,
+  NVDA +$16.72, MU +$13.73, TSM +$3.28. Losers AMD −$0.58, MSFT −$5.76, TSLA −$8.07, AMZN −$18.49. **No
+  enabled symbol has a park-worthy record under the current rules.**
+- **Parked stay parked:** BIRD, C, COST, ENPH, QCOM, SE, WPM, XOM. Re-enable cases checked, none qualifies —
+  **C** is three sessions into a 30-day-tradeless park, **QCOM** and **WPM** remain broken downtrends, **SE**'s
+  liquidity problem is structural and a print does not fix it, **COST** and **ENPH** still fail
+  trending-and-active on their own numbers.
+
+### 📌 WMT — the dead-signal decision, due today: **KEEP**
+The 08-11 entry scheduled this for today and it is taken today rather than deferred again. **The answer is
+keep, and the reasoning is the log's own precedent rather than a fresh judgement call:**
+- **It fails the established bar by ten days.** The only dead-signal park this log has executed is **C (08-10)**,
+  and its stated bar was **"30d no trade"**. WMT's last trade is **07-24 = 20 days**. Parking at 20 days would
+  silently move a precedent that is three sessions old, and would make the C park retroactively arbitrary.
+- **The chart argues the other way, and strongly.** WMT closed **+2.44% Wednesday**, is **above both MAs
+  (+3.6% / +1.4%)** and **+3.25% on 5 days** — one of the better 5-day prints on the board. It is nothing like
+  the broken-downtrend profile (WPM, QCOM, XOM) or the thin-chop profile that took C out.
+- **It is not signal-dead; it is conversion-dead, and the blocker is a known unpriced filter.** WMT produced
+  **3 candidates on 08-12** — its most active session of the window — at conf **66.0 and 71.1**, both refused
+  on **crossover 0.04 < 0.25**. `MIN_CROSSOVER` is the single largest never-A/B'd filter in the system and is
+  explicitly queued for the post-close routine. **Removing the name now would delete a data point from exactly
+  the sample that decision needs.**
+- **Honest counterweight, recorded not buried:** WMT is **all-time −$47.51 on 6 trades**, its ATR (**2.26%**)
+  and $ volume (**$116M/day**) are the thinnest of any enabled single name, and 0.04 crossovers suggest its
+  1-min ribbon may simply be too tightly wound for this strategy. **That is a real hypothesis and it now has a
+  dated, unambiguous test instead of another deferral.**
+- **Test recorded — WMT parks as dead-signal at the 08-24 run if it has taken no trade by then** (30 days from
+  07-24, C precedent, first run after the 30-day mark on 08-23).
+- **The earnings park is SEPARATE and is not merged, per the 08-12 instruction.** WMT reports **08-20 BMO**, so
+  **park it at the 08-19 run** — deliberately the day *before*, not the morning of: this routine runs 11:30 UTC
+  = **7:30am ET**, and the release lands **8:00am ET**, so an 08-20 decision would be taken blind to a print
+  that is 30 minutes away. **Re-enable condition (earnings): the print and its reaction have cleared.
+  Re-enable condition (dead-signal): does not exist — that park is terminal.** Two parks, two clocks.
+
+### ➕ Add applied — PLTR
+**Verified on Alpaca immediately before the INSERT: `tradable: true`, `status: active`, `class: us_equity`,
+NASDAQ.** The 08-12 entry screened it and handed it here; today's re-screen on fresh bars **confirms the case
+and it has not decayed:**
+- **Strongest trend of any candidate screened: +21.1% vs 20MA, +27.9% vs 50MA, +7.96% on 5 days.**
+- **Liquidity $209.9M/day** — in the same tier as AVGO ($217M), NFLX ($213M) and GOOG ($245M), and far ahead of
+  the thinnest incumbents (ABNB $35M, BABA $41M). This is the liquidity the strategy needs.
+- **ATR 5.46%** — high, but **below all three outliers already carried** (MU 8.61 / AMD 7.32 / INTC 7.19), so it
+  **adds no new class of risk** to the book.
+- **Earnings binary RESOLVED and a full quarter away:** Q2 reported **08-04** (revenue +93%, US commercial
+  +150%, FY guide raised to $8.154B, +10% on the print); **next report 2026-11-02**. No other candidate offered
+  that much clear runway.
+- **Sizing fit:** at **$171.09** it quantises far better against $9.1k equity than a $400+ name — the
+  whole-share problem the weekly flagged on MU/AVGO/TSM.
+- **Two risks recorded up front, neither disqualifying.** ① It fell **−2.20% Wednesday** on profit-taking after
+  a **+41.6% two-week run**, and **RSI ~73.6 is overbought** — but the scorer *penalises* RSI > 70, so the
+  strategy dampens its own confidence here rather than chasing. ② It is a momentum name in a concentrated AI
+  tape; the **5-min gate + IMP-022** are the structural defence and they need no watchlist edit.
+- **Alternates verified `tradable: true` / `status: active` and passed over, held for the next add:** **ANET**
+  (+16.6%/+21.7%, **+6.36% Wednesday**, $82M/day, ATR 5.46% — the closest runner-up, thinner only on volume),
+  **UBER** (+5.0%/+4.6%, +10.60% on 5 days but **−4.06% Wednesday**, $89M/day), **CRM** (+6.9%/+12.1% but flat
+  +0.24% on 5 days, $82M/day), **LLY** ($134M/day, trend too shallow at +3.4%/+4.7%).
+- **Only ONE name added, deliberately.** At $9.1k equity an extra symbol mostly **displaces** a trade rather
+  than adding one (IMP-017), so a second add would dilute the first rather than compound it.
+- **⚠️ Note for the post-close routine (IMP-023 coupling):** `bot/replay.py` resolves its universe from
+  `dbo.watchlist`, so **every replay from today forward runs 20 symbols, not 19**. Backtest results either side
+  of 2026-08-13 are **not directly comparable** — hold the universe fixed when re-pricing `MIN_CROSSOVER`.
+
+### Changes applied to dbo.watchlist
+**ONE change, parameterized INSERT, `watchlist` table only:**
+- **➕ PLTR — INSERT, `enabled = 1`**, note `added 2026-08-13: +21% vs 20MA/+28% vs 50MA, $210M/d, ATR 5.5%,
+  earnings resolved 08-04 (next 11-02)`. Verified tradable+active on `/v2/assets/PLTR` before the write.
+- **No parks, no re-enables, no DELETEs.** WMT keeps (above), GOOG/UNH tests are dated 08-17, AMZN's test is
+  unmet, AAPL's is dated 08-19.
+Post-write assertions re-run against the live table: **20 enabled ≤ 30 ✓**, **QQQ `enabled = 1` ✓** (checked
+before *and* after), **8 parked rows all still present ✓**, PLTR row reads back exactly as written ✓.
+
+### Final watchlist
+**20 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA GOOG INTC JPM MSFT MU NFLX NVDA **PLTR** QQQ SPY TSLA TSM
+UNH WMT. Parked (8): BIRD C COST ENPH QCOM SE WPM XOM. **Service restarted 2026-08-13 11:37:48 UTC and verified
+healthy:** `active`, **NRestarts=0**, **warmup primed 20/20**, subscribed to all 20 on the IEX feed, account
+ACTIVE $9,089.68 at boot, **no open positions**, banner confirms entry window 10:00–16:00 ET (IMP-017), QQQ
+market gate (IMP-022), trail 1.25% → 1.00% (IMP-018/IMP-021), log lines stamped UTC (IMP-026). 🔒 Locked: none
+(0 positions). **Upcoming: GOOG + UNH tests 08-17 · AAPL re-examination 08-19 · WMT earnings park 08-19 (reports
+08-20 BMO) · WMT dead-signal test 08-24 · NVDA earnings 08-26 · SPY review end-August.**
+
+### Perplexity `sonar` — run 8, thin again, and it mislabelled the clock for the second day running
+`sonar` returned **"no specific overnight/pre-market catalyst"** for **17 of 19** tickers and **declined to give
+a futures direction at all** ("not explicitly stated"), which is the one thing it was asked for that WebSearch
+answered in a sentence (Dow +102, S&P +0.2%, NDX +0.1%). Its only ticker-level leads were the **stale** AAPL
+Jefferies downgrade — already logged on **08-11**, now surfaced for the third consecutive run — and AAPL's
+**$0.27 dividend payable today**, which is not an intraday catalyst. It then repeated **exactly yesterday's
+error class**: it listed **Continuing Jobless Claims "at 8:30 AM ET"** under *market-hours* releases, when
+8:30am ET is **pre-open**; a run that took it at face value would have booked an in-session macro event that
+does not exist, two days running. It did correctly name PPI + claims as the day's macro axis and flagged
+CSCO −5.62% pre-market. **Eighth consecutive weak run. Standing rule unchanged and now well-evidenced:
+`sonar` is lead-generation only — never a market-regime source, never a clock, and its silence on a ticker is
+not evidence of no catalyst.** WebSearch (futures, PPI/claims consensus, the earnings calendar, WMT's confirmed
+08-20 BMO date, PLTR's post-earnings context) + the IEX daily tape carried this run.
+
+---
