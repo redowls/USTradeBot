@@ -265,7 +265,39 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       consequence: **AMD was parked 08-04 for earnings and never re-enabled**, so the watchlist ran
       a session at 19 names instead of 20. The scaffold is `/root/claude-routines`, outside this
       repo. Three misses in three sessions is a pattern, not a model blip.
-- [ ] **🔴 NEXT UP — retry `record_entry` once after `_reset()`.** 2026-08-12: the MU entry INSERT hit
+- [x] **DONE — IMP-028, commit `da161c7`, deployed 2026-08-14 21:15 UTC — retry `record_entry` once
+      after `_reset()`.** Shipped with an idempotency guard: the bracket is looked up by its unique
+      Alpaca `entry_order_id` before re-inserting, so a failure raised *by* `commit()` (where the
+      transaction may have landed anyway) cannot double-count the position. 363 tests pass.
+      ⚠️ **The "apply the same to `record_exit`" half of this item is NOT done — carried below.**
+- [ ] **🔴 NEXT UP — IMP-029: make the trailing stop ATR-relative instead of a flat percent.**
+      The exit structure cannot hold a trend. 2026-08-14 evidence: AMD closed **+6.5% at the high**
+      on a flat index; walked bar-by-bar against the live rules, an entry at ~$503 peaks at $511.29,
+      IMP-021 tightens the trail to 1.00% → $506.18, and the very next 5m bar (low $504.60) takes it
+      out for **+0.63%** of a **+2.4%** available move. **A 1.00% trail on a 7.32%-ATR name is ~1/7
+      of a daily range — ordinary noise.** MU (8.16% ATR) is worse. Lifetime exit-reason data agrees:
+      trades left alone to the close are **176 for +$1,125 (+0.38% avg)**, while every stop-based
+      path loses (broker-side stop/target **46 for −$417.56**, trailing stop **2 for −$54.69**,
+      −1.53% avg). ⚠️ Partly selection — do **not** read it as "remove the stops". **Gate: must be
+      validated on `bot/replay.py` across ≥3 windows before shipping.** The −2% hard stop, position
+      sizing and all risk limits stay untouched; this changes only how profit is trailed, so max
+      loss per trade does not increase. This is the long-open "flat non-ATR stop" item.
+- [ ] **🟠 IMP-030 candidate — confidence is anti-predictive above 80 and unprofitable below 70.**
+      `vw_confidence_outcome` over 266 trades: **60-69: 146 tr, 41.8% win, −$58.22** · **70-79:
+      87 tr, 54.0% win, +$250.84 (the only profitable band)** · **80-89: 30 tr, −$26.75** ·
+      **90-100: 3 tr, 0% win, −$144.42 (−1.51% avg)**. The score is non-monotonic and its top end is
+      actively harmful, which also means `MIN_CONFIDENCE=60` is buying trades from the worst cohort.
+      Related: all 15 retained market-gate refusals since 08-03 sit at **conf ≥ 69.1** — the gate is
+      preferentially vetoing the one band that makes money. **Do not stack this on IMP-029 in the
+      same session**; land the exit work and measure it first.
+- [ ] **🟡 The QQQ market gate (IMP-022) blocks idiosyncratic single-name trends.** 2026-08-14: AMD
+      scored **76.5** and **91.2** (the day's two best signals) and was vetoed twice because QQQ's 5m
+      ribbon was not bullish on a −0.15% index day. Real, but **quantified at ≈0.6% of missed P&L**,
+      i.e. second-order next to the exit problem. Revisit only after IMP-029 and IMP-030.
+- [ ] **🟠 Apply IMP-028's one-retry treatment to `record_exit`.** A dead socket on the exit write
+      still loses the close of a trade the broker really flattened, leaving `dbo.trades` with a
+      permanently OPEN row. Same shape, same fix, needs its own idempotency key (the exit order id).
+      Original 2026-08-12 context: the MU entry INSERT hit
       a stale socket (`pyodbc.OperationalError 08S01 — TCP Provider 0x20`), `record_entry` logged,
       returned `None` and **did not retry**; the exit then had no `trade_id` (`DB exit MU
       trade_id=None`), so **both legs were lost and the whole winning trade is absent from

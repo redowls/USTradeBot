@@ -1721,8 +1721,9 @@ only ever refuse, never invent.
 ## IMP-028 — 2026-08-13 (daily) — `record_entry` retries once on a fresh connection
 
 > **⚠️ ENTRY WRITTEN BY THE WEEKLY REVIEW OF 2026-08-14, NOT BY ITS AUTHOR.**
-> **STATUS: WRITTEN — NOT COMMITTED, NOT DEPLOYED, NOT RUNNING.**
-> This number is reserved here so the series cannot be reissued. The next new change is **IMP-029**.
+> **STATUS: ✅ DELIVERED — commit `da161c7`, pushed and deployed 2026-08-14 21:15:11 UTC**
+> by the daily review of 2026-08-14, per the handoff at the foot of this entry.
+> The next new change is **IMP-029**.
 
 - **What it is.** The fix for the 08-12 defect that erased an entire session from `dbo.trades`: a dead
   socket (`08S01 TCP Provider`) killed the MU entry INSERT, `record_entry` logged and returned `None`
@@ -1764,3 +1765,40 @@ only ever refuse, never invent.
 - **Observed effect:** ❌ **NONE — the change has never executed.** It cannot be evaluated until it is
   deployed. Its motivating defect did not recur on 08-13 or 08-14, but that is luck and a healthy
   socket, not this fix working: the code that ran those sessions is the code that failed on 08-12.
+
+### ✅ Handoff executed — daily review of 2026-08-14
+
+All six steps completed, in order, with the results the weekly asked for:
+
+1. `chown ustradebot:ustradebot bot/persistence.py tests/test_persistence.py` — done (both were
+   `root:root`; now `ustradebot:ustradebot`, mode 664 preserved).
+2. **`pytest -q` → `363 passed, 1 warning`, exit 0** — exactly the 359 → 363 the weekly predicted.
+   Non-vacuity re-checked by name: `pytest tests/test_persistence.py -k "retry or retries"` →
+   **6 passed**, 26 deselected. **`bot.preflight` → RESULT: OK**, all three gates PASS (Alpaca
+   ACTIVE equity 9,123.87 / SQL Server connected, schema ensured / Telegram delivered); the single
+   WARN is the expected "session CLOSED now".
+3. Committed **only** the two files — **`da161c7`**. `git status` before the commit showed
+   `memory/daily-review.md` also dirty; it was left unstaged here and committed separately with the
+   08-14 review, per the stage-only-what-you-touched rule.
+4. Pushed `e004bec..da161c7 main -> main`, then `systemctl restart ustradebot.service` →
+   **`active`**, clean startup: schema ensured, Alpaca ACTIVE, **no open positions**,
+   **warmup primed 20/20 symbols**, IEX stream subscribed to all 20. **Zero warnings or errors.**
+5. **Deployment verified against the mtime, as instructed:** `ActiveEnterTimestamp` is now
+   **`Fri 2026-08-14 21:15:11 UTC`** vs `bot/persistence.py` mtime **`2026-08-13 21:43:07`** — the
+   restart **postdates** the edit, so the running image contains the fix. New `MainPID=923901`
+   (was 805070, which had been up since 08-13 11:37:48 with `NRestarts=0`). **The retry path is
+   live in production for the first time.**
+6. Status line at the head of this entry replaced with the commit hash. ✔
+
+- **Observed effect (from 2026-08-14):** ⏳ **not yet measurable — deployed after the close, so it
+  has not seen a live entry.** It cannot produce evidence until a session both trades *and* hits a
+  stale socket, which is rare by construction. **Do not treat a quiet `dbo.trades` as validation;**
+  the signal to look for is the log line `DB entry <SYM> recovered on retry (trade_id=…)`, or
+  `DB entry <SYM> was already committed as trade_id=…` for the idempotent branch. Until one of
+  those appears, this fix is unexercised, not proven.
+- **Standing lesson, third occurrence of this class in this project.** The 08-13 run reported
+  "363 tests passing" and pointed at an improvement-log entry that did not exist, while committing
+  nothing and restarting nothing. Validation is not delivery. **A change is only real when
+  `ActiveEnterTimestamp` postdates the file mtime** — the same check that caught the IMP-003
+  deploy-gap on USTradeWisBot. Every routine that ships code must end with that comparison, and
+  the number must appear in this log with a commit hash before the run reports success.
