@@ -3008,3 +3008,192 @@ not evidence of no catalyst.** WebSearch (futures, PPI/claims consensus, the ear
 08-20 BMO date, PLTR's post-earnings context) + the IEX daily tape carried this run.
 
 ---
+
+## 2026-08-14 — Pre-market Research
+
+**NO CHANGES — 20 enabled, unchanged, service NOT restarted.** No dated test comes due today, no enabled
+symbol reports today, nothing on the board clears a park bar, and the one add-slot is deliberately left
+closed while PLTR (one session old) is measured. Book is **CLEAN & FLAT** — broker-confirmed **0 positions,
+0 open orders**, equity **$9,123.87**, all cash → **nothing locked**. The one genuinely new fact this run
+produced is a **confirmed earnings date**: **BABA reports 08-20 BMO**, verified against Alibaba Group's own
+07 Aug press release, so it joins WMT in a **park at the 08-19 run**.
+
+### Market context
+**Futures mixed-to-flat after a record close; the week's macro risk is spent, and today's only in-session
+print lands exactly when the bot's entry window opens.** Thursday closed at a **record S&P 500 7,798.99
+(+0.65%)**, **Nasdaq Composite 26,803.03 (+0.81%)**, **Dow 53,839.99 (+0.13%)** — the S&P and Nasdaq are on
+track for a **third straight up week**, the S&P's first three-week streak since May. Pre-market reads
+disagree at the margin (S&P futures ~flat to +0.2%, NDX futures −0.15% to +0.2%, **Dow futures −0.2%**);
+call it **flat, not directional**.
+- **⚠️ The macro clock matters more than the macro content today.** **8:30am ET: July retail sales
+  (+0.2/+0.3% est), core retail sales, import prices — all PRE-OPEN.** **9:15am ET: industrial production —
+  PRE-OPEN.** **10:00am ET: U. Michigan preliminary sentiment + June business inventories — these are the
+  ONLY in-session releases, and 10:00 ET is the exact minute the IMP-017 blackout lifts.** Unlike the last
+  two sessions, the bot's first eligible candle is not comfortably after the day's news; **the first
+  entries of the day will be scored off candles printed into a live macro reaction.** Nothing to change in
+  the watchlist for it — it is a note for the post-close read, not an edit.
+- **No enabled symbol reports today.** Friday's calendar is small-cap and foreign issuers (Cellebrite,
+  RLX, Transurban, Sigma Lithium et al.) — **no mega-cap US name on the docket.**
+- **Semi read-through is POSITIVE, not a risk.** **AMAT** printed 08-13 AMC and guided FQ4 revenue to
+  **$10.25B ±$0.5B vs $9.54B consensus** (low end ~$210M above the Street). The 08-13 entry flagged this as
+  the one thing that could move MU/NVDA/AMD/INTC/TSM in this morning's tape; it resolved to the good side,
+  and the book carried no overnight exposure to it either way.
+- **Pre-market movers are all idiosyncratic and none are enabled:** RDDT **+12%** on **S&P 500 inclusion**
+  (mechanical, not trend — screened and rejected below), CAPR +86% (Phase 3 data), IMXI +25% (WU deal
+  cleared), INVA −45% (guidance suspended).
+- **Backdrop:** Brent ~**$87** and firm — the Strait of Hormuz vessel attacks and an open-ended US naval
+  blockade of Iran keep an energy tail-risk live; 10-year yield **~4.69%**, which keeps the tape in the
+  negative-correlation regime the 08-12/08-13 entries described.
+
+### Carried from daily review (08-13 "Notes for pre-market research")
+- **"✅ MU is again the standout — keep emphatically."** — ✔ kept, no question raised. MU is **+7.5% vs
+  20MA** and **+7.76% on 5 days** after a **+4.23%** Thursday. Its **8.16% ATR is again the highest on the
+  board** — **seventh consecutive run** recording it as a **sizing** question for the post-close routine,
+  **not** a park question.
+- **"✅ INTC is the workhorse and the churn risk at once — do NOT read today's −$18 as decay."** — ✔ not
+  read as decay and **not acted on**. INTC is **+$47.07 over 6 trades since 08-04**, the best symbol on the
+  board, closed **+3.58%** Thursday and is **+8.5% vs its 20MA**. The late-session low-crossover re-entry
+  weakness is real but its lever (`MIN_CROSSOVER`) was **tested and refuted last night** — leaving it alone
+  is the instruction and it is followed.
+- **"✅ TSLA converted beautifully at conf 66.4 while −1.8% below its 20MA — the trend screen is a watchlist
+  filter, not a signal."** — ✔ **absorbed as a standing methodology note, and it changes today's reading of
+  two names.** TSLA has since crossed **back above its 20MA (+2.7%)**. More importantly this is the reason
+  **AMD (−2.1% vs 20MA) and UNH (−4.1%) are not parked on the trend line alone** today.
+- **"✅ GOOG is no longer silent — 4 candidates, concern retired."** — ✔ confirmed against journald: **GOOG
+  produced 4 no-entry events on 08-13** after five blank sessions. **Its 08-17 test is now half-dead by its
+  own terms** (the test requires 0 candidates AND below both MAs); recorded, not rewritten — the test runs
+  as written on 08-17.
+- **"✅ PLTR produced 6 candidates on day one — liveness confirmed, keep."** — ✔ verified independently
+  (6 events, second-most active name on the board). **This is the main reason no second name is added
+  today** — see below.
+- **"⚠️ Four enabled symbols produced zero candidates: AMZN, BABA, JPM, UNH."** — ✔ checked across the full
+  5-session window rather than the single session, and **none is dead**: **BABA 11, JPM 12, UNH 6, AMZN 5**
+  candidates in the window, and BABA + AMZN both converted inside the last two weeks (BABA **+$32.82**).
+  A one-session blank is not a signal. **AMZN's park test ("converts a near-miss and loses") remains unmet
+  for the fifth run — no park, stays on notice.**
+- **"AMD entered at crossover 0.257, the lowest on the board, and lost −$10.49 — sizing question, not a
+  park; single trade."** — ✔ agreed and not escalated. AMD is 14-day **−$11.07 on 3 trades**.
+- **"Book is CLEAN & FLAT into 08-14."** — ✔ **live-verified**: ACTIVE, **0 positions, 0 open orders**,
+  equity **$9,123.87**, cash $9,123.87, BP $36,495.48. (The 08-13 review closed at **$9,124.21**; the
+  **−$0.34** delta is a settle-side adjustment, not a trade — `last_equity` == `equity` confirms nothing
+  moved overnight.)
+
+### Watchlist review
+Account **ACTIVE**, **0 open positions = nothing locked.** All 20 incumbents reviewed against overnight news
+and 110-day daily bars off the IEX tape (close vs 20/50-day MA, 5-day and 1-day change, ATR%, 20-day avg
+$ volume), plus a 5-session signal-liveness audit from journald **dated off journald's own timestamps
+(`-o short-iso`)**, per the method gotcha recorded on 08-13.
+- **Trend broadened for a second straight session — the healthiest board reading of the month.** Above the
+  20MA: **PLTR +24.8%** (leader on day two), **ABNB +18.4%**, **MSFT +11.6%**, INTC +8.5%, NFLX +8.2%,
+  NVDA +7.7%, MU +7.5%, AVGO +4.9%, TSM +4.8%, QQQ +4.2%, AMZN +3.7%, WMT +3.3%, SPY +3.1%, TSLA +2.7%,
+  JPM +2.7%, BABA +0.6%. Below: **GOOG −0.5%, AMD −2.1%, UNH −4.1%, AAPL −4.5%**. **Only FOUR names are
+  below their 20MA (5 on 08-13, 6 on 08-12), and TSLA crossed back above.** Versus the 50MA the laggards
+  are **TSLA −8.8%, AMD −5.5%, INTC −4.5%, UNH −3.7%, GOOG −2.4%** — the residual SOX drawdown plus two
+  name-specific drifts, none new. **Nothing clears the park bar on trend.**
+- **⚠️ Volatility outliers, kept and noted (sixth consecutive run):** **MU 8.16%**, **AMD 7.11%**,
+  **INTC 6.74%** ATR, with **PLTR 5.45%** below all three as screened. Unchanged verdict: **sizing**, not
+  park.
+- **Liquidity floor holds.** Thinnest enabled names on 20-day IEX $ volume: **ABNB $37M**, **BABA $41M**,
+  **JPM $77M**, **UNH $93M**, **WMT $114M**. Deepest: SPY $1,125M, MU $976M, NVDA $953M, AAPL $619M,
+  MSFT $607M, AMZN $559M. No name has deteriorated into the sub-$35M band that took SE out.
+- **Signal-liveness audit, 5 sessions (08-07 → 08-13), 164 no-entry events + 9 conversions:** most active
+  **TSM 19, NFLX 18, ABNB 16, JPM 12, BABA 11, INTC 11, AVGO 9, NVDA 9, SPY 9**; mid **QQQ 7, UNH 6,
+  PLTR 6, MSFT 5, AAPL 5, AMZN 5, WMT 5**; quietest **TSLA 4, GOOG 4, AMD 2, MU 1** — but **MU converted
+  3 of its 4 opportunities and INTC 3 more**, so the two quiet tails are conversion, not silence.
+  **Every one of the 20 enabled symbols produced at least one candidate in the window** — the first run
+  this month with no zero-candidate name. Refusal split: **crossover floor 84, confidence floor 71, market
+  gate 9**, with **51 near-misses at conf ≥ 65 blocked on crossover**. Post-close's file — and it was
+  tested and refuted there last night; not re-raised here.
+- **14-day P&L (DB; still understates MU by the missing 08-12 **+$4.46** row — IMP-028 fixes the mechanism
+  going forward, it does not backfill): 29 closed trades, net +$230.99.** Winners **AVGO +$47.47 (3 tr)**,
+  **INTC +$47.07 (6 tr, 5W)**, GOOG +$45.11, BABA +$32.82, TSLA +$29.16, ABNB +$26.21, NVDA +$12.49,
+  MU +$11.68, MSFT +$4.50, TSM +$4.04. Losers **AMD −$11.07**, **AMZN −$18.49**. **No enabled symbol has a
+  park-worthy record under the current rules.** (All-time, for context, still carries the pre-IMP-021 tail:
+  AVGO −$121.38, AMZN −$108.51, AMD −$89.31 — the 08-13 review's standing correction applies, **judge on
+  the post-08-03 window**, where AVGO and INTC are the two best names on the board.)
+- **Dated tests — none due today, and none pulled forward.** GOOG + UNH **08-17**; AAPL **08-19**; WMT
+  earnings park **08-19**; **BABA earnings park 08-19 (NEW, below)**; WMT dead-signal **08-24**; NVDA
+  earnings **08-26**; SPY review **end-August**. UNH's clock ticked to **28 days without a trade** (last
+  07-17) and AAPL is the weakest chart on the board (**−4.5% vs 20MA**) — **both are already scheduled and
+  neither is advanced**, for the same reason the 08-13 entry gave: moving a dated test because the number
+  looks bad two days early is exactly the churn this log exists to prevent.
+- **Parked stay parked:** BIRD, C, COST, ENPH, QCOM, SE, WPM, XOM. Re-enable cases re-checked, **none
+  qualifies** — C is four sessions into a 30-day-tradeless park, QCOM and WPM remain broken downtrends, SE's
+  liquidity deficit is structural, COST and ENPH still fail trending-and-active on their own numbers.
+
+### 🔔 NEW — BABA reports 08-20 BMO (confirmed at the source): park it at the 08-19 run
+`sonar` said nothing about BABA. The routine's own earnings sweep caught it, and it was **verified against
+Alibaba Group's investor-relations press release dated 07 Aug 2026**, not a data aggregator: **results for
+the quarter ended 30 June 2026 will be released BEFORE the U.S. market opens on Thursday, 20 August 2026**,
+with the call at **7:30am ET**. (Two aggregators disagreed — Wall Street Horizon said 08-20 "confirmed",
+TipRanks estimated 08-28 — which is precisely why the company filing was the tiebreaker.)
+- **Action is dated, not taken today.** The print is **four sessions out**. BABA is currently a healthy
+  member of the board (11 candidates in the window, **+$32.82 over 2 winning trades in 14 days**), and
+  removing a live symbol four days early costs trades for no risk reduction.
+- **Park at the 08-19 run, deliberately the day BEFORE**, on the identical reasoning the 08-13 entry
+  recorded for WMT: this routine runs **11:30 UTC = 7:30am ET**, and the release lands at/just before
+  **8:00am ET**, so an 08-20 decision would be taken **blind to a print 30 minutes away**.
+- **08-19 is now a two-name park run: WMT (reports 08-20 BMO) and BABA (reports 08-20 BMO).** That drops
+  the board to **18 enabled** for 08-20 — worth knowing in advance, because it is also the day the AAPL
+  re-examination falls due, and three edits in one run is the churn profile the weekly review penalises.
+  **Re-enable condition for both: the print and its first-session reaction have cleared.**
+- **BABA's ADR earnings gap risk is the specific hazard here** — the 5-min gate does not protect against an
+  8:00am ET headline that re-prices the name before the 10:00 ET entry window even opens.
+
+### ➕ Adds — none, and the slot is being held on purpose
+Capacity is **20 of 30**, so this is a choice, not a constraint. Alternates were re-screened on fresh bars
+so the next add decision starts from current numbers, and **RDDT was screened out on its own tape**:
+- **CRM** — **+10.5% vs 20MA / +16.8% vs 50MA, +7.79% on 5 days, +4.15% Thursday**, $86M/day, ATR 4.29%.
+  **It has improved materially since 08-13** (it was "flat +0.24% on 5 days" then) and is **now the leading
+  alternate**, ahead of ANET.
+- **ANET** — +11.8% / +17.4%, $82M/day, ATR 5.65%, but **−3.22% Thursday** after leading the prior day;
+  still strong, momentum less clean than CRM's this week.
+- **UBER** — +5.6% / +5.1%, $86M/day, ATR 3.47%; steady, shallower trend.
+- **LLY** — +2.3% / +3.6%, $131M/day; **trend too shallow**, unchanged verdict.
+- **RDDT — screened and REJECTED despite being today's headline mover.** It is **below both MAs (−4.7% /
+  −9.6%)**, thinnest of the set at **$46M/day**, ATR **6.97%**, and this morning's **+12%** is **S&P 500
+  index-inclusion mechanics** — a one-off flow event, not the sustained intraday trend the ribbon needs.
+  Buying a name into an inclusion pop is the opposite of this strategy.
+**Why nothing was added (three independent reasons, any one sufficient):** ① **PLTR is one session old** —
+6 candidates, 0 conversions — and a second add would contaminate exactly the measurement that decides
+whether the last add worked. ② **IMP-023 couples `bot/replay.py`'s universe to `dbo.watchlist`**, so a
+second universe change in two days would leave **three consecutive non-comparable backtest baselines** for
+the post-close routine. ③ At **$9.1k equity an extra symbol displaces a trade rather than adding one**
+(IMP-017) — and the board just produced its first zero-silent-name session, i.e. it is **not short of
+candidates**, it is short of conversions.
+
+### Changes applied to dbo.watchlist
+**NONE. No INSERT, no UPDATE, no DELETE — the `watchlist` table was read only.** No park qualified, no
+dated test came due, no re-enable case cleared, and the add slot was held deliberately. Assertions re-run
+against the live table after the review: **20 enabled ≤ 30 ✓**, **QQQ `enabled = 1` ✓** (load-bearing twice
+over — diversifier *and* the IMP-022 market-regime proxy), **8 parked rows all still present ✓**,
+**PLTR row intact and enabled ✓**.
+
+### Final watchlist
+**20 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA GOOG INTC JPM MSFT MU NFLX NVDA PLTR QQQ SPY TSLA TSM
+UNH WMT. Parked (8): BIRD C COST ENPH QCOM SE WPM XOM. **Service NOT restarted — correctly, because nothing
+changed.** It has been `active` since **2026-08-13 11:37:48 UTC** with **NRestarts=0**, **zero WARNING or
+ERROR records** since, and its ribbons are **live-built through yesterday's full session** rather than
+warmup-seeded — a better state than a fresh restart would leave it in. Verified normal: the journal is
+silent from **08-13 20:59 UTC** to now, which matches the pre-restart overnight gap on 08-12→08-13 (IEX
+prints no ticks on these names at 07:30 ET). 🔒 Locked: **none (0 positions)**. **Upcoming: GOOG + UNH
+tests 08-17 · AAPL re-examination 08-19 · WMT earnings park 08-19 · BABA earnings park 08-19 (NEW) · WMT
+dead-signal test 08-24 · NVDA earnings 08-26 · SPY review end-August.**
+
+### Perplexity `sonar` — run 9, weakest yet, and it repeated the clock error for a THIRD consecutive day
+`sonar` returned **"no overnight/pre-market catalyst found"** for **18 of 20** tickers, **declined to give a
+futures direction at all** for the third run running ("not stated in the provided results"), and its only
+two ticker-level offerings were both defective: the **AAPL Jefferies downgrade**, now surfaced for the
+**fourth consecutive run** and first logged **08-11**, and an **AAPL FQ3 earnings/guidance item that is
+weeks stale**. Its "biggest pre-market movers" were **NVDA +0.35%, AAPL −0.03%, MSFT −0.22%** — a screenshot
+of a quote table, not movers, while the actual movers (RDDT +12%, CAPR +86%, INVA −45%) went unmentioned.
+**Third consecutive clock error:** it filed **8:30am ET July retail sales** under *"releases DURING US
+market hours"*. A run that trusted it would have booked a non-existent in-session event three days running —
+**and would simultaneously have missed the one real in-session item, the 10:00am ET U. Michigan print that
+lands on the entry-window open.** It also said nothing about **BABA's confirmed 08-20 earnings**, the single
+most consequential fact found today. **Standing rule reaffirmed and now overwhelming: `sonar` is
+lead-generation only — never a regime source, never a clock, and its silence on a ticker is not evidence of
+no catalyst.** WebSearch (futures, the macro calendar with times, the earnings calendar, AMAT's guide,
+pre-market movers, Alibaba's IR release) + the IEX daily tape + journald carried this run.
+
+---
