@@ -25,7 +25,12 @@ class _FakeCursor:
         self._conn.calls.append((" ".join(sql.split()), tuple(params)))
         if self._conn.raise_on and self._conn.raise_on in sql:
             raise RuntimeError("db boom")
-        if "OUTPUT INSERTED.id, INSERTED.qty" in sql:
+        if "SELECT id FROM dbo.trades WHERE entry_order_id" in sql:
+            # IMP-028's idempotency lookup: a row only exists if the first attempt committed.
+            self._row = (
+                (self._conn.existing_id,) if self._conn.existing_id is not None else None
+            )
+        elif "OUTPUT INSERTED.id, INSERTED.qty" in sql:
             self._row = (self._conn.next_id, self._conn.open_qty)
         elif "OUTPUT INSERTED.id" in sql:
             self._row = (self._conn.next_id,)
@@ -38,18 +43,24 @@ class _FakeCursor:
 
 
 class _FakeConn:
-    def __init__(self, *, next_id=7, open_qty=25, raise_on=None) -> None:
+    def __init__(
+        self, *, next_id=7, open_qty=25, raise_on=None, raise_on_commit=False, existing_id=None
+    ) -> None:
         self.calls: list[tuple[str, tuple]] = []
         self.commits = 0
         self.closed = False
         self.next_id = next_id
         self.open_qty = open_qty
         self.raise_on = raise_on
+        self.raise_on_commit = raise_on_commit
+        self.existing_id = existing_id
 
     def cursor(self):
         return _FakeCursor(self)
 
     def commit(self):
+        if self.raise_on_commit:
+            raise RuntimeError("08S01 TCP Provider: Error code 0x20 (32)")
         self.commits += 1
 
     def close(self):
@@ -58,6 +69,21 @@ class _FakeConn:
 
 def _store(conn):
     return TradeStore(lambda: conn)
+
+
+class _SeqFactory:
+    """Hands out connections in order, counting calls — a reconnect gets the next one."""
+
+    def __init__(self, *conns) -> None:
+        self.conns = list(conns)
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        # Past the end, keep returning the last one (a store that reconnects too often
+        # would otherwise IndexError and hide the real assertion).
+        idx = min(self.calls - 1, len(self.conns) - 1)
+        return self.conns[idx]
 
 
 def _exec_result(**kw):
@@ -126,6 +152,83 @@ def test_record_entry_uses_parameters_not_interpolation():
     trade_sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
     assert "WPM" not in trade_sql  # value travels as a bound param, not inlined
     assert params[0] == "WPM"
+
+
+# --- record_entry retry (IMP-028) ------------------------------------------
+
+
+def _mu_0812():
+    """The 2026-08-12 MU entry whose INSERT hit a dead socket and was never re-driven."""
+    return _exec_result(
+        symbol="MU", order_id="0d1a2b3c-mu-0812", qty=2, notional=1848.16,
+        entry_price=924.08, stop_price=905.60, take_profit_price=1016.49, confidence=80.5,
+    )
+
+
+def test_record_entry_retries_once_on_a_fresh_connection_after_a_dead_socket():
+    # Regression, 2026-08-12: `pyodbc.OperationalError ('08S01', 'TCP Provider: Error code
+    # 0x20 (32)')` on the trades INSERT. record_entry logged, reset and returned None, so the
+    # exit had no trade_id and the whole session vanished from dbo.trades while the broker
+    # held a real filled position. The socket was healthy seconds later — one retry saves it.
+    dead = _FakeConn(raise_on="INSERT INTO dbo.trades")
+    fresh = _FakeConn(next_id=285)
+    factory = _SeqFactory(dead, fresh)
+
+    trade_id = TradeStore(factory).record_entry(_mu_0812(), _breakdown())
+
+    assert trade_id == 285, "the retry must recover the row the dead socket lost"
+    assert factory.calls == 2, "the retry must run on a reconnected socket, not the dead one"
+    assert dead.closed, "the dead connection must be dropped before retrying"
+    assert fresh.commits == 1
+    trade_sql, params = next(c for c in fresh.calls if "INSERT INTO dbo.trades" in c[0])
+    assert params[0] == "MU" and params[2] == "0d1a2b3c-mu-0812"
+    # the full entry write is re-driven, not just the trades row
+    assert any("INSERT INTO dbo.orders" in s for s in _sql(fresh.calls))
+    assert any("INSERT INTO dbo.positions" in s for s in _sql(fresh.calls))
+
+
+def test_record_entry_retry_does_not_duplicate_a_trade_that_already_committed():
+    # A failure raised *by commit()* may still have landed the transaction. Re-inserting
+    # blind would double-count the position, so the retry looks the bracket up by its
+    # Alpaca entry_order_id first and adopts the existing row.
+    committed = _FakeConn(raise_on_commit=True)
+    fresh = _FakeConn(next_id=999, existing_id=285)
+    factory = _SeqFactory(committed, fresh)
+
+    trade_id = TradeStore(factory).record_entry(_mu_0812(), _breakdown())
+
+    assert trade_id == 285, "must adopt the row the first attempt committed, not mint a new one"
+    assert not any("INSERT INTO dbo.trades" in s for s in _sql(fresh.calls)), (
+        "a second INSERT would duplicate the trade"
+    )
+    assert fresh.commits == 0
+
+
+def test_record_entry_gives_up_after_exactly_one_retry():
+    # A database still down after a reconnect is an outage; the candle thread must not
+    # block on it. Behaviour then degrades to exactly what it was before IMP-028.
+    dead = _FakeConn(raise_on="INSERT INTO dbo.trades")
+    still_dead = _FakeConn(raise_on="INSERT INTO dbo.trades")
+    factory = _SeqFactory(dead, still_dead)
+
+    trade_id = TradeStore(factory).record_entry(_mu_0812(), _breakdown())
+
+    assert trade_id is None
+    assert factory.calls == 2, "exactly one retry — never a loop against a down database"
+    assert still_dead.closed, "the connection is reset so the next write reconnects"
+
+
+def test_record_entry_happy_path_does_not_reconnect_or_look_itself_up():
+    # Non-regression: the successful path must be byte-identical to pre-IMP-028 — one
+    # connection, one commit, and no idempotency SELECT on the hot path.
+    conn = _FakeConn(next_id=7)
+    factory = _SeqFactory(conn)
+
+    assert TradeStore(factory).record_entry(_exec_result(), _breakdown()) == 7
+    assert factory.calls == 1
+    assert conn.commits == 1
+    assert not conn.closed
+    assert not any("SELECT id FROM dbo.trades" in s for s in _sql(conn.calls))
 
 
 # --- record_exit -----------------------------------------------------------

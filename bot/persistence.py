@@ -157,80 +157,134 @@ class TradeStore:
     def record_entry(
         self, result: ExecutionResult, breakdown: ConfidenceBreakdown | None = None
     ) -> int | None:
-        """Persist a submitted bracket entry; returns the new ``trades.id`` (or None)."""
+        """Persist a submitted bracket entry; returns the new ``trades.id`` (or None).
+
+        Retries **once** on a fresh connection (IMP-028). The 2026-08-12 MU entry hit a
+        socket that had gone stale between sessions (``08S01 TCP Provider``); the write
+        was lost, the exit then had no ``trade_id`` to attach to, and the whole session
+        vanished from ``dbo.trades`` while the broker held a real, filled position. The
+        connection was healthy 12 seconds later — every later write that day succeeded —
+        so the row was recoverable and simply never re-driven. :meth:`_reset` already
+        makes the *next* write reconnect; this makes *this* write take that path.
+
+        The retry is **idempotent**: a failure raised by ``commit()`` may have landed the
+        transaction anyway, so before re-inserting we look the trade up by its Alpaca
+        ``entry_order_id`` (unique per bracket) and return the existing id if the first
+        attempt did commit. Retrying blind would double-count the position. Exactly one
+        retry — a database that is still down after a reconnect is an outage, and the
+        candle thread must not block on it.
+        """
         try:
-            conn = self._connection()
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO dbo.trades "
-                "(symbol, model, status, entry_order_id, entry_price, qty, notional, "
-                " stop_price, target_price, confidence, conf_crossover, conf_trend, "
-                " conf_rsi, conf_volume, conf_volatility) "
-                "OUTPUT INSERTED.id "
-                "VALUES (?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    result.symbol,
-                    result.model,
-                    result.order_id,
-                    result.entry_price,
-                    result.qty,
-                    result.notional,
-                    result.stop_price,
-                    result.take_profit_price,
-                    result.confidence,
-                    _sub(breakdown, "crossover"),
-                    _sub(breakdown, "trend"),
-                    _sub(breakdown, "rsi"),
-                    _sub(breakdown, "volume"),
-                    _sub(breakdown, "volatility"),
-                ),
+            return self._insert_entry(result, breakdown)
+        except Exception:
+            log.exception(
+                "failed to persist entry for %s — retrying once on a fresh connection",
+                result.symbol,
             )
-            row = cur.fetchone()
-            trade_id = int(row[0]) if row else None
-            cur.execute(
-                "INSERT INTO dbo.orders "
-                "(trade_id, alpaca_order_id, symbol, side, role, qty, order_type, "
-                " limit_price, stop_price, status, confidence) "
-                "VALUES (?, ?, ?, 'BUY', 'ENTRY', ?, 'BRACKET', ?, ?, ?, ?)",
-                (
-                    trade_id,
-                    result.order_id,
+            self._reset()
+
+        try:
+            existing = self._trade_id_for_order(result.order_id)
+            if existing is not None:
+                # The first attempt's commit landed before the socket died.
+                log.warning(
+                    "DB entry %s was already committed as trade_id=%s — not re-inserting",
                     result.symbol,
-                    result.qty,
-                    result.take_profit_price,
-                    result.stop_price,
-                    result.status,
-                    result.confidence,
-                ),
+                    existing,
+                )
+                return existing
+            trade_id = self._insert_entry(result, breakdown)
+            log.info("DB entry %s recovered on retry (trade_id=%s)", result.symbol, trade_id)
+            return trade_id
+        except Exception:
+            log.exception(
+                "entry retry failed for %s — this trade will be MISSING from dbo.trades",
+                result.symbol,
             )
-            # One position per symbol: replace any stale row outright.
-            cur.execute("DELETE FROM dbo.positions WHERE symbol = ?", (result.symbol,))
-            cur.execute(
-                "INSERT INTO dbo.positions "
-                "(symbol, trade_id, qty, entry_price, stop_price, target_price) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    result.symbol,
-                    trade_id,
-                    result.qty,
-                    result.entry_price,
-                    result.stop_price,
-                    result.take_profit_price,
-                ),
-            )
-            conn.commit()
-            log.info(
-                "DB entry %s trade_id=%s qty=%d conf=%.1f",
+            self._reset()
+            return None
+
+    def _trade_id_for_order(self, entry_order_id: str) -> int | None:
+        """``trades.id`` for an Alpaca entry order, or ``None`` if it never committed."""
+        cur = self._connection().cursor()
+        cur.execute(
+            "SELECT id FROM dbo.trades WHERE entry_order_id = ?", (entry_order_id,)
+        )
+        row = cur.fetchone()
+        return int(row[0]) if row else None
+
+    def _insert_entry(
+        self, result: ExecutionResult, breakdown: ConfidenceBreakdown | None
+    ) -> int | None:
+        """The entry write itself, as one transaction. Raises — the caller decides."""
+        conn = self._connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO dbo.trades "
+            "(symbol, model, status, entry_order_id, entry_price, qty, notional, "
+            " stop_price, target_price, confidence, conf_crossover, conf_trend, "
+            " conf_rsi, conf_volume, conf_volatility) "
+            "OUTPUT INSERTED.id "
+            "VALUES (?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                result.symbol,
+                result.model,
+                result.order_id,
+                result.entry_price,
+                result.qty,
+                result.notional,
+                result.stop_price,
+                result.take_profit_price,
+                result.confidence,
+                _sub(breakdown, "crossover"),
+                _sub(breakdown, "trend"),
+                _sub(breakdown, "rsi"),
+                _sub(breakdown, "volume"),
+                _sub(breakdown, "volatility"),
+            ),
+        )
+        row = cur.fetchone()
+        trade_id = int(row[0]) if row else None
+        cur.execute(
+            "INSERT INTO dbo.orders "
+            "(trade_id, alpaca_order_id, symbol, side, role, qty, order_type, "
+            " limit_price, stop_price, status, confidence) "
+            "VALUES (?, ?, ?, 'BUY', 'ENTRY', ?, 'BRACKET', ?, ?, ?, ?)",
+            (
+                trade_id,
+                result.order_id,
+                result.symbol,
+                result.qty,
+                result.take_profit_price,
+                result.stop_price,
+                result.status,
+                result.confidence,
+            ),
+        )
+        # One position per symbol: replace any stale row outright.
+        cur.execute("DELETE FROM dbo.positions WHERE symbol = ?", (result.symbol,))
+        cur.execute(
+            "INSERT INTO dbo.positions "
+            "(symbol, trade_id, qty, entry_price, stop_price, target_price) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
                 result.symbol,
                 trade_id,
                 result.qty,
-                result.confidence,
-            )
-            return trade_id
-        except Exception:
-            log.exception("failed to persist entry for %s", result.symbol)
-            self._reset()
-            return None
+                result.entry_price,
+                result.stop_price,
+                result.take_profit_price,
+            ),
+        )
+        conn.commit()
+        log.info(
+            "DB entry %s trade_id=%s qty=%d conf=%.1f",
+            result.symbol,
+            trade_id,
+            result.qty,
+            result.confidence,
+        )
+        return trade_id
 
     def record_exit(self, result: ExitResult) -> None:
         """Close the symbol's open trade: set exit fields + realized P/L, drop position."""
