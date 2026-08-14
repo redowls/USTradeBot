@@ -1556,10 +1556,15 @@ would have failed it.
   bound on what a stop could actually have captured intra-bar. ③ It reads IEX; a trade whose tape was thin
   will under-report its true excursion — the same limitation the bot itself trades under, deliberately.
 - **Commit:** `82d1914`
-- **Observed effect:** ⏳ pending. Watch: (a) the daily/weekly routines should now cite the excursion table
-  instead of hand-deriving it; (b) the `<0.5%` band's share of trades is the headline number to track — if
-  a future entry filter is worth shipping, **that share must fall**; (c) re-run the table after 08-12 to
-  give IMP-022 a capture-based verdict, not just a P&L one.
+- **Observed effect:** ✅ **VALIDATED (weekly 08-14).** Adopted immediately and load-bearing within two
+  sessions: the 08-13 daily review's entire trade table is MFE/MAE-sourced from `bot.report --mfe` rather
+  than hand-derived, and it produced that session's central finding — **all 4 winners had MAE ≤ 0.44%,
+  all 4 losers MAE ≥ 0.90%**, a clean separator that the confidence score itself failed to provide.
+  (a) met — no review hand-built the table this week. (b) tracked: 4 of 08-13's 8 entries sat in the
+  `<0.5%`-MFE cohort (MFE +0.12/+0.28/+0.38/+0.42%) and accounted for **every loss of the session**.
+  (c) partially met — the capture read exists per-session but was never re-run as one post-08-12
+  aggregate; carried forward. **Judgement: highest-leverage instrumentation the bot has; it paid for
+  itself inside a week and it is what made 08-13's two refutations evidential rather than rhetorical.**
 
 ---
 
@@ -1634,11 +1639,14 @@ would have failed it.
   ③ The `UTC` marker changes the log line shape, so any downstream log grep that anchors on the
   `levelname` column position would need adjusting — nothing in this repo does.
 - **Commit:** `49ecb07`
-- **Observed effect:** ⏳ pending — first live session **Wed 2026-08-12**. Watch: (a) journald lines
-  should read `… UTC INFO …` with the prefix matching the candle payload in the same line — that is the
-  whole acceptance test, checkable in one glance; (b) tomorrow's review should be able to correlate
-  `no entry` lines to candles **without shifting anything by hand**; (c) if any line still shows a 7-hour
-  offset, `setup_logging` is being bypassed on some path and that path needs finding.
+- **Observed effect:** ✅ **VALIDATED (weekly 08-14).** (a) met — every journald line from 08-11 21:23:58
+  onward carries the `UTC` marker and the prefix matches the payload (`2026-08-12 14:08:01,840 UTC ERROR`
+  against a journald stamp of `Aug 12 14:08:01`, i.e. **zero offset**, where pre-fix lines showed the
+  full 7 hours: `Aug 10 11:36:38 … 2026-08-10 18:36:38`). (b) met — this weekly reconstructed all five
+  sessions' refusal tables straight from journald with **no hand-shifting**, which is precisely what the
+  08-10 review had to do manually. (c) no residual offset found on any path. **Judgement: small change,
+  disproportionate payoff — it removed a standing misdiagnosis risk that this repo's own memory flagged
+  as having silently corrupted nine days of sibling-bot logs.**
 
 ---
 
@@ -1697,3 +1705,62 @@ all behave identically. This changes only which order the bot is willing to call
 only ever refuse, never invent.
 
 **Commit.** `b810188` — deployed and restarted 2026-08-12.
+
+- **Observed effect:** ✅ **VALIDATED (weekly 08-14).** First full session under the guard was 08-13,
+  which is the strongest possible test: **8 trades, 8 entries and 8 exits, every exit attributed to its
+  own sell**, broker-reconciled to the cent (`last_equity` 9,089.68 → `equity` 9,124.21 = **+$34.53**,
+  identical to `dbo.trades`). Three of those exits filled within seconds of each other (INTC 15:35:06,
+  MU 15:34:33) — exactly the interleaved-fill shape that produced the 08-12 mis-book — and none was
+  cross-attributed. Zero false refusals: no symbol was left stuck in `MANAGING` by the guard declining a
+  legitimate candidate. **The 08-12 failure ($108 error in the wrong direction on the only trade of the
+  day) has not recurred.** Judgement: correct fix, correctly scoped, and the third occurrence of this
+  bug class is now closed at the invariant level rather than by another timing heuristic.
+
+---
+
+## IMP-028 — 2026-08-13 (daily) — `record_entry` retries once on a fresh connection
+
+> **⚠️ ENTRY WRITTEN BY THE WEEKLY REVIEW OF 2026-08-14, NOT BY ITS AUTHOR.**
+> **STATUS: WRITTEN — NOT COMMITTED, NOT DEPLOYED, NOT RUNNING.**
+> This number is reserved here so the series cannot be reissued. The next new change is **IMP-029**.
+
+- **What it is.** The fix for the 08-12 defect that erased an entire session from `dbo.trades`: a dead
+  socket (`08S01 TCP Provider`) killed the MU entry INSERT, `record_entry` logged and returned `None`
+  without retrying, the exit then had no `trade_id`, and **both legs were lost while the broker held a
+  real filled position**. The change wraps the insert in `_insert_entry`, retries **exactly once** on a
+  fresh connection after `_reset()`, and makes the retry **idempotent** by looking the bracket up by its
+  unique Alpaca `entry_order_id` first — so a failure raised *by* `commit()` (where the transaction may
+  have landed anyway) cannot double-count a position.
+- **The design is sound and the code is written.** `bot/persistence.py` (+186/−68) and
+  `tests/test_persistence.py` (+107). The 08-13 daily review reports **363 tests passing** (359 → 363)
+  with non-vacuity verified, and this weekly independently re-ran the full suite on the working tree:
+  **`pytest -q` exits 0, no failures.** The problem is not the change. The problem is that it was
+  never delivered.
+- **🔴 Three-way delivery failure, found by this weekly:**
+  1. **Not committed.** Both files have sat as uncommitted working-tree modifications since
+     **08-13 21:43 UTC** — through a full trading session and two days.
+  2. **Not deployed.** `ustradebot.service` has `ActiveEnterTimestamp = 2026-08-13 11:37:48 UTC`,
+     `NRestarts=0`, MainPID **805070** started `Thu Aug 13 11:37:48` — i.e. the process has been up
+     continuously since **ten hours *before* the files were edited**, and was never restarted. The
+     running bot executed all of 08-14 on the **old** `persistence.py`. **The 08-12 data-loss defect
+     is still live in production.**
+  3. **Not recorded.** The 08-13 daily review states *"Details in `memory/improvement-log.md`"* — there
+     was no IMP-028 entry in this file until this weekly wrote one. The cross-reference was false, and
+     any later routine reading this log for the next free number would have **reissued 028**.
+  - Ancillary: both files are owned `root:root` rather than `ustradebot:ustradebot`, violating the
+    standing ownership rule (mode 664 keeps them world-readable, so the service can still read them —
+    no functional impact, but it is the same root-owns-repo-files gotcha this project has hit before).
+- **Deliberately left untouched by this weekly.** The standing rule is that a review does not touch
+  uncommitted modifications it did not make. The code is not mine to validate, commit or deploy on
+  someone else's behalf, and the correct owner is the routine that wrote it.
+- **➡️ HANDOFF — action for the daily review of 2026-08-14 (21:10 UTC).** This is your one job tonight
+  and it is **not** a new change: (1) `chown ustradebot:ustradebot bot/persistence.py
+  tests/test_persistence.py`; (2) re-run `pytest -q` (expect 363 pass) and `bot.preflight`; (3) commit
+  **only** those two files as `IMP-028: record_entry retries once on a fresh connection` and push;
+  (4) `systemctl restart ustradebot.service`, wait ~10s, confirm `is-active` and a clean startup with
+  warmup primed; (5) **verify deployment the way this project's memory says to — compare
+  `systemctl show -p ActiveEnterTimestamp` against the file mtime.** A restart that predates the edit
+  means the fix is not running. (6) Replace this block's status line with the real commit hash.
+- **Observed effect:** ❌ **NONE — the change has never executed.** It cannot be evaluated until it is
+  deployed. Its motivating defect did not recur on 08-13 or 08-14, but that is luck and a healthy
+  socket, not this fix working: the code that ran those sessions is the code that failed on 08-12.

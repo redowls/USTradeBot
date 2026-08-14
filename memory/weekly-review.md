@@ -774,3 +774,223 @@ write it up with its evidence and hand it to next Friday.
   and swinging hard daily, and INTC/MU/AVGO/NVDA/TSM/AMD are the core of this watchlist. Expect the gate to
   keep trade count low around Wednesday.
 
+---
+
+## Week ending 2026-08-14 — Grade: B
+
+### Stats
+- **DB (closed, Mon 08-10 → Fri 08-14):** **12 trades, 6W/6L → 50.0% win**, net **+$44.24**, **PF 1.54**,
+  avg win **+$20.99** / avg loss **−$13.62** (payoff 1.54). Best **MU +$56.24** (08-13), worst
+  **INTC −$23.19** (08-13).
+- **⚠️ The DB is one trade short, and the correction is favourable.** The **08-12 MU winner (+$4.46)**
+  never persisted — the entry INSERT hit a dead socket (see IMP-028 below), so the row does not exist.
+  **True week: 13 trades, 7W/6L → 53.8% win, net +$48.70, PF 1.60.** Quote the corrected figures.
+- **Equity is the arbiter and it agrees: $9,075.74 (Fri 08-07 close) → $9,123.87 = +$48.13 (+0.53%)**,
+  within $0.57 of the corrected DB net (valuation rounding). All cash, **0 positions, 0 open orders**.
+- **Zero losing days — the equity curve did not go down once all week:** 9,075.74 → 9,085.28 (08-10)
+  → 9,085.28 (08-11) → 9,089.68 (08-12) → 9,123.87 (08-13) → flat (08-14). **Max drawdown ≈ $0.**
+- **By day:** 08-10 **+$9.71** (4 tr) · 08-11 **$0** (0 tr) · 08-12 **+$4.46** (1 tr, unrecorded) ·
+  08-13 **+$34.53** (8 tr) · 08-14 **$0** (0 tr).
+- **By symbol:** TSLA +$29.16 (1) · ABNB +$26.21 (1) · MU +$24.04 (3, +$28.50 with the lost 08-12 row) ·
+  BABA +$9.30 (1) · NVDA −$4.23 (1) · AMD −$10.49 (1) · AVGO −$11.60 (1) · **INTC −$18.15 (3)**.
+- **Confidence vs outcome (all-time, `vw_confidence_outcome`) — still inverted at the top:**
+  70-79 **+$250.84** (87 tr, 54.0%) · 60-69 **−$58.22** (146 tr, 41.8%) · 80-89 **−$26.75** (30 tr, 46.7%)
+  · **90-100 −$144.42 (3 tr, 0% win)**. Third straight week the score fails to rank.
+- **Third consecutive profitable week:** wk31 +$22.93 · wk32 +$125.89 · wk33 **+$48.70**.
+  **All-time remains marginal: 266 trades, 45.9% win, net +$21.45, PF 1.009.**
+- **Service: clean. `NRestarts=0`, zero crashes, zero 422s, one uptime spanning 08-13 11:37 → now.**
+  The only ERROR records all week are the 08-12 persistence failure and the 08-13 stand-down notice.
+
+### Grade rationale
+**B — a quietly good trading week and the best *analytical* week this bot has ever had, held back from
+A by a delivery failure that left the week's most important fix unshipped and the improvement log
+carrying a false statement.**
+
+**Results support a high grade but not on their own merits — the numbers are small.** +$48.70 on
++0.53% equity across 13 trades is real but thin, and n=13 across two effective trading days is not a
+sample. What lifts the results half a grade is *shape*, not size: **no losing day, no drawdown, no
+naked position, no crash, no risk breach, and a risk control that fired correctly and reset correctly**
+(the 3-consecutive-loss stand-down tripped 08-13 19:25 and cleanly re-enabled for 08-14 — verified in
+the journal, not assumed). A week that makes money without ever risking much of it is what this bot is
+supposed to look like.
+
+**Process is where this week genuinely excelled, and it deserves saying plainly.** Last week imposed a
+shipping freeze on trading logic. **It was honored, and honored intelligently.** On 08-13 the daily
+review had two live strategy candidates it had motive to ship — tighten the initial stop 2.0% → 1.25%,
+and raise `MIN_CROSSOVER` 0.25 → 0.30 — both apparently supported by that session's own trade-by-trade
+evidence and by damning live bucket statistics (the 0.25–0.30 crossover band is the biggest cohort and
+the biggest loser, −$242.76 all-time). **Both were tested across four replay windows and both were
+refuted, and neither shipped.** The stop candidate failed the ≥3-agreeing-windows rule (0/+/+/−); the
+crossover floor was *unanimously negative* in all four windows. It further established *why* the stop
+study was wrong — the trail ratchets on the first candle after entry, so the 2% initial stop is nearly
+vestigial and the study priced a rule the live system never executes. **This is the discipline this bot
+has historically lacked: it had the evidence, the authority and the temptation to tune, and it correctly
+concluded the tuning was an artifact.** All four IMPs this week (025/026/027/028) were instrumentation
+or data-integrity fixes with **zero behavioural change to entry, exit or sizing.** The freeze held.
+
+**What costs the A is delivery, not judgement.** **IMP-028 — the fix for the defect that erased an entire
+session from `dbo.trades` while the broker held a real filled position — was written, tested and then
+never shipped.** It is uncommitted (since 08-13 21:43), **never deployed** (`ActiveEnterTimestamp`
+08-13 11:37:48, MainPID 805070, `NRestarts=0` — the running process predates the edit by ten hours), and
+was **never recorded** in `memory/improvement-log.md`, despite the 08-13 review stating *"Details in
+`memory/improvement-log.md`."* That sentence was false, and it is the part that matters most: an
+improvement log that records changes which are not running is worse than no log, because every
+subsequent review reasons from it. The top-priority open defect is still live in production, and the
+next routine to read the log for a free number would have reissued 028. I have written the entry, marked
+it NOT DEPLOYED, reserved the number, and handed the deployment to tonight's daily review.
+This is a **C-grade process failure sitting inside an A-grade process week**; the rest of the record —
+exact broker reconciliation every session, non-vacuity checks on new tests, refusals documented so they
+are not re-proposed — is why the week nets out at B rather than C.
+
+**Not counted against the week:** the Perplexity `sonar-deep-research` call returned empty (1 byte) and
+the fallback `sonar` was unreachable from this host; regime was sourced from IEX daily bars instead,
+which the 08-10 review already established as the authoritative substitute after `sonar` returned a
+prior session's record close as that day's tape. Zero-trade days on 08-11 and 08-14 were **correct
+refusals, not outages** — 15 and 25 logged candidate rejections respectively, on a tape that fell both
+days.
+
+### What worked / what didn't
+- **✅ Worked — the market gate (IMP-022), and this week finally answers last week's #1 question.**
+  Last week asked: *does the gate let the bot trade on an up-tape, or is it a permanent off-switch?*
+  **Answered decisively: it is not an off-switch.** Across the week the gate accounted for **7 of 141
+  refusals (5.0%)** — the tripwire is >80% and it is nowhere near it, down from 100% over its first two
+  sessions. On **08-13, the week's only genuinely bullish intraday session (QQQ +0.98% open→close), the
+  gate blocked exactly ZERO candidates and the bot took 8 trades for its best day.** The proxy is not
+  too strict. **Do not switch `MARKET_FILTER_SYMBOL` to SPY.** The tripwire is formally retired.
+- **✅ Worked — and the gate is additive, re-validated in two fresh windows.** Replay (post-IMP-024,
+  honest close-keyed semantics, 20 symbols from `dbo.watchlist`):
+
+  | window | gate ON | gate OFF | gate edge |
+  |---|---|---|---|
+  | 5d (08-09→08-14) | 12 tr · **+$79.61** · 58.3% · PF 1.99 | 18 tr · +$58.61 · 50.0% · PF 1.45 | **+$21.00** |
+  | 10d (08-04→08-14) | 14 tr · **+$37.68** · 50.0% · PF 1.31 | 29 tr · **−$53.84** · 41.4% · PF 0.80 | **+$91.52** |
+
+  At 10 days the gate is **the difference between a profitable book and a losing one**, and it does it on
+  half the trades. That is now **four independent windows agreeing in sign** (60d from 08-07, plus 5d
+  and 10d here). IMP-022 is the most robust thing this bot owns.
+- **✅ Worked — the exit structure, on the only day it was given something to work with.** 08-13's two
+  real movers were both converted: **MU peaked +4.23% and banked +3.00% (71% capture)**; **TSLA peaked
+  +2.45% and banked +1.75% (71% capture)**. Both were held through hours of noise and cut on the ratchet,
+  not the clock. IMP-018 + IMP-021 doing exactly what they were specified to do.
+- **✅ Worked — reconciliation caught what the DB hid.** On 08-12 the DB said "no trades"; the broker said
+  one trade, and it won. Only the broker-vs-DB step in the daily routine found it. **The lesson from that
+  session is the week's most durable: this bot's evidence base is not self-validating.**
+- **❌ Didn't — the entry signal, for the fourth consecutive week, and it is now precisely localised.**
+  On 08-13, **4 of 8 entries had MFE of +0.12 / +0.28 / +0.38 / +0.42%** — they never traded meaningfully
+  above entry and were cut at −0.9% to −1.2%, **well inside the 2% stop**. No stop was hit, nothing
+  gapped, nothing slipped, and the tape was *up*. That is not exit structure and not regime; it is entry
+  selection. The same shape drove 08-10 (three of four trades peaked at ≈+0.6% against a 1.25% give-back).
+- **❌ Didn't — confidence is still inverted at the top, and the sizing curve scales *with* it.** 08-13's
+  two highest-confidence entries (83.4 MU, 81.2 INTC) returned **−$18.00** and +$4.34, while conf 66.4
+  TSLA made +$29.16 and conf 77.9 MU made +$56.24. All-time the 90-100 band is **0 for 3, −$144.42**.
+- **❌ Didn't — one expensive, instructive gate miss.** On **08-14 the gate blocked AMD twice, at conf
+  76.5 and conf 91.2** (the highest-confidence candidate of the entire week), because QQQ's 5m ribbon was
+  not bullish. **AMD closed +5.48% that day (487.67 → 514.39, 6.38% range) — the cleanest single-name
+  intraday trend of the week.** This is the market-gate's structural cost made concrete: a market-wide
+  filter vetoes idiosyncratic single-name strength. **It is a real cost and it is still worth paying** —
+  the same gate is what produced the +$91.52 edge at 10 days, and the 90-100 confidence band it blocked
+  is 0-for-3 lifetime. Logged as the standing argument *against* the gate so it is not re-discovered as
+  if it were new; it does not currently outweigh four windows of evidence.
+- **❌ Didn't — the week bought less information than its five sessions suggest.** Two blank days and a
+  one-trade day mean **12 of 13 trades came from two sessions**, and 8 of those from one. Any statistic
+  quoted from this week is really a statistic about 08-10 and 08-13.
+
+### Improvements shipped this week
+- **IMP-025** (82d1914, 08-10, daily) — `bot.report --mfe`, max favourable/adverse excursion.
+  **Observed: ✅ VALIDATED.** Load-bearing within two sessions — 08-13's whole trade table is
+  MFE/MAE-sourced from it, and it produced that session's cleanest finding: **all 4 winners had
+  MAE ≤ 0.44%, all 4 losers MAE ≥ 0.90%**, a separator confidence itself failed to provide.
+- **IMP-026** (49ecb07, 08-11, daily) — pin log timestamps to UTC (the 08-02 WIB regression).
+  **Observed: ✅ VALIDATED.** Zero offset on every line since 08-11 21:23; this weekly rebuilt all five
+  sessions' refusal tables straight from journald with no hand-shifting.
+- **IMP-027** (b810188, 08-12, daily) — an exit may never be attributed to a sell that filled before its
+  entry. **Observed: ✅ VALIDATED.** 08-13 was the strongest available test — 8 entries, 8 exits, several
+  filling seconds apart — and every exit was attributed to its own sell, reconciled to the cent. Zero
+  false refusals. The $108 mis-book has not recurred.
+- **IMP-028** (08-13, daily) — `record_entry` retries once on a fresh connection.
+  **Observed: ❌ NONE — WRITTEN BUT NEVER COMMITTED, NEVER DEPLOYED, NEVER LOGGED.** The code is sound
+  (full suite re-run by this weekly: `pytest -q` exits 0) but the service has not restarted since
+  08-13 11:37, ten hours before the files were touched. **The 08-12 data-loss defect is still live.**
+  Number reserved and entry written by this weekly; deployment handed to tonight's daily review.
+- **Did they compound or cancel? They compounded — this was a coherent set, not four unrelated tweaks.**
+  All four attack the *same* target: **the trustworthiness of the evidence base**, after a fortnight in
+  which two reviews were nearly misled by bad data. IMP-026 made the logs readable, IMP-025 made
+  excursion measurable, IMP-027 stopped the DB recording the wrong exit, IMP-028 (had it shipped) stops
+  it recording no trade at all. **Together with IMP-023/024 that is six consecutive changes hardening
+  measurement rather than chasing P&L** — and the payoff is visible: 08-13's two refutations were only
+  possible because the instruments were fixed first. **The one that cancelled is IMP-028 against
+  itself**: written and unshipped is the same as not written, except that the log claimed otherwise.
+
+### Strategy verdict
+**VIABLE — unchanged in direction, strengthened in evidence. The edge is real, it is robust, and it is
+still entirely in exposure management rather than in the signal.**
+
+The gate's four-window agreement is the strongest result this bot has produced, and the 10-day
+counterfactual (**+$37.68 with, −$53.84 without**) is the cleanest statement of where the money comes
+from: **the bot makes money by declining to be long, and by managing the trades it does take. It does
+not make money by picking them.** Nothing this week moved the signal column. The `<0.5%`-MFE cohort —
+entries that never trade above their entry price — remains the dominant structural leak and produced
+every loss on the bot's busiest day. Confidence remains inverted above 80 across three straight weeks.
+**Lifetime the bot is +$21.45 on 266 trades at PF 1.009 — which is the honest headline: after everything,
+it is a coin flip that has recently learned when not to flip.** Three consecutive profitable weeks under
+the post-IMP-021 configuration is genuinely encouraging and is the first sustained stretch in its
+history, but 08-03 → 08-14 is four effective trading sessions of data. **Keep running, keep it on paper,
+keep the freeze on the signal until the sample justifies touching it.**
+
+### Focus for next week
+- **🔴 FIRST ACTION, TONIGHT, NOT NEXT WEEK — deploy IMP-028.** Handed to the 08-14 daily review with
+  explicit steps in `memory/improvement-log.md`. It is a *delivery* task, not a new change, and it does
+  not count against any freeze. **Verify deployment by comparing `systemctl show -p ActiveEnterTimestamp`
+  against the file mtime** — this project's own memory records the identical failure on a sibling bot,
+  where "restarted clean" was reported while the old process kept running.
+- **🔧 Process fix, and it is the real lesson of the week: a change is not shipped until it is
+  *running*.** Three of this bot's last four review cycles have produced a change that was written and
+  logged before it was verified live. Standing rule from now on: **no IMP entry may be written in the
+  past tense until `git log` shows the commit AND `ActiveEnterTimestamp` post-dates the file mtime.**
+- **SHIPPING FREEZE ON TRADING LOGIC CONTINUES — one more week, and this time for a good reason rather
+  than a precautionary one.** The freeze worked: it produced two rigorous refutations instead of two
+  regrettable tunings. **Do NOT touch `MARKET_FILTER_SYMBOL` (the tripwire is retired — the gate is
+  vindicated), `MIN_CROSSOVER` (refuted 08-13, unanimously, four windows), `STOP_LOSS` (refuted 08-13
+  and structurally vestigial behind the trail — stop re-litigating it), `TRAIL_PERCENT`/the two-stage
+  trail, `ENTRY_THRESHOLD`, or the confidence weights.** Permitted: correctness fixes, data-integrity
+  fixes, instrumentation.
+- **The one measurement that matters next week: the `<0.5%`-MFE cohort.** It is now the sole remaining
+  first-order leak and the only place left with real upside. **Build the evidence, do not ship the
+  filter.** The concrete question: *is there any pre-entry discriminator for entries that never trade
+  above their entry price?* The 08-13 lead is **MAE-based, not confidence-based** — winners separated
+  cleanly at MAE ≤ 0.44% vs losers ≥ 0.90%. That is an *outcome* variable, so it cannot be used directly;
+  the task is to find the pre-entry proxy for it (ATR-relative entry placement, distance from the ribbon,
+  entry-bar range). Requires the harness, ≥3 agreeing windows, and it is a **next-Friday decision**.
+- **Standing, do not act yet:** confidence inverted above 80 (90-100 now 0-for-3, −$144.42) — thin at
+  n=3, revisit when the top two bands reach n≈20 under post-08-03 config. Whole-share quantisation
+  flattening the size curve on $900+ names (MU at qty=2 on $36k buying power) — needs its own study and
+  cannot be fixed by sizing alone, since Alpaca brackets require whole shares.
+- **⚠️ Carry forward — every live-history bucket study over 45+ days is contaminated by pre-IMP-021
+  trades** (established 08-13). Judge changes on the post-08-03 window or on replay, never on the 45-day
+  live tail. This invalidates the older "104 of 162 trades never reach +1% MFE" figure as a basis for action.
+- **Ops:** the service ran **32 hours on one uptime** and did **not** restart for the 08-14 pre-market —
+  so any watchlist edit made that morning was not loaded. Confirm the pre-market routine's restart step
+  is actually firing. Also `chown ustradebot:ustradebot` on `bot/persistence.py` and
+  `tests/test_persistence.py`, currently `root:root`.
+- **Perplexity:** `sonar-deep-research` returned empty this run and `sonar` has now been thin, stale or
+  unreachable **ten consecutive times**, once dangerously (08-10, a prior session's record close
+  presented as that day's). **Standing rule reaffirmed: source regime from IEX daily bars first;
+  `sonar` is lead-generation only and must never be written into a review unverified.**
+- **Risk posture unchanged and non-negotiable:** position size, loss limits, the stand-down/kill switch
+  and paper-only stay exactly as they are. The stand-down proved itself on 08-13 — it tripped after three
+  consecutive losses and reset correctly for the next session. Any move toward live trading requires
+  explicit human approval and is not this routine's call.
+- **The tape, for context (IEX open→close, authoritative):** QQQ **−0.25 / −0.65 / −0.46 / +0.98 / −0.29%**
+  and SPY **+0.03 / −0.52 / −0.28 / +0.40 / −0.28%** across 08-10→08-14. **Four of five sessions fell
+  intraday**; the S&P still closed a third straight weekly gain and printed a record 7,800 on Thursday,
+  a divergence that matters — **the index gains came from gaps and overnight drift, not from intraday
+  trend, which is the one thing this bot cannot monetise (it never holds overnight).** July CPI and PPI
+  came in soft, easing September hike fears; Friday's retail sales **−0.6%** (worst in over a year) and a
+  weak UMich sentiment print sapped the afternoon. Broadcom **−5.5%** and AMAT **−5.2%** on Friday hit the
+  semi-heavy end of this watchlist.
+- **Next week's scheduled catalysts (08-17 → 08-21):** **retail earnings dominate — Walmart (WMT, Thu
+  08-20 BMO, on the watchlist) and Target**, plus the tail of the semi complex. **NVDA reports 08-26**,
+  i.e. *not* next week but close enough that positioning drift will start. No FOMC meeting; watch for
+  Jackson Hole commentary and the FOMC minutes. Expect the gate to stay quiet on down-tape days and to
+  open around any retail-driven risk-on session.
+
