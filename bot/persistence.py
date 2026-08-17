@@ -81,6 +81,20 @@ class PerfBand:
 
 
 @dataclass(frozen=True)
+class TapeContext:
+    """Pre-entry tape context recorded with an entry (IMP-029).
+
+    Both fields are percentages of price and either may be ``None`` when the trigger
+    ribbon had not seeded that indicator yet. Observational only — no trading code
+    reads them back; they exist so the ``<0.5%``-MFE study can be run against
+    ``dbo.trades`` rather than by re-fetching bars for every historical trade.
+    """
+
+    atr_pct: float | None = None
+    ribbon_spread_pct: float | None = None
+
+
+@dataclass(frozen=True)
 class ClosedTrade:
     """One closed round trip, enough to rebuild its excursion (IMP-025)."""
 
@@ -155,9 +169,15 @@ class TradeStore:
     # --- writes ------------------------------------------------------------
 
     def record_entry(
-        self, result: ExecutionResult, breakdown: ConfidenceBreakdown | None = None
+        self,
+        result: ExecutionResult,
+        breakdown: ConfidenceBreakdown | None = None,
+        tape: TapeContext | None = None,
     ) -> int | None:
         """Persist a submitted bracket entry; returns the new ``trades.id`` (or None).
+
+        ``tape`` is the pre-entry tape context (IMP-029), stored alongside the confidence
+        breakdown. Optional so a caller that has none still writes a valid row.
 
         Retries **once** on a fresh connection (IMP-028). The 2026-08-12 MU entry hit a
         socket that had gone stale between sessions (``08S01 TCP Provider``); the write
@@ -175,7 +195,7 @@ class TradeStore:
         candle thread must not block on it.
         """
         try:
-            return self._insert_entry(result, breakdown)
+            return self._insert_entry(result, breakdown, tape)
         except Exception:
             log.exception(
                 "failed to persist entry for %s — retrying once on a fresh connection",
@@ -193,7 +213,7 @@ class TradeStore:
                     existing,
                 )
                 return existing
-            trade_id = self._insert_entry(result, breakdown)
+            trade_id = self._insert_entry(result, breakdown, tape)
             log.info("DB entry %s recovered on retry (trade_id=%s)", result.symbol, trade_id)
             return trade_id
         except Exception:
@@ -214,7 +234,10 @@ class TradeStore:
         return int(row[0]) if row else None
 
     def _insert_entry(
-        self, result: ExecutionResult, breakdown: ConfidenceBreakdown | None
+        self,
+        result: ExecutionResult,
+        breakdown: ConfidenceBreakdown | None,
+        tape: TapeContext | None = None,
     ) -> int | None:
         """The entry write itself, as one transaction. Raises — the caller decides."""
         conn = self._connection()
@@ -223,9 +246,9 @@ class TradeStore:
             "INSERT INTO dbo.trades "
             "(symbol, model, status, entry_order_id, entry_price, qty, notional, "
             " stop_price, target_price, confidence, conf_crossover, conf_trend, "
-            " conf_rsi, conf_volume, conf_volatility) "
+            " conf_rsi, conf_volume, conf_volatility, atr_pct, ribbon_spread_pct) "
             "OUTPUT INSERTED.id "
-            "VALUES (?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 result.symbol,
                 result.model,
@@ -241,6 +264,8 @@ class TradeStore:
                 _sub(breakdown, "rsi"),
                 _sub(breakdown, "volume"),
                 _sub(breakdown, "volatility"),
+                tape.atr_pct if tape else None,
+                tape.ribbon_spread_pct if tape else None,
             ),
         )
         row = cur.fetchone()
@@ -516,19 +541,27 @@ class TradeRecorder:
 
     Pass its methods as (one of) the ``on_signal`` / ``on_result`` / ``on_exit``
     callbacks. It caches the latest confidence breakdown per symbol from the signal
-    so the entry write can store the full sub-score breakdown, not just the total.
+    so the entry write can store the full sub-score breakdown, not just the total,
+    and alongside it the signal's pre-entry tape context (IMP-029) — both are known
+    at signal time and neither is available from the :class:`ExecutionResult`.
     """
 
     def __init__(self, store: TradeStore) -> None:
         self._store = store
-        self._pending: dict[str, ConfidenceBreakdown] = {}
+        self._pending: dict[str, tuple[ConfidenceBreakdown, TapeContext]] = {}
 
     def on_signal(self, signal: TradeSignal) -> None:
-        self._pending[signal.symbol] = signal.confidence
+        self._pending[signal.symbol] = (
+            signal.confidence,
+            TapeContext(
+                atr_pct=signal.atr_pct,
+                ribbon_spread_pct=signal.ribbon_spread_pct,
+            ),
+        )
 
     def on_result(self, result: ExecutionResult) -> None:
-        breakdown = self._pending.pop(result.symbol, None)
-        self._store.record_entry(result, breakdown)
+        breakdown, tape = self._pending.pop(result.symbol, (None, TapeContext()))
+        self._store.record_entry(result, breakdown, tape)
 
     def on_exit(self, result: ExitResult) -> None:
         self._store.record_exit(result)

@@ -11,9 +11,14 @@ from datetime import datetime
 import pytest
 
 from bot.executor import ExecutionResult
-from bot.persistence import TradeRecorder, TradeStore, open_store
+from bot.persistence import TapeContext, TradeRecorder, TradeStore, open_store
 from bot.risk import ExitResult
 from bot.signals import ConfidenceBreakdown
+
+# Column offsets into the dbo.trades INSERT param tuple. Named because the tuple grows:
+# IMP-029 appended atr_pct + ribbon_spread_pct, which silently shifted every tail slice.
+_CONF_SUBSCORES = slice(9, 14)  # conf_crossover..conf_volatility
+_TAPE = slice(14, 16)  # atr_pct, ribbon_spread_pct
 
 
 class _FakeCursor:
@@ -134,8 +139,10 @@ def test_record_entry_stores_confidence_breakdown():
     _store(conn).record_entry(_exec_result(), _breakdown())
 
     trade_sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
-    # ...confidence, conf_crossover, conf_trend, conf_rsi, conf_volume, conf_volatility
-    assert params[-5:] == (0.9, 0.8, 1.0, 0.5, 0.7)
+    # conf_crossover, conf_trend, conf_rsi, conf_volume, conf_volatility. Sliced from a
+    # named offset rather than off the tail: the tail moved when IMP-029 appended the
+    # tape columns, and a tail slice failed open on the all-None cases.
+    assert params[_CONF_SUBSCORES] == (0.9, 0.8, 1.0, 0.5, 0.7)
     assert params[8] == 80.0  # total confidence
 
 
@@ -143,7 +150,7 @@ def test_record_entry_tolerates_missing_breakdown():
     conn = _FakeConn()
     _store(conn).record_entry(_exec_result(), None)
     _trade_sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
-    assert params[-5:] == (None, None, None, None, None)
+    assert params[_CONF_SUBSCORES] == (None, None, None, None, None)
 
 
 def test_record_entry_uses_parameters_not_interpolation():
@@ -403,7 +410,7 @@ def test_recorder_pairs_signal_breakdown_with_entry():
     recorder.on_result(_exec_result())
 
     _trade_sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
-    assert params[-5:] == (0.9, 0.8, 1.0, 0.5, 0.7)  # breakdown flowed through
+    assert params[_CONF_SUBSCORES] == (0.9, 0.8, 1.0, 0.5, 0.7)  # breakdown flowed through
 
 
 def test_recorder_without_signal_still_records_entry():
@@ -411,7 +418,8 @@ def test_recorder_without_signal_still_records_entry():
     recorder = TradeRecorder(_store(conn))
     recorder.on_result(_exec_result())  # no prior on_signal
     _trade_sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
-    assert params[-5:] == (None, None, None, None, None)
+    assert params[_CONF_SUBSCORES] == (None, None, None, None, None)
+    assert params[_TAPE] == (None, None)  # no signal -> no tape, but still a valid row
 
 
 def test_recorder_exit_records_exit():
@@ -421,12 +429,66 @@ def test_recorder_exit_records_exit():
     assert any("UPDATE dbo.trades" in s for s in _sql(conn.calls))
 
 
+# --- IMP-029: pre-entry tape context ---------------------------------------
+
+
+def test_recorder_carries_tape_context_from_signal_to_entry():
+    """Today's real INTC entry (2026-08-17 15:20): the row must carry its tape."""
+    conn = _FakeConn()
+    recorder = TradeRecorder(_store(conn))
+
+    recorder.on_signal(_Signal("NFLX", _breakdown(), atr_pct=0.204, ribbon_spread_pct=0.061))
+    recorder.on_result(_exec_result())
+
+    _trade_sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
+    assert params[_TAPE] == (0.204, 0.061)
+
+
+def test_tape_context_is_written_as_its_own_columns():
+    conn = _FakeConn()
+    _store(conn).record_entry(_exec_result(), _breakdown(), TapeContext(0.158, 0.042))
+
+    trade_sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
+    assert "atr_pct" in trade_sql and "ribbon_spread_pct" in trade_sql
+    # The INSERT must bind one placeholder per named column, or the values land in
+    # the wrong columns — the failure mode a tail-slice assertion would not catch.
+    columns = trade_sql.split("(", 1)[1].split(")", 1)[0].split(",")
+    assert len(columns) == len(params) + 1  # status is a literal, not a placeholder
+    assert params[_TAPE] == (0.158, 0.042)
+
+
+def test_unseeded_tape_is_recorded_as_null_not_zero():
+    """A flat tape and an unmeasured one are different facts; only NULL means unknown."""
+    conn = _FakeConn()
+    _store(conn).record_entry(_exec_result(), _breakdown(), TapeContext(None, None))
+
+    _trade_sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
+    assert params[_TAPE] == (None, None)
+
+
+def test_tape_context_survives_the_imp028_retry():
+    """The IMP-028 retry re-inserts — it must not drop the tape on the second attempt."""
+    dead = _FakeConn(raise_on="INSERT INTO dbo.trades")
+    fresh = _FakeConn(next_id=293)
+    factory = _SeqFactory(dead, fresh)
+
+    trade_id = TradeStore(factory).record_entry(
+        _mu_0812(), _breakdown(), TapeContext(0.158, 0.042)
+    )
+
+    assert trade_id == 293
+    _trade_sql, params = next(c for c in fresh.calls if "INSERT INTO dbo.trades" in c[0])
+    assert params[_TAPE] == (0.158, 0.042), "the retry re-drove the row without its tape"
+
+
 class _Signal:
     """Minimal stand-in for strategy.TradeSignal (only the fields the recorder reads)."""
 
-    def __init__(self, symbol, confidence):
+    def __init__(self, symbol, confidence, atr_pct=None, ribbon_spread_pct=None):
         self.symbol = symbol
         self.confidence = confidence
+        self.atr_pct = atr_pct
+        self.ribbon_spread_pct = ribbon_spread_pct
 
 
 # --- open_store ------------------------------------------------------------

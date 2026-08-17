@@ -32,6 +32,8 @@ CREATE TABLE dbo.trades (
     conf_rsi          DECIMAL(5, 4)  NULL,
     conf_volume       DECIMAL(5, 4)  NULL,
     conf_volatility   DECIMAL(5, 4)  NULL,
+    atr_pct           DECIMAL(9, 5)  NULL,                     -- pre-entry tape context (IMP-029)
+    ribbon_spread_pct DECIMAL(9, 5)  NULL,                     -- fast-slow EMA spread, % of price
     exit_order_id     VARCHAR(64)    NULL,
     exit_time_utc     DATETIME2(0)   NULL,
     exit_price        DECIMAL(18, 6) NULL,
@@ -41,6 +43,17 @@ CREATE TABLE dbo.trades (
     created_at_utc    DATETIME2(0)   NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at_utc    DATETIME2(0)   NOT NULL DEFAULT SYSUTCDATETIME()
 );
+GO
+
+-- Pre-entry tape context on pre-existing installs (IMP-029). Both columns are
+-- observational: nothing in the trading path reads them back, so they are NULL for
+-- every trade taken before 2026-08-17 and any study must exclude, not zero-fill, those.
+IF COL_LENGTH('dbo.trades', 'atr_pct') IS NULL
+ALTER TABLE dbo.trades ADD atr_pct DECIMAL(9, 5) NULL;
+GO
+
+IF COL_LENGTH('dbo.trades', 'ribbon_spread_pct') IS NULL
+ALTER TABLE dbo.trades ADD ribbon_spread_pct DECIMAL(9, 5) NULL;
 GO
 
 -- Fast lookup of the single open trade per symbol (the exit-update predicate).

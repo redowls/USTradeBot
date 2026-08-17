@@ -83,13 +83,54 @@ class BotState(StrEnum):
 
 @dataclass(frozen=True)
 class TradeSignal:
-    """A qualifying entry: confidence cleared the threshold on a closed candle."""
+    """A qualifying entry: confidence cleared the threshold on a closed candle.
+
+    ``atr_pct`` / ``ribbon_spread_pct`` are the **pre-entry tape context** (IMP-029):
+    how much the tape was actually moving, and how wide the ribbon had opened, at the
+    moment the entry was taken. Both are already computed for the entry decision and
+    were previously discarded; recording them makes the ``<0.5%``-MFE study answerable
+    from ``dbo.trades`` instead of by re-fetching bars. Purely observational — nothing
+    reads them back, so no entry, exit or sizing behaviour depends on them. ``None``
+    when the trigger snapshot has not seeded ATR yet.
+    """
 
     symbol: str
     candle_start: datetime
     close: float
     confidence: ConfidenceBreakdown
     decision: EntryDecision
+    atr_pct: float | None = None
+    ribbon_spread_pct: float | None = None
+
+
+def _fmt_pct(value: float | None) -> str:
+    """Log helper: a percentage, or ``n/a`` — never a misleading 0.00 for unseeded."""
+    return "n/a" if value is None else f"{value:.3f}%"
+
+
+def atr_pct_of(trigger: RibbonSnapshot) -> float | None:
+    """The trigger ATR as a percentage of price, or ``None`` if not measurable.
+
+    Price-relative so it is comparable across a $105 INTC and a $1,034 MU — the raw
+    ATR is not. Returns ``None`` rather than 0.0 when ATR has not seeded or the close
+    is non-positive: "not measured" and "a flat tape" are different facts, and the
+    study that reads this column must not confuse them.
+    """
+    if trigger.atr is None or trigger.close <= 0:
+        return None
+    return trigger.atr / trigger.close * 100.0
+
+
+def ribbon_spread_pct_of(trigger: RibbonSnapshot) -> float | None:
+    """Fast-to-slow EMA spread as a percentage of price, or ``None`` if unseeded.
+
+    The "distance from the ribbon" variable: a wide ribbon means the cross came with
+    separation behind it, a hair-thin one means the three EMAs are still tangled.
+    """
+    fast, _mid, slow = trigger.ribbon
+    if fast is None or slow is None or trigger.close <= 0:
+        return None
+    return (fast - slow) / trigger.close * 100.0
 
 
 OnSignal = Callable[[TradeSignal], None]
@@ -301,9 +342,12 @@ class StrategyEngine:
             close=trigger.close,
             confidence=decision.confidence,
             decision=decision,
+            atr_pct=atr_pct_of(trigger),
+            ribbon_spread_pct=ribbon_spread_pct_of(trigger),
         )
         log.info(
-            "ENTRY %s @ %.4f confidence=%.1f (xo=%.2f trend=%.2f rsi=%.2f vol=%.2f vlt=%.2f)",
+            "ENTRY %s @ %.4f confidence=%.1f (xo=%.2f trend=%.2f rsi=%.2f vol=%.2f vlt=%.2f)"
+            " tape(atr=%s spread=%s)",
             symbol,
             trigger.close,
             decision.confidence.total,
@@ -312,6 +356,8 @@ class StrategyEngine:
             decision.confidence.rsi,
             decision.confidence.volume,
             decision.confidence.volatility,
+            _fmt_pct(signal.atr_pct),
+            _fmt_pct(signal.ribbon_spread_pct),
         )
         if self._on_signal is not None:
             try:

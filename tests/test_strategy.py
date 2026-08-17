@@ -18,8 +18,8 @@ from bot.config import EASTERN, Config
 from bot.executor import ExecutionResult, StopOrderGone
 from bot.indicators import RibbonSnapshot
 from bot.risk import RiskManager
-from bot.signals import ConfidenceBreakdown, EntryDecision
-from bot.strategy import BotState, StrategyEngine
+from bot.signals import ConfidenceBreakdown, EntryDecision, evaluate_entry
+from bot.strategy import BotState, StrategyEngine, atr_pct_of, ribbon_spread_pct_of
 
 # A Tuesday, 14:00 UTC == 10:00 EDT -> inside the regular session.
 _OPEN_TS = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
@@ -1030,3 +1030,75 @@ def test_mu_2026_08_05_second_entry_is_vetoed_by_the_real_qqq_ribbon(cfg, caplog
     assert sig is None
     assert ex.calls == []
     assert any("market gate closed (QQQ" in r.getMessage() for r in caplog.records)
+
+
+# --- IMP-029: pre-entry tape context on the signal --------------------------
+
+
+def test_atr_pct_is_price_relative_so_symbols_are_comparable():
+    """The 2026-08-17 pair: INTC at $105 and MU at $1,034 must be on one scale.
+
+    Both entries died in the <0.5%-MFE cohort that day. Their raw ATRs differ by an
+    order of magnitude purely because of share price; as a percentage they are 0.204%
+    and 0.158% — close, and comparable, which is the whole point of recording it so.
+    """
+    intc = _ribbon_snap((1.0, 0.9, 0.8), (0.9, 0.9, 0.8), close=105.39, atr=0.215)
+    mu = _ribbon_snap((1.0, 0.9, 0.8), (0.9, 0.9, 0.8), close=1034.13, atr=1.634)
+
+    assert atr_pct_of(intc) == pytest.approx(0.204, abs=0.001)
+    assert atr_pct_of(mu) == pytest.approx(0.158, abs=0.001)
+
+
+def test_tape_context_is_none_when_the_indicator_has_not_seeded():
+    """Unmeasured must not read back as 0.0 — a flat tape is a different fact."""
+    unseeded = _ribbon_snap((None, None, None), (None, None, None), close=100.0, atr=None)
+    assert atr_pct_of(unseeded) is None
+    assert ribbon_spread_pct_of(unseeded) is None
+
+
+def test_ribbon_spread_pct_measures_fast_to_slow_separation():
+    snap = _ribbon_snap((101.0, 100.4, 100.0), (99.9, 100.4, 100.0), close=100.0, atr=0.5)
+    assert ribbon_spread_pct_of(snap) == pytest.approx(1.0)  # (101 - 100) / 100 * 100
+
+
+def test_entry_signal_carries_the_tape_context(cfg):
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    sig = eng.on_short_candle(_candle())
+
+    assert sig is not None
+    assert sig.atr_pct == pytest.approx(0.1)  # _fresh_strong_trigger: atr 0.1 @ close 100
+    assert sig.ribbon_spread_pct == pytest.approx(1.0)
+
+
+def test_recording_the_tape_does_not_change_the_entry_decision(cfg):
+    """IMP-029 is observational — it records values the scorer already consumed.
+
+    ATR is *not* new to the decision: it has always fed ``conf_volatility``. So the
+    invariant is not "the decision is the same without ATR" (it isn't, and never was)
+    but that the decision for a snapshot is exactly the scorer's own, unperturbed by
+    the two derived fields now hanging off the signal.
+    """
+    trigger = _fresh_strong_trigger()
+    expected = evaluate_entry(
+        trigger, _open_gate(), threshold=cfg.entry_threshold, min_crossover=cfg.min_crossover
+    )
+
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([trigger]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    sig = eng.on_short_candle(_candle())
+
+    assert sig.decision.enter == expected.enter
+    assert sig.confidence.total == expected.confidence.total
+    assert sig.confidence.volatility == expected.confidence.volatility
+    # ...and the derived fields are pure functions of that same snapshot.
+    assert sig.atr_pct == atr_pct_of(trigger)
+    assert sig.ribbon_spread_pct == ribbon_spread_pct_of(trigger)
