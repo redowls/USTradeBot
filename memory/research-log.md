@@ -3197,3 +3197,219 @@ no catalyst.** WebSearch (futures, the macro calendar with times, the earnings c
 pre-market movers, Alibaba's IR release) + the IEX daily tape + journald carried this run.
 
 ---
+
+## 2026-08-17 — Pre-market Research
+
+**The UNH dated test came due and it fired: 31 days without a trade AND below both MAs → PARKED. The GOOG
+test came due the same day and did NOT fire — its 08-13 candidates killed the zero-candidate leg, so GOOG
+keeps and gets a fresh 30-day clock.** Book is CLEAN & FLAT (broker-confirmed **0 positions, 0 open
+orders**, equity **$9,123.87**, `last_equity == equity`) → **nothing locked**. **One change; 20 → 19
+enabled**; service restarted clean (warmup 19/19).
+
+### Market context
+- **Quiet, mixed open into the biggest retail-earnings week of the quarter.** Benzinga's 10:02 UTC wrap:
+  **Dow futures slip, S&P 500 futures rise, September Fed-hike odds down to ~30%.** No source gave a clean
+  numeric futures print this morning; the honest read is **mixed-to-flat, no directional edge**, which is
+  also what the IEX tape says — the last prints on SPY (776.03) and QQQ (731.01) are within **0.03%** of
+  Friday's closes.
+- **⚠️ The one in-session clock item: NAHB Housing Market Index at 10:00am ET — it lands exactly on the
+  IMP-017 entry-window open.** Empire State Manufacturing is **8:30am ET, i.e. PRE-open** (sonar filed it
+  as "during market hours" again — see below). The week's real macro is **Wednesday: FOMC minutes 2:00pm
+  ET**, plus housing starts, jobless claims, Philly Fed and prelim August PMIs later in the week.
+- **Earnings this week are retail and none of them are on the board until Thursday:** **HD Tue 08-18 BMO**,
+  **TGT + LOW + TJX + ADI Wed 08-19**, **WMT Thu 08-20 BMO (enabled — park 08-19)**, **BABA Thu 08-20 BMO
+  (enabled — park 08-19)**, ROST/DE Thu, BJ Fri. **Nothing on the watchlist reports today or tomorrow.**
+  **WMT's 08-20 date is now independently confirmed** against the week-ahead calendars (CNBC/Kiplinger/
+  Yahoo), not just carried forward from the 08-13 entry.
+- **Oil is the live two-sided tail and it moved twice in 90 minutes this morning:** an **agreement to
+  extend the US-Iran 60-day ceasefire** (Al Arabiya, 10:51 UTC) against a **circulating report that Trump
+  said he will bomb** Iranian targets (11:20 UTC), on top of a WSJ piece that Iranian hardliners used the
+  post-MoU window to plan expanding the war. Brent closed Thursday ~**$87**. This is headline whipsaw, not
+  trend — and it is the reason the XOM re-enable case below is *held*, not taken.
+- **Backdrop from Friday:** July **retail sales −0.6%**, the worst in over a year, plus a weak UMich print
+  sapped the afternoon; the S&P still printed a record **7,798.99** close on Thursday. The divergence the
+  weekly review flagged still holds — **index gains are coming from gaps and overnight drift, not from
+  intraday trend**, which is the only thing this bot can monetise.
+
+### Carried from daily review (08-14 "Notes for pre-market research")
+- **"AMD is the standout and the lesson at once… keep it emphatically enabled."** — ✔ kept, no question
+  raised. AMD closed **+6.50% Friday at the high**, is **+4.08% vs its 20MA** and back **above its 50MA
+  (+0.78%)** for the first time in weeks, and produced **6 of Friday's 25 candidates**. Its **6.37% ATR** is
+  logged for the seventh consecutive run as a **sizing/exit** question — and 08-14's review made that
+  concrete (a flat 1.00% trail on a 6-7% ATR name is ~1/7th of a daily range). **IMP-029 is the post-close
+  routine's file, not this one.** No action.
+- **"Zero trades Friday was correct — do not respond by loosening the watchlist or adding names."** — ✔
+  honored literally. **No add was made today**, and the one edit that *was* made is a park that was written
+  and dated five sessions ago, not a reaction to Friday.
+- **"Silent Friday (11): AMZN, ABNB, AVGO, GOOG, INTC, MU, NVDA, PLTR, QQQ, SPY, TSM — read as flat-tape
+  artifact, not symbol death. In particular do not park MU or INTC."** — ✔ obeyed, and verified rather than
+  assumed: across the **full 5-session window (08-10 → 08-14) every one of the 20 enabled symbols produced
+  at least one candidate** (141 events). MU and INTC are the two best names on the board and were not
+  considered for park. The standing 5-session rule was applied to every park question today.
+- **"AMZN's park test remains unmet for a sixth run."** — ✔ still unmet, **seventh run**. AMZN needs to
+  convert a near-miss and lose; it produced 4 candidates on 08-10 and none since, which advances the test
+  in neither direction. **Stays on notice, no park.**
+- **"BABA 08-20 BMO and WMT 08-20 BMO — both due to park at the 08-19 run. NVDA 08-26. Nothing reports
+  Monday."** — ✔ all four re-verified this morning against the week-ahead calendars; **nothing reports
+  today**, and both 08-19 parks stand.
+- **"Book is CLEAN & FLAT into 08-17."** — ✔ **live-verified**: ACTIVE, **0 positions, 0 open orders**,
+  equity **$9,123.87**, cash $9,123.87, BP $36,495.48, `last_equity == equity` to the cent. `dbo.trades`
+  has **zero rows since 08-13**. Nothing locked, so no symbol was protected from review today.
+- **Ops item from the weekly ("confirm the pre-market restart step is actually firing")** — ✔ **it fired
+  today and is verified by timestamp**: `ActiveEnterTimestamp` **2026-08-17 11:36:32 UTC**, new
+  MainPID 1071551, and the startup banner lists **19** symbols with UNH absent. The 08-14 non-restart was
+  correct (nothing changed that morning), so there was no defect to fix — but the check is now done the way
+  this project's memory demands, against the timestamp rather than against the log text.
+
+### Watchlist review
+Account **ACTIVE**, **0 open positions = nothing locked.** All 20 incumbents reviewed against overnight
+news (Alpaca news tape since Friday 20:00 UTC + WebSearch) and **110 daily bars** off the Alpaca tape —
+close vs 20/50-day MA, 1-day and 5-day change, ATR%, 20-day average $ volume — plus a 5-session
+signal-liveness audit from journald dated off journald's own timestamps.
+- **⚠️ Methodology note for whoever reads the $-volume numbers next: they are NOT comparable to previous
+  entries in this log.** Earlier runs pulled bars with `feed=iex` and quoted the IEX subset (ABNB "$37M");
+  this run pulled the **consolidated** tape (ABNB **$819M**). **The ordering is identical and that is what
+  the liquidity floor is judged on** — but do not read a 20x jump as a liquidity improvement. Thinnest
+  enabled names, consolidated: **ABNB $819M**, BABA $1,144M, JPM $2,338M, WMT $2,405M, NFLX $2,776M.
+  Deepest: MU $37.0B, SPY $35.4B, QQQ $27.6B, NVDA $25.4B, MSFT $17.1B, AAPL $16.8B. **No name is anywhere
+  near the band that took SE out.**
+- **Trend held its breadth over the weekend.** Above the 20MA: **PLTR +19.6%**, **ABNB +16.3%**,
+  **MSFT +10.0%**, MU +9.2%, NFLX +7.4%, NVDA +7.0%, INTC +5.9%, AMD +4.1%, TSLA +4.0%, QQQ +3.8%,
+  TSM +3.5%, WMT +2.8%, SPY +2.7%, AMZN +2.4%, JPM +2.3%, BABA +1.6%. Below: **GOOG −0.55%, AVGO −1.63%,
+  AAPL −3.93%** (and UNH −3.20%, parked below). **Three enabled names below their 20MA, down from four.**
+  Versus the 50MA the laggards are **TSLA −7.8%, INTC −6.3%, GOOG −2.5%, AAPL −1.1%**. **Nothing new
+  clears the park bar on trend.**
+- **⚠️ Volatility outliers, kept and noted (seventh consecutive run):** **MU 7.72%**, **INTC 6.68%**,
+  **AMD 6.37%**, **PLTR 5.52%**. Unchanged verdict: **sizing and exit, not park** — and 08-14's review
+  turned that from an assertion into a measured number.
+- **🔔 AVGO — the one name with a genuine live negative headline, and it is a KEEP on notice, not a park.**
+  Friday's **−5.94%** (**−8.13% on 5 days**) was **not** an earnings event: it was **active in-the-wild
+  exploitation of a critical VMware vCenter flaw (CVE-2026-59310, disclosed 07-29)**, with compromised
+  systems traced to 361 IPs across 47 countries, layered on pre-earnings profit-taking. **Next print is
+  09-02 AMC (confirmed) — outside every window this routine cares about.** It is still **+0.65% vs its
+  50MA**, **$7.2B/day**, produced **8 candidates** in the window, and is **+$43.75 over 2 trades** in the
+  14-day book. **The 5-min gate is the right instrument for a name whose chart just broke — it simply
+  will not open a long until the 21/34/55 stack is rebuilt.** Park bar not met; **on notice, re-check 08-19.**
+- **Signal-liveness audit, 5 sessions (08-10 → 08-14), 141 no-entry events + 12 conversions:** most active
+  **JPM 16, TSM 15, NFLX 12, ABNB 12, INTC 9, WMT 8, AMD 8, AVGO 8**; mid **QQQ 6, SPY 6, NVDA 6, MSFT 6,
+  PLTR 6**; quietest **TSLA 4, UNH 4, AMZN 4, GOOG 4, BABA 3, AAPL 3, MU 1**. **Zero symbols with zero
+  candidates — the second consecutive window with no silent name.** Refusal split: **crossover floor 71,
+  confidence floor 63, market gate 7 (5.0%)** — the gate is nowhere near the >80% tripwire the weekly
+  formally retired. **MU converted 1-of-1 and INTC 3 more, so the quiet tails are conversion, not silence.**
+- **14-day P&L (`dbo.trades`, closed since 08-03): 25 trades, net +$170.13.** Winners **INTC +$47.07 (6 tr,
+  5W)**, **AVGO +$43.75**, TSLA +$29.16, ABNB +$26.21, NVDA +$12.49, MU +$11.68, BABA +$9.30, MSFT +$4.50,
+  TSM +$4.04, AMD +$0.42. Only loser **AMZN −$18.49**. **No enabled symbol has a park-worthy record under
+  the current rules.** (All-time still carries the pre-IMP-021 tail — AVGO −$121.38, AMZN −$108.51,
+  AMD −$89.31 — and the standing correction applies: **judge on the post-08-03 window.**)
+- **Parked stay parked (8 → 9).** BIRD, C, COST, ENPH, QCOM, SE, WPM, XOM re-checked on fresh bars.
+  **SE is now the awkward one and it still does not qualify**: +9.3% vs 20MA / **+19.3% vs 50MA**, +7.5% on
+  5 days — a genuinely good chart — but at **$567M/day it is the thinnest name in the entire screen**, and
+  its park reason was *structural liquidity*, which a good fortnight does not repeal. C is nine sessions
+  into a 30-day-tradeless park; QCOM is still **−9.8% vs its 50MA**; WPM ($225M) and ENPH ($181M) fail the
+  liquidity floor outright; COST is +1.4%/+1.1% with a **1.90% ATR** — the definition of the flat,
+  intertwined ribbon the strategy scores near zero.
+
+### 🔴 Dated test #1 — UNH: BOTH legs met → PARKED (the one change today)
+The 08-12 entry wrote the test in advance, deliberately, while UNH was still all-time positive: *"park UNH
+if it has taken no trade by then AND is still below both MAs."* Both legs are met, unambiguously:
+- **No trade since 2026-07-17 — 31 days.** `dbo.trades` confirms; nothing since.
+- **Below both MAs: −3.20% vs the 20MA, −3.24% vs the 50MA.**
+- Corroborating, though not part of the test: **$395–$415 range-bound all month** on outside coverage —
+  consolidation after the 07-16 Q2 beat, not a broken chart. **A range that tight is precisely what a
+  1-min EMA ribbon cannot monetise**, and it explains the 31-day silence better than the MA test does.
+  4 candidates in the window, none converted.
+- **It is also the exact C precedent applied consistently:** C was parked 08-10 at 31 days tradeless.
+  UNH is 31 days tradeless. Applying the same rule to a name that happens to be **all-time positive
+  (+$19.38, 4W/7)** is the point of writing the test down five days early — **it removes the discretion
+  that would otherwise spare it.**
+- **Not a judgement on UNH the company** (Q2 beat, raised FY guidance, consensus Buy). It is a judgement
+  that a consolidating 2.62%-ATR insurer is not what a multi-timeframe momentum ribbon is for.
+- **Re-enable condition, recorded now so it is not invented later:** UNH returns when it is **above its
+  20MA** *and* has broken out of the $395–415 range. No calendar date — this one is condition-gated.
+
+### ✅ Dated test #2 — GOOG: NOT met, keeps, and the clock is reset rather than quietly dropped
+The test set on 08-12 was: *"if GOOG is still below both MAs with 0 candidates at the 08-17 run, it parks."*
+- **Leg 1 met:** below both MAs (**−0.55% / −2.49%**).
+- **Leg 2 NOT met:** GOOG produced **4 candidates on 08-13**, so the window is not zero. The 08-14 entry
+  called this test "half-dead by its own terms" and chose to run it as written rather than rewrite it.
+  **Run as written, it fails to fire. GOOG keeps.** This is the correct outcome even though the *concern*
+  (no trade since 07-31, 17 days) is still live — a test that is met on one leg is not met.
+- **What replaces it, so the concern does not evaporate:** GOOG gets the **same 30-day dead-signal clock
+  that C and UNH got**. Last trade 07-31 → **30-day mark falls 08-31 (Monday, a trading day)**.
+  **Test recorded: at the 08-31 run, park GOOG if it has still taken no trade AND is still below both MAs.**
+- Overnight news is mildly *positive* and does not change the read: **Waymo cleared for robotaxi expansion
+  across the Bay Area and LA**, and Stripe is reported near a $7B+ OpenRouter deal. The drift is capex and
+  antitrust sentiment, already logged, not an event.
+
+### ➕ Adds — none, and this time the reason is measurement, not caution
+Capacity is **19 of 30**, so once again this is a choice. Alternates were re-screened on fresh bars and
+**both leading candidates were verified tradable+active on `/v2/assets` this morning** so the 08-19 run can
+act without re-doing the work:
+- **CRM — still the leading alternate. `/v2/assets`: tradable ✓ active ✓ (NYSE).** +6.9% vs 20MA / **+13.7%
+  vs 50MA**, $2.29B/day, ATR 4.31%; −2.56% Friday in the broad tech fade. **Next earnings ~early September
+  — clear of this week.**
+- **ANET — second. tradable ✓ active ✓.** +8.2% / +14.3%, $1.44B/day, ATR 5.76%, **+5.38% on 5 days**;
+  momentum has caught back up with CRM's this week. Reported 08-05, so its binary is behind it.
+- **NOW** (+9.3% / +15.2%, $2.78B/day) and **ORCL** (+11.4% vs 20MA but **−1.2% vs the 50MA** — a bounce
+  inside a broken trend, rejected) screened for completeness. **UBER** +5.4%/+5.1% steady but shallow;
+  **LLY** −0.2% vs 20MA, still too flat; **RDDT** has fixed itself since Friday (+12.6% Friday, now above
+  both MAs) but that move is still **S&P-inclusion mechanics** — rejected again, for the same reason.
+- **MRVL / LRCX** screen well on trend but sit **below their 50MAs** (−6.8%, −1.5%) with 7%+ ATRs; **AMAT
+  is −3.3% / −9.3% after a −5.12% Friday** — the semi complex already has five representatives on this
+  board and does not need a sixth from the weak end.
+**Why nothing was added (the honest reason, not a boilerplate one):** today already spends this week's one
+allowable universe change on the UNH park. **IMP-023 couples `bot/replay.py`'s universe to `dbo.watchlist`,
+and the weekly review's single most important task this week is the `<0.5%`-MFE study, which needs ≥3
+agreeing replay windows.** A park of a symbol that took **0 trades in 31 days and produced 4 of 141
+candidates** is very close to a null edit for that study; **adding an active new name is not** — it would
+inject fresh trades into the very windows the study has to compare. Secondary: **PLTR is still only two
+sessions old with 6 candidates and 0 conversions**, and at **$9.1k equity an extra symbol displaces a trade
+rather than adding one** (IMP-017). The board is not short of candidates — 141 in five sessions with no
+silent name — it is short of *conversions*, which no add fixes.
+
+### Changes applied to dbo.watchlist
+- **➖ UNH — `UPDATE dbo.watchlist SET enabled = 0`**, note `parked 2026-08-17: dated test met - 31d no
+  trade (last 07-17) AND below 20MA -3.2%/50MA -3.2%; 395-415 chop`. Parameterized UPDATE, **row kept, not
+  deleted.**
+- **No adds, no re-enables, no DELETEs. `watchlist` was the only table touched.**
+Post-write assertions re-run against the live table: **19 enabled ≤ 30 ✓**, **QQQ `enabled = 1` ✓**
+(load-bearing twice over — diversifier *and* the IMP-022 market-gate proxy), **28 rows still present, none
+deleted ✓**, **9 parked rows ✓**, **UNH row intact with `enabled = 0` ✓**.
+
+### Final watchlist
+**19 enabled** (≤30 ✓): AAPL ABNB AMD AMZN AVGO BABA GOOG INTC JPM MSFT MU NFLX NVDA PLTR QQQ SPY TSLA TSM
+WMT. Parked (9): BIRD C COST ENPH QCOM SE UNH WPM XOM. **Service RESTARTED and verified by timestamp, not
+by log text:** `ActiveEnterTimestamp` **2026-08-17 11:36:32 UTC**, new **MainPID 1071551**, `is-active`
+→ `active`, schema ensured, Alpaca ACTIVE $9,123.87, **no open positions**, **warmup primed 19/19**, IEX
+stream subscribed to exactly the 19 — **UNH absent from the subscription list, which is the real proof the
+edit loaded.** Zero warnings, zero errors. Banner confirms the live config: entry window 10:00–16:00 ET
+(IMP-017), QQQ market gate (IMP-022), trail 1.25% → 1.00% (IMP-018/021), UTC timestamps (IMP-026).
+🔒 Locked: **none (0 positions)**.
+**Upcoming: WMT + BABA earnings parks 08-19 · AAPL re-examination 08-19 · AVGO on-notice re-check 08-19 ·
+NVDA earnings 08-26 · GOOG dead-signal test 08-31 (NEW) · SPY review end-August · UNH re-enable is
+condition-gated (above 20MA + out of the 395-415 range), not dated.**
+**⚠️ Heads-up for 08-19: it is now a three-decision run (WMT park, BABA park, AAPL re-exam) that drops the
+board to 17.** CRM and XOM are the two backfill candidates and both are pre-verified — **CRM on
+`/v2/assets` this morning, XOM already holds a parked row** (+2.9% vs 20MA / **+8.5% vs 50MA**, $2.17B/day,
+its 06-15 "broken downtrend, oil at a 3-month low" park reason now fully reversed). **XOM is held rather
+than re-enabled today for one specific reason: this morning's ceasefire-extension headline and the
+"will bomb" report moved oil in both directions inside 30 minutes.** A name being repriced by geopolitical
+headlines produces gaps, not the sustained intraday trend the ribbon needs. **Re-enable XOM only if the
+oil headline regime quiets down.**
+
+### Perplexity `sonar` — run 10, and it made the identical clock error for a FOURTH consecutive day
+`sonar` returned **"no specific overnight/pre-market catalyst was surfaced"** for **18 of 20** tickers,
+**declined to give a futures direction for the fourth run running** ("not fully verifiable from the
+available results"), and its only two ticker items were **quote-table rows presented as movers** (NVDA
++0.50%, GOOG +0.78%) — while the actual overnight tape carried the **Iran ceasefire extension**, the
+**AVGO VMware exploitation story**, **Alibaba's $1.5B gaming divestiture**, and **Waymo's California
+approval**, none of which it mentioned. **Fourth consecutive clock error:** it filed the **8:30am ET Empire
+State** print under *"releases DURING US market hours"*. It did, to its credit, surface the **10:00am ET
+NAHB** print, which is the one item that genuinely lands inside the session — **but a run that trusted it
+wholesale would again have booked a non-existent in-session event.** **Standing rule reaffirmed for the
+fourth week: `sonar` is lead-generation only — never a regime source, never a clock, and its silence on a
+ticker is not evidence of no catalyst.** The Alpaca news tape (50 headlines since Friday's close), WebSearch
+(week-ahead earnings calendar, AVGO's VMware CVE and 09-02 date, UNH's August range), the daily bars and
+journald carried this run.
+
+---
