@@ -1802,3 +1802,79 @@ All six steps completed, in order, with the results the weekly asked for:
   `ActiveEnterTimestamp` postdates the file mtime** — the same check that caught the IMP-003
   deploy-gap on USTradeWisBot. Every routine that ships code must end with that comparison, and
   the number must appear in this log with a commit hash before the run reports success.
+
+---
+
+## IMP-029 — 2026-08-17 (daily) — record the pre-entry tape context on every entry
+
+**Status: SHIPPED & LIVE. Instrumentation only — zero change to the trading path.**
+
+> **Number note.** The 08-14 daily review pencilled IMP-029 as "make the trailing stop
+> ATR-relative". That did **not** ship and the number has been reassigned. Two reasons, both
+> disqualifying on their own: the 08-14 **weekly explicitly froze `TRAIL_PERCENT` and the two-stage
+> trail**, and the candidate was self-gated on full-history `bot/replay.py` validation that has not
+> been run. It is **renumbered to a future IMP, not cancelled** — and this change is precisely what
+> unblocks it (see below).
+
+- **Problem.** The 08-14 weekly named one task as the week's most important: *"is there any pre-entry
+  discriminator for entries that never trade above their entry price?"* — the `<0.5%`-MFE cohort,
+  which it called the sole remaining first-order leak. Tonight's study answered it (4-of-4 windows,
+  see the 08-17 daily review) and the answer is **pre-entry volatility**. But the study had to be run
+  from a **throwaway script that re-fetched 1-minute bars for 251 historical trades**, because the
+  variables it tests are recorded **nowhere**. `dbo.trades` stores the five confidence sub-scores and
+  nothing about the tape the entry was taken into.
+  **The bot already computes the number and throws it away**: `RibbonSnapshot.atr` is populated on
+  every trigger candle and feeds `conf_volatility`, then is discarded at the signal boundary.
+  This is the IMP-025 argument, one step upstream — that entry made *excursion* measurable after it
+  had been rebuilt by hand three reviews running; this makes the *entry conditions* measurable
+  before the same thing happens to them.
+- **Change (5 files, no behavioural surface):**
+  - **`bot/strategy.py`** — two pure helpers, `atr_pct_of()` and `ribbon_spread_pct_of()`, and two
+    new optional fields on `TradeSignal`. Both are **price-relative** (`atr / close * 100`), which is
+    the point: today's INTC at $105 and MU at $1,034 have raw ATRs an order of magnitude apart but
+    read **0.204%** and **0.158%** — on one scale, and comparable. Both return **`None`, never 0.0**,
+    when the indicator has not seeded: "not measured" and "a flat tape" are different facts and the
+    study that reads this column must not conflate them. The `ENTRY` log line now carries
+    `tape(atr=… spread=…)` so the value is in journald even if the DB write fails.
+  - **`bot/persistence.py`** — a frozen `TapeContext`, threaded through `TradeRecorder.on_signal`
+    (which already caches the confidence breakdown per symbol for exactly this reason — the tape is
+    known at signal time and is not recoverable from the `ExecutionResult`) into `record_entry` /
+    `_insert_entry` as an optional third argument. **Both IMP-028 retry paths pass it**, so a row
+    recovered on the retry is not recovered stripped of its tape.
+  - **`sql/schema.sql`** — `atr_pct` and `ribbon_spread_pct` as `DECIMAL(9,5) NULL`, added to the
+    `CREATE TABLE` for fresh installs *and* as two idempotent `IF COL_LENGTH(...) IS NULL ALTER TABLE`
+    batches for this install, following the existing `dbo.orders.status` widening idiom.
+  - **`tests/`** — +9 tests.
+- **Why this and not the filter the study points at.** The evidence is directionally strong (4/4
+  windows on dead-rate, at a fixed threshold with no per-window refitting) but **not yet decision-grade**:
+  net P&L agrees in only **3 of 4** windows, the current-config window has **n=5** on the quiet side,
+  and — decisively — **it would not have prevented either of today's losses**, whose pre-entry ATRs
+  (0.204%, 0.158%) both sat on the *active* side of the threshold. Shipping an entry filter on that
+  would be exactly the one-day overfit this routine exists to avoid, and it would breach the freeze.
+  **The weekly's instruction was "build the evidence, do not ship the filter." This is the evidence,
+  made permanent.** Friday inherits a live-recorded column instead of a script.
+- **Validation.** **372 tests pass** (363 → 372, +9). Four in `test_strategy.py` cover the helpers
+  against today's real INTC/MU prices and the unseeded case; five in `test_persistence.py` cover the
+  signal→row hand-off, NULL-not-zero, the IMP-028 retry preserving the tape, and a **placeholder/column
+  count assertion** so a future column can never silently shift the values into the wrong columns.
+  **Two pre-existing tests were repaired, not just updated:** they asserted on `params[-5:]`, a tail
+  slice that this change shifted — and which had been **failing open** on the all-`None` cases. They
+  now slice from named offsets (`_CONF_SUBSCORES`, `_TAPE`).
+  **Non-vacuity verified:** neutralising the change (unseeded ATR → 0.0, tape params → hardcoded
+  `None`) fails **4** of the new tests; restored, all 372 pass. `bot.preflight` → **RESULT: OK**
+  (Alpaca ACTIVE equity 9,089.21 / SQL Server connected, schema ensured **10 batches**, was 8 /
+  Telegram delivered), single expected "session CLOSED" WARN. **Schema verified against the live DB
+  after the ALTER: both columns present as `decimal(9,5) NULL`, all 268 existing rows preserved and
+  NULL** (they are not zero-filled — any study must exclude pre-08-17 trades, not treat them as flat).
+  `ruff` is not installed in the VPS venv (dev-only dependency), so lint was not run here.
+- **Risk / no-go check.** No entry, exit or sizing *decision* is changed: the two fields are derived
+  read-only from a snapshot the scorer had already consumed, and **nothing reads them back**. A test
+  asserts the decision for a snapshot is exactly `evaluate_entry`'s own. Note honestly that ATR itself
+  is *not* new to the decision — it has always fed `conf_volatility`; what is new is only the
+  recording of it. Position size, loss limits, the stop, the trail, the market gate and the kill
+  switch are all untouched. Worst case on a bug is two NULL columns.
+- **Commit.** `8e00c6b` — pushed and deployed 2026-08-17 (restart verified below).
+- **Observed effect:** ⏳ **not yet measurable by construction** — it records, it does not act. The
+  signal that it is working is the `tape(atr=… spread=…)` fragment on the next `ENTRY` log line and a
+  non-NULL `atr_pct` on the next row in `dbo.trades`. **Do not mark this validated until a live entry
+  has written one.** The payoff is a Friday `<0.5%`-MFE study that is a SQL query.

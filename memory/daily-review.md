@@ -4330,3 +4330,153 @@ explicit written handoff and after reading the full diff to confirm it contained
 else. The justification is that this was **this routine's own orphaned output** and a **live
 data-integrity defect**, not a human's work in progress. `memory/daily-review.md` also carried an
 uncommitted 08-13 entry from the same failed run; it is committed tonight along with this entry.
+
+---
+
+## 2026-08-17 — Daily Review
+
+### Stats
+- **2 trades, 0W / 2L → 0% win rate.** Net realized **−$34.66** (avg −$17.33/trade), both losses
+  within 0.02pp of each other (−1.177% and −1.192%). Profit factor **0** (no gross win).
+- **Equity $9,089.21**, from $9,123.87 → **−$34.66 (−0.38%)**. **Broker reconciles to the cent:**
+  Alpaca `last_equity` 9,123.87 → `equity` 9,089.21 is exactly the DB's realized P&L. **0 open
+  positions**, 0 open orders, all cash. Both fills match `dbo.trades` to six decimals
+  (INTC 104.149444, MU 1021.80); both bracket target legs OCO-cancelled correctly. **No qty drift,
+  no missed fill, nothing carried overnight.** IMP-027/IMP-028's machinery behaved.
+- Rolling 7 days: **10 trades, 40% win, −$0.13** — flat, not broken.
+
+### Trade-by-trade review
+Both Model A, both entered inside two minutes of each other, both exited on the **trailing stop
+filled broker-side** ~2 hours later. Neither came close to the −2% hard stop.
+
+- **INTC** — entry 15:20:03 @ **105.39** (qty 18, $1,896.84), conf **63.79**
+  (xo 0.30 · trend 1.00 · rsi 1.00 · **vol 0.00** · vlt 0.99). Trail moved 103.27 → **104.15 at
+  15:21**, i.e. *one minute after entry*, and then **never moved again for 2h01m** until it filled
+  @ 104.1494. **−$22.33 (−1.18%)**.
+- **MU** — entry 15:22:02 @ **1034.13** (qty 1), conf **65.53** (xo 0.35 · trend 1.00 · rsi 1.00 ·
+  **vol 0.00** · vlt 1.00). Trail 1013.17 → 1021.37 (15:23) → **1021.87 (15:28)**, then flat for
+  2h00m until it filled @ 1021.80. **−$12.33 (−1.19%)**.
+
+**Root cause — entry timing, not exit logic, and the IEX daily bars make it unambiguous:**
+
+| | open | high | **our entry** | close | entry vs high |
+|---|---|---|---|---|---|
+| INTC | 103.69 | **105.95** | **105.39** | 103.47 | **−0.53%** |
+| MU | 999.38 | **1036.05** | **1034.13** | 1012.14 | **−0.19%** |
+
+**Both names were bought within 0.6% of their session high, after a run (MU had already travelled
++3.5% off its open), and both closed near their lows.** INTC's day range was **3.94%** on a
+**−0.21%** open→close and MU's **4.07%** on **+1.28%** — i.e. both stocks moved enormously and went
+nowhere. The ribbon fired at the exhaustion point of the up-leg. That is the whole loss.
+
+**The exit structure was the best-performing component today and should be credited, not blamed.**
+Counterfactual against the 15:56 EOD flatten at the closing price: INTC would have been
+**−$34.56** (vs −$22.33) and MU **−$21.99** (vs −$12.33) — **the trail saved ≈$21.89**, more than
+it cost. MU is the sharp case: the stock finished the day **+1.28% from its open** and our trade
+still lost, because we bought its high; the trail got us out at 1021.80 against a **1012.14** close.
+- **Not stop placement:** the −2% hard stops (103.27 / 1013.17) were never approached.
+- **Not slippage:** INTC filled 0.0006 through its 104.15 stop; MU 0.07 through 1021.87. Negligible.
+- **Not sizing:** $1.9k and $1.0k notional on $9.1k equity, well within model A.
+- **Not the DB or the broker:** perfect reconciliation, no data defect of any kind today.
+
+**Market regime (IEX daily bars, authoritative — not `sonar`): a narrow, drifting-down tape.**
+QQQ **−0.41% open→close on a 0.72% range**; SPY **−0.47% on 0.54%**. So the index trended *down*
+intraday all session while individual names chopped 2–4%. The **QQQ market gate (IMP-022) correctly
+refused MU twice** earlier (14:14 conf 69.4, 14:30 conf 69.0) and then **opened right at the
+intraday top** — the gate is not broken, but a 5-min ribbon is a lagging regime read and on a
+0.72%-range day it will confirm bullish near the high by construction. Worth watching, not acting on.
+
+### What worked / what didn't
+- ✅ **The trail.** Cut both losers ~40% smaller than an EOD flatten would have. IMP-018/021 continue
+  to earn their place.
+- ✅ **Risk plumbing.** Exact broker reconciliation, correct OCO cancels, flat into the close.
+- ✅ **The refusal log.** 11 documented rejections (crossover < 0.25 on AMD/TSM/QQQ/AAPL/BABA,
+  confidence < 60 on BABA ×3 / TSM, gate closed on MU ×2) — the journal is genuinely diagnosable now.
+- ❌ **Entry timing.** Both entries bought a local top on a down-drifting index.
+- ❌ **`conf_volume = 0.00` on both entries** — the crossover had no volume behind it. *Tempting and
+  wrong, see below.*
+
+### Lessons & improvement candidates
+
+**1. `conf_volume` as a discriminator — TESTED TONIGHT AND REFUTED. Do not re-propose it.**
+Both losses scored volume 0.00, which looked like an obvious culprit. Across all 268 closed trades
+the opposite is true: **`vol = 0.00` is the *best* band (n=51, 43.1% win, +$185.99) and `vol = 1.00`
+is the *worst* (n=79, 44.3% win, −$377.93)**; post-08-03 `vol = 0.00` is +$21.37 at 55.6% win.
+Volume confirmation is *inverted*, exactly like the confidence total. Today's pairing was coincidence
+in a sample of two — the precise overfit this review exists to prevent.
+
+**2. 🔴 The `<0.5%`-MFE cohort is confirmed as the whole leak, and tonight it finally has a
+pre-entry discriminator.** Both of today's trades peaked at **+0.09%** and **+0.10%** — dead on
+arrival. Over 7 days the bands are stark: **`<0.5%` MFE = 6 trades, −$90.57**; `1.0–2.0%` = 2,
++$5.04; `>2.0%` = 2, **+$85.40**. The dead cohort *is* the loss.
+
+Tonight I ran the study the 08-14 weekly named as its single most important task, on **251 of 268
+lifetime trades**, measuring MFE over a **fixed 60-minute forward horizon** so the result is
+independent of exit config (and therefore not contaminated by the pre-IMP-021 window):
+
+- **Baseline: 46.6% of all entries never trade +0.5% above entry.** Dead cohort **−$809.05**,
+  live cohort **+$935.01**. The bot's entire lifetime P&L is that difference.
+- **The discriminator is pre-entry volatility.** Splitting at the median 1-min ATR (0.133% of price):
+  quiet tape **57.1% dead / −$265.62**, active tape **36.0% dead / +$391.59**. The same variable in
+  three guises — 30-min range width (Δ22.7pp), run-up before entry (Δ22.7pp, **−$760.64 vs +$886.60**,
+  the largest P&L spread in the study) and headroom to the 30-min high (Δ21.1pp) — all point the
+  same way: **a ribbon cross on a tape that is not moving does not follow through.**
+- **Robustness: 4 of 4 independent windows agree** on dead-rate, at a *fixed* threshold with no
+  per-window refitting (Jun 58.8/29.7 · Jul 1–20 50.0/48.8 · Jul 21–Aug 2 53.3/21.7 · Aug 3+
+  100.0/36.4). That clears the weekly's ≥3-window bar **on direction**.
+- **⚠️ Three honest caveats, and they are why nothing was shipped on this tonight.**
+  (a) **Net P&L agrees in only 3 of 4 windows** — Jul 1–20 has the quiet side *less* bad
+  (−$168.15 vs −$236.87). Dead-rate is robust; profitability is not yet.
+  (b) The current-config window has **n=5 on the quiet side**. That is not a sample.
+  (c) **Decisively: it would not have saved today.** INTC's pre-entry ATR was **0.204%** and MU's
+  **0.158%** — *both above the threshold, both on the "active" side.* Today's losses were bought-the-high
+  failures, which this variable does not capture at all.
+- **`conf_crossover` also discriminates (Δ24.3pp, the single strongest)** — but `MIN_CROSSOVER` was
+  refuted unanimously across four windows on 08-13 and is under freeze. Recorded, not acted on.
+- **Entry hour looked strong (Δ21.0pp) but is partly an artifact** — a late entry's 60-minute forward
+  window is truncated by the 20:00 UTC close, mechanically depressing its MFE. Restricting to entries
+  with a full window the gap narrows on P&L (+$139.38 early vs +$71.06 late). Weak evidence; not actionable.
+
+**3. 🟠 Confidence remains anti-predictive at the top** — 90-100 still **0-for-3, −$144.42**; 70-79
+still the only profitable band (+$250.84). Unchanged for a fourth week, still n=3 at the top. Standing.
+
+**4. The pencilled "IMP-029 = ATR-relative trail" from 08-14 did NOT ship tonight, deliberately.**
+It is a *trail-structure* change, and the 08-14 weekly explicitly froze `TRAIL_PERCENT` and the
+two-stage trail; it was also self-gated on full-history replay validation that has not been run. Its
+number has been reassigned to what actually shipped (below). **The candidate is not dead — it is
+unblocked**: it needs per-trade ATR to validate, which until tonight was recorded nowhere. Renumber
+it to a future IMP and judge it on replay, not on a day.
+
+### Change shipped tonight
+**IMP-029 — record the pre-entry tape context (`atr_pct`, `ribbon_spread_pct`) on every entry.**
+Instrumentation only, which is what the freeze permits. The bot already computed the 1-min ATR at
+entry (it feeds `conf_volatility`) and then **discarded it**; the ribbon spread likewise. Both are
+now written to two new nullable `dbo.trades` columns. This is the IMP-025 argument repeated for the
+entry side: tonight's study had to re-fetch bars for 251 trades from a throwaway script, and an
+analysis that expensive is one that gets skipped on the night it matters. From tomorrow the
+`<0.5%`-MFE question is a SQL query, and both open candidates (the ATR entry filter and the
+ATR-relative trail) can be validated forward instead of only backward.
+**372 tests pass** (363 → 372, +9), non-vacuity verified (4 of the new tests fail when the change is
+neutralised, all pass restored), `bot.preflight` **RESULT: OK**. Schema ALTER applied live and
+verified: both columns present as `decimal(9,5) NULL`, **all 268 existing rows preserved** and NULL.
+Details in `memory/improvement-log.md`.
+
+### Notes for pre-market research
+- **INTC and MU are NOT park candidates despite being today's only two losses.** Both moved 4% intraday
+  — they are *working* names that the bot mistimed. INTC 3.94% range on −0.21% open→close; MU 4.07%
+  on **+1.28%** (MU finished the day up and we still lost, having bought its high). Keep both enabled.
+- **Watch the "bought within 0.6% of the session high" pattern** — it is today's real failure and it
+  is a *timing* problem, not a symbol-selection one. No watchlist action follows from it.
+- **The QQQ gate opened at the intraday top** on a 0.72%-range day, having correctly blocked MU twice
+  earlier. Not a defect; a known lag property of a 5-min ribbon on a narrow tape. **Keep QQQ enabled**
+  (load-bearing twice over — diversifier and the IMP-022 gate proxy).
+- **Never signalled today, worth noting for the board:** AAPL, AMD, TSM, BABA and QQQ all produced
+  refusals but no entries; BABA scored below 60 three separate times (48.8, 52.2, 57.9) and cleared
+  the confidence bar only once, on a 0.01 crossover. **BABA is drifting toward dead-signal territory
+  — start a clock on it** if the pattern repeats this week. Its earnings park is already booked 08-19.
+- **Scheduled, unchanged:** WMT + BABA earnings parks and the AAPL re-examination on **08-19** (a
+  three-decision run that drops the board to 17; CRM and XOM are the pre-verified backfills), AVGO
+  on-notice re-check 08-19, NVDA earnings 08-26, GOOG dead-signal test 08-31.
+- **`sonar` was thin for an 11th consecutive run** — "no specific catalyst" for 6 of 8 tickers and no
+  regime call beyond "choppy". Its one useful line (range-bound) was confirmed independently by the
+  IEX bars. Standing rule holds: lead-generation only, never a regime source.
