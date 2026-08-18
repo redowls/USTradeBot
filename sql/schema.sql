@@ -130,6 +130,41 @@ CREATE TABLE dbo.fills (
 );
 GO
 
+-- One row per SCORED entry candidate that was refused (IMP-030): the counterfactual
+-- half of dbo.trades. Every entry-threshold study to date has been run on the taken
+-- population alone, which cannot price a threshold — only the rejected population can
+-- say what it cost. Refusals previously existed only as journald INFO lines, which roll
+-- (on 2026-08-18 only 11 days were recoverable), and a flat session wrote no row at all.
+--
+-- Deliberately NOT every evaluated candle: only candidates the scorer actually scored
+-- (a near-miss on confidence/crossover) plus fully-qualifying entries the IMP-022 market
+-- gate turned away. The unscored "no fresh cross" rejections are ~10k/session and carry
+-- no information. Observational only — no trading code reads this table back.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'entry_refusals' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.entry_refusals (
+    id                INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    symbol            VARCHAR(16)    NOT NULL,
+    candle_start_utc  DATETIME2(0)   NOT NULL,                 -- the candle that was refused
+    reason            VARCHAR(160)   NOT NULL,                 -- decision.reason, verbatim
+    market_gate_open  BIT            NULL,                     -- IMP-022 QQQ gate state
+    close_price       DECIMAL(18, 6) NULL,                     -- trigger close, to price it later
+    confidence        DECIMAL(6, 2)  NULL,
+    conf_crossover    DECIMAL(6, 4)  NULL,
+    conf_trend        DECIMAL(6, 4)  NULL,
+    conf_rsi          DECIMAL(6, 4)  NULL,
+    conf_volume       DECIMAL(6, 4)  NULL,
+    conf_volatility   DECIMAL(6, 4)  NULL,
+    atr_pct           DECIMAL(9, 5)  NULL,                     -- pre-entry tape (IMP-029 fields)
+    ribbon_spread_pct DECIMAL(9, 5)  NULL,
+    created_at_utc    DATETIME2(0)   NOT NULL DEFAULT SYSUTCDATETIME()
+);
+GO
+
+-- Studies scan this table by day and by symbol; it grows by ~30 rows a session.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_entry_refusals_candle' AND object_id = OBJECT_ID('dbo.entry_refusals'))
+CREATE INDEX IX_entry_refusals_candle ON dbo.entry_refusals (candle_start_utc, symbol);
+GO
+
 -- Outcome vs confidence: does a higher confidence score actually pay off? Buckets
 -- closed trades into confidence bands and aggregates win rate and realized P/L.
 CREATE OR ALTER VIEW dbo.vw_confidence_outcome AS

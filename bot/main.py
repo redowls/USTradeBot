@@ -197,6 +197,7 @@ def main() -> int:
     rec_signal = recorder.on_signal if recorder else None
     rec_result = recorder.on_result if recorder else None
     rec_exit = recorder.on_exit if recorder else None
+    rec_refusal = recorder.on_refusal if recorder else None
 
     # Telegram alerts (Phase 7): an AlertReporter rides the same callbacks, fanned
     # in via _chain. open_notifier returns None if Telegram isn't configured, and a
@@ -215,7 +216,13 @@ def main() -> int:
         on_feed_alert=_chain(_on_feed_alert, alert_feed),
     )
     strategy = StrategyEngine(
-        cfg, on_signal=_chain(_on_signal, rec_signal), executor=executor, risk=risk
+        cfg,
+        on_signal=_chain(_on_signal, rec_signal),
+        # IMP-030: refusals go to SQL only — no console/Telegram fan-out. ~30 a session
+        # is signal in a table and noise in a chat.
+        on_refusal=rec_refusal,
+        executor=executor,
+        risk=risk,
     )
     data = MarketDataClient(
         cfg,

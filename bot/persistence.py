@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from bot.executor import ExecutionResult
     from bot.risk import ExitResult
     from bot.signals import ConfidenceBreakdown
-    from bot.strategy import TradeSignal
+    from bot.strategy import RefusedEntry, TradeSignal
 
 log = logging.getLogger("ustradebot.persistence")
 
@@ -311,6 +311,46 @@ class TradeStore:
         )
         return trade_id
 
+    def record_refusal(self, refusal: RefusedEntry) -> None:
+        """Persist one refused entry candidate (IMP-030). Never raises.
+
+        Unlike :meth:`record_entry` this does **not** retry. A refusal is a datapoint,
+        not a position — losing one to a transient socket costs a row in a study, not
+        money, and the candle thread must not pay two round trips for it. It also does
+        not reset the connection on the happy path, so the ~30 writes a session ride the
+        same socket the entry/exit writes use.
+        """
+        try:
+            conn = self._connection()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO dbo.entry_refusals "
+                "(symbol, candle_start_utc, reason, market_gate_open, close_price, "
+                " confidence, conf_crossover, conf_trend, conf_rsi, conf_volume, "
+                " conf_volatility, atr_pct, ribbon_spread_pct) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    refusal.symbol,
+                    refusal.candle_start,
+                    refusal.reason[:160],  # column width; reasons are short but bounded
+                    refusal.market_gate_open,
+                    refusal.close_price,
+                    refusal.confidence,
+                    _sub(refusal.breakdown, "crossover"),
+                    _sub(refusal.breakdown, "trend"),
+                    _sub(refusal.breakdown, "rsi"),
+                    _sub(refusal.breakdown, "volume"),
+                    _sub(refusal.breakdown, "volatility"),
+                    refusal.atr_pct,
+                    refusal.ribbon_spread_pct,
+                ),
+            )
+            conn.commit()
+        except Exception:
+            # Observational data must never take the strategy down with it.
+            log.exception("failed to persist refusal for %s", refusal.symbol)
+            self._reset()
+
     def record_exit(self, result: ExitResult) -> None:
         """Close the symbol's open trade: set exit fields + realized P/L, drop position."""
         try:
@@ -562,6 +602,9 @@ class TradeRecorder:
     def on_result(self, result: ExecutionResult) -> None:
         breakdown, tape = self._pending.pop(result.symbol, (None, TapeContext()))
         self._store.record_entry(result, breakdown, tape)
+
+    def on_refusal(self, refusal: RefusedEntry) -> None:
+        self._store.record_refusal(refusal)
 
     def on_exit(self, result: ExitResult) -> None:
         self._store.record_exit(result)

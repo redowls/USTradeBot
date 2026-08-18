@@ -103,6 +103,36 @@ class TradeSignal:
     ribbon_spread_pct: float | None = None
 
 
+@dataclass(frozen=True)
+class RefusedEntry:
+    """A scored entry candidate that did **not** become a position (IMP-030).
+
+    The counterfactual half of ``dbo.trades``, and it carries the same confidence
+    breakdown and tape context an accepted entry records so the two populations are
+    directly comparable in SQL. An entry threshold cannot be priced from the trades it
+    admits — only from the candidates it rejects — yet until now those existed solely as
+    journald INFO lines, which roll: on 2026-08-18 only 11 days were recoverable, and a
+    flat session (33 refusals, 0 entries) persisted nothing at all.
+
+    ``market_gate_open`` separates the two refusals that reach here: a near-miss on
+    confidence/crossover (gate state incidental, may be ``None`` when unknown) and a
+    fully-qualifying entry the IMP-022 market gate turned away (``False``).
+
+    Purely observational — nothing reads it back, and no entry, exit or sizing behaviour
+    depends on it.
+    """
+
+    symbol: str
+    candle_start: datetime
+    reason: str
+    market_gate_open: bool | None = None
+    close_price: float | None = None
+    confidence: float | None = None
+    breakdown: ConfidenceBreakdown | None = None
+    atr_pct: float | None = None
+    ribbon_spread_pct: float | None = None
+
+
 def _fmt_pct(value: float | None) -> str:
     """Log helper: a percentage, or ``n/a`` — never a misleading 0.00 for unseeded."""
     return "n/a" if value is None else f"{value:.3f}%"
@@ -134,6 +164,7 @@ def ribbon_spread_pct_of(trigger: RibbonSnapshot) -> float | None:
 
 
 OnSignal = Callable[[TradeSignal], None]
+OnRefusal = Callable[["RefusedEntry"], None]
 
 
 class StrategyEngine:
@@ -144,6 +175,7 @@ class StrategyEngine:
         cfg: Config,
         *,
         on_signal: OnSignal | None = None,
+        on_refusal: OnRefusal | None = None,
         weights: ScoreWeights | None = None,
         executor: OrderExecutor | None = None,
         risk: RiskManager | None = None,
@@ -152,6 +184,7 @@ class StrategyEngine:
     ) -> None:
         self._cfg = cfg
         self._on_signal = on_signal
+        self._on_refusal = on_refusal
         self._weights = weights or ScoreWeights()
         self._executor = executor
         self._risk = risk
@@ -319,6 +352,10 @@ class StrategyEngine:
         )
         if not decision.enter:
             self._log_skip(symbol, decision)
+            if decision.confidence is not None:
+                # Scored near-miss: worth a row. The unscored "no fresh cross" refusals
+                # are ~10k a session and carry no information, so they stay DEBUG-only.
+                self._emit_refusal(symbol, decision, trigger, gate_open=None)
             return None
 
         # Market-regime veto (IMP-022). Deliberately applied *after* scoring rather
@@ -331,6 +368,13 @@ class StrategyEngine:
                 symbol,
                 self._cfg.market_filter_symbol,
                 decision.confidence.total if decision.confidence else float("nan"),
+            )
+            self._emit_refusal(
+                symbol,
+                decision,
+                trigger,
+                gate_open=False,
+                reason=f"market gate closed ({self._cfg.market_filter_symbol} 5m ribbon not bullish)",
             )
             self._set(symbol, BotState.WAITING)
             return None
@@ -421,6 +465,42 @@ class StrategyEngine:
             )
         else:
             log.debug("no entry %s: %s", symbol, decision.reason)
+
+    def _emit_refusal(
+        self,
+        symbol: str,
+        decision: EntryDecision,
+        trigger: RibbonSnapshot,
+        *,
+        gate_open: bool | None,
+        reason: str | None = None,
+    ) -> None:
+        """Hand one refused candidate to the recorder (IMP-030).
+
+        Mirrors the ``on_signal`` contract exactly, including swallowing callback
+        failures: a bug in the observational write must never take down the candle
+        thread that is still managing live positions.
+        """
+        if self._on_refusal is None:
+            return
+        try:
+            self._on_refusal(
+                RefusedEntry(
+                    symbol=symbol,
+                    candle_start=decision.candle_start,
+                    reason=reason if reason is not None else decision.reason,
+                    market_gate_open=gate_open,
+                    close_price=trigger.close,
+                    confidence=(
+                        decision.confidence.total if decision.confidence is not None else None
+                    ),
+                    breakdown=decision.confidence,
+                    atr_pct=atr_pct_of(trigger),
+                    ribbon_spread_pct=ribbon_spread_pct_of(trigger),
+                )
+            )
+        except Exception:  # a downstream recording bug must not kill the strategy
+            log.exception("on_refusal callback failed for %s", symbol)
 
     def _execute(self, signal: TradeSignal) -> None:
         """Submit the bracket entry and advance the state machine.

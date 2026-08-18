@@ -1102,3 +1102,172 @@ def test_recording_the_tape_does_not_change_the_entry_decision(cfg):
     # ...and the derived fields are pure functions of that same snapshot.
     assert sig.atr_pct == atr_pct_of(trigger)
     assert sig.ribbon_spread_pct == ribbon_spread_pct_of(trigger)
+
+
+# --- IMP-030: refusals are persisted, not just logged -------------------------------
+# Motivated by 2026-08-18, a session that made 33 scored entry decisions and wrote ZERO
+# rows to SQL: 16 confidence near-misses, 15 crossover near-misses and 2 fully-qualifying
+# entries the market gate turned away (ABNB conf 79.8, NFLX conf 79.3). That evidence
+# lived only in journald, which had 11 days of retention. These tests pin the two emit
+# points, the volume guard that keeps the ~10k unscored rejections out, and the rule that
+# an observational write can never break the candle thread.
+
+
+class _FakeRefusalSink:
+    def __init__(self, boom: bool = False):
+        self.calls = []
+        self._boom = boom
+
+    def __call__(self, refusal):
+        self.calls.append(refusal)
+        if self._boom:
+            raise RuntimeError("recorder is down")
+
+
+def _near_miss_trigger() -> RibbonSnapshot:
+    """A fresh cross that scores 66.4 but is refused on the crossover floor.
+
+    Reproduces today's second-most-common refusal shape verbatim: the engine returns
+    ``crossover 0.18 < 0.25``, the same form as the live ``crossover 0.21 < 0.25``
+    (AAPL 14:30) and ``crossover 0.24 < 0.25`` (NFLX 15:20) on 2026-08-18.
+    """
+    return _ribbon_snap(
+        (100.02, 100.01, 100.0),
+        (99.99, 100.01, 100.0),
+        close=100.0,
+        rsi=50.5,
+        prev_rsi=50.0,
+        volume=90.0,
+        avg_volume=100.0,
+        atr=0.1,
+    )
+
+
+def test_scored_near_miss_is_persisted_with_its_breakdown(cfg):
+    """Today's dominant refusal (confidence/crossover below the bar) becomes a row."""
+    sink = _FakeRefusalSink()
+    eng = StrategyEngine(
+        cfg,
+        on_refusal=sink,
+        trigger_engine=_FakeEngine([_near_miss_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    assert eng.on_short_candle(_candle()) is None
+
+    assert len(sink.calls) == 1
+    r = sink.calls[0]
+    assert r.symbol == "NFLX"
+    assert r.candle_start == _OPEN_TS
+    assert r.reason == "crossover 0.18 < 0.25"  # the live refusal shape, verbatim
+    assert r.confidence is not None
+    assert r.breakdown is not None  # the sub-scores travel with it, as for a taken entry
+    # The whole point of the row: it cleared the confidence bar and was still refused,
+    # so only the crossover floor can be priced against it.
+    assert r.confidence >= cfg.entry_threshold
+    assert r.breakdown.crossover < cfg.min_crossover
+    assert r.close_price == 100.0
+    # A near-miss never reached the gate, so its state is unknown — not False.
+    assert r.market_gate_open is None
+    assert "no fresh cross" not in r.reason
+
+
+def test_market_gate_refusal_is_persisted_as_gate_closed(cfg):
+    """The 2026-08-18 ABNB/NFLX case: fully qualified, vetoed by the index gate."""
+    sink = _FakeRefusalSink()
+    eng = StrategyEngine(
+        cfg,
+        on_refusal=sink,
+        executor=_FakeExecutor(_exec_result()),
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_market_gate_engine(open_gate=False),
+    )
+    _feed_index_then_symbol(eng)
+    assert eng.on_short_candle(_candle()) is None
+
+    assert len(sink.calls) == 1
+    r = sink.calls[0]
+    assert r.market_gate_open is False  # the distinguishing fact for the gate study
+    assert "market gate closed (QQQ" in r.reason
+    # It qualified on its own merits — that is exactly what makes it worth recording.
+    assert r.confidence >= cfg.entry_threshold
+    assert r.breakdown is not None
+
+
+def test_unscored_rejection_is_not_persisted(cfg):
+    """Volume guard: ~10k 'no fresh cross' candles a session must not reach the table."""
+    sink = _FakeRefusalSink()
+    eng = StrategyEngine(cfg)
+    decision = EntryDecision(
+        symbol="NFLX",
+        candle_start=_OPEN_TS,
+        gate_open=False,
+        fresh_cross=False,
+        candidate=False,
+        confidence=None,  # never scored
+        enter=False,
+        reason="gate closed",
+    )
+    eng._on_refusal = sink
+    eng._log_skip("NFLX", decision)
+    assert sink.calls == []
+
+
+def test_a_taken_entry_records_no_refusal(cfg):
+    """The populations must not overlap: a signal is not also a refusal."""
+    sink = _FakeRefusalSink()
+    eng = StrategyEngine(
+        cfg,
+        on_refusal=sink,
+        trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+        gate_engine=_market_gate_engine(open_gate=True),
+    )
+    _feed_index_then_symbol(eng)
+    sig = eng.on_short_candle(_candle())
+    assert sig is not None
+    assert sink.calls == []
+
+
+def test_refusal_carries_the_same_tape_context_as_an_entry(cfg):
+    """IMP-029's tape fields on the refused side, so both populations are comparable."""
+    sink = _FakeRefusalSink()
+    trigger = _near_miss_trigger()
+    eng = StrategyEngine(
+        cfg,
+        on_refusal=sink,
+        trigger_engine=_FakeEngine([trigger]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    eng.on_short_candle(_candle())
+
+    r = sink.calls[0]
+    assert r.atr_pct == atr_pct_of(trigger)
+    assert r.ribbon_spread_pct == ribbon_spread_pct_of(trigger)
+    assert r.atr_pct is not None  # this trigger has seeded ATR, so it is a real value
+
+
+def test_refusal_sink_failure_does_not_break_the_candle_thread(cfg, caplog):
+    """An observational write is never allowed to kill a thread managing live positions."""
+    sink = _FakeRefusalSink(boom=True)
+    eng = StrategyEngine(
+        cfg,
+        on_refusal=sink,
+        trigger_engine=_FakeEngine([_near_miss_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    with caplog.at_level(logging.ERROR, logger="ustradebot.strategy"):
+        assert eng.on_short_candle(_candle()) is None  # swallowed, not raised
+    assert any("on_refusal callback failed" in r.getMessage() for r in caplog.records)
+
+
+def test_no_refusal_sink_is_harmless(cfg):
+    """Persistence is optional everywhere else in this bot; refusals are no exception."""
+    eng = StrategyEngine(
+        cfg,
+        trigger_engine=_FakeEngine([_near_miss_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    assert eng.on_short_candle(_candle()) is None  # no sink wired -> no crash

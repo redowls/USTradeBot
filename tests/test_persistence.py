@@ -746,3 +746,152 @@ def test_load_watchlist_returns_empty_on_error_and_resets():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+# --- IMP-030: the refusal write ----------------------------------------------------
+# Column offsets into the dbo.entry_refusals INSERT param tuple, named for the same
+# reason as _CONF_SUBSCORES above: this tuple will grow too.
+_REF_SUBSCORES = slice(6, 11)  # conf_crossover..conf_volatility
+_REF_TAPE = slice(11, 13)  # atr_pct, ribbon_spread_pct
+
+
+def _refusal(**over):
+    """Today's ABNB gate refusal (2026-08-18 14:25 UTC, conf 79.8) unless overridden."""
+    from bot.strategy import RefusedEntry
+
+    fields = dict(
+        symbol="ABNB",
+        candle_start=datetime(2026, 8, 18, 14, 25),
+        reason="market gate closed (QQQ 5m ribbon not bullish)",
+        market_gate_open=False,
+        close_price=184.71,
+        confidence=79.8,
+        breakdown=ConfidenceBreakdown(
+            crossover=0.9, trend=0.8, rsi=1.0, volume=0.5, volatility=0.7, total=79.8
+        ),
+        atr_pct=0.204,
+        ribbon_spread_pct=0.061,
+    )
+    fields.update(over)
+    return RefusedEntry(**fields)
+
+
+def test_record_refusal_writes_the_full_row():
+    conn = _FakeConn()
+    _store(conn).record_refusal(_refusal())
+
+    sql, params = conn.calls[0]
+    assert "INSERT INTO dbo.entry_refusals" in sql
+    assert params[0] == "ABNB"
+    assert params[1] == datetime(2026, 8, 18, 14, 25)
+    assert params[2] == "market gate closed (QQQ 5m ribbon not bullish)"
+    assert params[3] is False  # market_gate_open — the gate study's key column
+    assert params[4] == 184.71
+    assert params[5] == 79.8
+    assert params[_REF_SUBSCORES] == (0.9, 0.8, 1.0, 0.5, 0.7)
+    assert params[_REF_TAPE] == (0.204, 0.061)
+    assert conn.commits == 1
+
+
+def test_record_refusal_placeholder_count_matches_the_columns():
+    """A future column must not silently shift values into the wrong ones."""
+    conn = _FakeConn()
+    _store(conn).record_refusal(_refusal())
+    sql, params = conn.calls[0]
+    columns = sql.split("(", 1)[1].split(")", 1)[0].split(",")
+    assert len(columns) == sql.count("?") == len(params)
+
+
+def test_record_refusal_without_a_breakdown_writes_nulls_not_zeros():
+    """'Not measured' and 'scored zero' are different facts, as for dbo.trades."""
+    conn = _FakeConn()
+    _store(conn).record_refusal(_refusal(breakdown=None, atr_pct=None, ribbon_spread_pct=None))
+    _, params = conn.calls[0]
+    assert params[_REF_SUBSCORES] == (None, None, None, None, None)
+    assert params[_REF_TAPE] == (None, None)
+
+
+def test_record_refusal_truncates_an_overlong_reason():
+    """The column is VARCHAR(160); a long reason must not fail the whole write."""
+    conn = _FakeConn()
+    _store(conn).record_refusal(_refusal(reason="x" * 400))
+    _, params = conn.calls[0]
+    assert len(params[2]) == 160
+
+
+def test_record_refusal_swallows_a_db_failure_and_resets():
+    """Losing a datapoint costs a row in a study; raising here would cost positions."""
+    conn = _FakeConn(raise_on="dbo.entry_refusals")
+    store = _store(conn)
+    store.record_refusal(_refusal())  # must not raise
+    assert conn.commits == 0
+    assert conn.closed  # connection dropped so the next write reconnects
+
+
+def test_record_refusal_does_not_retry():
+    """Unlike record_entry (IMP-028): a refusal is a datapoint, not a position."""
+    conn = _FakeConn(raise_on="dbo.entry_refusals")
+    _store(conn).record_refusal(_refusal())
+    inserts = [c for c in conn.calls if "INSERT INTO dbo.entry_refusals" in c[0]]
+    assert len(inserts) == 1
+
+
+def test_recorder_on_refusal_reaches_the_store():
+    conn = _FakeConn()
+    TradeRecorder(_store(conn)).on_refusal(_refusal())
+    assert any("INSERT INTO dbo.entry_refusals" in c[0] for c in conn.calls)
+
+
+def test_refusals_do_not_touch_the_trades_table():
+    """The two populations stay in separate tables; a refusal is not a trade."""
+    conn = _FakeConn()
+    _store(conn).record_refusal(_refusal())
+    assert not any("dbo.trades" in c[0] for c in conn.calls)
+    assert not any("dbo.positions" in c[0] for c in conn.calls)
+    assert not any("dbo.orders" in c[0] for c in conn.calls)
+
+
+def test_strategy_to_store_refusal_wiring_end_to_end(monkeypatch):
+    """The seam between the two halves: a real engine + a real recorder write a row.
+
+    Both halves are unit-tested above, but IMP-028's delivery failure was a wiring gap,
+    not a logic bug. This drives an actual StrategyEngine refusal through TradeRecorder
+    into the store so the seam cannot silently come apart.
+    """
+    from bot.config import Config
+    from tests.test_strategy import (
+        _FakeEngine,
+        _candle,
+        _near_miss_trigger,
+        _open_gate,
+    )
+
+    for k, v in {
+        "ALPACA_KEY_ID": "k",
+        "ALPACA_SECRET": "s",
+        "TELEGRAM_TOKEN": "t",
+        "TELEGRAM_CHAT_ID": "c",
+    }.items():
+        monkeypatch.setenv(k, v)
+    cfg = Config.load(dotenv=False)
+
+    conn = _FakeConn()
+    recorder = TradeRecorder(_store(conn))
+
+    from bot.strategy import StrategyEngine
+
+    eng = StrategyEngine(
+        cfg,
+        on_refusal=recorder.on_refusal,
+        trigger_engine=_FakeEngine([_near_miss_trigger()]),
+        gate_engine=_FakeEngine([_open_gate()]),
+    )
+    eng.on_long_candle(_candle())
+    assert eng.on_short_candle(_candle()) is None
+
+    inserts = [c for c in conn.calls if "INSERT INTO dbo.entry_refusals" in c[0]]
+    assert len(inserts) == 1
+    params = inserts[0][1]
+    assert params[0] == "NFLX"
+    assert params[2] == "crossover 0.18 < 0.25"
+    assert conn.commits == 1
