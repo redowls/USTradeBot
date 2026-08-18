@@ -1878,3 +1878,92 @@ All six steps completed, in order, with the results the weekly asked for:
   signal that it is working is the `tape(atr=… spread=…)` fragment on the next `ENTRY` log line and a
   non-NULL `atr_pct` on the next row in `dbo.trades`. **Do not mark this validated until a live entry
   has written one.** The payoff is a Friday `<0.5%`-MFE study that is a SQL query.
+
+---
+
+## IMP-030 — persist refused entry candidates to `dbo.entry_refusals` (2026-08-18)
+
+- **Trigger.** 2026-08-18 made **33 scored entry decisions and wrote zero rows to SQL**: 18
+  `crossover < 0.25`, 13 `confidence < 60`, and **2 fully-qualifying entries the IMP-022
+  market gate turned away** (ABNB conf 79.8 at 14:25, NFLX conf 79.3 at 15:09). A flat session
+  currently persists nothing at all, and flat sessions are no longer exceptional — **08-14 and
+  08-18 both traded zero times**, and this morning's research forecast more of them.
+- **The argument, which is not "more instrumentation for its own sake."** Refusals are the
+  **counterfactual half of `dbo.trades`**. Every entry-threshold study this bot has ever run —
+  `MIN_CROSSOVER` (refuted 08-13), the confidence bands, the `<0.5%`-MFE cohort (08-17) — was
+  run on the **taken** population alone. *A threshold cannot be priced from the trades it
+  admits; only from the candidates it rejects.* That population existed solely as journald
+  INFO lines, which roll.
+  **This bit tonight, concretely:** the one genuinely useful analysis this review produced —
+  pricing the market gate — **could only reach n=15, spanning 08-07→08-18, because that is the
+  entire journald retention window.** The answer it gave was worth having (the gate refuses a
+  population that is 60% dead-on-arrival vs a 46.6% baseline, and averages −0.099% to the
+  flatten — **the gate is a mild positive and the "it blocks the profitable 70-79 band" story
+  is refuted**), and it is not decision-grade at n=15. Persisted, it is n≈100 by mid-September.
+  This is the IMP-025 / IMP-029 argument applied to the one population still being discarded.
+- **Change (4 files + tests, no behavioural surface):**
+  - **`bot/strategy.py`** — a frozen `RefusedEntry` (symbol, candle_start, reason,
+    `market_gate_open`, close_price, confidence + full `ConfidenceBreakdown`, and the IMP-029
+    `atr_pct` / `ribbon_spread_pct`), an `OnRefusal` callback, and `_emit_refusal()` called
+    from **exactly two points**: the scored-near-miss branch of `_log_skip`, and the IMP-022
+    gate veto. It **mirrors the `on_signal` contract including swallowing callback failures** —
+    an observational write must never kill a candle thread that is still managing positions.
+  - **Volume guard, deliberate:** only candidates the scorer **actually scored** are recorded.
+    The unscored "no fresh cross" rejections are **~10k a session** and carry no information;
+    they stay DEBUG-only. Today's load would have been **33 rows**.
+  - **`bot/persistence.py`** — `TradeStore.record_refusal()` and `TradeRecorder.on_refusal`.
+    **No retry, unlike `record_entry` (IMP-028), and that asymmetry is the point:** a refusal
+    is a datapoint, not a position — losing one to a stale socket costs a row in a study, not
+    money, and the candle thread must not pay two round trips for it. Every failure is
+    swallowed + `_reset()`.
+    `RefusedEntry` lives in `strategy.py` (where it is produced) and is imported under
+    `TYPE_CHECKING`, preserving the existing dependency direction — persistence already depends
+    on strategy this way for `TradeSignal`, never the reverse.
+  - **`bot/main.py`** — wired as `on_refusal=rec_refusal`. **SQL only, no Telegram/console
+    fan-out:** ~30 a session is signal in a table and noise in a chat.
+  - **`sql/schema.sql`** — `dbo.entry_refusals` (15 columns) + `IX_entry_refusals_candle` on
+    `(candle_start_utc, symbol)`, both idempotent, following the existing `IF NOT EXISTS` idiom.
+- **Why this and not the two filters today's refusals point at.** Today killed **all five**
+  candidates that reached the profitable 70-79 band: three on the crossover floor (AAPL 70.6 /
+  xo 0.14, ABNB 70.1 / 0.12, BABA 72.2 / 0.10) and two on the gate. That is a tempting-looking
+  entry-filter change and it is refused on three independent grounds: **`MIN_CROSSOVER` was
+  refuted unanimously across four windows on 08-13**; the **08-14 weekly's shipping freeze on
+  trading logic runs one more week**; and **n=3 on a single zero-trade day** is the exact
+  one-day overfit this routine exists to prevent. Meanwhile the gate half of that story was
+  *tested tonight and refuted outright* — both of today's gate refusals would have lost
+  (ABNB −0.41%, NFLX −1.47% to the flatten). Recording beats guessing.
+- **Validation.** **388 tests pass** (372 → 388, **+16**). Seven in `test_strategy.py` cover
+  both emit points against today's real refusal shapes (the near-miss fixture reproduces
+  `crossover 0.18 < 0.25`, the same form as the live AAPL 0.21 and NFLX 0.24), the volume guard,
+  the populations not overlapping (a taken signal records no refusal), tape-context parity with
+  an entry, sink-failure containment, and the no-sink case. Eight in `test_persistence.py`
+  cover the row, a **placeholder/column-count assertion** (so a future column cannot silently
+  shift values), NULL-not-zero, reason truncation at the 160-char column width, failure
+  swallowing + reset, the deliberate no-retry, and table isolation from `trades`/`orders`/
+  `positions`. Plus **one end-to-end test driving a real `StrategyEngine` through a real
+  `TradeRecorder` into the store** — IMP-028's delivery failure was a wiring gap, not a logic
+  bug, so the seam is now pinned.
+  **Non-vacuity verified:** neutralising the change (`_emit_refusal` early-return,
+  `market_gate_open` hardcoded `None`, truncation removed) fails **6** tests; restored, all 388
+  pass. `bot.preflight` → **RESULT: OK** (Alpaca ACTIVE, equity 9,089.13 / SQL Server connected,
+  schema ensured **12 batches**, was 10 / Telegram delivered), single expected "session CLOSED"
+  WARN. **Live schema verified after apply: `dbo.entry_refusals` present with all 15 columns at
+  the intended types, `IX_entry_refusals_candle` present, and all 268 existing `dbo.trades`
+  rows preserved.**
+- **Risk / no-go check.** **No entry, exit or sizing decision changes.** Nothing reads this
+  table back. Position size, loss limits, the stop, the trail, the market gate, the stand-down
+  and the kill switch are all untouched; paper-only unchanged. The write sits behind an
+  optional callback that defaults to `None`, so a bot with no database behaves exactly as
+  before. Worst case on a bug is a missing row in a study. Freeze-compliant by the same
+  standard IMP-027/028/029 were judged against.
+- **Commit.** `dacd5d2` — pushed and deployed 2026-08-18 (restart verified: `is-active` active,
+  `ActiveEnterTimestamp` 20:12:17 UTC > file mtimes, schema 12 batches, warmup primed **19/19**,
+  IEX stream subscribed to all 19, `NRestarts=0`, zero errors).
+- **Observed effect:** ⏳ **not yet measurable by construction** — it records, it does not act.
+  The signal that it is working is the **first non-zero `SELECT COUNT(*) FROM dbo.entry_refusals`
+  after the next session**; on a day like today that would have been 33 rows. **Do not mark this
+  validated until live rows exist.** First real payoff is the Friday weekly being able to run
+  the gate and crossover-floor studies against rows instead of a rolling log.
+- **Carry-forward:** **IMP-029 is still unvalidated** — `atr_pct IS NOT NULL` returns 0 rows,
+  because there have been no entries since it shipped on 08-17. Both instrumentation IMPs now
+  wait on the same thing: the next actual entry.
