@@ -114,9 +114,14 @@ class RefusedEntry:
     journald INFO lines, which roll: on 2026-08-18 only 11 days were recoverable, and a
     flat session (33 refusals, 0 entries) persisted nothing at all.
 
-    ``market_gate_open`` separates the two refusals that reach here: a near-miss on
-    confidence/crossover (gate state incidental, may be ``None`` when unknown) and a
-    fully-qualifying entry the IMP-022 market gate turned away (``False``).
+    ``market_gate_open`` records the state of the IMP-022 market gate **at the candle
+    that produced this refusal**, for every scored candidate — not only for the ones the
+    gate itself turned away (IMP-031). ``reason`` says which filter refused the
+    candidate; this field says whether the gate would also have refused it. The two are
+    independent and the counterfactual needs both: loosening an entry threshold does not
+    admit a candidate, it only advances that candidate *to the gate*, so a study that
+    reads a near-miss without the gate state overstates the recoverable population.
+    ``None`` means genuinely not measured (pre-IMP-031 rows), never "open".
 
     Purely observational — nothing reads it back, and no entry, exit or sizing behaviour
     depends on it.
@@ -355,7 +360,19 @@ class StrategyEngine:
             if decision.confidence is not None:
                 # Scored near-miss: worth a row. The unscored "no fresh cross" refusals
                 # are ~10k a session and carry no information, so they stay DEBUG-only.
-                self._emit_refusal(symbol, decision, trigger, gate_open=None)
+                #
+                # Record the gate state here too (IMP-031). This candidate did not reach
+                # the gate — but the question every threshold study asks is "what would
+                # loosening this filter have admitted?", and the honest answer is bounded
+                # by the gate: a candidate the floor refused into a closed gate was never
+                # recoverable at all. On 2026-08-19 the floor refused 17 candidates while
+                # the gate was observed shut at 14:13, 14:16, 15:47 and 16:15, and the
+                # rows could not say which of the 17 fell in those windows. Reading it is
+                # a cached-snapshot lookup on the ~26 scored candidates a session, not the
+                # ~10k unscored ones, and it changes no decision.
+                self._emit_refusal(
+                    symbol, decision, trigger, gate_open=self._market_gate_open()
+                )
             return None
 
         # Market-regime veto (IMP-022). Deliberately applied *after* scoring rather

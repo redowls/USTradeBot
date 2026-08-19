@@ -1167,8 +1167,11 @@ def test_scored_near_miss_is_persisted_with_its_breakdown(cfg):
     assert r.confidence >= cfg.entry_threshold
     assert r.breakdown.crossover < cfg.min_crossover
     assert r.close_price == 100.0
-    # A near-miss never reached the gate, so its state is unknown — not False.
-    assert r.market_gate_open is None
+    # IMP-031 changed this field's meaning: it is now the gate state at this candle for
+    # every scored candidate, not just for the ones the gate refused. No QQQ ribbon was
+    # fed here, so the gate fails OPEN by design (a watchlist edit must never silently
+    # halt trading) and the row honestly records True.
+    assert r.market_gate_open is True
     assert "no fresh cross" not in r.reason
 
 
@@ -1192,6 +1195,77 @@ def test_market_gate_refusal_is_persisted_as_gate_closed(cfg):
     # It qualified on its own merits — that is exactly what makes it worth recording.
     assert r.confidence >= cfg.entry_threshold
     assert r.breakdown is not None
+
+
+# --- IMP-031: the gate state travels with EVERY scored refusal ----------------------
+# Motivated by 2026-08-19: the crossover floor refused 17 candidates while the QQQ gate
+# was independently observed shut at 14:13, 14:16, 15:47 and 16:15 — and the rows could
+# not say which of the 17 fell inside those windows. Loosening a threshold does not admit
+# a candidate, it only advances it to the gate, so pricing the floor without the gate
+# state overstates what loosening it would recover.
+
+
+def test_near_miss_records_a_shut_gate(cfg):
+    """The discriminator: refused by the floor AND the tape was shut = unrecoverable."""
+    sink = _FakeRefusalSink()
+    eng = StrategyEngine(
+        cfg,
+        on_refusal=sink,
+        trigger_engine=_FakeEngine([_near_miss_trigger()]),
+        gate_engine=_market_gate_engine(open_gate=False),
+    )
+    _feed_index_then_symbol(eng)
+    assert eng.on_short_candle(_candle()) is None
+
+    r = sink.calls[0]
+    assert r.market_gate_open is False
+    # `reason` still attributes the refusal to the floor, not the gate — the two facts
+    # are independent and the study needs to read them separately.
+    assert r.reason == "crossover 0.18 < 0.25"
+    assert "market gate" not in r.reason
+
+
+def test_near_miss_records_an_open_gate(cfg):
+    """The same candidate under a bullish tape: genuinely recoverable by the floor."""
+    sink = _FakeRefusalSink()
+    eng = StrategyEngine(
+        cfg,
+        on_refusal=sink,
+        trigger_engine=_FakeEngine([_near_miss_trigger()]),
+        gate_engine=_market_gate_engine(open_gate=True),
+    )
+    _feed_index_then_symbol(eng)
+    assert eng.on_short_candle(_candle()) is None
+
+    r = sink.calls[0]
+    assert r.market_gate_open is True
+    assert r.reason == "crossover 0.18 < 0.25"
+
+
+def test_gate_state_on_a_near_miss_changes_no_decision(cfg):
+    """Observational only: reading the gate for a near-miss must not alter behaviour.
+
+    The near-miss is refused by the floor whether the tape is open or shut, reaches no
+    broker either way, and lands in the same state. Only the recorded field differs.
+    """
+    outcomes = {}
+    for open_gate in (True, False):
+        sink = _FakeRefusalSink()
+        ex = _FakeExecutor(_exec_result())
+        eng = StrategyEngine(
+            cfg,
+            on_refusal=sink,
+            executor=ex,
+            trigger_engine=_FakeEngine([_near_miss_trigger()]),
+            gate_engine=_market_gate_engine(open_gate=open_gate),
+        )
+        _feed_index_then_symbol(eng)
+        sig = eng.on_short_candle(_candle())
+        assert sig is None
+        assert ex.calls == []  # nothing reached the broker on either tape
+        outcomes[open_gate] = (eng.state("NFLX"), sink.calls[0].reason)
+
+    assert outcomes[True] == outcomes[False]
 
 
 def test_unscored_rejection_is_not_persisted(cfg):
