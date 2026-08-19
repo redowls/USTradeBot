@@ -4634,3 +4634,193 @@ index verified live, **268 existing trades preserved**. Details in `memory/impro
 - **New capability for tomorrow morning:** `dbo.entry_refusals` starts filling from the next
   session. From now on "which of my symbols are actually reaching the scorer, and how close do
   they get?" is a SQL query against real rows, not a journald grep with 11 days of memory.
+
+---
+
+## 2026-08-19 — Daily Review
+
+### Stats
+- **0 trades.** No entries, no exits, no open positions. Net P&L **$0.00**. Account **equity
+  $9,089.13**, `last_equity` **$9,089.13** — a second consecutive session that did not move the
+  book by a cent. **Broker reconciliation clean:** Alpaca `PA34DFFLTHRT` returns **0 orders**
+  since 00:00Z, **0 positions**, `long_market_value` 0; `dbo.trades` has 0 rows and
+  `dbo.positions` 0 rows for today. DB and broker agree exactly.
+- **Service healthy all session:** `active`, `NRestarts=0`, **zero WARN or ERROR lines in the
+  entire day's journal** (9,231 lines), no restarts. Running since the IMP-030 deploy
+  (`ActiveEnterTimestamp` 2026-08-18 20:12:17 UTC), so today traded under HEAD.
+- **IMP-030 is VALIDATED on its first live session: 26 rows in `dbo.entry_refusals`**, each
+  carrying the full confidence breakdown and the IMP-029 tape context (`atr_pct` populated on
+  all 26). This is the first day in the bot's history where a flat session produced persisted,
+  queryable evidence. **IMP-029 remains unvalidated** on the entry side — `dbo.trades.atr_pct`
+  is still 0 rows, because there have still been no entries.
+
+### Trade-by-trade review
+No trades, so the reviewable population is the **26 scored refusals** — and for the first time
+they are rows, not a journald grep.
+
+| Cause | n | Notes |
+|---|---|---|
+| `crossover < 0.25` | **17** | The dominant filter, as on 08-18 |
+| `confidence < 60` | **5** | 49.8, 54.1, 55.0, 56.0, 56.9 |
+| market gate closed | **4** | Fully qualified, vetoed by the QQQ 5m ribbon (IMP-022) |
+
+**By symbol:** PLTR 5 · TSLA 5 · WMT 4 · NFLX 4 · BABA 2 · GOOG 2 · AAPL 1 · AMZN 1 · MSFT 1 ·
+SPY 1. **Nine of nineteen enabled names never reached the scorer:** ABNB, AMD, AVGO, INTC, JPM,
+MU, NVDA, QQQ, TSM.
+
+**The regime explains the day, but not in the way `sonar` said.** IEX open→close, which is the
+only window this bot trades: **QQQ −0.61% on a 1.21% range**, **SPY −0.16% on a 0.56% range**.
+The tape **gapped up and faded all session**. `sonar` reported S&P **+0.39/+0.50%** and Nasdaq
+**+0.28/+0.41%** and called it "choppy-to-risk-on" — those are **close-to-close** figures, and
+close-to-close had the **opposite sign** to the session the bot actually trades. Recorded as a
+concrete instance of why the standing rule exists.
+
+### 🔬 The study: what did today's 26 refusals actually cost?
+This is the analysis IMP-030 was built for, and it ran as a SQL query plus one bar fetch instead
+of a throwaway script against a rolling log. Every refusal priced as a hypothetical entry at that
+minute's close, MFE/MAE over a **fixed 60-minute forward horizon** (exit-config independent — the
+08-17 methodology), plus the move to the 19:45 UTC flatten.
+
+| Cohort | n | mean MFE | mean MAE | mean → flatten | dead (MFE<0.5%) | would-be winners |
+|---|---|---|---|---|---|---|
+| **crossover floor** | 17 | +0.284% | −0.441% | **−0.508%** | **13/17 (76%)** | 5/17 (29%) |
+| confidence bar | 5 | +0.549% | −0.109% | −0.062% | 2/5 (40%) | 2/5 (40%) |
+| market gate | 4 | +1.069% | −0.528% | +0.041% | 2/4 (50%) | 2/4 (50%) |
+| **ALL** | **26** | **+0.456%** | **−0.390%** | **−0.338%** | **17/26 (65%)** | 9/26 (35%) |
+
+**Refusing all 26 saved money. The single best filter today was the one this review keeps being
+tempted to loosen.** The crossover floor refused the *worst* cohort of the three by every
+measure: 76% dead on arrival against the **46.6% baseline for trades the bot actually takes**,
+and −0.508% average to the flatten. This is now the **third independent refutation** of the
+"the floor is strangling good candidates" story (unanimous across four replay windows on 08-13;
+the gate half refuted 08-18; the floor itself refuted on live rows today).
+
+**And it refutes it precisely where it looked most convincing.** The three highest-confidence
+crossover refusals were **AAPL 75.5 (xo 0.20)**, **AMZN 74.6 (xo 0.15)** and **BABA 71.7
+(xo 0.10)** — all in the 70-79 band, the only historically profitable one. They went **−0.45%,
++0.20%, −0.85%** to the flatten. **Confidence again failed to rank outcomes inside the refused
+set** (best: TSLA 66.6 at +2.60%; worst: WMT 66.4 at −2.01% — same confidence, 4.6 points apart).
+**Sixth consecutive week of anti-predictive confidence.**
+
+**Honest limits:** n=26, one session, one regime (a fading tape, which flatters every long
+filter). The gate cohort's +1.069% mean MFE is **one trade** — TSLA 14:16, +2.60%; drop it and
+the other three average **−0.81%** to the flatten. Nothing here is decision-grade on its own.
+The point is that it now *accumulates*: this is day 1 of a series that reaches n≈100 by
+mid-September, instead of being re-derived from scratch every Friday.
+
+### 🔎 Structural finding: two of the five confidence components are near-constants
+Today's rows made this visible at a glance — `conf_rsi = 1.0000` on **26 of 26** refusals — and
+the full history confirms it is not a one-day artifact:
+
+- **`conf_rsi == 1.0` on 252 of 268 trades (94%)**, and on 26/26 refusals. `score_rsi` returns
+  a flat **1.0 for the entire 45-65 RSI band**, which is where a fresh bullish EMA cross almost
+  always sits. It is doing what it was written to do; the consequence is that it carries **no
+  information at the moment it is consulted.**
+- **`conf_volatility == 1.0` on 174 of 268 (65%)**, full observed range only **[0.574, 1.0]**.
+- Weights are crossover 30 / trend 20 / **rsi 20** / volume 15 / **volatility 15**.
+
+**So ~35 of the 100 confidence points are a near-constant floor, and the "60/100" entry bar is
+really ~25 of a variable 65** — i.e. the discriminating signal is crossover + trend + volume,
+with RSI contributing a flat +20 to essentially every candidate. This is a strong candidate
+explanation for *why* confidence has been anti-predictive for six weeks: a third of the score is
+a constant, which compresses the spread between good and bad candidates rather than widening it.
+**NOT ACTED ON — the 08-14 weekly explicitly froze the confidence weights**, and this deserves
+replay validation across windows, not a one-night edit. **Handed to Friday's weekly as the
+single best-evidenced strategy question currently open.**
+
+### ⚠️ Operational defect: the pre-market routine failed and the watchlist is stale
+**`ustradebot-premarket` crashed at 11:30 UTC today — `claude exited rc=1` after 26 seconds**,
+producing no research-log entry (the newest is still 08-18) and making **no watchlist changes**.
+`uswisbot-premarket` failed identically at 11:45 (rc=1, 9s), so this is shared-harness, not
+prompt-specific. It is **outside `/opt/ustradebot`** (`/root/claude-routines`) and therefore
+outside tonight's one-change scope, but it has a direct capital consequence:
+
+- **WMT and BABA were scheduled to be parked today for earnings (both confirmed Thu 08-20 BMO)
+  and were NOT parked.** Both are still enabled, and both were live candidates today — **WMT
+  produced 4 refusals and BABA 2**, one of them at confidence 71.7. Tomorrow the bot may trade
+  both **into and out of an earnings print** with no earnings guard of its own.
+- The AAPL re-examination and the AVGO on-notice re-check also did not happen.
+- **`run-routine.sh` discards the failure reason** — the run log keeps only
+  `ERROR: claude exited rc=1`, no stderr — so the root cause is not recoverable after the fact.
+  That is the fix worth making, and it belongs to the routines harness.
+
+**The bot's only earnings protection is a routine that failed silently.** Flagged loudly for
+tomorrow morning and for Friday.
+
+### What worked / what didn't
+**Worked**
+- **Capital protection, correctly, for a second day.** A −0.61% intraday QQQ cost this book
+  $0.00, and tonight I can *prove* the 26 things it declined would have averaged −0.338%.
+- **IMP-030 paid off one day after shipping** — the study above took a SQL query, not a script.
+- **The crossover floor and the confidence bar both earned their keep**, measurably.
+- Service ran a clean 9,231-line session with zero warnings.
+
+**Didn't**
+- **`sonar` thin for a 13th consecutive run** — "no specific catalyst" for **9 of 9** tickers,
+  and its index read had the wrong sign for the open→close window. Lead-generation only.
+- **The pre-market routine failed and nobody noticed until now** (above).
+- **Still no entries, so IMP-029 stays unvalidated** for a third session.
+- **Three of the last four sessions have traded zero times** (08-14, 08-18, 08-19). Two of them
+  are now *demonstrably* correct restraint rather than assumed restraint — but the sample of
+  live entries needed to judge the strategy's edge is not growing.
+
+### Lessons & improvement candidates
+
+**1. 🔴 The gate state must travel with every refusal, not just gate refusals — SHIPPED as
+IMP-031.** Today's study has a hole I could not close: for the 17 crossover refusals I do not
+know whether the tape was open. The gate was independently observed **shut at 14:13, 14:16,
+15:47 and 16:15**, so some unknown share of those 17 were never recoverable at any floor
+setting. **Loosening a threshold does not admit a candidate — it advances that candidate to the
+gate.** Pricing the floor without the gate state systematically overstates what loosening it
+would recover, and Friday's weekly is due to run exactly that study. Fixed tonight.
+
+**2. 🟠 The RSI component is a constant (above).** Best-evidenced open strategy question; frozen
+until Friday; needs replay across ≥3 windows, not a one-day edit.
+
+**3. 🟠 The crossover floor is now refuted three independent ways. Stop proposing it.** Adding
+this to the standing do-not-relitigate list alongside `STOP_LOSS` and `MARKET_FILTER_SYMBOL`.
+
+**4. The strategy's edge remains untested, not refuted.** All-time **268 trades, −$13.22**;
+post-08-03 current config **27 trades, +$135.47**. The honest statement is unchanged from
+08-18 and now has a second flat session behind it: **there are not enough recent entries to
+confirm or refute an edge.** What *has* improved is that the bot's restraint is now
+evidence-backed rather than merely plausible.
+
+### Change shipped tonight
+**IMP-031 — record the market-gate state on every scored refusal, not only on gate refusals.**
+Instrumentation only, which is what the 08-14 freeze permits. One line of behaviour
+(`gate_open=None` → `gate_open=self._market_gate_open()`) plus the semantics documented on
+`RefusedEntry`. `_market_gate_open()` is a pure cached-snapshot read, called on the ~26 scored
+candidates a session rather than the ~10k unscored ones, and **no entry, exit or sizing decision
+changes** — a test pins that a near-miss behaves identically on an open and a shut tape.
+**391 tests pass** (388 → 391, +3), non-vacuity verified (neutralising the change fails 3 tests,
+all pass restored), `bot.preflight` **RESULT: OK**. Details in `memory/improvement-log.md`.
+
+### Notes for pre-market research
+- **🔴 ACT FIRST: WMT and BABA are still enabled and both report earnings tomorrow (Thu 08-20
+  BMO).** Today's pre-market routine crashed before it could park them. **Park both**, and treat
+  this as the highest-priority item of the morning — it is the one item with real money attached.
+- **Also missed by the crashed run and still owed:** the **AAPL re-examination** and the **AVGO
+  on-notice re-check**, both scheduled for 08-19. **CRM and ANET remain the pre-verified
+  backfills.** Board is still at 19 enabled / 28 rows; the drop to ~17 has not happened.
+- **No watchlist edit is justified by today's *trading* evidence.** Zero entries on a −0.61%
+  intraday QQQ is the gate and the floor working — and tonight's study shows the 26 declined
+  candidates averaged −0.338%. **Do not churn the board after a flat session.**
+- **NFLX is the interesting name and not for the obvious reason.** It closed **+2.58%
+  open→close** ($78.21 → $80.23) — the day's best mover among names the bot looked at — yet all
+  **four** NFLX candidates were scored at **$80.30-$80.67, every one of them at or above the
+  day's close.** The entire move happened before the bot's 10:00 ET entry window opened. Not a
+  defect (IMP-017's opening blackout was validated on 219 trades) and **not a reason to touch
+  `ENTRY_START`** — but worth knowing that NFLX does its work early.
+- **PLTR is now the most active name on the board** (5 candidates, top confidence 77.2, the
+  highest of any refusal today) after 7 days with zero trades. It is reaching the scorer
+  regularly and getting close. **Keep it; the fair-window question is answered — it is alive.**
+- **The nine names that never reached the scorer** — ABNB, AMD, AVGO, INTC, JPM, MU, NVDA, QQQ,
+  TSM — are again mostly the semi complex on a faded tape. **This is the second consecutive day
+  for AMD/AVGO/INTC/MU/NVDA/TSM.** Not yet a dead-signal case, but if it is a third and fourth
+  day on a *rising* tape, it becomes one. Note it; do not act yet.
+- **Scheduled/outstanding:** NVDA earnings **08-26**, GOOG dead-signal test **08-31**, SPY review
+  end-August. UNH and XOM re-enables stay condition-gated.
+- **Harness note for whoever reads this:** if the pre-market run fails again, the log will still
+  not say why. Fixing `run-routine.sh` to capture stderr is a `/root/claude-routines` task, not
+  a bot task, and it is worth doing before the next earnings park is missed.

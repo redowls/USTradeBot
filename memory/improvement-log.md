@@ -1967,3 +1967,89 @@ All six steps completed, in order, with the results the weekly asked for:
 - **Carry-forward:** **IMP-029 is still unvalidated** — `atr_pct IS NOT NULL` returns 0 rows,
   because there have been no entries since it shipped on 08-17. Both instrumentation IMPs now
   wait on the same thing: the next actual entry.
+- **✅ OBSERVED EFFECT (updated 2026-08-19, one session later): VALIDATED.** The first live
+  session after the deploy wrote **26 rows** to `dbo.entry_refusals` (17 crossover-floor, 5
+  confidence, 4 market gate), every one carrying the full confidence breakdown and a non-NULL
+  IMP-029 `atr_pct`. **The payoff arrived immediately and was larger than forecast:** the 08-19
+  daily review priced all 26 refusals forward (MFE/MAE over 60 min + move to the flatten) as a
+  SQL query plus one bar fetch, and the result **refuted the crossover-floor-is-too-tight story
+  for a third independent time** — the floor's 17 refusals were 76% dead-on-arrival (vs a 46.6%
+  baseline for taken trades) and averaged **−0.508%** to the flatten, the worst of the three
+  cohorts. That study was not runnable at all before this change.
+
+---
+
+## IMP-031 — record the market-gate state on every scored refusal (2026-08-19)
+
+**Status: SHIPPED & LIVE. Instrumentation only — zero change to the trading path.**
+
+- **Trigger.** IMP-030's first live session (2026-08-19: 26 scored refusals, 0 entries) let the
+  daily review run the study it was built for — and the study **hit a hole it could not close.**
+  Of the 26 refusals, **17 died on the crossover floor**, and the natural next question is "what
+  would loosening the floor have recovered?" **That question is unanswerable from the rows as
+  they stand**, because the floor's refusals recorded `market_gate_open = NULL`. The IMP-022
+  market gate was independently observed **shut at 14:13, 14:16, 15:47 and 16:15** (the four gate
+  refusals), so an unknown share of those 17 sat inside gate-closed windows and **were never
+  recoverable at any floor setting.**
+- **The argument, stated precisely.** *Loosening an entry threshold does not admit a candidate —
+  it advances that candidate to the gate.* The filters are sequential, so the counterfactual
+  population for any threshold study is bounded by the gate, not by the threshold alone. A study
+  that reads a near-miss row without the gate state **systematically overstates** what loosening
+  would recover, and it overstates it by an amount that varies with the day's regime — which is
+  exactly the kind of bias that produces a confident wrong answer rather than a noisy one.
+  **Friday's weekly is due to run this study**, so the gap is worth closing tonight rather than
+  after it has produced a number someone acts on.
+- **Change (2 files + tests, no behavioural surface):**
+  - **`bot/strategy.py`** — the scored-near-miss emit point passes
+    `gate_open=self._market_gate_open()` instead of the hardcoded `None`. `_market_gate_open()`
+    is a **pure read of a cached snapshot** (`self._gate_snap.get(sym)` → `snap.gate_open`), with
+    no I/O and no mutation beyond a once-only warning latch, so the cost is a dict lookup on the
+    **~26 scored candidates a session** — deliberately *not* on the ~10k unscored "no fresh
+    cross" rejections, which never reach this branch.
+  - **`RefusedEntry` docstring rewritten** for the new semantics, which are the substance of the
+    change: `reason` says **which filter refused the candidate**; `market_gate_open` says
+    **whether the gate would also have refused it**. The two are independent, and the study needs
+    to read them separately. **`None` now means genuinely not measured** (the 26 pre-IMP-031 rows
+    from 08-19), never "open" — the same NULL-not-zero discipline IMP-029 established.
+  - **No schema change.** The column already exists from IMP-030; only what is written into it
+    changes. Nothing to ALTER, nothing to migrate, and the 26 existing rows stay honestly NULL.
+- **Why this and not the two changes today's data appears to invite.** Today killed all three
+  candidates that reached the profitable 70-79 band on the crossover floor (AAPL 75.5 / xo 0.20,
+  AMZN 74.6 / xo 0.15, BABA 71.7 / xo 0.10). **All three were priced forward and all three lost
+  or went nowhere** (−0.45%, +0.20%, −0.85% to the flatten) — the floor was right, for the third
+  independent time, and `MIN_CROSSOVER` remains frozen and thrice-refuted. Separately, today
+  surfaced a genuinely strong structural finding — **`conf_rsi` is 1.0 on 252 of 268 trades and
+  26 of 26 refusals**, so ~20 of the 100 confidence points are a constant (with `conf_volatility`
+  near-constant for another 15) — which is the best explanation yet for six weeks of
+  anti-predictive confidence. **The confidence weights are explicitly frozen by the 08-14
+  weekly**, and a finding that good deserves replay validation across ≥3 windows, not a one-night
+  edit. It is handed to Friday, recorded, not acted on.
+- **Validation.** **391 tests pass** (388 → 391, **+3**). `test_near_miss_records_a_shut_gate`
+  pins the discriminator (refused by the floor **and** the tape shut — the unrecoverable case)
+  and asserts `reason` still attributes the refusal to the floor rather than the gate;
+  `test_near_miss_records_an_open_gate` pins the recoverable case; and
+  `test_gate_state_on_a_near_miss_changes_no_decision` runs the same near-miss under both tapes
+  and asserts the **engine state, the refusal reason and the (empty) executor call list are
+  identical** — only the recorded field differs. One pre-existing test
+  (`test_scored_near_miss_is_persisted_with_its_breakdown`) was **updated, not deleted**: its
+  `market_gate_open is None` assertion became `is True`, because with no QQQ ribbon fed the gate
+  **fails open by design** and the row now honestly records that.
+  **Non-vacuity verified:** reverting the one line to `gate_open=None` fails **3** tests;
+  restored, all 391 pass. `bot.preflight` → **RESULT: OK** (Alpaca ACTIVE, equity 9,089.13 / SQL
+  Server connected, schema ensured 12 batches / Telegram delivered), single expected "session
+  CLOSED" WARN.
+- **Risk / no-go check.** **No entry, exit or sizing decision changes** — pinned by a test, not
+  merely asserted. Position size, loss limits, the stop, the trail, the market gate itself, the
+  stand-down and the kill switch are untouched; paper-only unchanged. The one honest side effect
+  is that `_market_gate_open()`'s **once-only** "market filter has no ready 5m ribbon" warning can
+  now latch on a near-miss candle where it previously would not have — strictly more informative,
+  latched so it cannot spam, and it reports a condition that was already true. Worst case on a
+  bug is a wrong boolean in an observational column. Freeze-compliant by the same standard
+  IMP-027/028/029/030 were judged against.
+- **Commit.** `5dc6c86` — pushed and deployed 2026-08-19 (restart verified below).
+- **Observed effect:** ⏳ **not yet measurable by construction** — it records, it does not act.
+  The signal that it is working is the **next session's near-miss rows carrying non-NULL
+  `market_gate_open`** (today's 26 are all NULL on the 22 non-gate rows). **Do not mark this
+  validated until those rows exist.** The payoff is that Friday's crossover-floor study can
+  partition its population into "refused into an open tape" (genuinely recoverable) and "refused
+  into a shut tape" (never recoverable) instead of conflating the two.
