@@ -3539,3 +3539,202 @@ source, never a clock.** WebSearch (futures, the 08-17→08-21 earnings calendar
 (33 headlines), the IEX daily bars and journald carried this run.
 
 ---
+
+## 2026-08-20 — Pre-market Research
+
+**Three changes — the two decisions the crashed 08-19 run owed, plus its backfill, executed on today's data
+rather than on yesterday's plan.** Book is CLEAN & FLAT (broker-confirmed **0 positions**, 0 open orders,
+equity **$9,089.13**, `last_equity` == `equity`) → **nothing locked**. **WMT and AVGO parked, LLY added;
+19 → 18 enabled**; service restarted clean (warmup 18/18). **No 08-19 research-log entry exists** — the
+`ustradebot-premarket` routine crashed at 11:30 UTC (`claude exited rc=1`, 26s), which is why three dated
+tests all fell due together this morning.
+
+### Market context
+**Mildly risk-off, geopolitics-led, and `sonar` had the sign wrong again.** Verified on Benzinga/CNBC:
+**SPY −0.08% pre-market ($768.44), QQQ −0.05% ($715.71)** — Dow, S&P and Nasdaq-100 futures all lower after
+Wednesday's higher close. `sonar` reported S&P futures **+12.5 points** and Nasdaq **+37** — the wrong
+direction (see the closing section).
+- **The driver is Iran, not earnings.** Trump launched **"Operation Economic Fury"**, described as an
+  "economic D-Day" to isolate Iran, with threatened consequences for any country financing Tehran; Iran is
+  reportedly weighing strikes on US targets in Europe. **Brent $92.09 (+0.5%), WTI $86.07.** Hormuz transits
+  **73 in the week to 08-16, down from 91** (Lloyd's List). Qatar's foreign minister was on the tape at
+  11:25Z on restoring Hormuz traffic.
+- **Rates eased slightly:** 10-year **4.66%**, 2-year **4.17%** (the 30-year was near a two-decade high
+  earlier this week). Gold −0.72% to ~$4,490.
+- **In-session events today are minor but non-zero: July Leading Indicators at 10:00 ET.** Jobless claims
+  and the August Philadelphia Fed survey are **08:30 ET, pre-open**. **Jackson Hole is NOT this week** —
+  it falls ~08-24/26, with Powell's keynote the following Friday.
+- **Today's reporters: WMT, BABA, DE, NTES, ROST.** Two are on this board and **both are BMO — already
+  printed before this entry was written**, so neither is an in-session binary.
+
+### Carried from daily review (08-19) — the three owed items
+The 08-19 review flagged that the crashed pre-market run left three dated tests undone. All three are
+resolved below **on today's bars, not on the reasoning that scheduled them.**
+1. **WMT + BABA earnings parks (owed 08-19)** — the event rationale has **expired**, because both reported
+   **before the open**. The rationale that scheduled a park (don't hold into a binary) no longer applies to
+   a binary that resolved pre-session; this log's own precedent is to *re-enable* BMO reporters on print day
+   (JPM 07-14, TSM 07-16). So both were re-judged **post-print, on the outcome** — and they split.
+2. **AAPL re-examination (owed 08-19)** — resolved, and it passes. See below.
+3. **AVGO on-notice re-check (owed 08-19)** — resolved, and it fails. See below.
+
+The review's other instruction — **"do not churn the board after a flat session"** — is honoured: nothing
+here is a P&L-driven edit. Every change is a scheduled test firing or a catalyst on the tape.
+
+### Watchlist review (19 enabled, fresh daily bars through 08-19)
+
+**➖ WMT — PARKED. The one item with real money attached, and the print settled it against the stock.**
+Primary source is the Alpaca tape, 11:00–11:17Z: **Q2 adj EPS $0.81 beat $0.74 and sales $187.937B beat
+$186.794B — but the guide is below consensus on every line.** Q3 adj EPS **$0.62–0.64 vs $0.68 est**, Q3
+sales **$183.134–184.468B vs $188.339B est**, FY2027 adj EPS raised to **$2.80–2.87 but still under the
+$2.90 est**, and **Q2 comparable sales missed**. That is a **guidance cut relative to consensus on a ~40x
+forward multiple** — an explicit park trigger. `sonar` put it at **$108.17, −6.13%** pre-market; I could not
+corroborate the exact percentage with a second source, so **the park does not rest on it** — it rests on the
+guidance figures, which are primary-sourced. A move of that order takes WMT from 114.30 through **both** its
+20MA (~112.7) and 50MA (~114.2). The record agrees independently: **27 days without a trade** (last 07-24)
+and **all-time −$47.51 on 6 trades**, the second-worst on the board. Negative catalyst + broken chart + dead
+signal + losing record — all four legs.
+
+**✅ BABA — KEPT, deliberately, and this is the asymmetry worth defending.** BABA also printed BMO and also
+fell: **Q1 adj EPADS $1.26 missed $1.85** (RMB 8.52 vs 10.72 consensus), **revenue $39.639B beat $38.630B**,
+**AI Cloud & Compute RMB 48.4B with growth accelerating to +45% YoY**; shares **−4% pre-market**. It stays
+enabled while WMT parks, and the differentiator is **not the size of the gap**:
+- **Chart survives, WMT's does not.** BABA is **+4.66% vs its 20MA / +13.01% vs its 50MA**; a −4% gap leaves
+  it ~$123.7, still above the 20MA (~123.2) and far above the 50MA (~114.1). WMT ends up below both.
+- **Trailing miss vs forward impairment.** BABA missed on the quarter *behind* it while revenue and cloud
+  accelerated; WMT cut the quarter *ahead*. Only one of those changes the forward path.
+- **Record.** BABA is **+$52.80 all-time on 12 trades** and +$9.30 in the current window; WMT is −$47.51.
+- Also noted: the last four quarters saw BABA **rise 4.7% on the prior print despite a large miss** — the
+  pre-market move on this name has a poor record of holding.
+**Per the 08-19 review's instruction, BABA's dead-signal clock starts today, post-print** (last trade 08-10,
+10 days) — **30-day test due 2026-09-09.**
+
+**✅ AAPL — KEPT; its owed re-examination passes on the data.** On 08-18 it was **−3.71% vs 20MA / −1.13% vs
+50MA** and 22 days tradeless, which is why the test was written. Today it is **+0.25% vs 20MA / +2.39% vs
+50MA**, **+2.19% yesterday, +4.82% on 5 days**, $16.8B/day, ATR 2.65%. **The chart repaired itself in the
+two days the routine was down** — it now fails the trend leg of the two-leg park rule outright, and its
+all-time P&L is **+$57.45 on 10 trades** (positive). It is **24 days tradeless**, so the dead-signal leg is
+approaching but not met. **Kept; the 30-day dead-signal test is re-dated to 2026-08-27.**
+
+**➖ AVGO — PARKED; its owed on-notice re-check fails on both legs.** On 08-18 it was −1.94% vs 20MA /
++0.64% vs 50MA and was held to its date rather than parked early. The date came due, and in two sessions the
+chart deteriorated sharply: **−8.96% vs 20MA, −6.85% vs 50MA, −12.88% over 5 days, −4.61% yesterday.**
+**Below both MAs — the same two-leg structural test that parked C and UNH.** It is also the **worst all-time
+P&L on the entire board at −$121.38 over 14 trades**, and 10 days tradeless. **The honest counter-argument
+is that AVGO is +$43.75 in the current-config window — the single best name in it.** That is **n=2 trades,
+last one 08-10**, against a 14-trade structural record and a chart that is now the worst on the board by a
+wide margin. Two trades do not overturn a rule that was written in advance and is falling due today; the
+08-18 entry's own principle — *a rule that binds only when convenient is not a rule* — cuts this way.
+**Parked. Re-enable is condition-gated on the chart repairing back above both MAs, not dated.**
+
+**⚠️ INTC — KEPT, but it is today's genuine near-miss and it goes on notice with a date.** On 08-17 it was
+**+6.5% vs its 20MA**; today it is **−3.55% vs 20MA and −14.73% vs 50MA**, **−8.07% on 5 days, −4.02%
+yesterday**. That is below both MAs — the trend leg fires. **The rule does not, because it has two legs and
+the second is nowhere close: INTC last traded 08-17, three days ago.** It is the **#2 all-time earner at
++$150.78 over 24 trades**, +$24.74 on 7 trades (5 wins) in the current window, $11.6B/day, ATR 6.75% — the
+most productive symbol on the board, not a dead one. Parking the second-best earner for a two-day drawdown
+would be the mirror image of the error I just refused to make on AVGO. **On notice; re-check 2026-08-27.**
+
+**The rest of the semi complex is broken too, and none of it meets the rule.** AMD **−4.24% / −8.53%**
+(7d tradeless, −$89.31 all-time) — Cathie Wood trimmed it a third straight day; MU **+4.73% / −2.62%**
+(3d tradeless, **+$189.55, the top all-time earner**); TSM **−0.11% / −2.94%** (16d tradeless, +$20.47);
+NVDA **+2.44% / +5.04%**, helped overnight by **China easing limits on H200 shipments**. All kept. **Parking
+AVGO takes semi concentration from 6-of-19 to 4-of-18** — the exposure the 08-18 entry flagged, reduced as a
+by-product of a rule firing rather than by a discretionary trim.
+
+**🟠 SPY — kept, and the anomaly is now worse, not better.** **55 days without a trade** (last 06-26) and
+**ATR down to 0.87%** — it has fallen through 1% since 08-18 and is by far the lowest on the board. But it
+is **+1.22% vs 20MA / +2.48% vs 50MA**, so the two-leg rule's second leg fails, exactly as on 08-18.
+**Not parked on a bent rule.** Its end-August review should test it on an explicit **volatility floor**
+(a 0.87% ATR cannot produce a 1-min ribbon cross worth taking), which is the honest test for this name —
+not the MA leg. Others below both MAs but with live signals: **GOOG −0.87% / −2.61%** (20d tradeless,
+**dead-signal test 08-31** — untouched).
+
+**Liquidity and safety floor: clean.** Thinnest enabled name is **ABNB at $882M/day**; no sub-$5 names, no
+halts. **50 headlines since 08-19 18:00Z contain no company-specific shock** for the board beyond the two
+earnings and the NVDA H200 easing — the rest is Iran, bond-market commentary and AI-bubble opinion.
+
+### ➕ Add — LLY, and it is a substitution from the pre-committed plan
+The board dropped to **17** after two parks, so a backfill was due and the 08-18 entry had pre-committed
+**CRM and ANET**. Neither was added, for reasons found today:
+- **CRM — rejected on a fact the pre-verification missed. Salesforce reports Q2 FY27 on Wednesday
+  2026-08-26, after the close** (confirmed on Salesforce IR). It was pre-verified for *tradability*, never
+  for its earnings date. Adding it today buys **four sessions** before it must be parked again — and on the
+  same day as NVDA's 08-26 print, so the board would lose two names at once. Its chart is genuinely the
+  strongest of the alternates (**+9.70% / +18.97%, $2.43B/day, ATR 3.98%, +5.07% yesterday**; Cantor
+  reiterated Overweight, $250 PT, at 11:02Z today). **It stays a pre-verified backfill, correctly re-dated
+  to after 2026-08-26 — post-print, which is how this log adds names.**
+- **ANET — rejected; the reason it was chosen has evaporated.** On 08-18 it was +8.9% / +15.6% and **+5.37%
+  on 5 days**. Today: **−0.24% vs 20MA, −3.48% yesterday, −11.43% over 5 days.** Momentum gone.
+- **➕ LLY — ADDED. Verified on Alpaca `/v2/assets`: `tradable: true`, `status: active`, NYSE, us_equity.**
+  **+7.39% vs 20MA, +8.95% vs 50MA, ATR 3.59%, $3.35B/day, +4.46% yesterday, +4.92% on 5 days.** Trending,
+  liquid, and in the ATR band the ribbon works in. **Next earnings 2026-10-29 BMO — 70 days clear**, the
+  cleanest event calendar of any candidate (Q2 already printed 08-05: revenue +48% YoY to $23.0B). Its
+  08-19 move has **no single binary behind it** — an OmniAb ion-channel licensing deal (08-17), an Amplitude
+  Therapeutics taRNA partnership (08-19), two CNBC *Final Trades* mentions and an IBD SwingTrader buy — i.e.
+  momentum and flow, not a one-day event to mean-revert out of.
+  **It also fixes a real structural gap: after UNH was parked 08-17 the board had zero healthcare**, and is
+  otherwise 4 semis + 5 mega-cap tech + 2 ETFs + ABNB/BABA/JPM/NFLX/PLTR/TSLA.
+  **Note the reversal and why it is not inconsistency:** the 08-18 entry rejected LLY as *"−0.06% vs 20MA,
+  still flat."* That was true then. It has since moved +4.46% in a session and now screens. The rejection
+  was a statement about price, and the price changed. **On notice as a new add; its live risk is GLP-1
+  headline flow (Novo began testing lower-dose Wegovy pills, 08-19), not a scheduled binary.**
+- **XOM — stays parked, and today it fails its own condition more clearly than ever.** Its chart is the best
+  of the parked set (**+4.64% / +11.08%, $2.25B/day, ATR 2.30%**), but the 08-17 re-enable condition was
+  *"only if the oil headline regime quiets down."* Today Trump launched an "economic D-Day" against Iran and
+  **Brent is $92**. **Condition emphatically not met.** Pre-verified backfill, still waiting.
+- Screened and rejected on fresh bars: **MRVL** (+15.07% / +1.19% but **+9.85% in one session** — a spike,
+  and a fifth semi), **NOW** (+9.12% / +17.76% but a V-bounce off last week's −7.64%, and it was rejected
+  08-18 as a falling knife), **UBER** (+7.31% / +7.57%, $1.54B/day — the runner-up), **COIN** (+9.55%
+  yesterday, crypto-beta), **DELL** (−6.64% yesterday), **APP** (−14.46% / −28.59%), **CAT**, **GE**, **C**.
+
+### Changes applied to dbo.watchlist
+Three parameterized statements, `watchlist` the only table touched, **no DELETEs**:
+1. `UPDATE ... SET enabled = 0, note = ?` — **WMT** (guide below consensus on Q3 EPS, Q3 sales and FY27;
+   comps miss; gaps through both MAs; 27d tradeless; −$47.51).
+2. `UPDATE ... SET enabled = 0, note = ?` — **AVGO** (on-notice re-check due: −8.96% vs 20MA / −6.85% vs
+   50MA, −12.9% on 5 days; worst all-time P&L −$121.38).
+3. `MERGE ... WHEN NOT MATCHED THEN INSERT` — **LLY** enabled 1 (new row; Alpaca-verified tradable/active).
+Re-read after commit: **18 enabled ≤ 30 ✓**, **29 rows ✓**, **11 parked ✓**.
+
+### Final watchlist
+**18 enabled** (≤30 ✓): AAPL ABNB AMD AMZN BABA GOOG INTC JPM **LLY** MSFT MU NFLX NVDA PLTR QQQ SPY TSLA
+TSM. Parked (11): **AVGO** BIRD C COST ENPH QCOM SE UNH **WMT** WPM XOM.
+**Service restarted (required — the table changed) and verified, not assumed:** `is-active` → **active**,
+**MainPID 1326480**, `ActiveEnterTimestamp` **2026-08-20 11:39:01 UTC**, **NRestarts=0**. Journald confirms
+the banner *"Watchlist (dbo.watchlist): AAPL, ABNB, AMD, AMZN, BABA, GOOG, INTC, JPM, LLY, MSFT, MU, NFLX,
+NVDA, PLTR, QQQ, SPY, TSLA, TSM"*, **warmup primed 18/18**, IEX stream subscribed to exactly those 18
+(**LLY present in both**), account reconciled `PA34DFFLTHRT` equity 9089.13 / **no open positions**, and
+**zero WARN or ERROR lines** since start.
+🔒 Locked: **none (0 positions)**.
+**Upcoming: NVDA earnings 08-26 · CRM add re-dated to after 08-26 (post-print) · AAPL 30-day dead-signal
+test 08-27 · INTC on-notice re-check 08-27 · GOOG dead-signal test 08-31 · SPY volatility/dead-signal
+review end-August · BABA dead-signal clock started today, due 09-09 · AVGO, UNH and XOM re-enables are
+condition-gated, not dated.**
+
+### Perplexity `sonar` — run 14: wrong sign on the index read, and the clock error finally stopped
+`sonar` reported **"S&P 500 futures higher by about 12.5 points"** and **"Nasdaq futures higher by about 37
+points."** The verified figures were **lower on all three indices** (SPY −0.08%, QQQ −0.05% pre-market).
+**Wrong direction on the one thing a pre-market briefing exists to get right** — and the second consecutive
+run where its index call had the opposite sign to reality (08-19's daily review recorded the same failure
+against the open→close window). It returned **"no specific overnight catalyst"** for **18 of 19 tickers**,
+including **BABA on the morning BABA reported earnings**, and it missed Operation Economic Fury, Brent at
+$92 and the NVDA H200 easing entirely.
+**Two things it did earn:** it was the **only** source that flagged **WMT reporting before the open with a
+7:30 ET call**, and its **$108.17 / −6.13%** pre-market quote was the sole numeric on WMT's reaction.
+Consistent with the standing rule, that lead was **used to go looking and never used as evidence** — the
+WMT park is justified on the guidance lines off the Alpaca tape, which stand without it. Credit also where
+due: after five consecutive runs misfiling pre-open releases as in-session, **it filed no clock error this
+run** (it was cut off mid-sentence on the releases section instead). **Standing rule unchanged:
+lead-generation only, never a regime source, never a clock.** WebSearch (futures, Iran, the earnings and
+economic calendar, CRM's and LLY's earnings dates), the Alpaca news tape (50 headlines), the daily bars,
+`/v2/assets` and journald carried this run.
+
+### Harness note
+The 08-19 `ustradebot-premarket` failure (`claude exited rc=1`, 26s, no stderr captured) cost this board a
+day of drift and stacked three dated tests onto one morning. **It did not cost money** — the book was flat
+and 08-19 traded zero times, so the un-parked WMT and BABA were never entered into their prints. That was
+luck, not design. Fixing `run-routine.sh` to capture stderr remains a `/root/claude-routines` task, outside
+this repo and outside this routine's remit, and it is still worth doing before the next earnings park lands
+on a day the bot is actually holding something.
+
+---
