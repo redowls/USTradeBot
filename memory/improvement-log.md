@@ -2140,6 +2140,18 @@ Verified twice, both restored to green afterwards:
 - Live DB verified: `dbo.market_gate` created with 11 columns, `UX_market_gate_candle` present
   and `is_unique = True`; **268 trades and 53 refusals preserved.**
 
+### Live validation (same evening, not deferred)
+Confirmed on the running service, not just in tests:
+- Restart at **20:15:12 UTC** replayed ~390 historical QQQ gate bars through warmup →
+  `dbo.market_gate` stayed at **0 rows**. The backfill guard holds in production.
+- The first **live** closed gate candle wrote exactly one row at 20:20:31 UTC:
+  `QQQ · 2026-08-20 20:15 · gate_open=False · stacked=False · fast_rising=False ·
+  close 710.38 · EMAs 710.627 / 710.678 / 711.028`. The ribbon is inverted
+  (fast < mid < slow), so `stacked=False` is correct and the gate was still shut —
+  consistent with the whole session.
+- `ActiveEnterTimestamp` **20:15:12** postdates the file mtimes (**20:12:04**), so the running
+  process carries this code — the check the 08-14 weekly made standing after IMP-028.
+
 ### What to check tomorrow
 `dbo.market_gate` should hold **~70–78 rows** for 08-21 covering the whole session, with **no
 rows predating the restart** (the warmup-backfill guard) and **no duplicate
