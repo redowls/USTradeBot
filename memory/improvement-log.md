@@ -2053,3 +2053,109 @@ All six steps completed, in order, with the results the weekly asked for:
   validated until those rows exist.** The payoff is that Friday's crossover-floor study can
   partition its population into "refused into an open tape" (genuinely recoverable) and "refused
   into a shut tape" (never recoverable) instead of conflating the two.
+
+---
+
+## IMP-032 — persist the market gate's duty cycle to `dbo.market_gate` (2026-08-20, daily)
+
+**Status: SHIPPED + DEPLOYED.** Commit `69a17cb`, service restarted and verified (see
+Deployment below — this entry is written in the past tense only because both are confirmed, per
+the 08-14 weekly's standing rule).
+
+### The defect
+Every study this bot has run on its market gate (IMP-022) has had a **numerator and no
+denominator.** `dbo.entry_refusals` records the gate state (IMP-031) only at the ~30 moments a
+session where a candidate happened to be *scored*. That measures the gate where candidates land;
+it does not measure how often the gate is open.
+
+The two diverge badly, and 2026-08-20 is the clean proof. The gate was open **0 of 69 bars** in
+the entry window — a long was structurally impossible all day — yet only **8 of 27 refusals**
+were labelled "market gate closed." The other 19 candidates failed the crossover floor or the
+confidence bar *first* and were attributed there, even though the gate would have refused every
+one of them (all 27 rows carry `market_gate_open = False`).
+
+This has a concrete consequence: the **08-14 weekly retired the gate's tripwire** on the finding
+that *"the gate accounted for 7 of 141 refusals (5.0%) — the tripwire is >80% and it is nowhere
+near it."* That metric's ceiling is set by how many candidates survive the other two filters, so
+it can never approach 80%. On the most restrictive day possible it reads 30%. It is not a
+restrictiveness measure at all.
+
+The duty cycle *is*, and reconstructing it from Alpaca's aggregated 5m bars — as tonight's review
+had to — is not a substitute: the bot builds its own 5m candles from IEX **trade ticks** with
+activity-driven closes (CLAUDE.md), which is a different series with different bar boundaries. The
+gate the bot actually enforces was unobservable except at those ~30 moments.
+
+### The change
+One row per **closed gate candle** for `MARKET_FILTER_SYMBOL`, from the bot's own ribbon.
+
+- `bot/strategy.py` — new frozen `MarketGateSample` (symbol, candle_start, `gate_open`,
+  `stacked`, `fast_rising`, close, ema fast/mid/slow) and an `on_gate_sample` callback.
+  `on_long_candle` emits it **after** storing the snapshot, via `_emit_gate_sample`, which
+  swallows callback failures on the same rule as `_emit_refusal`.
+  - **Filter symbol only.** All 18 watchlist names run a gate ribbon; sampling all of them would
+    put 18 rows a bar into a table whose whole purpose is counting one series.
+  - **Seeded ribbons only.** An unready ribbon fails the gate *open* (`_market_gate_open`), so
+    recording it would write a permissive row for a state the bot could not evaluate — inflating
+    the duty cycle exactly where it is least trustworthy.
+  - `stacked` and `fast_rising` are the two conjuncts of `gate_open`, **stored apart**, so a 0%
+    session is readable: a ribbon that lost its ordering and one merely rolling over are
+    different tapes and only the second is near reopening.
+- `bot/warmup.py` — **the trap this change had to avoid.** Warmup replayed history through
+  `strategy.on_long_candle`, so a naive emit would backfill ~390 never-live rows at *every*
+  restart — and the daily-review routine restarts the service every evening. Warmup now calls a
+  new non-emitting `StrategyEngine.warmup_gate`, exactly mirroring the existing `warmup_trigger`,
+  restoring the module's own stated invariant that warmup sinks "only fold candles into indicator
+  state." Indicator effect is byte-identical.
+- `bot/persistence.py` — `TradeStore.record_gate_sample` + `TradeRecorder.on_gate_sample`. Same
+  contract as `record_refusal`: no retry, no reset on the happy path, errors logged and swallowed.
+  The insert is guarded by `WHERE NOT EXISTS` on the unique key, so a re-emitted bar is a silent
+  no-op — this table is *counted*, so a duplicate would bias the statistic, not merely repeat a row.
+- `sql/schema.sql` — `dbo.market_gate` + **UNIQUE** index `UX_market_gate_candle
+  (symbol, candle_start_utc)`. Unique rather than merely indexed, for the same reason.
+- `bot/main.py` — wired `on_gate_sample=rec_gate`. SQL only; no console or Telegram fan-out.
+
+### Why this and not the tempting alternative
+Today's best refused candidate was **MU 14:20, confidence 89.1, crossover 0.777**, which ran
+**+1.56% to the flatten** and was stopped by the gate alone. The tempting change is to loosen the
+gate. It was **not** made, for three reasons: the gate has **four independent windows** of
+profitability evidence behind it (5d/10d/60d replay + 08-13 live), the **90-100 confidence band
+is 0-for-3 lifetime at −$144.42** so the bot's own record says its best-scored signals are its
+worst, and n=1. It is also **frozen** — the 08-14 weekly's shipping freeze on trading logic
+permits correctness, data-integrity and instrumentation only. This change is instrumentation, and
+it is the thing that lets Friday's weekly rule on the gate with real data instead of a proxy.
+
+### Non-vacuity
+Verified twice, both restored to green afterwards:
+- Neutralising the emit (early `return` in `_emit_gate_sample`) → **6 tests fail**.
+- Letting warmup backfill (`warmup_gate` → `on_long_candle`) → the orchestrator test
+  `test_warm_up_does_not_emit_gate_samples_through_the_orchestrator` **fails**.
+
+### Validation
+- **407 tests pass** (391 → 407, **+16**): 8 in `test_strategy.py`, 3 in `test_warmup.py`, 5 in
+  `test_persistence.py`. Includes `test_gate_sampling_leaves_entry_behaviour_identical` — the
+  same candles produce the same entry decision, same confidence total and same state with and
+  without the sink — and `test_gate_sample_attributes_a_shut_gate_to_slope_not_ordering`, a
+  regression built on today's real QQQ shape.
+- `bot.preflight` **RESULT: OK** (1 expected WARN: session closed). Schema **12 → 14 batches**.
+- Live DB verified: `dbo.market_gate` created with 11 columns, `UX_market_gate_candle` present
+  and `is_unique = True`; **268 trades and 53 refusals preserved.**
+
+### What to check tomorrow
+`dbo.market_gate` should hold **~70–78 rows** for 08-21 covering the whole session, with **no
+rows predating the restart** (the warmup-backfill guard) and **no duplicate
+(symbol, candle_start_utc)** pairs. The duty-cycle query:
+
+```sql
+SELECT CAST(candle_start_utc AS DATE) d,
+       SUM(CASE WHEN gate_open = 1 THEN 1 ELSE 0 END) AS open_bars,
+       COUNT(*) AS bars,
+       100.0 * SUM(CASE WHEN gate_open = 1 THEN 1 ELSE 0 END) / COUNT(*) AS duty_pct
+FROM dbo.market_gate
+WHERE CAST(candle_start_utc AS TIME) >= '14:00' AND CAST(candle_start_utc AS TIME) < '19:45'
+GROUP BY CAST(candle_start_utc AS DATE) ORDER BY d;
+```
+
+Baseline to compare against, reconstructed from Alpaca bars over 24 sessions (08-20 review):
+**31.6% overall**, bimodal — 13 of 24 sessions ≤10% open, 7 of 24 ≥60%. If the bot's own
+tick-built number diverges materially from that proxy, the proxy is what was wrong, and every
+prior gate study built on aggregated bars needs re-reading.

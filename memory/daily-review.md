@@ -4824,3 +4824,208 @@ all pass restored), `bot.preflight` **RESULT: OK**. Details in `memory/improveme
 - **Harness note for whoever reads this:** if the pre-market run fails again, the log will still
   not say why. Fixing `run-routine.sh` to capture stderr is a `/root/claude-routines` task, not
   a bot task, and it is worth doing before the next earnings park is missed.
+
+---
+
+## 2026-08-20 — Daily Review
+
+### Stats
+- **0 trades.** No entries, no exits, no open positions. Net P&L **$0.00**. Account **equity
+  $9,089.13**, `last_equity` **$9,089.13** — a **third consecutive session** that did not move
+  the book by a cent. **Broker reconciliation exact:** Alpaca `PA34DFFLTHRT` returns **0 orders**
+  since 00:00Z, **0 positions**, `long_market_value` 0; `dbo.trades` has 0 rows and
+  `dbo.positions` 0 rows for today. DB and broker agree.
+- **Service healthy all session:** `active`, `NRestarts=0`, **zero WARN or ERROR lines** in the
+  day's 8,702-line journal. Restarted 11:39:01 UTC by the pre-market routine (watchlist changed:
+  WMT + AVGO parked, LLY added), warmup primed **18/18**, so today traded under HEAD (IMP-031).
+- **27 scored refusals persisted** to `dbo.entry_refusals` — second full session of the IMP-030
+  evidence stream, now at **53 rows** across two days.
+- **IMP-029 remains unvalidated** for a fourth session — `dbo.trades.atr_pct` is still 0 of 268
+  rows, because there have still been no entries. Not a failure; not yet observable.
+
+### Trade-by-trade review
+No trades. The reviewable population is the **27 scored refusals**, and today they say something
+none of the previous flat sessions could.
+
+| Cause | n | Notes |
+|---|---|---|
+| market gate closed | **8** | Fully qualified on confidence *and* crossover; vetoed by the QQQ 5m ribbon |
+| `crossover < 0.25` | **9** | |
+| `confidence < 60` | **10** | 49.6 … 58.8 |
+
+**By symbol:** BABA 10 · MU 5 · TSM 4 · NFLX 3 · PLTR 2 · INTC 2 · AAPL 1. **Eleven of eighteen
+enabled names never reached the scorer:** ABNB, AMD, AMZN, GOOG, JPM, LLY, MSFT, NVDA, QQQ, SPY,
+TSLA.
+
+### 🔴 The finding: `market_gate_open` was FALSE on all 27 rows, and the gate was shut all day
+IMP-031 shipped last night to put the gate state on *every* scored refusal, not just gate
+refusals. One session later it has produced the most consequential measurement this review has
+made in weeks — and it is not the one it was built to make.
+
+**Every one of today's 27 refusals happened on a shut tape.** Not the 8 labelled "market gate
+closed" — all 27. I then rebuilt QQQ's 5m gate ribbon through the bot's own `RibbonEngine.gate`
+over 24 sessions of IEX bars, scored inside the 14:00–19:45 UTC entry window:
+
+| | |
+|---|---|
+| **2026-08-20 (today)** | **0 of 69 bars open — 0.0%** |
+| 08-19 | 5/69 — 7.2% |
+| 08-18 | 0/69 — 0.0% |
+| 24-session duty cycle | **509/1610 — 31.6%** |
+
+**The three-session drought is explained, and it is not the entry filters.** It is the market
+gate. On 08-18 and 08-20 a long was *structurally impossible* — there was no minute of the entry
+window in which the bot was permitted to open one, regardless of what any symbol did.
+
+**And the distribution is bimodal, not centred.** Of 24 sessions: **13 were ≤10% open** (near-
+totally shut) and **7 were ≥60%** (near-totally open). The gate is close to a binary
+session-level switch, not a filter that trims candidates within a day. That is a materially
+different object from the one the improvement log has been reasoning about.
+
+### 🔎 What this does to the 08-14 weekly's headline gate metric
+The 08-14 weekly retired the gate's tripwire on the finding that **"the gate accounted for 7 of
+141 refusals (5.0%) — the tripwire is >80% and it is nowhere near it."** Today shows that metric
+**cannot measure what it was being asked to measure**, and the error is structural, not a bad
+sample:
+
+- Gate-labelled refusals only fire for candidates that already cleared confidence **and**
+  crossover. A candidate that fails either one is attributed to *that* filter and never counted
+  against the gate — even though the gate would have refused it too.
+- Today the gate was open **0.0%** of the entry window, and the refusal-share metric reported
+  **8/27 = 30%**. On a day of maximum possible restrictiveness the metric reads 30%, not 100%.
+  Its ceiling is set by how many candidates survive the other two filters, so it can never
+  approach the >80% tripwire it was being compared against.
+
+**This does not overturn the gate's four-window profitability evidence** (5d, 10d, 60d replay
+plus 08-13 live), which is measured on P&L and stands untouched. It overturns the claim that the
+gate is *not very restrictive*. Those are different claims and the weekly conflated them. **The
+gate is both highly restrictive (68% of the tape excluded) and, on the evidence to date,
+profitable.** Both can be true — the bot makes money by declining to be long.
+
+### 🔬 What did today's 27 refusals actually cost?
+Each priced as a hypothetical entry at that minute's close; MFE/MAE over a fixed **60-minute**
+forward horizon (exit-config independent, the 08-17 methodology), plus the move to the 19:45 UTC
+flatten. Bars from the same IEX feed the bot trades.
+
+| Cohort | n | mean MFE | mean MAE | mean → flatten | dead (MFE<0.5%) | flatten>0 |
+|---|---|---|---|---|---|---|
+| **market gate** | **8** | +0.476% | −0.619% | **+0.219%** | 6/8 (75%) | 4/8 |
+| crossover floor | 9 | +0.269% | −0.434% | +0.136% | 8/9 (89%) | 5/9 |
+| confidence bar | 10 | +0.489% | −0.362% | −0.113% | 6/10 (60%) | 4/10 |
+| **ALL** | **27** | **+0.412%** | **−0.462%** | **+0.068%** | **20/27 (74%)** | 13/27 |
+
+**Verdict: today's restraint was roughly free, not costly.** +0.068% mean to the flatten across
+all 27, with **74% dead on arrival** (vs the 46.6% baseline for trades the bot actually takes).
+The gate cohort is the *best* of the three at +0.219% — but 6 of its 8 never traded 0.5% above
+entry, and against a 1.25% trailing stop a +0.476% mean MFE is not a population that converts.
+
+**The one that stings, honestly stated:** **MU 14:20, confidence 89.1, crossover sub-score
+0.777** — the single strongest candidate the scorer has produced in weeks — ran **+1.251% MFE
+and +1.562% to the flatten**. It was refused by the gate alone. Two things stop that from being
+an argument: it is **n=1**, and the **90-100 confidence band is 0-for-3 lifetime at −$144.42**,
+so the bot's own record says its highest-confidence signals are its worst. Recorded, not acted on.
+
+**Honest limits:** n=27, one session, one regime. A fading tape flatters every long filter, and
+today's QQQ fell intraday. Nothing here is decision-grade alone — the point is that it now
+*accumulates*.
+
+### Market context — and `sonar` had the ticker layer wrong again
+IEX open→close, the only window this bot trades: **QQQ −0.16% on a 0.88% range**, **SPY −0.42%
+on a 0.79% range**. A shallow, choppy drift lower — not the "risk-off" `sonar` reported (it gave
+S&P ≈−0.3%, Nasdaq ≈−0.7/−0.8%, close-to-close). Its per-ticker layer returned **"no specific
+same-day catalyst" for 7 of 8 tickers** — a **14th consecutive thin run** — and the one call it
+did make was **wrong**: it said **MU "fell with the broader semiconductor selloff."** The bot's
+own tape has MU at **952.18 at 14:20 → 964.07 at 19:22, +1.25% intraday**, and MU produced the
+day's single best refused candidate. **Standing rule reaffirmed: lead-generation only, never a
+regime source, never a price.**
+
+### What worked / what didn't
+**Worked**
+- **IMP-031 paid off one day after shipping**, and not in the way it was designed to. It was
+  built to close a hole in the crossover study; what it actually revealed is that the gate is a
+  near-binary session switch and that the weekly's headline gate metric is structurally biased.
+- **Capital protection, for a third session.** A −0.16% QQQ cost this book $0.00, and I can
+  *prove* the 27 declined candidates averaged +0.068% — i.e. nothing was left on the table.
+- **The crossover floor again refused the worst cohort** (89% dead). Fourth independent
+  refutation of the "the floor is strangling good candidates" story. Stop proposing it.
+- Clean 8,702-line session, zero warnings, exact broker reconciliation, warmup 18/18.
+
+**Didn't**
+- **Three consecutive zero-trade sessions**, and the live-entry sample the strategy verdict needs
+  is not growing. The bot has taken **0 entries since 08-17**.
+- **IMP-029 unvalidated for a fourth session** — nothing to validate it on.
+- **`sonar` wrong on MU's direction** (above).
+- **The bot cannot currently answer "how often is my gate open?" from its own data.** Tonight's
+  duty cycle came from a reconstruction against Alpaca's *aggregated* bars, which are a different
+  series from the bot's tick-built candles (activity-driven closes — see CLAUDE.md). That gap is
+  what I fixed.
+
+### Lessons & improvement candidates
+
+**1. 🔴 The gate's duty cycle must be measured from the bot's own ribbon — SHIPPED as IMP-032.**
+Every gate study to date has had a numerator (refusals) and no denominator. Tonight's headline
+number is a *proxy* built from Alpaca's 5m bars; the bot's own gate is only observable at the ~30
+scored-candidate moments a session. Friday's weekly is due to rule on the gate and on the
+confidence weights, and it should not have to rule on a reconstruction. Fixed: see below.
+
+**2. 🟠 The 08-14 weekly's "gate = 5% of refusals" metric is structurally biased and should be
+retired as a restrictiveness measure.** Not because it was computed wrongly, but because its
+ceiling is set by the other two filters. **Duty cycle replaces it.** Handed to Friday's weekly —
+this is now the second best-evidenced open question alongside the RSI-constant finding.
+
+**3. 🟠 The RSI component is a near-constant (`conf_rsi == 1.0` on 94% of trades, 26/26 refusals
+on 08-19).** Unchanged from last night, still frozen, still the best-evidenced *signal* question.
+Today's rows agree: `conf_volatility == 1.0` on 21 of 27 refusals.
+
+**4. The strategy's edge remains untested, not refuted — and the reason is now named.** All-time
+**268 trades, −$13.22**; post-08-03 config **27 trades, +$135.47**. The sample is not growing
+because **the gate has been shut 68% of the last month and ~100% of the last three sessions.**
+That is the honest mechanism behind "not enough recent entries," and it is a fact about the gate,
+not about the signal.
+
+### Change shipped tonight
+**IMP-032 — persist the market gate's state on every closed gate candle (`dbo.market_gate`).**
+Instrumentation only, which is what the 08-14 freeze permits: no entry, exit or sizing decision
+changes, and a test pins that the same candles produce an identical entry decision with and
+without the sink. ~78 rows a session for `MARKET_FILTER_SYMBOL` only, carrying `gate_open` plus
+its two conjuncts (`stacked`, `fast_rising`) so a shut gate can be attributed to ordering or to
+slope. **The trap this had to avoid:** warmup replays ~5 days of history through the same
+`on_long_candle` sink at every restart, which would have backfilled hundreds of never-live rows
+into the one table whose rows are *counted* — so warmup now uses a non-emitting `warmup_gate`,
+mirroring the existing `warmup_trigger`, and the write is guarded by a unique
+`(symbol, candle_start_utc)` index. **407 tests pass** (391 → 407, +16); non-vacuity verified
+twice (disabling the emit fails 6 tests, letting warmup backfill fails the orchestrator test).
+`bot.preflight` **RESULT: OK**, schema **12 → 14 batches**, table + unique index verified live,
+**268 trades and 53 refusals preserved**. Details in `memory/improvement-log.md`.
+
+### Notes for pre-market research
+- **🔴 Read this before judging any symbol on "it never signalled."** The market gate was open
+  **0.0% of today's entry window** and 7.2% on 08-19. **No symbol could have traded today**, so
+  today's silence carries **zero information about any individual name.** Do not start or advance
+  a dead-signal clock on anything from today's evidence, and do not park a name for being quiet.
+  This applies to all eleven names that never reached the scorer: ABNB, AMD, AMZN, GOOG, JPM,
+  LLY, MSFT, NVDA, QQQ, SPY, TSLA.
+- **BABA was the most active name on the board by a wide margin (10 of 27 refusals)** on its
+  post-earnings day, scoring 56.6–81.9. Yesterday's decision to keep it while parking WMT looks
+  right on today's tape: BABA ran **128.03 → 130.13 (+1.6%) intraday** and produced a fully
+  qualified 81.9 candidate. **Its dead-signal clock (due 09-09) should be considered paused, not
+  running, for 08-18/19/20** — three shut-gate sessions are not a fair window.
+- **MU is the name to watch tomorrow.** It produced today's best candidate (**conf 89.1, xo
+  0.777, +1.56% to the flatten**) and three of the eight gate-blocked ones, and ran +1.25%
+  intraday on a day `sonar` claimed it fell. It is reaching the scorer with real conviction.
+  **Keep it; nothing to change.**
+- **LLY, added this morning, produced zero scored candidates** — expected on a shut-gate day and
+  on its first session. **No inference available yet; give it a fair window.**
+- **The semi complex reached the scorer today** (MU 5, TSM 4, INTC 2) after two days of silence,
+  which further supports reading 08-18/08-19's quiet as regime rather than deadness — as that
+  night's note argued.
+- **Scheduled/outstanding, unchanged:** NVDA earnings **08-26** · CRM add re-dated to after
+  **08-26** (post-print) · AAPL 30-day dead-signal test **08-27** · INTC on-notice re-check
+  **08-27** · GOOG dead-signal test **08-31** · SPY volatility review end-August · BABA
+  **09-09**. AVGO, UNH and XOM re-enables stay condition-gated.
+- **New capability from tomorrow:** `dbo.market_gate` fills from the next session, so
+  "was the tape even open for business today?" becomes a one-line SQL query instead of a
+  reconstruction. Pair it with `dbo.entry_refusals` before drawing any conclusion about a
+  symbol's silence.
+- **Harness note, still owed and now three days old:** `run-routine.sh` discards stderr, so the
+  08-19 pre-market crash remains unexplained. `/root/claude-routines` task, outside this repo.
