@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from bot.executor import ExecutionResult
     from bot.risk import ExitResult
     from bot.signals import ConfidenceBreakdown
-    from bot.strategy import RefusedEntry, TradeSignal
+    from bot.strategy import MarketGateSample, RefusedEntry, TradeSignal
 
 log = logging.getLogger("ustradebot.persistence")
 
@@ -351,6 +351,49 @@ class TradeStore:
             log.exception("failed to persist refusal for %s", refusal.symbol)
             self._reset()
 
+    def record_gate_sample(self, sample: MarketGateSample) -> None:
+        """Persist one market-gate observation (IMP-032). Never raises.
+
+        Same contract as :meth:`record_refusal` — no retry, no reset on the happy
+        path — for the same reason: it is a datapoint, not a position. ~78 writes a
+        session.
+
+        The insert is guarded by ``WHERE NOT EXISTS`` against the unique
+        ``(symbol, candle_start_utc)`` key so a re-emitted bar is a silent no-op
+        rather than a duplicate. This table is *counted* to produce a duty cycle, so
+        a double-written bar would not merely repeat a row, it would bias the
+        statistic the table exists to compute.
+        """
+        try:
+            conn = self._connection()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO dbo.market_gate "
+                "(symbol, candle_start_utc, gate_open, stacked, fast_rising, "
+                " close_price, ema_fast, ema_mid, ema_slow) "
+                "SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? "
+                "WHERE NOT EXISTS (SELECT 1 FROM dbo.market_gate "
+                "                  WHERE symbol = ? AND candle_start_utc = ?)",
+                (
+                    sample.symbol,
+                    sample.candle_start,
+                    sample.gate_open,
+                    sample.stacked,
+                    sample.fast_rising,
+                    sample.close_price,
+                    sample.ema_fast,
+                    sample.ema_mid,
+                    sample.ema_slow,
+                    sample.symbol,
+                    sample.candle_start,
+                ),
+            )
+            conn.commit()
+        except Exception:
+            # Observational data must never take the strategy down with it.
+            log.exception("failed to persist gate sample for %s", sample.symbol)
+            self._reset()
+
     def record_exit(self, result: ExitResult) -> None:
         """Close the symbol's open trade: set exit fields + realized P/L, drop position."""
         try:
@@ -605,6 +648,9 @@ class TradeRecorder:
 
     def on_refusal(self, refusal: RefusedEntry) -> None:
         self._store.record_refusal(refusal)
+
+    def on_gate_sample(self, sample: MarketGateSample) -> None:
+        self._store.record_gate_sample(sample)
 
     def on_exit(self, result: ExitResult) -> None:
         self._store.record_exit(result)

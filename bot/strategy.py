@@ -138,6 +138,46 @@ class RefusedEntry:
     ribbon_spread_pct: float | None = None
 
 
+@dataclass(frozen=True)
+class MarketGateSample:
+    """The IMP-022 market gate's state on one closed gate candle (IMP-032).
+
+    The **denominator** the refusal tables have been missing. ``dbo.entry_refusals``
+    records the gate only at the ~30 moments a session a candidate happens to be
+    scored (IMP-030/031), which measures the gate where candidates land — not how
+    often it is open. Those two differ badly: on 2026-08-20 the gate was shut for the
+    entire entry window, yet only 8 of 27 refusals were *labelled* a gate refusal —
+    the other 19 died on the crossover floor or the confidence bar first and were
+    attributed there. Counting gate-labelled refusals (the metric the 08-14 weekly
+    used, "7 of 141 = 5.0%") therefore systematically understates how binding the
+    gate is.
+
+    One row per closed gate candle for ``MARKET_FILTER_SYMBOL`` makes the gate's
+    **duty cycle** — the share of the session in which a long was permitted at all —
+    a SQL query over the bot's *own* tick-built ribbon, rather than a nightly
+    reconstruction from Alpaca's aggregated bars, which is a different series built
+    on different close timing.
+
+    ``stacked`` and ``fast_rising`` are the two conjuncts of ``gate_open`` stored
+    separately, so a shut gate can be attributed to ordering or to slope.
+
+    Purely observational — nothing reads it back, and no entry, exit or sizing
+    behaviour depends on it. Emitted for **live** candles only: warmup folds history
+    into the same ribbon via :meth:`StrategyEngine.warmup_gate`, which deliberately
+    does not emit, so a restart cannot backfill stale rows.
+    """
+
+    symbol: str
+    candle_start: datetime
+    gate_open: bool
+    stacked: bool
+    fast_rising: bool
+    close_price: float
+    ema_fast: float | None = None
+    ema_mid: float | None = None
+    ema_slow: float | None = None
+
+
 def _fmt_pct(value: float | None) -> str:
     """Log helper: a percentage, or ``n/a`` — never a misleading 0.00 for unseeded."""
     return "n/a" if value is None else f"{value:.3f}%"
@@ -170,6 +210,7 @@ def ribbon_spread_pct_of(trigger: RibbonSnapshot) -> float | None:
 
 OnSignal = Callable[[TradeSignal], None]
 OnRefusal = Callable[["RefusedEntry"], None]
+OnGateSample = Callable[["MarketGateSample"], None]
 
 
 class StrategyEngine:
@@ -181,6 +222,7 @@ class StrategyEngine:
         *,
         on_signal: OnSignal | None = None,
         on_refusal: OnRefusal | None = None,
+        on_gate_sample: OnGateSample | None = None,
         weights: ScoreWeights | None = None,
         executor: OrderExecutor | None = None,
         risk: RiskManager | None = None,
@@ -190,6 +232,7 @@ class StrategyEngine:
         self._cfg = cfg
         self._on_signal = on_signal
         self._on_refusal = on_refusal
+        self._on_gate_sample = on_gate_sample
         self._weights = weights or ScoreWeights()
         self._executor = executor
         self._risk = risk
@@ -262,8 +305,59 @@ class StrategyEngine:
     # --- candle sinks ------------------------------------------------------
 
     def on_long_candle(self, candle: Candle) -> None:
-        """Refresh the gate ribbon from a closed higher-timeframe candle."""
+        """Refresh the gate ribbon from a closed higher-timeframe candle.
+
+        Also samples the market gate for the filter symbol (IMP-032) — purely
+        observational, after the snapshot is stored, so the gate state read by
+        entries this candle is byte-identical with or without the sample.
+        """
+        snap = self._gate.update(candle)
+        self._gate_snap[candle.symbol] = snap
+        self._emit_gate_sample(candle, snap)
+
+    def warmup_gate(self, candle: Candle) -> None:
+        """Fold a *historical* gate candle into the gate ribbon without sampling.
+
+        The warmup counterpart of :meth:`on_long_candle`, mirroring
+        :meth:`warmup_trigger`. The indicator effect is identical; what it omits is
+        the IMP-032 market-gate sample, so replaying ~5 days of history at every
+        restart cannot backfill ``dbo.market_gate`` with rows that never happened
+        live — which would corrupt the very duty-cycle count the table exists for.
+        """
         self._gate_snap[candle.symbol] = self._gate.update(candle)
+
+    def _emit_gate_sample(self, candle: Candle, snap: RibbonSnapshot) -> None:
+        """Hand one market-gate observation to the recorder (IMP-032).
+
+        Only for ``MARKET_FILTER_SYMBOL``, and only once its ribbon is seeded — an
+        unseeded ribbon fails the gate *open* (see :meth:`_market_gate_open`), so
+        recording it as ``gate_open`` would put a permissive row in the table for a
+        state the bot could not actually evaluate. Swallows callback failures on the
+        same rule as ``_emit_refusal``: an observational write must never take down
+        the candle thread that is managing live positions.
+        """
+        if self._on_gate_sample is None:
+            return
+        sym = self._cfg.market_filter_symbol
+        if not sym or candle.symbol != sym or not snap.ribbon_ready:
+            return
+        fast, mid, slow = snap.ribbon
+        try:
+            self._on_gate_sample(
+                MarketGateSample(
+                    symbol=candle.symbol,
+                    candle_start=candle.start,
+                    gate_open=snap.gate_open,
+                    stacked=snap.stacked,
+                    fast_rising=snap.fast_rising,
+                    close_price=candle.close,
+                    ema_fast=fast,
+                    ema_mid=mid,
+                    ema_slow=slow,
+                )
+            )
+        except Exception:  # a downstream recording bug must not kill the strategy
+            log.exception("on_gate_sample callback failed for %s", candle.symbol)
 
     def warmup_trigger(self, candle: Candle) -> None:
         """Fold a *historical* short-timeframe candle into the trigger ribbon

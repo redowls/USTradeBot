@@ -198,6 +198,7 @@ def main() -> int:
     rec_result = recorder.on_result if recorder else None
     rec_exit = recorder.on_exit if recorder else None
     rec_refusal = recorder.on_refusal if recorder else None
+    rec_gate = recorder.on_gate_sample if recorder else None
 
     # Telegram alerts (Phase 7): an AlertReporter rides the same callbacks, fanned
     # in via _chain. open_notifier returns None if Telegram isn't configured, and a
@@ -221,6 +222,9 @@ def main() -> int:
         # IMP-030: refusals go to SQL only — no console/Telegram fan-out. ~30 a session
         # is signal in a table and noise in a chat.
         on_refusal=rec_refusal,
+        # IMP-032: one row per closed gate candle for MARKET_FILTER_SYMBOL — SQL only,
+        # ~78 a session. The duty-cycle denominator for every gate study.
+        on_gate_sample=rec_gate,
         executor=executor,
         risk=risk,
     )

@@ -115,3 +115,58 @@ def test_warm_up_primes_gate_ribbon_ready_without_trading(cfg):
     snap = eng._gate_snap["NFLX"]
     assert snap.ribbon_ready          # gate is warm enough to evaluate
     assert snap.gate_open             # rising series → bullishly stacked + fast rising
+
+
+# --- IMP-032: warmup must not backfill the market-gate duty-cycle table --------------
+
+
+def test_warmup_gate_emits_no_market_gate_sample(cfg):
+    """warmup_gate folds history into the gate ribbon but must NOT emit a sample.
+
+    Warmup replays ~5 days of history at every restart, and the daily-review routine
+    restarts the service every evening. Emitting from that path would write hundreds
+    of rows for bars that never happened live — into the one table whose rows are
+    *counted* to produce the gate's duty cycle, biasing the statistic it exists for.
+    """
+    samples = []
+    eng = StrategyEngine(cfg, on_gate_sample=samples.append)  # real RibbonEngines
+    bars = _rising_series("QQQ", 60, interval_s=cfg.long_interval_seconds)
+
+    for candle in bars:
+        eng.warmup_gate(candle)
+
+    assert samples == []
+    assert eng._market_gate_open() is True  # ...but the ribbon is warmed and readable
+
+
+def test_warm_up_does_not_emit_gate_samples_through_the_orchestrator(cfg):
+    """The same invariant at the level warmup is actually called: warm_up() over the
+    filter symbol primes the ribbon and writes nothing."""
+    samples = []
+    eng = StrategyEngine(cfg, on_gate_sample=samples.append, executor=_FakeExecutor())
+    longs = _rising_series("QQQ", 60, interval_s=cfg.long_interval_seconds)
+    shorts = _rising_series("QQQ", 30, interval_s=cfg.interval_seconds)
+
+    primed = warm_up(eng, ["QQQ"], fetch_short=lambda _s: shorts, fetch_long=lambda _s: longs)
+
+    assert primed == 1
+    assert samples == []
+    assert eng._market_gate_open() is True
+
+
+def test_live_gate_candle_after_warmup_does_emit(cfg):
+    """The counterpart: once warmup is done, the first *live* gate candle is sampled —
+    so the exclusion is about provenance, not a silently disabled feature."""
+    samples = []
+    eng = StrategyEngine(cfg, on_gate_sample=samples.append)
+    longs = _rising_series("QQQ", 60, interval_s=cfg.long_interval_seconds)
+    for candle in longs:
+        eng.warmup_gate(candle)
+    assert samples == []
+
+    live = _rising_series("QQQ", 61, interval_s=cfg.long_interval_seconds)[-1]
+    eng.on_long_candle(live)
+
+    assert len(samples) == 1
+    assert samples[0].symbol == "QQQ"
+    assert samples[0].gate_open is True

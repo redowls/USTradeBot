@@ -895,3 +895,77 @@ def test_strategy_to_store_refusal_wiring_end_to_end(monkeypatch):
     assert params[0] == "NFLX"
     assert params[2] == "crossover 0.18 < 0.25"
     assert conn.commits == 1
+
+
+# --- IMP-032: the market-gate duty-cycle write ---------------------------------------
+
+
+def _gate_sample(**over):
+    """QQQ's 14:20 gate candle on 2026-08-20 — shut, on the day the gate never opened."""
+    from bot.strategy import MarketGateSample
+
+    fields = dict(
+        symbol="QQQ",
+        candle_start=datetime(2026, 8, 20, 14, 20),
+        gate_open=False,
+        stacked=True,
+        fast_rising=False,
+        close_price=712.30,
+        ema_fast=713.41,
+        ema_mid=713.02,
+        ema_slow=712.55,
+    )
+    fields.update(over)
+    return MarketGateSample(**fields)
+
+
+def test_record_gate_sample_writes_the_full_row():
+    conn = _FakeConn()
+    _store(conn).record_gate_sample(_gate_sample())
+
+    sql, params = conn.calls[0]
+    assert "INSERT INTO dbo.market_gate" in sql
+    assert params[0] == "QQQ"
+    assert params[1] == datetime(2026, 8, 20, 14, 20)
+    assert params[2] is False  # gate_open
+    assert params[3] is True  # stacked — ordering intact
+    assert params[4] is False  # fast_rising — the conjunct that shut it
+    assert params[5] == 712.30
+    assert params[6:9] == (713.41, 713.02, 712.55)
+    assert conn.commits == 1
+
+
+def test_record_gate_sample_is_guarded_against_duplicating_a_bar():
+    """This table is COUNTED to produce a duty cycle, so a re-emitted bar must be a
+    no-op, not a second row — a duplicate would bias the statistic, not just repeat it.
+    """
+    conn = _FakeConn()
+    _store(conn).record_gate_sample(_gate_sample())
+
+    sql, params = conn.calls[0]
+    assert "WHERE NOT EXISTS" in sql
+    # the guard is keyed on the unique (symbol, candle_start_utc) index
+    assert params[-2:] == ("QQQ", datetime(2026, 8, 20, 14, 20))
+
+
+def test_record_gate_sample_placeholder_count_matches_the_columns():
+    """A future column must not silently shift values into the wrong ones."""
+    conn = _FakeConn()
+    _store(conn).record_gate_sample(_gate_sample())
+    sql, params = conn.calls[0]
+    columns = sql.split("(", 1)[1].split(")", 1)[0].split(",")
+    assert len(columns) + 2 == sql.count("?") == len(params)  # +2 for the NOT EXISTS guard
+
+
+def test_record_gate_sample_swallows_a_database_error():
+    """Observational data must never take the strategy down with it."""
+    conn = _FakeConn(raise_on="dbo.market_gate")
+    _store(conn).record_gate_sample(_gate_sample())  # must not raise
+    assert conn.commits == 0
+    assert conn.closed  # connection dropped so the next write reconnects
+
+
+def test_recorder_forwards_gate_samples_to_the_store():
+    conn = _FakeConn()
+    TradeRecorder(_store(conn)).on_gate_sample(_gate_sample())
+    assert any("INSERT INTO dbo.market_gate" in c[0] for c in conn.calls)

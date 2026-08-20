@@ -7,9 +7,10 @@ the daily-review routine restarts the service every evening, that blind window
 recurs *every trading day*, suppressing morning entries.
 
 This module replays recent historical bars through the strategy's indicator state
-(``on_long_candle`` for the 5m gate, ``warmup_trigger`` for the 1m trigger) so the
+(``warmup_gate`` for the 5m gate, ``warmup_trigger`` for the 1m trigger) so the
 first live candle can already produce an entry. Warmup never trades — both sinks
-only fold candles into indicator state.
+only fold candles into indicator state, and (IMP-032) neither emits an
+observation, so replayed history never reaches the database as if it were live.
 """
 from __future__ import annotations
 
@@ -31,13 +32,14 @@ def warm_up(strategy, symbols: Sequence[str], *, fetch_short: FetchBars,
 
     ``fetch_long(symbol)`` yields closed 5m gate candles and ``fetch_short(symbol)``
     yields closed 1m trigger candles, both oldest-first. Returns the number of
-    symbols primed.
+    symbols primed. Both sinks are the *warmup* variants, which update indicator
+    state only — they never emit a signal, a refusal or a gate sample.
     """
     primed = 0
     for symbol in symbols:
         long_bars = list(fetch_long(symbol))
         for candle in long_bars:
-            strategy.on_long_candle(candle)
+            strategy.warmup_gate(candle)
         short_bars = list(fetch_short(symbol))
         for candle in short_bars:
             strategy.warmup_trigger(candle)

@@ -165,6 +165,40 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_entry_refusals_candle'
 CREATE INDEX IX_entry_refusals_candle ON dbo.entry_refusals (candle_start_utc, symbol);
 GO
 
+-- One row per closed gate candle for MARKET_FILTER_SYMBOL (IMP-032): the market gate's
+-- DUTY CYCLE, i.e. the denominator dbo.entry_refusals cannot supply. That table records
+-- the gate only where a candidate happened to be scored, which measures the gate where
+-- candidates land, not how often it is open — on 2026-08-20 the gate was shut for the
+-- whole entry window (0 of 69 bars) yet only 8 of 27 refusals were labelled a gate
+-- refusal, the rest having died on the crossover floor or the confidence bar first.
+--
+-- Recorded from the bot's OWN tick-built 5m ribbon, which is not the same series as
+-- Alpaca's aggregated 5m bars (different close timing — see CLAUDE.md on activity-driven
+-- closes), so a reconstruction from history cannot substitute for it. ~78 rows a session.
+-- Observational only — no trading code reads this table back.
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'market_gate' AND schema_id = SCHEMA_ID('dbo'))
+CREATE TABLE dbo.market_gate (
+    id                INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    symbol            VARCHAR(16)    NOT NULL,
+    candle_start_utc  DATETIME2(0)   NOT NULL,                 -- the closed gate candle
+    gate_open         BIT            NOT NULL,                 -- stacked AND fast_rising
+    stacked           BIT            NOT NULL,                 -- the two conjuncts, stored
+    fast_rising       BIT            NOT NULL,                 --   apart, to attribute a shut gate
+    close_price       DECIMAL(18, 6) NOT NULL,
+    ema_fast          DECIMAL(18, 6) NULL,
+    ema_mid           DECIMAL(18, 6) NULL,
+    ema_slow          DECIMAL(18, 6) NULL,
+    created_at_utc    DATETIME2(0)   NOT NULL DEFAULT SYSUTCDATETIME()
+);
+GO
+
+-- UNIQUE, not just indexed: this table is counted, not merely scanned, so a duplicated
+-- bar would silently inflate the duty-cycle denominator. The writer inserts under
+-- WHERE NOT EXISTS, making a same-bar re-emit (e.g. a mid-session restart) a no-op.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_market_gate_candle' AND object_id = OBJECT_ID('dbo.market_gate'))
+CREATE UNIQUE INDEX UX_market_gate_candle ON dbo.market_gate (symbol, candle_start_utc);
+GO
+
 -- Outcome vs confidence: does a higher confidence score actually pay off? Buckets
 -- closed trades into confidence bands and aggregates win rate and realized P/L.
 CREATE OR ALTER VIEW dbo.vw_confidence_outcome AS

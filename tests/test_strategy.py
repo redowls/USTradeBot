@@ -1345,3 +1345,157 @@ def test_no_refusal_sink_is_harmless(cfg):
     )
     eng.on_long_candle(_candle())
     assert eng.on_short_candle(_candle()) is None  # no sink wired -> no crash
+
+
+# --- IMP-032: the market-gate duty-cycle sample -------------------------------------
+# dbo.entry_refusals records the gate only where a candidate happened to be scored,
+# which measures the gate where candidates land — not how often it is open. On
+# 2026-08-20 the gate was shut for the entire entry window (0 of 69 bars) yet only
+# 8 of 27 refusals were *labelled* a gate refusal; the other 19 died on the crossover
+# floor or the confidence bar first. These tests pin the denominator that fixes that.
+
+
+class _FakeGateSink:
+    def __init__(self, boom: bool = False):
+        self.calls = []
+        self._boom = boom
+
+    def __call__(self, sample):
+        self.calls.append(sample)
+        if self._boom:
+            raise RuntimeError("recorder is down")
+
+
+def _rolling_over_gate() -> RibbonSnapshot:
+    """QQQ on 2026-08-20: still ordered 21>34>55, but the fast EMA has turned down.
+
+    The case the two stored conjuncts exist to tell apart — ``gate_open`` is False
+    because of *slope*, not because the ribbon lost its ordering.
+    """
+    return _ribbon_snap((102.0, 101.0, 100.0), (102.5, 100.5, 100.0), interval_seconds=300)
+
+
+def test_gate_sample_recorded_for_the_filter_symbol(cfg):
+    """One row per closed gate candle for MARKET_FILTER_SYMBOL, carrying the state."""
+    sink = _FakeGateSink()
+    eng = StrategyEngine(cfg, on_gate_sample=sink, gate_engine=_FakeEngine([_open_gate()]))
+
+    eng.on_long_candle(_candle(symbol="QQQ", close=712.30))
+
+    assert len(sink.calls) == 1
+    s = sink.calls[0]
+    assert s.symbol == "QQQ"
+    assert s.candle_start == _OPEN_TS
+    assert (s.gate_open, s.stacked, s.fast_rising) == (True, True, True)
+    assert s.close_price == 712.30
+    assert (s.ema_fast, s.ema_mid, s.ema_slow) == (102.0, 101.0, 100.0)
+
+
+def test_gate_sample_attributes_a_shut_gate_to_slope_not_ordering(cfg):
+    """Regression on 2026-08-20, when the gate was shut for all 69 entry-window bars.
+
+    The duty-cycle table has to say *why* it was shut, or a 0% session is unreadable:
+    a ribbon that lost its ordering and one that is merely rolling over are different
+    tapes, and only the second is close to reopening.
+    """
+    sink = _FakeGateSink()
+    eng = StrategyEngine(
+        cfg, on_gate_sample=sink, gate_engine=_FakeEngine([_rolling_over_gate()])
+    )
+
+    eng.on_long_candle(_candle(symbol="QQQ"))
+
+    s = sink.calls[0]
+    assert s.gate_open is False
+    assert s.stacked is True  # ordering intact...
+    assert s.fast_rising is False  # ...the fast EMA turning down is what shut it
+
+
+def test_gate_sample_only_for_the_filter_symbol(cfg):
+    """A traded name's own 5m gate candle is not a market-gate observation.
+
+    Every watchlist symbol runs the same gate ribbon; sampling all of them would put
+    18 rows a bar in a table whose entire purpose is counting one series.
+    """
+    sink = _FakeGateSink()
+    eng = StrategyEngine(
+        cfg, on_gate_sample=sink, gate_engine=_FakeEngine([_open_gate(), _open_gate()])
+    )
+
+    eng.on_long_candle(_candle(symbol="NFLX"))
+    assert sink.calls == []
+
+    eng.on_long_candle(_candle(symbol="QQQ"))
+    assert len(sink.calls) == 1
+
+
+def test_gate_sample_skipped_while_the_ribbon_is_unseeded(cfg):
+    """An unready ribbon fails the gate OPEN (_market_gate_open), so recording it
+    would write a permissive row for a state the bot could not actually evaluate —
+    inflating the duty cycle exactly where it is least trustworthy."""
+    sink = _FakeGateSink()
+    unseeded = _ribbon_snap((None, None, None), (None, None, None), interval_seconds=300)
+    eng = StrategyEngine(cfg, on_gate_sample=sink, gate_engine=_FakeEngine([unseeded]))
+
+    eng.on_long_candle(_candle(symbol="QQQ"))
+
+    assert sink.calls == []
+
+
+def test_gate_sampling_leaves_entry_behaviour_identical(cfg):
+    """The change is observational: the same candles produce the same entry decision
+    whether or not a sample sink is attached, and the sampled gate state agrees with
+    the one the entry path read."""
+
+    def run(sink):
+        eng = StrategyEngine(
+            cfg,
+            on_gate_sample=sink,
+            trigger_engine=_FakeEngine([_fresh_strong_trigger()]),
+            gate_engine=_market_gate_engine(open_gate=True),
+        )
+        _feed_index_then_symbol(eng)
+        return eng, eng.on_short_candle(_candle())
+
+    sink = _FakeGateSink()
+    with_sink, sig_with = run(sink)
+    without_sink, sig_without = run(None)
+
+    assert (sig_with is None) == (sig_without is None) is False  # both entered
+    assert sig_with.confidence.total == sig_without.confidence.total
+    assert with_sink.state("NFLX") is without_sink.state("NFLX")
+    assert sink.calls[0].gate_open is with_sink._market_gate_open()
+
+
+def test_gate_sample_sink_failure_does_not_break_the_candle_thread(cfg, caplog):
+    """An observational write is never allowed to kill a thread managing live positions."""
+    sink = _FakeGateSink(boom=True)
+    eng = StrategyEngine(cfg, on_gate_sample=sink, gate_engine=_FakeEngine([_open_gate()]))
+
+    with caplog.at_level(logging.ERROR, logger="ustradebot.strategy"):
+        eng.on_long_candle(_candle(symbol="QQQ"))  # swallowed, not raised
+
+    assert any("on_gate_sample callback failed" in r.getMessage() for r in caplog.records)
+    # ...and the gate snapshot is still stored, so entries are unaffected by the failure
+    assert eng._market_gate_open() is True
+
+
+def test_no_gate_sample_sink_is_harmless(cfg):
+    """Persistence is optional everywhere else in this bot; gate samples are no exception."""
+    eng = StrategyEngine(cfg, gate_engine=_FakeEngine([_open_gate()]))
+    eng.on_long_candle(_candle(symbol="QQQ"))
+    assert eng._market_gate_open() is True
+
+
+def test_gate_sampling_disabled_when_the_market_filter_is_off(monkeypatch):
+    """MARKET_FILTER_SYMBOL='' disables the gate entirely — there is nothing to sample."""
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("MARKET_FILTER_SYMBOL", "")
+    cfg = Config.load(dotenv=False)
+    sink = _FakeGateSink()
+    eng = StrategyEngine(cfg, on_gate_sample=sink, gate_engine=_FakeEngine([_open_gate()]))
+
+    eng.on_long_candle(_candle(symbol="QQQ"))
+
+    assert sink.calls == []
