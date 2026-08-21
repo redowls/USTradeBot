@@ -5029,3 +5029,144 @@ twice (disabling the emit fails 6 tests, letting warmup backfill fails the orche
   symbol's silence.
 - **Harness note, still owed and now three days old:** `run-routine.sh` discards stderr, so the
   08-19 pre-market crash remains unexplained. `/root/claude-routines` task, outside this repo.
+
+---
+
+## 2026-08-21 — Daily Review
+
+### Stats
+- **Closed trades: 0.** No entries, no exits, no open positions. Net realized P&L **$0.00**.
+- **Account equity $9,089.13**, `last_equity` **$9,089.13** — an exactly flat day at the broker.
+- **Broker reconciliation: clean.** Alpaca `PA34DFFLTHRT` reports **0 orders** submitted since
+  2026-08-21T00:00Z and **0 open positions**; `dbo.trades` agrees on both. No missed fill, no qty
+  drift, nothing carried overnight. DB and broker are in exact agreement, which on a zero-trade day
+  is the whole check.
+- **Service healthy.** `active`, **`NRestarts=0`**, up continuously since **11:38:43 UTC** (the
+  pre-market restart — so the watchlist edit *did* load, the ops item the 08-14 weekly flagged).
+  8,638 journal lines today and **zero WARNING-or-above entries**.
+- **Scored candidates: 23**, all refused. Cohorts: **crossover 12 · confidence 8 · gate 3**.
+
+### Why there were no trades — the tape first
+**Verified from IEX daily bars, not from `sonar`** (see the Perplexity note below):
+
+| | prev close | open | close | day-over-day | **open→close** | range |
+|---|---|---|---|---|---|---|
+| QQQ | 710.93 | 715.265 | 713.41 | **+0.35%** | **−0.26%** | 709.29–715.65 = **0.89%** |
+| SPY | 762.62 | 765.99 | 765.64 | **+0.40%** | **−0.05%** | 764.185–767.84 = **0.48%** |
+
+The market **gapped up overnight and then went nowhere for six and a half hours.** A 0.89% QQQ range
+is a narrow tape. This is precisely the regime the 08-14 weekly named as the one this bot structurally
+cannot monetise — *"the index gains came from gaps and overnight drift, not from intraday trend, which
+is the one thing this bot cannot monetise (it never holds overnight)."* Today the index closed green
+and the bot could not have participated, because all of the gain happened while it was flat by design.
+
+**The gate was not the binding constraint.** IMP-032's telemetry, in its first full session, records
+**34 of 69 entry-window bars open = 49.3% duty cycle** (47.1% across all 87 bars). The bot was
+*permitted* to be long for half the session and still found nothing worth buying. That kills the
+lazy explanation ("the gate was shut again") outright.
+
+The binding constraint was **signal strength**, and it was absent because the ribbon never separated:
+recorded `ribbon_spread_pct` was **0.00058% (UBER), 0.00116% (QQQ), 0.00186% (TSM), 0.00604% (GOOG)**.
+Crossover strength is ribbon width × slope; on a 0.89%-range tape there is no width to have. Twelve
+candidates died at **crossover 0.02–0.20 against the 0.25 floor**. That is not a broken filter, it is
+a filter reading a flat tape correctly.
+
+### Trade-by-trade review → refusal-by-refusal review
+No trades, so the reviewable population is the 23 refusals. **Newly measurable tonight** (IMP-033):
+each declined candidate scored against its own forward tape — enter at the refusal candle's close,
+flatten with the session, IEX bars, `bot.report --refusals`.
+
+```
+cohort        n   avgMFE   avgMAE   avgFwd  <0.5%MFE  hitTrail  stopped
+crossover    12   +0.36%   -0.53%   -0.06%    8/12      0/12     0/12
+confidence    8   +0.11%   -0.61%   -0.35%    8/8       0/8      0/8
+gate          3   +1.67%   -0.70%   +0.75%    1/3       2/3      0/3
+ALL          23   +0.45%   -0.58%   -0.05%   17/23      2/23     0/23
+```
+
+Ranked, worst-to-best declined (conf · MFE · MAE · forward-to-flatten · ribbon spread):
+
+| sym | cohort | conf | MFE | MAE | fwd | gate | spread |
+|---|---|---|---|---|---|---|---|
+| PLTR | gate | 69.9 | **+2.62%** | −0.23% | +1.08% | shut | **0.11215** |
+| TSLA | gate | 77.3 | **+2.05%** | −1.07% | +1.65% | shut | **0.15835** |
+| GOOG | crossover | 60.5 | +1.13% | −0.11% | +1.01% | shut | 0.00774 |
+| AMD | crossover | 62.0 | +0.73% | −0.16% | +0.28% | open | 0.01354 |
+| …14 more between +0.50% and +0.02% MFE… | | | | | | | |
+| PLTR | crossover | 76.0 | +0.15% | **−1.48%** | −0.77% | open | 0.00944 |
+| UBER | confidence | 54.6 | **+0.00%** | −1.28% | −0.82% | open | 0.00058 |
+| LLY | confidence | 53.3 | **+0.00%** | −1.11% | −0.98% | open | 0.00807 |
+
+**Verdicts, per filter:**
+- **`ENTRY_THRESHOLD = 60` was perfectly discriminating today. 8 of 8 sub-60 candidates never traded
+  0.5% above their entry; 0 of 8 reached the trail give-back; the cohort's average forward return was
+  **−0.35%**.** Every one was dead money. Confidence in the 50–58 band is doing real work at the
+  bottom of the scale — which is worth stating precisely because the same score is *inverted* above 80.
+- **`MIN_CROSSOVER = 0.25` cost nothing. 0 of 12 declined candidates could have finished green on the
+  1.25% trail**, and the cohort's average forward return was **−0.06%** — a wash. It saved PLTR
+  (−1.48% MAE) and LLY (−0.96% MAE) and missed GOOG (+1.01%). **This is an independent, live,
+  outcome-scored corroboration of the 08-13 four-window refutation of lowering the floor.** Two
+  separate methods now agree. Stop re-litigating it.
+- **The gate is the only filter that declined runners: avg MFE +1.67%, avg forward +0.75%, 2 of 3
+  reached the trail.** PLTR (+2.62%) and TSLA (+2.05%) were the day's two best declined candidates and
+  the gate alone stopped both.
+
+### What worked / what didn't
+- **Worked: the bot correctly refused to trade a 0.89%-range tape.** A zero-trade day here is the
+  system functioning, not failing. 17 of 23 declined candidates never traded 0.5% above entry;
+  **0 of 23 would have been stopped out**, but only **2 of 23** could have banked anything on the
+  trail. On this tape, trading was a coin-flip with a spread cost attached, and the bot passed.
+- **Worked: the ops fixes are holding.** `NRestarts=0`, no warnings, DB↔broker exact, and IMP-032's
+  gate table validated exactly as its "what to check tomorrow" specified — **87 rows, 0 duplicate
+  `(symbol, candle_start_utc)` pairs, first row 12:15 UTC vs the 11:38 restart** (no warmup backfill).
+- **Didn't work — and this is the second consecutive day it hasn't: the gate declined the day's best
+  candidate.** 08-20 was MU (conf 89.1, ran +1.56% to the flatten, gate alone). Today it was PLTR
+  (+2.62%) *and* TSLA (+2.05%). **I am deliberately not acting on this, and the reason matters more
+  than the observation:** n=3 today on top of n=1 yesterday, against a filter carrying **four
+  independent windows** of profitability evidence (5d/10d/60d replay + 08-13 live) and a 10-day
+  counterfactual of **+$37.68 with the gate vs −$53.84 without**. The weekly's verdict stands — *the
+  bot makes money by declining to be long.* Two days of anecdote is exactly how you would destroy the
+  one component with demonstrated edge. **Logged as evidence to accumulate, not as a change to make.**
+- **Perplexity was materially WRONG today and the standing rule caught it — 11th consecutive bad
+  return.** `sonar` reported *"S&P 500 closed 7,641.16, down 0.87%"* and *"Nasdaq down 1.00%, risk-off"*.
+  IEX bars say SPY **+0.40%** and QQQ **+0.35%** day-over-day. **It got the direction backwards.** Had
+  it been written into this review unverified, today would read as a risk-off rout that justified the
+  flat session, when the truth is the opposite and far more damning: the market rose and the bot's
+  design excluded it from the move. The 08-14 weekly's rule — *source regime from IEX daily bars first,
+  `sonar` is lead-generation only* — earned its keep for the second time.
+
+### Lessons & improvement candidates
+1. **SHIPPED — IMP-033: make refused candidates measurable (`bot.report --refusals`).** Rationale in
+   the improvement log. It is the third leg of the IMP-030 → IMP-031 → IMP-032 chain and it converts
+   the largest untapped dataset this bot has into evidence.
+2. **The pre-entry discriminator the 08-14 weekly asked for has a lead, and it is `ribbon_spread_pct`.**
+   The refusal table sorts almost monotonically by it. The two candidates with spread **≥ 0.11**
+   (PLTR 0.112, TSLA 0.158) ran **+2.62%** and **+2.05%**; the other 21, all with spread **≤ 0.029**,
+   averaged **+0.30% MFE**. That is the shape of a real pre-entry proxy for the `<0.5%`-MFE cohort —
+   *available before the entry*, unlike MAE. **Two caveats, both disqualifying on their own for now:**
+   spread and gate-state are **confounded** today (both wide-spread names are also the two the gate
+   refused), and **n=2**. Needs ≥3 agreeing windows via the harness. **Do not ship a spread filter on
+   this.** But `--refusals` now makes the study a command instead of a night's work.
+3. **Sample-size unlock.** Refusals accrue at **~25/day** (26 / 27 / 23 on 08-19/20/21) versus ~1–2
+   trades/day. The `<0.5%`-MFE cohort question the weekly called *"the one measurement that matters"*
+   was starved on 266 lifetime trades; on refusals it reaches n≈75 in three sessions and n≈500 in a
+   month. **This is the fastest available path to the sample the freeze is waiting on.**
+4. **Not a candidate: loosening anything.** Today's data argues the opposite in two of three cohorts.
+
+### Notes for pre-market research
+- **The watchlist is not the problem — the tape was.** 11 distinct symbols scored 23 candidates. Nothing
+  was dead; everything was quiet. **No watchlist change is indicated by today's session.**
+- **PLTR and TSLA are the two names worth keeping.** They carried by far the widest ribbon spreads
+  (0.112 / 0.158) and the only two genuine intraday runs (+2.62%, +2.05% MFE). On a day when nothing
+  else moved, these two did. **TSLA scored the day's highest confidence (77.3).**
+- **GOOG chopped hard — 5 refusals, the most of any symbol** (three on crossover 0.04/0.11/0.15, two on
+  confidence 50.1/57.9), and its one real move (+1.13% MFE) came on the *weakest* crossover of the five.
+  Classic whipsaw signature: many near-misses, no clean signal.
+- **QQQ, TSM and UBER printed near-zero ribbon spread** (0.00116 / 0.00186 / 0.00058) and MFE of
+  +0.07% / 0.00% / 0.00%. **Genuinely inert today** — worth a look at whether they are chronically
+  inert or just quiet on a narrow tape.
+- **Regime expectation:** the gate ran a **49.3% duty cycle** — the tape was permissive, the signals
+  were not. If tomorrow's range widens, expect entries without any code change. **NVDA reports 08-26**;
+  positioning drift into it starts next week and should widen semi ribbons (AMD, TSM).
+- **Do not re-run the "why no trades" reconstruction by hand.** `bot.report --days N --refusals` now
+  answers it.

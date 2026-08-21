@@ -108,6 +108,28 @@ class ClosedTrade:
 
 
 @dataclass(frozen=True)
+class RefusedCandidate:
+    """One row of ``dbo.entry_refusals``, read back for scoring (IMP-033).
+
+    The read side of :class:`~bot.strategy.RefusedEntry`. Carries the pre-entry
+    feature vector the refusal was judged on — confidence, the gate state, and the
+    IMP-029 tape context — so a study can pair each *decision* with the outcome the
+    tape went on to print. Everything except ``symbol``/``candle_start_utc`` may be
+    ``None``: these rows span three schema generations and "not measured" must stay
+    distinguishable from zero.
+    """
+
+    symbol: str
+    candle_start_utc: Any  # naive UTC datetime, as stored
+    reason: str
+    close_price: float
+    confidence: float | None = None
+    market_gate_open: bool | None = None
+    atr_pct: float | None = None
+    ribbon_spread_pct: float | None = None
+
+
+@dataclass(frozen=True)
 class PerformanceSummary:
     """Aggregate trading performance for the Phase 10 daily/weekly report."""
 
@@ -615,6 +637,43 @@ class TradeStore:
             ]
         except Exception:
             log.exception("failed to load closed trades")
+            self._reset()
+            return []
+
+    def refusals(self, days: int = 1) -> list[RefusedCandidate]:
+        """Scored-but-refused candidates over the last ``days``, oldest first (IMP-033).
+
+        Feeds the refusal-outcome study. Read-only and wrapped exactly like
+        :meth:`closed_trades`: a DB error logs, resets the connection, and returns
+        ``[]`` so the report degrades rather than fails.
+        """
+        try:
+            conn = self._connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT symbol, candle_start_utc, reason, close_price, confidence, "
+                "market_gate_open, atr_pct, ribbon_spread_pct "
+                "FROM dbo.entry_refusals "
+                "WHERE candle_start_utc IS NOT NULL AND close_price IS NOT NULL "
+                "AND candle_start_utc >= DATEADD(day, -?, SYSUTCDATETIME()) "
+                "ORDER BY candle_start_utc",
+                (days,),
+            )
+            return [
+                RefusedCandidate(
+                    symbol=str(r[0]).strip().upper(),
+                    candle_start_utc=r[1],
+                    reason=str(r[2] or ""),
+                    close_price=float(r[3]),
+                    confidence=None if r[4] is None else float(r[4]),
+                    market_gate_open=None if r[5] is None else bool(r[5]),
+                    atr_pct=None if r[6] is None else float(r[6]),
+                    ribbon_spread_pct=None if r[7] is None else float(r[7]),
+                )
+                for r in (cur.fetchall() or [])
+            ]
+        except Exception:
+            log.exception("failed to load entry refusals")
             self._reset()
             return []
 

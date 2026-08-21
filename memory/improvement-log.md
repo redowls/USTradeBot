@@ -2171,3 +2171,114 @@ Baseline to compare against, reconstructed from Alpaca bars over 24 sessions (08
 **31.6% overall**, bimodal — 13 of 24 sessions ≤10% open, 7 of 24 ≥60%. If the bot's own
 tick-built number diverges materially from that proxy, the proxy is what was wrong, and every
 prior gate study built on aggregated bars needs re-reading.
+
+---
+
+## IMP-033 — 2026-08-21 (daily) — make refused candidates measurable: `bot.report --refusals`
+
+**Status: SHIPPED & LIVE. Instrumentation only — zero change to the trading path.**
+
+### Problem
+`dbo.entry_refusals` has recorded every scored-but-rejected candidate since **IMP-030**, with the
+market-gate state since **IMP-031** and the pre-entry tape context since **IMP-029**. It records the
+*decision* and the *features it was made on*. It has never recorded the **outcome**. So a refusal row
+can prove that we did not trade; it cannot say whether the filter **saved money or cost it** — which
+is the only question that matters about a filter.
+
+The consequence is concrete and repeating: that number has now been **rebuilt by hand two reviews
+running** — 08-20's *"MU 14:20, confidence 89.1, ran +1.56% to the flatten, stopped by the gate
+alone"*, and tonight's session, which would have required the same manual reconstruction across 23
+candidates. **This is exactly the failure mode IMP-025 was written to end for excursion**, and its
+argument transfers verbatim: *an analysis that is redone by hand every night is one that will
+eventually be skipped on the night it matters.*
+
+It also unblocks the thing the **08-14 weekly named "the one measurement that matters"** — a pre-entry
+discriminator for the `<0.5%`-MFE cohort. That study was starved of sample on 266 lifetime trades
+(and, per the same weekly, *every live-history bucket study over 45+ days is contaminated by
+pre-IMP-021 trades*). **Refusals accrue at ~25/day** — 26 / 27 / 23 on 08-19/20/21 — reaching n≈75 in
+three sessions. This is the fastest available path to the sample size the shipping freeze is waiting on.
+
+### Freeze compliance
+The 08-14 weekly's freeze permits **correctness, data-integrity and instrumentation only**. This is
+instrumentation: a read-only report path plus a read-only store method. It touches **no** entry, exit,
+sizing or risk logic, and changes no configuration. `MARKET_FILTER_SYMBOL`, `MIN_CROSSOVER`,
+`STOP_LOSS`, `TRAIL_PERCENT`, `ENTRY_THRESHOLD` and the confidence weights are untouched.
+
+### Change (4 files, no behavioural surface)
+- **`bot/refusals.py` (new)** — the study. `classify_reason` buckets the free-text reason to the filter
+  that produced it (the string embeds its own numbers, so grouping needs the filter's identity);
+  unrecognised reasons stay visible as `other` rather than folding into a neighbouring cohort.
+  `session_flatten_utc` computes the horizon through **`America/New_York`**, not a fixed offset — a
+  hardcoded `19:45Z` is right in August and **an hour wrong every winter session**. `outcomes_for`
+  reuses **`bot.excursion.compute_excursion`** so the MFE/MAE arithmetic and the bucket edges are the
+  same ones every prior study used. Bars come from `cfg.alpaca_data_feed` (IEX) for IMP-025's reason:
+  scoring a declined candidate on a richer tape than the bot trades would overstate what was reachable.
+- **`bot/persistence.py`** — `RefusedCandidate` + `TradeStore.refusals(days)`, read-only and wrapped
+  **exactly** like `closed_trades` (DB error → log, reset, return `[]`). Every field except symbol and
+  candle may be `None`: these rows span three schema generations and **"not measured" must stay
+  distinguishable from zero**, the same rule IMP-029 set for the tape columns.
+- **`bot/report.py`** — `--refusals` flag. Opt-in (one bars call per refusal) and **stdout only**, so
+  the Telegram digest stays the short headline it has always been. `refusal_report()` catches
+  everything: a reporting extra must degrade, never break the report.
+- **`tests/test_refusals.py` (new)** + 3 tests in `tests/test_persistence.py`.
+
+### The counterfactual, and its honesty guard
+Enter at the refusal candle's close, hold to that session's flatten (the bot never holds overnight).
+**This is an upper bound and the report says so in its own footer**, for three reasons: passing one
+filter only advances a candidate **to the next one** (a loosened crossover floor does not buy the
+trade, it sends it to the gate); the trail and stop would have exited many before the flatten; and
+capital is finite. `reached_trail` and `stopped_out` are printed for exactly that reason — **a cohort
+whose MFE never reaches the trail give-back could not have finished green however the filter was set.**
+An over-claimed counterfactual is precisely how one talks oneself into loosening a working filter.
+
+### First result (2026-08-21, n=23) — and it vindicates two frozen parameters
+```
+cohort        n   avgMFE   avgMAE   avgFwd  <0.5%MFE  hitTrail  stopped
+crossover    12   +0.36%   -0.53%   -0.06%    8/12      0/12     0/12
+confidence    8   +0.11%   -0.61%   -0.35%    8/8       0/8      0/8
+gate          3   +1.67%   -0.70%   +0.75%    1/3       2/3      0/3
+ALL          23   +0.45%   -0.58%   -0.05%   17/23      2/23     0/23
+```
+- **`ENTRY_THRESHOLD = 60`: 8 of 8 sub-60 candidates never traded 0.5% above entry, 0 of 8 reached the
+  trail, cohort forward return −0.35%.** Perfectly discriminating today.
+- **`MIN_CROSSOVER = 0.25`: 0 of 12 could have finished green on the trail; cohort forward −0.06%.**
+  An independent, live, outcome-scored corroboration of the **08-13 four-window refutation** of
+  lowering it. Two separate methods now agree — this parameter should stop being re-litigated.
+- **The gate declined the only two runners** (PLTR +2.62%, TSLA +2.05% MFE). **Deliberately not acted
+  on:** n=3 tonight plus n=1 on 08-20, against four independent windows of profitability evidence and
+  a 10-day counterfactual of +$37.68 with vs −$53.84 without. Evidence to accumulate, not a change.
+
+### Lead handed to the weekly (do NOT ship on it yet)
+The refusal table sorts **almost monotonically by `ribbon_spread_pct`**. Spread ≥ 0.11 (n=2) → MFE
+**+2.62% / +2.05%**; spread ≤ 0.029 (n=21) → mean MFE **+0.30%**. That is the shape of the pre-entry
+proxy for the `<0.5%`-MFE cohort the weekly asked for, and unlike MAE it is **known before the entry**.
+**Disqualifying caveats: spread and gate-state are confounded in this sample** (both wide-spread names
+are the two the gate refused), and **n=2**. Requires ≥3 agreeing windows via the harness.
+
+### Non-vacuity
+Verified twice, both restored to green afterwards:
+- Collapsing `classify_reason` to a single cohort → **3 tests fail**.
+- Replacing the DST-correct horizon with a fixed `Etc/GMT+4` offset →
+  `test_session_flatten_follows_dst_rather_than_a_fixed_offset` **fails**.
+
+### Validation
+- **431 tests pass** (407 → 431, **+24**): 21 in `test_refusals.py`, 3 in `test_persistence.py`. The
+  fixtures are **today's real rows** (`entry_refusals` ids 55 / 62 / 75), so the session that motivated
+  the tool regression-tests it. Covers: skip-don't-zero for a symbol the tape did not print, skip a
+  refusal at/after its own flatten, one failing fetch loses one row not the table, MFE clamped at 0 for
+  a candidate that never traded above entry, and `None` tape context surviving from pre-IMP-029 rows.
+- `bot.preflight` **RESULT: OK** (1 expected WARN: session closed). Schema unchanged at 14 batches —
+  this change reads, it does not migrate.
+- Ran live against the real DB: 23 refusals scored, **0 skipped**.
+
+### Live validation (same evening, not deferred)
+Per the 08-14 weekly's standing rule — *no IMP entry may be written in the past tense until `git log`
+shows the commit AND `ActiveEnterTimestamp` post-dates the file mtime.* Recorded below in this entry
+after the restart, not before.
+
+### What to check next
+Run `bot.report --days 7 --refusals` at the weekly. The three questions it can now answer that no
+prior review could: (1) does the `crossover` cohort's forward return stay ≤ 0 across a full week, or
+was today's wash a narrow-tape artefact; (2) does the `gate` cohort keep out-running the others — and
+if it does over ≥3 windows, that is the first real case for revisiting the gate's shape; (3) does
+`ribbon_spread_pct` separate the `<0.5%`-MFE cohort once gate-state is controlled for.

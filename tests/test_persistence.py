@@ -699,6 +699,41 @@ def test_closed_trades_returns_empty_on_error():
     assert TradeStore(lambda: _ClosedTradesConn([], raise_it=True)).closed_trades() == []
 
 
+# --- refusals (IMP-033) ----------------------------------------------------
+
+
+def test_refusals_maps_rows_and_windows_by_days():
+    # Real row: dbo.entry_refusals id 62, 2026-08-21.
+    t0 = datetime(2026, 8, 21, 16, 21)
+    conn = _ClosedTradesConn(
+        [(" pltr ", t0, "crossover 0.20 < 0.25", 181.07, 75.99, True, 0.19813, 0.00944)]
+    )
+    rows = TradeStore(lambda: conn).refusals(days=7)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r.symbol == "PLTR"  # trimmed + upper-cased, as closed_trades does
+    assert (r.candle_start_utc, r.close_price, r.confidence) == (t0, 181.07, 75.99)
+    assert r.market_gate_open is True
+    assert (r.atr_pct, r.ribbon_spread_pct) == (0.19813, 0.00944)
+    assert conn.params == (7,)
+    assert "dbo.entry_refusals" in conn.sql
+
+
+def test_refusals_keeps_unmeasured_columns_none_across_schema_generations():
+    """Pre-IMP-029/031 rows have NULL tape and gate — that is not 0.0 and not False."""
+    conn = _ClosedTradesConn(
+        [("GOOG", datetime(2026, 8, 18, 15, 0), "confidence 50 < 60", 339.4, None, None, None, None)]
+    )
+    r = TradeStore(lambda: conn).refusals()[0]
+    assert r.confidence is None
+    assert r.market_gate_open is None
+    assert r.atr_pct is None and r.ribbon_spread_pct is None
+
+
+def test_refusals_returns_empty_on_error():
+    assert TradeStore(lambda: _ClosedTradesConn([], raise_it=True)).refusals() == []
+
+
 # --- load_watchlist --------------------------------------------------------
 
 
