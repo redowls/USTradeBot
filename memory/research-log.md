@@ -3738,3 +3738,201 @@ this repo and outside this routine's remit, and it is still worth doing before t
 on a day the bot is actually holding something.
 
 ---
+
+## 2026-08-21 — Pre-market Research
+
+**One substitution, and it is the volatility-floor test this log owed on SPY — parked on it, UBER added in
+its place. 18 → 18 enabled**, service restarted clean (warmup 18/18). Book is CLEAN & FLAT (broker-confirmed
+**0 positions, 0 open orders**, equity **$9,089.13**, `last_equity` == `equity` — a fourth consecutive
+session that did not move the book) → **nothing locked**. The 08-20 review's binding instruction — *no symbol
+could have traded on a 0.0%-open gate, so silence carries zero information* — is honoured: **nothing here is
+parked for being quiet**, and no dead-signal clock was started or advanced on 08-18/19/20 evidence.
+
+### Market context
+**A modest bounce off Thursday's rout, with the macro print landing 15 minutes before the bot may enter.**
+- **Futures higher, and for once all three sources agree on the sign.** The Alpaca tape at 09:33Z carries
+  *"Dow Jones, S&P 500 Futures Gain as Scott Bessent Touts 'Toughest Sanctions' for Iran"*; a second feed
+  headlines *"Why Are Nasdaq, S&P 500 Futures Rising Premarket? NVDA, MU… In Focus"*; `sonar` gives **S&P
+  +0.3%, Nasdaq +0.4–0.53%**. Three independent sources, same direction → taken as **up, modestly**.
+  **No primary quote check was possible**: IEX had **zero pre-market prints** as of 11:35Z (every snapshot's
+  `latestTrade` was still yesterday's after-hours), so this is the one figure today resting on secondary
+  sources.
+- **Thursday closed badly and that is the context for the bounce:** *"Dow Falls 700 Points, Nasdaq Drops 1%
+  As Yields Rise Again"* (tape, 08-20 20:22Z). Daily bars: **QQQ −0.72%, SPY −0.84%** close-to-close.
+- **In-session releases: S&P Global Flash Manufacturing + Services PMI at 09:45 ET** — independently
+  confirmed on the release calendar for today (July composite was 53.6, an 8-month high) — and **BLS state
+  employment at 10:00 ET**. The PMI lands **15 minutes before `ENTRY_START=10:00`**, so no entry can be taken
+  into it; the bot sees only the reaction.
+- **Iran is still the macro driver.** Bloomberg via the tape at 10:22Z: *Iranian oil supply to Chinese
+  refiners squeezed by US blockade*; Bessent promising the toughest sanctions yet. This is directly
+  load-bearing for XOM's re-enable condition (below).
+- **No board name reports today.** NVDA is **08-26**. 45 headlines since 08-20 18:00Z contain **no halt, no
+  guidance change and no in-session binary** for any enabled name.
+- **Board headlines worth naming:** BMO initiated **NVDA** Outperform/$340 and **AMD** Outperform; **NVDA**
+  reportedly in talks to buy Korean AI-chip startup Rebellions; **TSLA** recalling ~**1.96M** China-made
+  Model 3/Y, discontinuing solar roof tiles, and carrying a JPM note doubting FSD; **BABA** says AI now
+  drives >⅓ of cloud revenue; India ordered **GOOG** to shut hundreds of Firebase accounts.
+
+### Carried from the 08-20 daily review
+The review's finding — **the market gate was open 0.0% of 08-20's entry window and 7.2% on 08-19**, so no
+long was structurally possible — constrains this run more than any single fact on the tape. Honoured in full:
+- **No clock started or advanced on the shut-gate sessions.** BABA stays **paused** (due 09-09), AAPL
+  **08-27**, INTC's on-notice re-check **08-27**, GOOG **08-31** — all untouched.
+- **Nothing parked for being quiet.** The single park below is structural; its quietness is a *consequence*
+  of the argument, not the argument, and the entry says so explicitly where it could be misread later.
+- **"MU is the name to watch"** — kept, unchanged, and it is the strongest name on the board today
+  (**+8.99% vs 20MA, +3.97% yesterday, $35.5B/day, ATR 6.03%**), plus a *"No AI Without Memory"* CEO piece
+  on the tape. Nothing to do.
+- **LLY, one session old with zero scored candidates** — no inference drawn, as instructed. Chart still
+  screens (**+4.12% / +5.71%, ATR 3.70%, $3.40B/day**) despite −2.81% yesterday.
+
+### Watchlist review (18 enabled, SIP daily bars through 08-20)
+
+**➖ SPY — PARKED on an explicit volatility floor. This is the test the 08-20 entry said was owed on this
+name, run on data instead of asserted.** Last 20 sessions, range = (H−L)/O:
+
+| | ATR% | median range | ≥1.25% | ≥2% |
+|---|---:|---:|---:|---:|
+| **SPY** | **0.84** | **0.75%** | **25%** | **0%** |
+| QQQ | 1.46 | 1.42% | 55% | 25% |
+| JPM | 1.60 | 1.40% | 80% | 20% |
+| NVDA / TSLA / MU | 2.90 / 3.19 / 6.03 | 2.73 / 3.48 / 5.92% | 100% | 65 / 95 / 100% |
+
+**The trailing stop is 1.25%. On 15 of the last 20 sessions SPY's entire high-to-low range was smaller than
+the give-back the exit structure requires** — a perfect entry at the low and exit at the high would not have
+cleared the trail — and the bot enters mid-move on a 1-min cross, never at the low. **Zero of 20 sessions
+ranged 2%.** That is a mismatch between the instrument and the exit config; it does not depend on regime, on
+the gate, or on how quiet the last three sessions were, which is precisely why it survives the 08-20
+instruction. Corroborating but **not load-bearing**: 56 days without a signal (last trade 06-26) and
+**−$11.24 on 4 trades**.
+**Note what this park deliberately does *not* use.** SPY's chart is fine (**+0.21% vs 20MA / +1.55% vs
+50MA**), so the two-leg MA rule does not fire, and bending it to reach a park would be the exact error this
+log refused on AVGO (08-18) and INTC (08-20). A different rule is stated instead, in advance and in the open.
+**Re-enable is condition-gated, not dated: ATR back above ~1.5% with a median session range above the 1.25%
+trail width.**
+
+**🔒 QQQ — structurally locked, and this must be recorded because the trade record argues for parking it.**
+QQQ last traded **07-14 — 38 days**, the second-longest silence on the board, and a future run reading only
+`dbo.trades` would reach for it. **It must never be parked.** `bot/strategy.py:255-278` resolves
+`MARKET_FILTER_SYMBOL` (default **QQQ**; unset in `.env`) against the same per-symbol gate snapshots the
+*watchlist* populates, and **when the symbol is not on the watchlist the gate fails OPEN** — one WARNING line
+and the bot's best-evidenced edge (four agreeing windows; **+$91.52 at 10 days**) silently switches off. On
+its own merits it is also the best name here: **7 trades, 6 wins, +$80.15**. It is the gate, not a trade idea.
+
+**✅ INTC — kept, on notice, unchanged.** **−3.84% vs 20MA / −15.10% vs 50MA, −11.89% on 5 days** — below
+both, so the trend leg fires again. The second leg is nowhere near: it **last traded 08-17** and produced
+**2 scored refusals on 08-20**, i.e. it is reaching the scorer. #2 all-time earner **+$150.78 / 24 trades**,
+ATR 6.43%, $11.3B/day. **Re-check 08-27 as scheduled.**
+
+**✅ AAPL — kept; the trend leg still fails.** It gave back yesterday's gain (**−1.75%**) and is **−1.34% vs
+20MA but +0.47% vs 50MA**. Above one MA is not below both. All-time **+$57.45**. **Test stays 08-27.**
+
+**⚠️ AMZN — kept, but it is today's nearest miss and it gets a date.** Sitting **exactly on its 20MA
+(+0.02%)**, +4.33% vs 50MA, **−4.46% over 10 days**, last trade **08-03**, and the **worst all-time P&L on
+the enabled board at −$108.51 over 14 trades**. Both legs are approaching and neither is met. **Dated
+re-check 2026-09-02** (30 days from its last trade).
+
+**⚠️ JPM — kept, and it is the name the new floor points at next.** **ATR 1.60%, median range 1.40%** — the
+closest enabled single name to SPY's failure — but **80% of its sessions still clear the 1.25% trail** and
+it is **above its 50MA (+2.47%)**, so neither the floor nor the two-leg rule fires. Record is poor
+(**−$51.50 / 9 trades**) and it last traded **07-27**. **Dead-signal test dated 08-27**, the same day as
+AAPL's, since they last traded the same day.
+
+**✅ TSLA — kept, and the headline flow is logged rather than acted on.** A **~1.96M-vehicle China recall**,
+the solar-roof discontinuation and a JPM FSD note is the worst news day of any enabled name. But it is
+**not a scheduled binary and not a guidance change**, it is priced pre-open, and **the bot never holds
+overnight**. Chart: **+5.98% vs 20MA / −5.76% vs 50MA**, ATR 3.19%, $11.5B/day; last trade 08-13 **+$29.16**.
+The honest statement is that a recall of that size is a risk the ribbon cannot see coming — which is true of
+every headline and is not a reason to trade a different book.
+
+**✅ The rest, briefly.** **NVDA** +1.91% / +4.61%, two positive initiations, $25.0B/day — earnings **08-26**
+is the next scheduled park. **TSM** +0.83% / −1.96%. **BABA** +5.28% / +14.23%, clock paused to 09-09.
+**NFLX** **+7.13% / +7.47%**, ATR 2.85%, $2.56B/day — the chart has genuinely repaired even though its
+all-time record is −$82.34. **PLTR** +12.65% / +26.12% and **ABNB** +11.00% / +21.36% are the two strongest
+trends on the board. **MSFT** +2.81% / +15.07%. **AMD** −2.91% / −7.92% below both MAs but **last traded
+08-13**, so the second leg fails — kept, **dated 2026-09-12**. **GOOG** −2.17% / −3.48%, test **08-31**,
+untouched. **Liquidity floor clean:** thinnest enabled name is **ABNB at $0.91B/day**; no sub-$5 names, no
+halts.
+
+### ➕ Add — UBER, and it is a deliberate substitution rather than an unrelated backfill
+**Verified on Alpaca `/v2/assets`: `tradable: true`, `status: active`, NYSE, us_equity.**
+- **+7.30% vs 20MA, +8.03% vs 50MA, +3.52% on 5 days, +11.47% on 10 days, ATR 3.73%, $1.52B/day.**
+- **Median intraday range 3.31%, with 100% of the last 20 sessions ≥1.25% and 75% ≥2%** — the exact inverse
+  of the name it replaces. That symmetry is the point: the board loses the instrument that cannot pay for its
+  own trailing stop and gains one that clears it every session.
+- **Event calendar clear.** Q2 reported **2026-08-05 BMO**; the company has not announced Q3 and trackers put
+  it **10-29 → 11-03** — **~70 days clear**, the same standard LLY was added on.
+- **Its move is flow and product news, not one binary to mean-revert out of:** Baidu Apollo Go robotaxis to
+  Dubai (08-20), Pony AI autonomous rides in Zagreb (08-19), a Zipline drone-delivery partnership plus a
+  planned strategic investment (08-17), a CNBC *Final Trades* mention and a Cramer buy call. **Live risk is
+  regulatory/labour headline flow** (California rideshare-union push, 08-18), not a scheduled event.
+- **It also fixes a concentration the board has carried for weeks:** 5 semis + 5 mega-cap tech, and UBER is
+  the first consumer-platform name since SE was parked on 07-30.
+
+**Rejected on fresh evidence:**
+- **➖ MRVL — rejected on a verified date, exactly as CRM was on 08-20.** It screened **best of every
+  alternate** (**+20.52% vs 20MA, +12.98% on 5 days, ATR 6.91%, $4.98B/day**, and BMO initiated Outperform at
+  09:48Z today), and it would have been the add on chart alone. **Marvell has announced Q2 FY2027 results for
+  Thursday 2026-08-27, after the close** (company conference-call announcement, 08-03). Adding it today buys
+  **four sessions** before a mandatory park — and it would be a fifth semi. **Re-screen after the print.**
+- **CRM** — unchanged, still re-dated to after its **08-26** AMC print.
+- **XOM — stays parked, condition still unmet.** Best chart of the parked set (**+5.21% / +11.75%,
+  $2.24B/day, ATR 2.24%**) but the 08-17 condition was *"only if the oil headline regime quiets down,"* and
+  today's tape has a US blockade squeezing Iranian oil and a Treasury Secretary promising the toughest
+  sanctions yet. **Not quiet.**
+- **AVGO — stays parked despite a genuinely good headline** (*Broadcom steps up NVIDIA challenge with a
+  potential $100B AI financing deal*, 09:48Z). Its re-enable is **chart-gated**: **−8.24% vs 20MA / −6.32% vs
+  50MA, −12.87% on 5 days**. A headline is not the condition; the condition is the chart.
+- Screened and rejected on fresh bars: **NOW** (+9.53% / +19.62% but the same V-bounce shape rejected 08-18),
+  **COIN** (+11.69% / +9.24% but crypto-beta), **ORCL** (−9.06% on 5 days), **META** (−5.69% / −8.02%),
+  **PANW** (−11.76% on 5 days), **ANET** (momentum gone, −9.76% on 5 days), **GE** (−5.46% / −4.05%),
+  **CAT** (−3.44% / −10.01%), **ISRG** (−5.84% yesterday), and **LIN** — which fails the same volatility
+  floor SPY was just parked on (**ATR 1.71%**), applied consistently to a candidate on the day it was written.
+
+### Changes applied to dbo.watchlist
+Two parameterized statements, `watchlist` the only table touched, **no DELETEs**:
+1. `UPDATE ... SET enabled = 0, note = ?` — **SPY** (volatility floor: ATR 0.84%, median range 0.75%, only
+   25% of 20 sessions reach the 1.25% trail width; 56d no trade; −$11.24 on 4 trades).
+2. `MERGE ... WHEN NOT MATCHED THEN INSERT` — **UBER** enabled 1 (new row; Alpaca-verified tradable/active).
+**A first attempt failed and is recorded rather than hidden:** the SPY note was 141 characters and
+`note` is `VARCHAR(128)`, so SQL Server raised *"String or binary data would be truncated."* **Nothing was
+committed on that attempt** — both statements were then re-run and committed together. Re-read after commit:
+**18 enabled ≤ 30 ✓**, **30 rows ✓**, **12 parked ✓**.
+
+### Final watchlist
+**18 enabled** (≤30 ✓): AAPL ABNB AMD AMZN BABA GOOG INTC JPM LLY MSFT MU NFLX NVDA PLTR QQQ TSLA TSM
+**UBER**. Parked (12): AVGO BIRD C COST ENPH QCOM SE **SPY** UNH WMT WPM XOM.
+**Service restarted (required — the table changed) and verified, not assumed:** `is-active` → **active**,
+**MainPID 1405613**, `ActiveEnterTimestamp` **2026-08-21 11:38:43 UTC**, **NRestarts=0**. Journald confirms
+the banner *"Watchlist (dbo.watchlist): AAPL, ABNB, AMD, AMZN, BABA, GOOG, INTC, JPM, LLY, MSFT, MU, NFLX,
+NVDA, PLTR, QQQ, TSLA, TSM, UBER"* — **UBER present, SPY absent** — **warmup primed 18/18**, the IEX stream
+subscribed to exactly those 18, account `PA34DFFLTHRT` reconciled at equity 9089.13 with **no open
+positions**, and **0 WARNING/ERROR lines** in the 20 lines since start.
+🔒 Locked: **none (0 positions, 0 open orders)**.
+**Upcoming: NVDA earnings 08-26 · CRM add after 08-26 · AAPL and JPM dead-signal tests 08-27 · INTC
+on-notice re-check 08-27 · MRVL re-screen after its 08-27 print · GOOG dead-signal test 08-31 · AMZN
+re-check 09-02 · BABA 09-09 (paused for the shut-gate stretch) · AMD 09-12 · AVGO, UNH, XOM and now SPY
+re-enables are condition-gated, not dated.**
+
+### Perplexity `sonar` — run 15: right on the macro layer, useless on the ticker layer
+**Credit where due, after two runs with the sign wrong: its index call was correct** (+0.3% S&P / +0.4–0.53%
+Nasdaq), matching the tape's *"futures gain"* headline, and **it flagged the 09:45 ET flash PMI**, which
+independent calendar confirmation verified. Per the standing rule it was still used only as a lead — the
+futures direction is written here because **two other sources agreed**, not because `sonar` said it.
+**The ticker layer failed again, and worse than the count suggests: "no specific overnight catalyst" for 17
+of 18 names** — on a morning carrying a 1.96M-vehicle Tesla recall, two BMO initiations and an NVDA
+acquisition report, all of which the Alpaca news tape had. **It also silently dropped PLTR from its output
+entirely.** Fifteenth consecutive thin run. **Standing rule unchanged: lead-generation only, never a regime
+source, never a clock, never a price.** WebSearch (futures, the PMI calendar, MRVL's and UBER's earnings
+dates), the Alpaca news tape (45 headlines), SIP daily bars, `/v2/assets` and journald carried this run.
+
+### Data-source note — worth two minutes to the next run
+- **Daily bars must be pulled with `feed=sip`.** IEX daily volume is ~3% of the consolidated tape (AAPL:
+  1.16M vs 41.1M shares on 08-20), which understates dollar volume by ~30× and would silently break the
+  liquidity floor. `/v2/stocks/snapshots` returns **403 on `feed=sip`** but works on `feed=iex`.
+- **`limit` alone returns `bars: null`** — an explicit `start` is required on the bars endpoint. Two runs
+  have now rediscovered this.
+- **IEX carries no pre-market prints**, so `latestTrade` before the open is yesterday's after-hours. A
+  pre-market gap check cannot be sourced from this feed; it needs the news tape or WebSearch.
+
+---
