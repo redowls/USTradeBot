@@ -994,3 +994,273 @@ keep the freeze on the signal until the sample justifies touching it.**
   Jackson Hole commentary and the FOMC minutes. Expect the gate to stay quiet on down-tape days and to
   open around any retail-driven risk-on session.
 
+
+---
+
+## Week ending 2026-08-21 — Grade: C+
+
+### Stats
+- **DB (closed, Mon 08-17 → Fri 08-21): 2 trades, 0W/2L → 0.0% win**, net **−$34.66**,
+  **PF 0.00** (gross win $0.00, gross loss $34.66). Avg loss **−$17.33**. Best **MU −$12.33**,
+  worst **INTC −$22.33**. **Both trades were Monday**; Tue/Wed/Thu/Fri were all zero-trade.
+- **Equity $9,123.87 (Fri 08-14) → $9,089.13 = −$34.74 (−0.38%).** Broker reconciles: Alpaca
+  `PA34DFFLTHRT` equity **$9,089.13**, all cash, **0 positions, 0 open orders**, `trading_blocked`
+  false. **Max drawdown $34.74, entirely Monday**; the curve was a flat line 08-18 → 08-21
+  (9,089.13 four sessions running, to the cent).
+- **By symbol:** INTC −$22.33 (1) · MU −$12.33 (1). Both Model A, both exited on the broker-side
+  trail ~2h after entry, neither approached the −2% hard stop.
+- **Confidence vs outcome (all-time) — inverted at the top for a SEVENTH week:** 70-79 **+$250.84**
+  (87 tr, 54.0%) · 60-69 −$92.88 (148 tr, 41.2%) · 80-89 −$26.75 (30 tr, 46.7%) ·
+  **90-100 −$144.42 (3 tr, 0% win)**. Unchanged; still n=3 at the top.
+- **All-time: 268 trades, 45.5% win, net −$13.22** (PF ≈ 1.0). **Post-08-03 config: 27 trades,
+  59.3% win, +$135.47, PF 1.83** — this week added **2 trades and −$34.66** to that window.
+- **Refusals (IMP-030/031/032): 76 rows** over the three instrumented sessions (26 / 27 / 23).
+  **Gate duty cycle** (IMP-032 live + reconstruction): 08-18 **0.0%** · 08-19 **7.2%** ·
+  08-20 **0.0%** · 08-21 **49.3%**; 24-session **31.6%**, and **bimodal** — 13 of 24 sessions
+  ≤10% open, 7 ≥60%. The gate is close to a binary session switch, not a within-day trimmer.
+- **Service: clean. `NRestarts=0` all week**, zero WARNING-or-above in any session's journal
+  (8,638 lines Friday). The only journal "error" strings are two websocket keepalive reconnects
+  (08-15 08:38, 08-20 06:55), both **outside market hours**, both auto-recovered. **No risk event,
+  no naked position, no crash, no missed fill, no qty drift.** DB↔broker exact every session.
+
+### Grade rationale
+**C+ — a losing week by the rubric's letter (small loss, within risk limits = C), lifted by the
+best measurement week this bot has ever had, and held down by one unresolved capital-risk gap.**
+
+**Results are negative and the win rate is 0%, so this cannot be a B** — the rubric reserves B for
+flat-to-positive. The magnitude is trivial (−0.38%, two trades, neither hitting a stop) and the four
+flat sessions were **demonstrably** correct rather than assumed: the week's 76 declined candidates
+averaged **−0.11% to the flatten** with **49 of 76 (64%) never trading +0.5% above entry**, against a
+**46.6% baseline for trades the bot actually takes**. The bot did not miss a rally; it declined a tape
+that had nothing in it. **It is emphatically not a D** — no meaningful loss, no repeated mistake, no
+unvalidated change shipped, no risk breach, and every one of last week's focus items was honored.
+
+**Process was A-grade and should be said plainly.** The 08-14 shipping freeze on trading logic held
+for a second week and held *intelligently*: five IMPs shipped, **all five instrumentation, zero
+behavioural change to entry, exit or sizing**. Along the way the daily reviews **refuted four separate
+tempting changes on evidence** — `conf_volume` as a discriminator (it is *inverted*: vol=0.00 is the
+best band at +$185.99, vol=1.00 the worst at −$377.93), loosening the market gate (08-18, n=15),
+loosening the crossover floor (08-19 and again 08-21, now **five independent refutations** counting
+the 08-13 four-window replay), and shipping a `ribbon_spread_pct` filter on n=2. Each had motive,
+authority and a plausible story. None shipped. That is the discipline this bot historically lacked.
+
+**What costs it the rest of a grade is one gap with real money attached.** The **08-19 pre-market
+routine crashed (`claude exited rc=1`)**, so **WMT and BABA were NOT parked into their 08-20 earnings
+prints** despite being scheduled for it. Nothing bad happened — the gate was 0.0% open on 08-20, so no
+trade was structurally possible — but **that is luck, not control.** The bot has **no earnings guard of
+its own**; its only protection is a routine that failed silently, and `run-routine.sh` discards stderr
+so the cause is still unknown three days later. It lives in `/root/claude-routines`, outside this repo
+and outside this routine's one-change scope, which is exactly why it keeps not getting fixed.
+
+**Not counted against the week:** `sonar-deep-research` returned **empty (1 byte)** for the second
+consecutive weekly, and `sonar` has now been thin, stale or **wrong** on 14 consecutive runs — on
+08-21 it reported the S&P *"down 0.87%"* and Nasdaq *"down 1.00%, risk-off"* when IEX bars had SPY
+**+0.40%** and QQQ **+0.35%**. It had the sign backwards. Regime was sourced from IEX daily bars, as
+the standing rule requires. That rule has now earned its keep three times.
+
+### The tape, and why it matters more than usual this week
+IEX **open→close** — the only window this bot trades:
+
+| | 08-17 | 08-18 | 08-19 | 08-20 | 08-21 |
+|---|---|---|---|---|---|
+| **QQQ o→c** | −0.41% | −0.35% | −0.61% | −0.16% | −0.26% |
+| **SPY o→c** | −0.47% | −0.19% | −0.16% | −0.42% | −0.05% |
+| **QQQ range** | 0.72% | 0.85% | 1.21% | 0.88% | 0.89% |
+
+**QQQ fell intraday on all five sessions, and no session had a 1.25% range except one.** Friday is the
+week in miniature: QQQ closed **+0.35% day-over-day** while falling **−0.26% open→close** — the entire
+gain was an overnight gap. **A long-only intraday trend bot that flattens every close was structurally
+excluded from the week's index gains, and structurally exposed to the only direction available to it.**
+This is the same divergence the 08-14 weekly named, now in its second week and sharper. It is the
+single most important market fact of the week and it is not a strategy defect — it is a mandate limit.
+
+### 🔬 The week's decisive measurement — `bot.report --days 7 --refusals` (n=76)
+IMP-033's own "what to check next" asked the weekly to run this. It did:
+
+```
+cohort        n   avgMFE   avgMAE   avgFwd  <0.5%MFE  hitTrail  stopped
+crossover    38   +0.41%   -0.62%   -0.21%   26/38      2/38     2/38
+confidence   23   +0.40%   -0.47%   -0.18%   16/23      2/23     0/23
+gate         15   +1.08%   -0.94%   +0.28%    7/15      5/15     1/15
+ALL          76   +0.54%   -0.64%   -0.11%   49/76      9/76     3/76
+```
+
+**Two filters are now settled, on live outcomes, over a full week:**
+- **`MIN_CROSSOVER = 0.25` is validated.** 38 declined candidates, **−0.21% average forward return**,
+  **68% dead on arrival**, only 2 of 38 could have reached the 1.25% trail. **Fifth independent
+  refutation** of lowering it. It joins `STOP_LOSS` and `MARKET_FILTER_SYMBOL` on the
+  do-not-relitigate list. **Stop proposing this.**
+- **`ENTRY_THRESHOLD = 60` is validated at the bottom of the scale.** 23 declined, **−0.18% forward**,
+  **70% dead**. Note the asymmetry, which is the honest version of the confidence story: **the score
+  works below 60 and is inverted above 80.** It is not uniformly broken; it is broken at the top.
+
+**And one filter looks different — this is the week's real finding, and the reason I am NOT acting on
+it is the more important half.** The gate cohort beats the other two on *every* metric: **2.6× the
+MFE**, the **only positive forward return (+0.28%)**, **47% dead vs 68/70%** — below even the 46.6%
+baseline for admitted trades — and **5 of 15 reached the trail (33%) vs 5% and 9%**. Across three
+sessions the gate declined the day's single best candidate three days running (MU conf 89.1 → +1.56%;
+PLTR +2.62% and TSLA +2.05%; TSLA +2.93% is the week's best declined candidate outright). That is a
+pattern across the week, not an anecdote, and it is exactly the bar Step 3 sets for a change.
+
+**I am still not touching the gate, because the table cannot measure what it appears to measure.**
+**A gate refusal is only recorded when a candidate already scored** — i.e. on the minutes when
+something looked good. The sessions where the gate *saves* money are sessions where it holds the bot
+out of a falling tape, and those contribute **few or no scored candidates and therefore almost nothing
+to this table**. So the refusal counterfactual prices the gate's **misses** while being structurally
+blind to its **saves**, and a positive forward return in the gate cohort is **exactly what a
+profitable gate would also produce.** This is the same class of conditioning error IMP-031 exposed in
+the 08-14 weekly's "gate = 5% of refusals" metric — a statistic whose ceiling is set by the filters
+upstream of it. Against it stands the only measure that captures both sides: **four independent replay
+windows on net P&L (5d, 10d, 60d + 08-13 live), including a 10-day counterfactual of +$37.68 with the
+gate versus −$53.84 without.** Candidate quality and net P&L are different claims. **Both can be true:
+the bot makes money by declining to be long, and it pays for that with a handful of missed runners.**
+The report prints its own warning and it is correct: *upper bound — passing one filter only advances a
+candidate to the next.*
+
+### What worked / what didn't
+- **✅ The measurement chain, and it compounded — this was one build, not five tweaks.** IMP-029
+  captures the pre-entry tape state → **030** persists the declined population → **031** adds the gate
+  condition to every row → **032** adds the gate *denominator* → **033** scores the outcomes. Together
+  they raise the evidence sampling rate from **~1–2 trades/day to ~25 refusals/day (~15×)**, and turn
+  the `<0.5%`-MFE question the 08-14 weekly called *"the one measurement that matters"* from a night's
+  throwaway scripting into a single command. The freeze was waiting on sample size; **this week built
+  the machine that supplies it.** Three of the five paid off within one session of shipping.
+- **✅ Capital protection and ops.** −0.38% on a week where the bot's only tradeable direction fell
+  five sessions out of five. `NRestarts=0`, zero warnings, exact broker reconciliation daily, warmup
+  18/18, and the 08-14 weekly's flagged ops item — *is the pre-market restart actually firing?* —
+  **confirmed fixed** (restarts at 11:39 on 08-20 and 11:38 on 08-21, watchlist edits loaded).
+- **❌ Entry timing, unaddressed for a fifth week.** Monday's two losses were **both bought within
+  0.6% of the session high** (INTC −0.53%, MU −0.19% from the high) after a run, on names that moved
+  ~4% intraday and closed near their lows. MU finished **+1.28% from its open and the bot still lost.**
+  The ribbon fires at the exhaustion point of the up-leg. That is the entire loss, and no IMP this
+  week touched it.
+- **❌ A design defect in the confidence score, found and correctly not acted on.** `conf_rsi == 1.0`
+  on **252 of 268 trades (94%)** and on **26 of 26** refusals on 08-19; `conf_volatility == 1.0` on
+  **65%**. With weights crossover 30 / trend 20 / **rsi 20** / volume 15 / **volatility 15**, roughly
+  **35 of 100 points are a near-constant floor** — so the "60/100" bar is really **~25 of a variable
+  65**. That is a strong mechanical explanation for seven weeks of anti-predictive confidence: a third
+  of the score is a constant, which *compresses* the spread between good and bad candidates instead of
+  widening it. **Best-evidenced open strategy question in the book.**
+- **❌ The earnings gap (above).** WMT and BABA unparked into their prints. Still unowned.
+- **❌ `sonar` wrong on direction (08-21) and `sonar-deep-research` empty for a second weekly.**
+
+### Improvements shipped this week
+All five are instrumentation — **zero behavioural change to entry, exit or sizing** — which is what
+the 08-14 freeze permits.
+- **IMP-029** (08-17, daily) — record pre-entry tape context (`atr_pct`, `ribbon_spread_pct`).
+  **Observed: ✅ VALIDATED, but through a route it did not anticipate.** Still **0 of 268 `dbo.trades`
+  rows** carry it (no entries since 08-17), yet it is populated on **all 76 refusal rows** via
+  IMP-030 — and `ribbon_spread_pct` became the week's single best pre-entry lead (08-21: the two
+  candidates with spread ≥0.11 ran +2.62%/+2.05%; the other 21, all ≤0.029, averaged +0.30% MFE).
+  It validated on the refusal side, not the trade side.
+- **IMP-030** (08-18, daily) — persist refused candidates to `dbo.entry_refusals`.
+  **Observed: ✅ VALIDATED next session** (26 rows) and **load-bearing for this entire review**.
+  The highest-leverage change of the week: it converted the bot's largest dataset into evidence.
+- **IMP-031** (08-19, daily) — gate state on **every** scored refusal.
+  **Observed: ✅ VALIDATED one session later, and it overturned a prior weekly's finding** — it
+  revealed `market_gate_open = FALSE` on all 27 of 08-20's rows and proved the 08-14 weekly's
+  "gate = 5% of refusals" restrictiveness metric is **structurally biased** (its ceiling is set by the
+  filters upstream). A change that corrects the review process itself is worth more than one that
+  tunes a constant.
+- **IMP-032** (08-20, daily) — persist the gate's duty cycle to `dbo.market_gate`.
+  **Observed: ✅ VALIDATED first session** — 87 rows, 0 duplicate `(symbol, candle_start_utc)` pairs,
+  first row 12:15 vs the 11:38 restart (**no warmup backfill** — the trap it was built to avoid). It
+  immediately **killed a lazy explanation**: Friday's drought was *not* the gate (49.3% duty cycle),
+  it was signal strength. The gate finally has a denominator.
+- **IMP-033** (08-21, daily, shipped 20:12 UTC tonight) — `bot.report --refusals`.
+  **Observed: ⏳ too new to have a forward effect, but immediately load-bearing** — the n=76 table
+  above is its first output and it produced the week's decisive finding within an hour of shipping.
+  431 tests, live-verified (`ActiveEnterTimestamp` 20:11:58 post-dates every touched file).
+- **Did they compound or cancel? They compounded, unambiguously** — a single coherent five-step
+  build with a common target: **making the bot's own restraint measurable.** Counting IMP-025→028,
+  that is **nine consecutive changes hardening measurement rather than chasing P&L.** The honest
+  counter-charge is that this is the second week with no strategy change while the trade count fell
+  to 2, and a freeze that keeps extending itself starts to look like an inability to decide. The
+  defence is that the dailies did not merely measure — they **refuted four candidate changes on
+  evidence**, and refutation is a decision. But this cannot continue indefinitely (see verdict).
+
+### Strategy verdict
+**VIABLE BUT UNPROVEN, AND NOW STRUCTURALLY STARVED — the binding risk has shifted from the signal to
+the bot's inability to express it often enough to be judged.**
+
+The edge that exists remains **entirely in exposure management, not in the signal** — unchanged from
+last week and now better evidenced. The signal itself has never demonstrated edge: **268 lifetime
+trades, −$13.22, PF ≈ 1.0.** A coin flip. The post-08-03 window (27 trades, +$135.47, PF 1.83) is the
+best stretch in the bot's history and remains too small to lean on; this week contributed **2 trades
+and a loss** to it.
+
+**The new finding, and it is one a day-at-a-time view structurally cannot see: trade frequency has
+collapsed ~95% in seven weeks.** Trades per week: **45 → 21 → 26 → 22 → 13 → 12 → 2.** Every filter
+driving that is individually defensible and individually evidenced — the opening blackout (IMP-017,
+validated on 219 trades), the crossover floor (five refutations of loosening it), the gate (four
+replay windows). **Collectively they have produced a system that is flat ~96% of the time.** At two
+trades a week the post-08-03 sample reaches n=100 somewhere in 2027. **A strategy that cannot be
+tested cannot be improved**, and that — not any individual parameter — is now the binding constraint
+on this project.
+
+**The resolution is not to loosen filters.** Five independent studies say that destroys money, and
+this week's n=76 says the declined population is worse than the admitted one on two of three cohorts.
+The resolution is the one the dailies already found: **the refusal dataset is the sample.** 76 rows in
+three sessions, ~500/month, ~25/day against ~1 trade/day. IMP-030→033 built exactly that instrument.
+**Next week must spend it, not extend it.** If the next two weeks produce a sixth and seventh
+consecutive instrumentation IMP with no strategy decision, that is the failure mode to grade harshly,
+and this review is putting that on the record now so it can be graded against.
+
+**Keep running. Keep it on paper. Keep the freeze on constants — but the freeze does not cover the
+RSI-constant finding, which is a design defect rather than a tuning knob, and next week should settle
+it.**
+
+### Focus for next week
+- **🔴 PARK NVDA BEFORE WED 08-26 — it reports that day and it is currently ENABLED** (confirmed in
+  Friday's 18-symbol subscription). This is the one item with real money attached. **And note the
+  standing hazard: the bot has no earnings guard of its own** — its only protection is the pre-market
+  routine, which **crashed on 08-19 and left WMT and BABA unparked into their prints.** Two options,
+  both worth raising: fix `run-routine.sh` to preserve stderr and alert on `rc≠1` (harness work,
+  `/root/claude-routines`, outside this repo), **or** give the bot an in-repo earnings blackout it
+  owns itself. **The second is a legitimate weekly-review change and is my recommended IMP-034** —
+  it removes a capital risk that currently depends on an external routine not crashing.
+- **🟠 Settle the RSI-constant defect — the best-evidenced open strategy question, and it is a design
+  flaw, not a constant.** `conf_rsi` returns a flat 1.0 across the whole 45-65 RSI band, which is
+  where a fresh bullish cross almost always sits: 94% of trades, 100% of 08-19's refusals. **~35 of
+  100 confidence points are a near-constant floor.** The study: re-fit `score_rsi` to something with
+  variance across that band (or drop the component and re-weight), then validate on **≥3 agreeing
+  replay windows** *and* against the 76+ refusal rows, which now provide an independent out-of-sample
+  check the harness never had. **This is the one place a change could plausibly fix the seven-week
+  confidence inversion at its root rather than papering over it.**
+- **🟠 The `ribbon_spread_pct` study — now a command, not a night's work.** Friday's lead is the right
+  shape for a pre-entry proxy for the `<0.5%`-MFE cohort (available *before* entry, unlike MAE). **Two
+  disqualifying caveats to clear first: it is confounded with gate state** (both wide-spread names
+  were also the two the gate refused) **and n=2.** Run it across ≥3 windows with gate state
+  controlled. **Do not ship a spread filter until both are cleared.**
+- **⚖️ The market gate: accumulate, do NOT touch — and here is the falsifiable test that would change
+  my mind.** The n=76 table makes a tempting case (gate cohort +0.28% fwd, 33% trail-hit rate, three
+  straight days declining the day's best candidate). **It is not sufficient, because the refusal table
+  prices the gate's misses and is blind to its saves** (a refusal is only logged when a candidate
+  scored; the gate's good days produce no candidates at all). **The only measure that captures both is
+  net P&L in replay, gate ON vs OFF, and that is what already favours the gate 4 windows to 0.**
+  **The test:** re-run gate ON/OFF on the *current* config across ≥3 fresh windows. **If net P&L
+  agrees in sign in ≤1 of 3 windows, the gate's shape becomes revisable** — and the first thing to try
+  is then a *softer* gate (e.g. gate on QQQ slope only, or a confidence surcharge instead of a veto),
+  not removal. Until that study runs, **the gate is untouchable.**
+- **Do-not-relitigate list (now five entries):** `MIN_CROSSOVER` (five independent refutations —
+  08-13 four-window replay, 08-18, 08-19, 08-20, 08-21 live n=38) · `STOP_LOSS` (refuted 08-13,
+  structurally vestigial behind the trail) · `MARKET_FILTER_SYMBOL` (tripwire retired 08-14) ·
+  `conf_volume` (**inverted** — vol=0.00 is the *best* band, refuted 08-17) · loosening
+  `ENTRY_THRESHOLD` downward (validated 08-21, n=23, −0.18% fwd, 70% dead).
+- **⚠️ Carry forward:** every live-history bucket study over 45+ days is contaminated by pre-IMP-021
+  trades. Judge on the post-08-03 window or on replay. And **watch the sample-source shift** — the
+  refusal table is a *different population* from the trade table (candidates that failed a filter),
+  so it is an excellent instrument for filter questions and a **poor** one for exit questions.
+- **Next week's tape (Aug 24-28) — event-heavy, and the watchlist is squarely in the blast radius:**
+  **NVDA earnings Wed 08-26** (consensus ~$91bn revenue; the single largest scheduled risk on this
+  board) · **July core PCE Wed 08-26 08:30 ET** (consensus 3.2% y/y vs 3.3%) · **Jackson Hole
+  Aug 27-29, Chair Warsh keynote Friday** · plus CRM, CRWD, Synopsys, Marvell (Thu). Semis fell ~5%
+  into the weekend (SMH) and momentum −4%, so **AMD/TSM/MU/INTC ribbons should widen** — which is
+  good for signal strength after a week where the binding constraint was a flat tape
+  (`ribbon_spread_pct` of 0.00058% on UBER, 0.00116% on QQQ). **Expect more entries without any code
+  change if the range expands** — and expect the gate to open more than the 31.6% recent duty cycle.
+  Judge next week on whether widened ribbons finally grow the live sample.
+- **Risk posture unchanged and non-negotiable:** position size, loss limits, the stand-down/kill
+  switch and paper-only stay exactly as they are. Nothing this week justified touching any of them,
+  and the shorting idea in `todo.md` remains explicitly out of scope for an unattended routine.
+

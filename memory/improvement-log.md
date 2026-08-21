@@ -1874,10 +1874,15 @@ All six steps completed, in order, with the results the weekly asked for:
   recording of it. Position size, loss limits, the stop, the trail, the market gate and the kill
   switch are all untouched. Worst case on a bug is two NULL columns.
 - **Commit.** `8e00c6b` — pushed and deployed 2026-08-17 (restart verified below).
-- **Observed effect:** ⏳ **not yet measurable by construction** — it records, it does not act. The
-  signal that it is working is the `tape(atr=… spread=…)` fragment on the next `ENTRY` log line and a
-  non-NULL `atr_pct` on the next row in `dbo.trades`. **Do not mark this validated until a live entry
-  has written one.** The payoff is a Friday `<0.5%`-MFE study that is a SQL query.
+- **Observed effect:** ✅ **VALIDATED (weekly 08-21) — but via a route this entry did not anticipate.**
+  The stated signal has **still not fired**: `dbo.trades.atr_pct` is non-NULL on **0 of 268 rows**,
+  because there has been no entry since 08-17. What happened instead is that IMP-030 shipped the next
+  night and carried the *same* tape context onto every **refused** candidate — so the fields are
+  populated on **all 76 refusal rows** of 08-19/20/21. And they earned their place there:
+  `ribbon_spread_pct` is the week's single best pre-entry lead for the `<0.5%`-MFE cohort (08-21: the
+  two candidates with spread ≥0.11 ran **+2.62%** and **+2.05%** MFE; the other 21, all ≤0.029,
+  averaged **+0.30%**). **Validated on the refusal side, still unvalidated on the trade side** — leave
+  that half open until a live entry writes a row.
 
 ---
 
@@ -1959,11 +1964,13 @@ All six steps completed, in order, with the results the weekly asked for:
 - **Commit.** `dacd5d2` — pushed and deployed 2026-08-18 (restart verified: `is-active` active,
   `ActiveEnterTimestamp` 20:12:17 UTC > file mtimes, schema 12 batches, warmup primed **19/19**,
   IEX stream subscribed to all 19, `NRestarts=0`, zero errors).
-- **Observed effect:** ⏳ **not yet measurable by construction** — it records, it does not act.
-  The signal that it is working is the **first non-zero `SELECT COUNT(*) FROM dbo.entry_refusals`
-  after the next session**; on a day like today that would have been 33 rows. **Do not mark this
-  validated until live rows exist.** First real payoff is the Friday weekly being able to run
-  the gate and crossover-floor studies against rows instead of a rolling log.
+- **Observed effect:** ✅ **VALIDATED (weekly 08-21) — the highest-leverage change of the week.**
+  The stated signal fired on the **next** session: **26 rows** on 08-19, then 27 and 23, for **76 rows
+  across three sessions**. It delivered exactly the stated payoff and more: the 08-21 weekly ran its
+  crossover-floor, confidence-bar and gate studies **against rows**, not a rolling journald window
+  (which only keeps ~11 days and was the binding limit on the 08-18 gate study, n=15). Structurally it
+  raised the review's evidence sampling rate from **~1–2 trades/day to ~25 refusals/day (~15×)** — on a
+  week when the bot took **2 trades**, this table was the only evidence there was.
 - **Carry-forward:** **IMP-029 is still unvalidated** — `atr_pct IS NOT NULL` returns 0 rows,
   because there have been no entries since it shipped on 08-17. Both instrumentation IMPs now
   wait on the same thing: the next actual entry.
@@ -2047,12 +2054,16 @@ All six steps completed, in order, with the results the weekly asked for:
   bug is a wrong boolean in an observational column. Freeze-compliant by the same standard
   IMP-027/028/029/030 were judged against.
 - **Commit.** `5dc6c86` — pushed and deployed 2026-08-19 (restart verified below).
-- **Observed effect:** ⏳ **not yet measurable by construction** — it records, it does not act.
-  The signal that it is working is the **next session's near-miss rows carrying non-NULL
-  `market_gate_open`** (today's 26 are all NULL on the 22 non-gate rows). **Do not mark this
-  validated until those rows exist.** The payoff is that Friday's crossover-floor study can
-  partition its population into "refused into an open tape" (genuinely recoverable) and "refused
-  into a shut tape" (never recoverable) instead of conflating the two.
+- **Observed effect:** ✅ **VALIDATED (weekly 08-21) — and it did more than it was built for.**
+  The stated signal fired the next session: `market_gate_open` non-NULL on all 27 rows of 08-20 and
+  all 23 of 08-21. It delivered the intended payoff (the floor's population can now be partitioned by
+  tape state) but its **larger effect was on the review process itself**: it revealed
+  `market_gate_open = FALSE` on **all 27** of 08-20's rows — not just the 8 labelled "gate closed" —
+  which exposed the **08-14 weekly's "gate = 5% of refusals" restrictiveness metric as structurally
+  biased.** That metric's ceiling is set by the filters upstream of it (a candidate failing crossover
+  is attributed to crossover even though the gate would also have refused it), so on a day of
+  *maximum* restrictiveness — 0.0% duty cycle — it still read only 30%. **A change that corrects a
+  standing error in how the reviews reason is worth more than one that tunes a constant.**
 
 ---
 
@@ -2172,6 +2183,17 @@ Baseline to compare against, reconstructed from Alpaca bars over 24 sessions (08
 tick-built number diverges materially from that proxy, the proxy is what was wrong, and every
 prior gate study built on aggregated bars needs re-reading.
 
+- **Observed effect:** ✅ **VALIDATED (weekly 08-21) on its first full session.** All four checks
+  passed: **87 rows** on 08-21, **0 duplicate `(symbol, candle_start_utc)` pairs**, first row at
+  **12:15 UTC against an 11:38 restart** — so the warmup backfill guard (the trap this change was
+  built around) **held in production**. Duty cycle **34/69 entry-window bars = 49.3%**, which does
+  **not** diverge materially from the 31.6% reconstructed proxy given the bimodal distribution, so
+  no prior gate study needs re-reading. **Immediate payoff on the day it went live: it killed a lazy
+  explanation.** Friday's zero-trade session had an obvious story — *"the gate was shut again"*, true
+  on 08-18 and 08-20 — and the telemetry refuted it outright: the bot was permitted to be long for
+  **half the session** and still found nothing worth buying. The binding constraint was signal
+  strength on a 0.89%-range tape, not the gate. **The gate finally has a denominator.**
+
 ---
 
 ## IMP-033 — 2026-08-21 (daily) — make refused candidates measurable: `bot.report --refusals`
@@ -2289,3 +2311,59 @@ prior review could: (1) does the `crossover` cohort's forward return stay ≤ 0 
 was today's wash a narrow-tape artefact; (2) does the `gate` cohort keep out-running the others — and
 if it does over ≥3 windows, that is the first real case for revisiting the gate's shape; (3) does
 `ribbon_spread_pct` separate the `<0.5%`-MFE cohort once gate-state is controlled for.
+
+- **Observed effect:** ✅ **VALIDATED (weekly 08-21, ~1 hour after it shipped) — load-bearing
+  immediately, forward effect still unmeasured.** The weekly ran the prescribed command and it
+  answered two of its own three questions on the spot (n=76 over three sessions):
+
+  ```
+  cohort        n   avgMFE   avgMAE   avgFwd  <0.5%MFE  hitTrail  stopped
+  crossover    38   +0.41%   -0.62%   -0.21%   26/38      2/38     2/38
+  confidence   23   +0.40%   -0.47%   -0.18%   16/23      2/23     0/23
+  gate         15   +1.08%   -0.94%   +0.28%    7/15      5/15     1/15
+  ALL          76   +0.54%   -0.64%   -0.11%   49/76      9/76     3/76
+  ```
+
+  **(1) Answered — yes, the crossover cohort's forward return stays ≤ 0 across the full week**
+  (−0.21%, 68% dead on arrival vs the 46.6% admitted-trade baseline, 2 of 38 reaching the trail).
+  08-21's wash was not a narrow-tape artefact. This is the **fifth** independent refutation of
+  lowering `MIN_CROSSOVER`. The confidence bar validated the same way (−0.18%, 70% dead).
+  **(2) Answered directionally but NOT acted on — and the weekly recorded why, which matters more
+  than the number.** The gate cohort does keep out-running the others on every metric. But the
+  weekly ruled the table **cannot settle the gate question in either direction**, because a refusal
+  is only logged when a candidate already scored: **the table prices the gate's misses and is
+  structurally blind to its saves** (the sessions the gate protects produce few or no scored
+  candidates and so contribute almost nothing to it). A positive forward return in the gate cohort
+  is therefore what a *profitable* gate would also produce. Same conditioning error IMP-031 exposed
+  in the 08-14 weekly's "5% of refusals" metric. **Net P&L in replay, gate ON vs OFF, remains the
+  only measure that captures both sides — and it favours the gate 4 windows to 0.**
+  **(3) Still open** — `ribbon_spread_pct` remains confounded with gate state at n=2. Needs ≥3
+  windows with gate state controlled.
+  **Caveat honoured:** the tool's own `UPPER BOUND` warning is doing real work — 9 of 76 would have
+  hit the 1.25% trail before the flatten, so `avgFwd` overstates what any of these cohorts would
+  actually have banked.
+
+---
+
+## Weekly review note — 2026-08-21 (weekly): NO CODE CHANGE SHIPPED
+
+**The 08-21 weekly review shipped nothing, deliberately.** Recorded here so the numbering is
+unambiguous and the next routine does not go looking for an IMP-034 that does not exist.
+
+Three independent reasons, any one sufficient:
+1. **The daily review already shipped tonight.** IMP-033 committed `733c110` at **20:11:52 UTC** and
+   restarted the service at **20:11:58**. The weekly launched at **21:00 UTC**. Two strategy changes
+   in one evening — the second untested against the first — is precisely the thrash the weekly
+   routine exists to prevent. The handoff discipline runs both directions.
+2. **Schedule slip.** The weekly is specified to run Fri 20:00 UTC with a hard no-new-code deadline
+   at 20:35. It launched at **21:00**, already past that deadline before any evidence was gathered.
+3. **Neither open candidate is ready.** Both the RSI-constant re-fit and the `ribbon_spread_pct`
+   filter require ≥3 agreeing replay windows, which could not be run properly in the remaining time.
+   Shipping either on this week's evidence alone would be exactly the overfit the freeze prevents.
+
+**Analysis-only was the correct outcome, not a shortfall.** The week's substantive contributions were
+(a) settling `MIN_CROSSOVER` and `ENTRY_THRESHOLD` on live outcomes at n=76, (b) refuting the
+tempting gate change with a structural argument rather than a bigger sample, and (c) naming the
+frequency collapse (45 → 2 trades/week over seven weeks) as the project's new binding constraint.
+**Next number to use is IMP-034.** The weekly's recommendation for it is an **in-repo earnings
+blackout** the bot owns itself — see `memory/weekly-review.md`, week ending 2026-08-21.
