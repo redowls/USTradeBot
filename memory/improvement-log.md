@@ -2273,8 +2273,15 @@ Verified twice, both restored to green afterwards:
 
 ### Live validation (same evening, not deferred)
 Per the 08-14 weekly's standing rule — *no IMP entry may be written in the past tense until `git log`
-shows the commit AND `ActiveEnterTimestamp` post-dates the file mtime.* Recorded below in this entry
-after the restart, not before.
+shows the commit AND `ActiveEnterTimestamp` post-dates the file mtime.* Both confirmed:
+- `git log` / `origin/main` → **733c110** (pushed).
+- `ActiveEnterTimestamp` **20:11:58 UTC** post-dates every touched file's mtime
+  (`persistence.py` 20:05:32, `report.py` 20:07:10, `refusals.py` 20:08:57). **The running process
+  carries this code.**
+- Clean startup: schema ensured (14 batches, unchanged), 18/18 symbols warmed from history, IEX stream
+  subscribed, `NRestarts=0`, no WARNING-or-above. The restart is a no-op for behaviour — the service
+  imports `persistence` but never `refusals`, which lives on the report path only — and was performed
+  to prove the modified `persistence.py` still boots, not to activate anything.
 
 ### What to check next
 Run `bot.report --days 7 --refusals` at the weekly. The three questions it can now answer that no
