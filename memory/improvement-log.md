@@ -2487,3 +2487,14 @@ The market gate. Four consecutive sessions of it declining the day's best candid
 it the obvious target; the weekly's pre-registered ON/OFF test, run tonight on 4 fresh
 windows, says **gate ON wins 4 of 4 on net P&L, PF, win rate and avg/trade** (see the
 2026-08-24 daily review). Eight agreeing windows now. Untouched.
+
+**Live validation (2026-08-24 20:21 UTC).** Verified, not assumed: `systemctl restart`
+→ `is-active` **active**, **MainPID 1654015**, `ActiveEnterTimestamp` **20:21:19 UTC**
+against a `bot/signals.py` mtime of **20:17:46 UTC** — the file predates the process, so
+the running interpreter loaded the new weights (the deploy-gap check: a "restarted clean"
+claim is worthless without it). `DEFAULT_WEIGHTS` in the live tree reads
+**crossover=39.0 trend=26.0 rsi=20.0 volume=0.0 volatility=15.0, sum=100.0**. Startup
+banner clean: watchlist 18/18, **warmup primed 18/18**, IEX stream subscribed to all 18,
+account `PA34DFFLTHRT` reconciled at equity **9089.13** with no open positions,
+**NRestarts=0**, **0 WARNING-or-above lines** since start. Files left
+`ustradebot:ustradebot`; `.env` untouched.
