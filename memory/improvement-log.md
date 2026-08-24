@@ -2367,3 +2367,123 @@ tempting gate change with a structural argument rather than a bigger sample, and
 frequency collapse (45 → 2 trades/week over seven weeks) as the project's new binding constraint.
 **Next number to use is IMP-034.** The weekly's recommendation for it is an **in-repo earnings
 blackout** the bot owns itself — see `memory/weekly-review.md`, week ending 2026-08-21.
+
+---
+
+## IMP-034 — 2026-08-24 (daily) — stop paying for volume: `conf_volume` weight 15 → 0
+
+### The problem
+The confidence score is supposed to *rank* setups. Audited against 268 live trades, it
+mostly does not — and one of its five components ranks them **backwards**.
+
+**Dead weight.** Two of the five sub-scores are near-constant for any candidate that
+reaches scoring:
+
+| sub-score | ==1.00 | mean | effect |
+|---|---|---|---|
+| `conf_rsi` (20 pts) | 252/268 | 0.979 | ~19.6 pts handed to everyone |
+| `conf_volatility` (15 pts) | 174/268 | 0.958 | ~14.4 pts handed to everyone |
+
+So **~34 of 100 points are a constant subsidy**, and `ENTRY_THRESHOLD = 60` is in truth
+asking for ~26 of the ~65 points that actually vary. The same pattern holds on the 108
+refusals recorded since IMP-030 (`conf_rsi` 1.00 on 105, `conf_volatility` on 100).
+
+**Inverted weight.** `conf_volume` is not inert — it varies widely (139 distinct values
+over 268 trades) — and it is **anti-correlated with P&L**:
+
+| `conf_volume` band | n | win % | total P&L |
+|---|---|---|---|
+| **1.00 (full marks)** | **79** | 44.3% | **−$377.93** |
+| <1.00 | 23 | 56.5% | +$140.50 |
+| <0.75 | 32 | 46.9% | +$60.48 |
+| <0.50 | 43 | 53.5% | +$74.06 |
+| <0.25 | 40 | 35.0% | −$96.31 |
+| **0.00 (zero marks)** | **51** | 43.1% | **+$185.99** |
+
+The band the scorer rewards most is the **worst band by a factor of two**, and the band
+it punishes most is the best. It reproduces on the post-IMP-021 window (1.00 band the
+only negative one). First observed 2026-08-17 and carried on the weekly's
+do-not-relitigate list as *"`conf_volume` — inverted"*; **acting on it is the follow-through,
+not a re-litigation.**
+
+**Why it is inverted, mechanically:** heavy volume on a *1-minute ribbon cross* means the
+move is already being chased. That is IMP-017's finding — this bot's entire lifetime loss
+was concentrated in buying moves that had already happened — restated in a sub-score.
+
+### The change
+`bot/signals.py`, `ScoreWeights` defaults only. No entry/exit/sizing/risk path touched.
+
+```
+crossover  30.0 → 39.0
+trend      20.0 → 26.0
+rsi        20.0   (unchanged)
+volume     15.0 → 0.0
+volatility 15.0   (unchanged)
+```
+
+Three deliberate choices:
+1. **The sub-score is still computed and still persisted** to `dbo.trades.conf_volume`
+   and `dbo.entry_refusals.conf_volume`. Weight 0 stops it paying; it does not stop it
+   being measured. The decision stays falsifiable — if the inversion reverses, we will
+   see it.
+2. **Proportional redistribution** across the two components that discriminate in the
+   correct direction, preserving their 3:2 ratio (+9 / +6). This introduces **no new free
+   parameter to fit**. The alternative tested (all 15 to crossover) was slightly worse.
+3. **Renormalise to 100.** Leaving the weights summing to 85 would have silently turned
+   `ENTRY_THRESHOLD = 60` into a 71%-of-maximum bar and cut trading hard — confounding a
+   scoring change with a threshold change. Renormalising isolates *which* setups rank
+   well and leaves the bar where it is.
+
+### Validation
+`bot.replay` over the current 18-name watchlist, gate ON, current config, 4 windows:
+
+| window | baseline | IMP-034 | Δ net | PF |
+|---|---|---|---|---|
+| 10d | +$3.14 | −$1.78 | **−$4.92** | 1.14 → 0.93 |
+| 20d | +$48.28 | **+$94.38** | +$46.10 | 1.30 → 1.57 |
+| 30d | +$281.14 | **+$356.08** | +$74.94 | 2.25 → 2.43 |
+| 45d | +$370.21 | **+$454.16** | +$83.95 | 2.14 → 2.30 |
+
+**3 of 4 windows improve; the dissenting window holds n=3 trades** and turns on a single
+outcome, so it carries no weight. Trade count over 45d goes **48 → 50** — this buys
+better selection, not more activity. Win rate 64.6% → 64.0%: judged on payoff and PF, per
+IMP-018's standing rule.
+
+A rejected variant is recorded so it is not re-tried: **all 15 points to crossover**
+(39/20/20/0/15 → 45/20/20/0/15) gave +$67.32 / +$332.71 / +$434.01 on 20/30/45d — better
+than baseline, worse than proportional, and it required inventing a new ratio.
+
+**Tests: 434 pass** (431 → 434, +3 in `tests/test_signals.py`):
+- `test_weights_still_sum_to_100` — guards the renormalisation, so a future edit cannot
+  silently move the effective threshold.
+- `test_volume_subscore_is_reported_but_does_not_move_the_total` — a 2.0× and a 0.1×
+  volume candidate, identical otherwise, must score 1.00 / 0.00 on the sub-score and
+  **the same total**.
+- `test_todays_refused_msft_no_longer_outranks_the_wider_cross` — built on today's real
+  pair: MSFT 15:07 scored 71.01 on a narrow cross carried by volume 0.711, while GOOG
+  15:09 scored 78.21 on a genuinely wide cross. Volume may no longer buy rank, and a
+  wider cross must outrank a narrow-but-heavily-traded one.
+
+`bot.preflight`: Alpaca PASS, SQL Server PASS, Telegram PASS, 1 expected market-closed
+warning.
+
+### What to check tomorrow
+- **Does the trade population change shape?** Same-ish count, different names. The
+  falsifier: if new entries cluster in the `conf_volume ≈ 1.00` band anyway (because
+  crossover and volume are correlated on this watchlist), the change is cosmetic — check
+  `conf_volume` on the next 10 fills.
+- **The confidence bands should start to rank.** `dbo.vw_confidence_outcome` is currently
+  non-monotonic and worst at the top (90-100: 3 trades, 0% win, −$144.42). If the score
+  is now measuring something real, the top band should stop being the worst. Slow signal —
+  needs weeks, not days.
+- **Do NOT stack the `conf_rsi` / `conf_volatility` change on top of this yet.** The
+  remaining 35 points of dead weight are the obvious next target and are filed in
+  `todo.md`, but `conf_rsi` is doing veto work (it reaches 0.0 on overbought ≥70) that a
+  naive weight removal would destroy. One scoring change at a time, with live evidence
+  between them.
+
+### Not changed, and why
+The market gate. Four consecutive sessions of it declining the day's best candidate made
+it the obvious target; the weekly's pre-registered ON/OFF test, run tonight on 4 fresh
+windows, says **gate ON wins 4 of 4 on net P&L, PF, win rate and avg/trade** (see the
+2026-08-24 daily review). Eight agreeing windows now. Untouched.

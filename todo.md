@@ -320,6 +320,28 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       obvious route out of "long beta". It is a materially different risk profile (shorting,
       borrow, unbounded loss) and is **explicitly out of scope for an unattended routine.**
       Proposing it here only.
+- [ ] **Free the remaining 35 points of dead weight in the confidence score (follow-on to
+      IMP-034).** `conf_rsi` is 1.00 on **252/268** live trades (mean 0.979) and
+      `conf_volatility` on **174/268** (mean 0.958), so ~34 of 100 points are a constant
+      subsidy handed to every candidate and `ENTRY_THRESHOLD=60` is really asking for ~26 of
+      ~65 varying points. **Do not simply zero them like IMP-034 did to volume:** `conf_rsi`
+      reaches 0.0 on overbought (RSI ≥ 70), so it is doing **veto** work, not ranking work,
+      and dropping its weight would delete that veto. The right experiment is to **re-express
+      both as explicit boolean gates** (refuse if RSI ≥ 70; refuse if ATR/close ≥ `_ATR_BAD`)
+      and hand their 35 points to crossover and trend — measured in replay across ≥3 windows,
+      gate ON, against the IMP-034 baseline. **Blocked until IMP-034 has live evidence — one
+      scoring change at a time.**
+- [ ] **`--days N` is a rolling timestamp, not a calendar boundary — every study window is
+      clock-dependent.** `performance_summary`, `closed_trades` and `refusals` all filter on
+      `DATEADD(day, -?, SYSUTCDATETIME())`, so the cutoff lands at *the hour the routine
+      happens to run*. Consequence: `--days 3` run on a Monday evening returns **only
+      Monday** — Friday's session ended before the cutoff — and `--days 5` reported n=82
+      against a true 4-session refusal population of n=108 on 2026-08-24. It is harmless at
+      the 21:10 UTC slot and wrong at the 11:30 UTC pre-market slot, and it makes every "last
+      N days" figure in the review history non-reproducible. **Fix:** cut at
+      `CAST(DATEADD(day, -(N-1), SYSUTCDATETIME()) AS DATE)` so `--days N` means N calendar
+      days ending today. Cheap, zero trading risk, and it underpins the pre-registered
+      multi-window studies. **Leading candidate for the next daily run.**
 
 ---
 

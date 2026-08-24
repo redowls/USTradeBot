@@ -46,12 +46,43 @@ _ATR_BAD = 0.0100  # >= this -> 0.0
 
 @dataclass(frozen=True)
 class ScoreWeights:
-    """Weights for the five confidence components (should sum to 100)."""
+    """Weights for the five confidence components (should sum to 100).
 
-    crossover: float = 30.0
-    trend: float = 20.0
+    ``volume`` carries **zero** weight (IMP-034). Its sub-score is still computed and
+    persisted on every entry and refusal — the relationship stays falsifiable — but it
+    no longer moves the total, because live P&L says the score rewards it *backwards*:
+
+    ==================  ===  =======  ==========
+    conf_volume band      n  win %    total P&L
+    ==================  ===  =======  ==========
+    1.00 (full marks)    79    44.3%    −$377.93
+    0.00 (zero marks)    51    43.1%    +$185.99
+    ==================  ===  =======  ==========
+
+    The band the scorer rewarded most was the worst-performing band by a wide margin,
+    and the band it punished most was the best. That is consistent with IMP-017's
+    finding that this bot's entire lifetime loss came from buying moves that had
+    already happened: heavy volume on a 1-min ribbon cross means the move is being
+    chased, not caught. First observed 2026-08-17, confirmed on both all-time and
+    post-IMP-021 windows 2026-08-24.
+
+    The freed 15 points are redistributed **proportionally** across the two components
+    that discriminate in the correct direction — crossover (30→39) and trend (20→26),
+    preserving their existing 3:2 ratio. Proportional redistribution is deliberate: it
+    introduces no new free parameter to fit. Renormalising to 100 (rather than leaving
+    the weights summing to 85) keeps ``ENTRY_THRESHOLD`` semantics unchanged, so this
+    change isolates *which* setups score well and does not silently tighten the bar.
+
+    Replay across four windows, current config, gate ON (net P&L, baseline → IMP-034):
+    10d +$3.14 → −$1.78 (n=3, noise) · 20d +$48.28 → +$94.38 · 30d +$281.14 → +$356.08 ·
+    45d +$370.21 → +$454.16. Trade count is essentially unchanged (48 → 50 over 45d),
+    so the gain is selection quality, not more trading.
+    """
+
+    crossover: float = 39.0
+    trend: float = 26.0
     rsi: float = 20.0
-    volume: float = 15.0
+    volume: float = 0.0
     volatility: float = 15.0
 
 

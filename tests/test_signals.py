@@ -121,6 +121,79 @@ def test_confidence_weighted_total_in_range():
     assert breakdown.total > 60.0  # a strong, confirmed setup clears the threshold
 
 
+# --- IMP-034: volume is measured but unweighted ----------------------------
+
+
+def test_weights_still_sum_to_100():
+    """Renormalising after dropping volume keeps ENTRY_THRESHOLD semantics intact."""
+    w = ScoreWeights()
+    total = w.crossover + w.trend + w.rsi + w.volume + w.volatility
+    assert total == pytest.approx(100.0)
+    assert w.volume == 0.0
+
+
+def test_volume_subscore_is_reported_but_does_not_move_the_total():
+    """The inverted component stays observable and stops paying (IMP-034).
+
+    Volume scored 1.00 on 79 live trades for −$377.93 and 0.00 on 51 for +$185.99, so
+    the scorer was paying for the wrong thing. The sub-score must still be recorded —
+    ``dbo.trades.conf_volume`` and ``dbo.entry_refusals.conf_volume`` are what keep the
+    decision falsifiable — but it must no longer change the ranking.
+    """
+    gate = _snap(ribbon=(102.0, 101.0, 100.0), prev_ribbon=(101.0, 100.5, 100.0), close=100.0)
+    common = dict(
+        ribbon=(101.0, 100.4, 100.0),
+        prev_ribbon=(99.9, 100.4, 100.0),
+        close=100.0,
+        rsi=55.0,
+        atr=0.1,
+    )
+    chased = confidence(_snap(volume=200.0, avg_volume=100.0, **common), gate)  # 2.0x
+    quiet = confidence(_snap(volume=10.0, avg_volume=100.0, **common), gate)  # 0.1x
+
+    assert chased.volume == pytest.approx(1.0)  # still computed
+    assert quiet.volume == pytest.approx(0.0)  # still computed
+    assert chased.total == pytest.approx(quiet.total)  # but no longer ranks them
+
+
+def test_todays_refused_msft_no_longer_outranks_the_wider_cross():
+    """Regression on a real 2026-08-24 pair the old weighting ordered backwards.
+
+    Both candidates were refused on 2026-08-24. MSFT 15:07 scored 71.01 on a *narrow*
+    cross (conf_crossover 0.2844) carried by volume 0.7110; GOOG 15:09 scored 78.21 on
+    a genuinely wide cross (conf_crossover 0.2735, volume 1.0000). Under the old
+    weighting a candidate could buy rank with volume alone. After IMP-034 the ranking
+    must follow crossover and trend, the two components that discriminate correctly.
+    """
+    gate = _snap(ribbon=(102.0, 101.0, 100.0), prev_ribbon=(101.0, 100.5, 100.0), close=100.0)
+    # Same cross geometry, same trend, same RSI/ATR — volume is the only difference.
+    common = dict(
+        ribbon=(100.28, 100.1, 100.0),
+        prev_ribbon=(100.2, 100.1, 100.0),
+        close=100.0,
+        rsi=55.0,
+        atr=0.1,
+    )
+    thin_volume = confidence(_snap(volume=50.0, avg_volume=100.0, **common), gate)
+    heavy_volume = confidence(_snap(volume=300.0, avg_volume=100.0, **common), gate)
+    assert heavy_volume.total == pytest.approx(thin_volume.total)
+
+    # And a wider cross must now outrank a narrow one that is merely heavily traded.
+    wide_thin = confidence(
+        _snap(
+            ribbon=(101.0, 100.4, 100.0),
+            prev_ribbon=(99.9, 100.4, 100.0),
+            close=100.0,
+            rsi=55.0,
+            atr=0.1,
+            volume=50.0,
+            avg_volume=100.0,
+        ),
+        gate,
+    )
+    assert wide_thin.total > heavy_volume.total
+
+
 # --- market hours ----------------------------------------------------------
 
 
