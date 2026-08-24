@@ -5170,3 +5170,165 @@ Ranked, worst-to-best declined (conf · MFE · MAE · forward-to-flatten · ribb
   positioning drift into it starts next week and should widen semi ribbons (AMD, TSM).
 - **Do not re-run the "why no trades" reconstruction by hand.** `bot.report --days N --refusals` now
   answers it.
+
+---
+
+## 2026-08-24 — Daily Review
+
+### Stats
+- **Closed trades: 0.** Fifth consecutive session with no trade — the last fill was
+  **2026-08-17** (MU, INTC, both stopped). Net P&L **$0.00**, win rate n/a.
+- **Equity $9,089.13** (cash $9,089.13, `last_equity` identical, 0 open positions,
+  0 orders submitted today). **DB ↔ broker reconcile exactly**: `dbo.trades` has 0 rows
+  touching today, `/v2/positions` empty, `/v2/orders?status=all&after=today` empty.
+  Account `PA34DFFLTHRT`. No drift, no missed fill, nothing carried overnight.
+- **Service healthy.** `is-active` → active, started **11:37:11 UTC** by the pre-market
+  routine (watchlist changed: NVDA parked, DASH added), **0 WARNING-or-above lines all
+  session**, no restarts, no reconnects.
+- **Scored refusals: 32** across 10 symbols — the reviewable population tonight.
+- One ops nit, benign: the 20:00 UTC `bot.report` invocation hit a **transient Telegram /
+  DB read timeout** and printed empty tables. Re-running immediately returned full
+  results. Network flap, not a code fault — but see "Lessons" #4.
+
+### Trade-by-trade review → refusal-by-refusal review
+No trades, so the population is the 32 refusals, each scored against its own forward
+tape (`bot.report --refusals`, IMP-033: enter at the refusal candle's close, flatten
+with the session).
+
+**Today's cohort — the filters cost nothing, and this is not a close call:**
+```
+cohort        n   avgMFE   avgMAE   avgFwd  <0.5%MFE  hitTrail  stopped
+ALL          32   +0.30%   -0.49%   -0.14%   26/32      0/32     0/32
+```
+**Zero of 32 declined candidates could have banked anything on the 1.25% trail. Zero
+would have been stopped. 26 of 32 never traded 0.5% above their entry.** Average forward
+return −0.14%. On today's tape, taking any of these was paying spread for a coin flip.
+
+Refusal reasons: **16 below `ENTRY_THRESHOLD`** (conf 50.0–59.7), **12 on the
+`MIN_CROSSOVER` 0.25 floor** (conf_crossover 0.03–0.18), **4 vetoed by the market gate**.
+
+**Why the gate refused everything: QQQ's 5m ribbon was never bullish, all session.**
+IMP-032's telemetry is unambiguous — **86 gate candles, `gate_open` 0, `stacked` 0**,
+`fast_rising` 33. A **0% duty cycle**, against 49.3% on 08-21. QQQ closed **−0.11%**
+intraday on a **0.96% range**; SPY **−0.05%** on **0.41%**.
+
+**But the individual names trended, and that is the tension of the day.** IEX 1-min bars,
+13:30→20:00 UTC: **GOOG +1.31%** (2.49% range), **NFLX +1.05%**, **AMZN +0.97%**,
+**MSFT +0.91%**, **DASH +3.87%** (4.26% range). The four candidates the gate alone
+vetoed were **AMZN (conf 83.2), GOOG (78.2), DASH (71.6), MSFT (71.0)** — i.e. the gate
+declined four of the day's genuine movers because the *index* was flat. **This is the
+fourth consecutive session the gate has declined the day's best candidate** (08-20 MU,
+08-21 PLTR/TSLA, 08-24 these four). I ran the pre-registered test rather than acting on
+the pattern — see below.
+
+### What worked / what didn't
+- **Worked — the two signal filters read a dead tape correctly.** `ENTRY_THRESHOLD=60`
+  and `MIN_CROSSOVER=0.25` between them declined 28 candidates, **none of which reached
+  the trail**. That is the fifth and sixth independent confirmation. Do not loosen either.
+- **Worked — ops.** Clean session, exact broker reconciliation, gate telemetry writing
+  correctly on its second full day (86 rows, first at 12:10 UTC vs the 11:37 restart, so
+  no warmup backfill contamination).
+- **⚖️ RESOLVED — the market gate is vindicated, and the temptation is now closed.**
+  The 08-21 weekly pre-registered the falsifiable test: *"re-run gate ON/OFF on the
+  current config across ≥3 fresh windows. If net P&L agrees in sign in ≤1 of 3 windows,
+  the gate's shape becomes revisable."* **Run tonight, 4 windows, current 18-name
+  watchlist, gate OFF via `MARKET_FILTER_SYMBOL=""`:**
+
+  | window | gate ON | gate OFF |
+  |---|---|---|
+  | 10d | **+$3.14** · PF 1.14 · 3 tr | −$10.24 · PF 0.93 · 20 tr |
+  | 20d | **+$48.28** · PF 1.30 · 19 tr | −$47.79 · PF 0.89 · 54 tr |
+  | 30d | **+$281.14** · PF 2.25 · 36 tr | +$243.87 · PF 1.38 · 89 tr |
+  | 45d | **+$370.21** · PF 2.14 · 48 tr | +$188.54 · PF 1.19 · 125 tr |
+
+  **The gate wins on net P&L, profit factor, win rate and avg/trade in 4 of 4 windows.**
+  The revisability condition is not met — it is not 1 of 3, it is 0 of 4. That is now
+  **eight agreeing windows**. Gate OFF takes **2.6× more trades** and converts a winner
+  into a loser in both recent windows. **The gate is not revisable. Stop re-opening it.**
+- **And this explains why the refusal table is a trap for this question.** The gate
+  cohort now reads n=19 over 4 sessions, avgMFE **+0.93%**, avgFwd **+0.21%**, trail-hit
+  **5/19** — the only cohort with a positive forward return (crossover −0.20%, confidence
+  −0.16%). Read alone it argues loudly for softening the gate. **It is wrong**, exactly as
+  the weekly warned: it prices the gate's misses per-candidate and is blind to the 3–5×
+  volume of losing trades the gate prevents, and to capital being finite. **Two honest
+  instruments, opposite answers; replay net P&L is the one that decides.** Recorded so
+  no future run re-derives the seductive half.
+- **Didn't work — Perplexity `sonar`, 17th consecutive thin-or-wrong run, and wrong in
+  the direction that matters.** It reported *"tech weakness… Nasdaq down 0.38%… risk-off"*
+  and returned *"no specific catalyst"* for **8 of 9** tickers. The bars say the index was
+  **flat (QQQ −0.11%)** while **GOOG +1.31%, DASH +3.87%, NFLX +1.05%, AMZN +0.97%,
+  MSFT +0.91%** all trended intraday. "Risk-off tech weakness" would have written tonight
+  up as a regime the bot correctly sat out; the truth is narrower and more useful — a
+  **flat index with trending constituents**, which is precisely the tape the gate is
+  designed to sit out and precisely the tape where that hurts most. **Standing rule earned
+  its keep a third time: regime comes from IEX bars, `sonar` is lead-generation only.**
+
+### Lessons & improvement candidates
+1. **SHIPPED — IMP-034: `conf_volume` is measured but no longer weighted (15 → 0,
+   redistributed proportionally to crossover 30→39 and trend 20→26).** The audit that
+   drove it: across 268 live trades the confidence blend is **mostly dead weight** —
+   `conf_rsi` is 1.00 on **252/268** (avg 0.979) and `conf_volatility` on **174/268**
+   (avg 0.958), so **~34 of 100 points are handed to every candidate regardless of
+   setup**. Of the rest, `conf_volume` is not merely inert but **inverted**: the band it
+   rewards most (1.00, n=79) returned **−$377.93**, the band it punishes most (0.00,
+   n=51) returned **+$185.99** — confirmed on both all-time and post-IMP-021 windows.
+   Heavy volume on a 1-min ribbon cross means the move is being *chased*, which is
+   IMP-017's lifetime-loss finding restated. Replay, 4 windows, gate ON: **+$48→+$94
+   (20d), +$281→+$356 (30d), +$370→+$454 (45d)**; the only dissent is the **10d window at
+   n=3 trades**, which is noise. Trade count 48→50 over 45d, so this is **selection
+   quality, not more trading**. Rationale in the improvement log.
+2. **The remaining dead weight is the next question, and it is NOT a tweak to make
+   blind.** `conf_rsi` (20 pts) and `conf_volatility` (15 pts) are near-constant *for
+   candidates that reach scoring* — but `conf_rsi` does hit 0.0 (overbought ≥70), so it
+   is functioning as a **de-facto veto** rather than a ranking term, and removing its
+   weight would remove that veto. **The right experiment is to re-express both as explicit
+   gates and free their 35 points for the discriminators** — measured across ≥3 windows,
+   not assumed. Filed to `todo.md`. **Do not touch until IMP-034 has live evidence.**
+3. **`ribbon_spread_pct` — the weekly's confound is cleared, the effect is real but too
+   weak to ship.** n=108 over 4 sessions, gate state controlled: within the **gate-shut**
+   population (n=74) the high-spread half is **62% dead / 7 trail-hits** vs the low half
+   **70% dead / 2 trail-hits**; tertiles across all rows give avgMFE **+0.72% (high)** vs
+   **+0.34% / +0.34%**. So it does separate — **but every bucket still has a negative or
+   zero average forward return**, i.e. it separates *less dead* from *more dead*, not
+   winners from losers. **And a spread floor is an additional filter on a bot that has not
+   traded in five sessions — the wrong direction.** Keep accruing; do not ship.
+4. **Not a candidate tonight, but logged: the `--days N` window is a rolling timestamp,
+   not a calendar boundary.** All three windowed queries use
+   `DATEADD(day, -?, SYSUTCDATETIME())`, so `--days 3` run on a Monday evening silently
+   returns **only Monday** (Friday's session ended before the cutoff) — it cost me a real
+   confusion tonight, `--days 5` reporting n=82 against a true 4-session population of
+   n=108. It is harmless at the 21:10 UTC cron slot and wrong at any other hour, which
+   makes every study window **clock-dependent and non-reproducible**. Filed to `todo.md`
+   as the leading candidate for the next run.
+5. **Not a candidate: loosening anything.** 0 of 32 declined candidates reached the trail.
+   There is no case in today's data for a lower threshold, a lower crossover floor, or a
+   softer gate — and the gate question is now closed by 8 windows.
+
+### Notes for pre-market research
+- **No watchlist change is indicated by today's session, and the board is not the
+  problem.** 10 distinct symbols produced 32 scored candidates — the most active refusal
+  day yet. Everything is reaching the scorer.
+- **DASH answered its day-one question emphatically: it works.** Added this morning as
+  the first name selected *on* the volatility floor, it scored **3 candidates** and was
+  the **best-moving name on the board (+3.87%, 4.26% range)**. The floor selects for
+  signal, not just against dead names. **Keep. The liquidity caveat ($0.81B/day) stands.**
+- **GOOG was the day's most active name — 6 refusals** (three on crossover 0.03/0.09/0.12,
+  three on confidence 56.2/57.7/58.4) — and it **ran +1.31%**. Second consecutive session
+  as the top chopper. Its pattern is many near-misses around a real move: the crossovers
+  fire late and thin. **Dead-signal test is dated 08-31; it is nowhere near dead.**
+- **AMZN (5 refusals, +0.97%), MSFT (5, +0.91%), NFLX (5, +1.05%) all trended and all
+  went untraded.** None of these is a watchlist problem — they were gated by the index.
+- **BABA's 50MA trigger did not fire and it printed no candidate today.** The pre-market
+  entry pre-registered *"if it closes below its 50MA, the two-leg rule fires on its own"* —
+  check the close before acting either way. It produced **0 refusals**, its quietest
+  session in a week.
+- **Regime expectation:** the gate ran a **0% duty cycle** on a flat index with trending
+  constituents. **This is the single tape shape where this bot's design costs it the
+  most, and it is by choice** — the 4-window study above says paying that cost is still
+  correct. If QQQ resumes trending, entries should appear with no code change, and they
+  will now be scored on cross geometry rather than on volume (IMP-034).
+- **Wednesday 08-26 is the week's pivot: NVDA AMC + July core PCE 08:30 ET.** NVDA is
+  parked so the board carries no direct exposure to the print, but **AMD, TSM, MU and
+  INTC will trade the read-through unhedged by design**. Jackson Hole runs 08-27→29.
+- **Dated items due 08-27:** NVDA re-enable, AAPL and JPM dead-signal tests, INTC
+  on-notice re-check.
