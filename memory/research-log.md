@@ -3936,3 +3936,236 @@ dates), the Alpaca news tape (45 headlines), SIP daily bars, `/v2/assets` and jo
   pre-market gap check cannot be sourced from this feed; it needs the news tape or WebSearch.
 
 ---
+
+## 2026-08-24 — Pre-market Research
+
+**The weekly review's one red-flag item is now closed: NVDA is PARKED ahead of Wednesday's print, three
+sessions early and deliberately so.** DASH added in its place. **18 → 18 enabled**, service restarted clean
+(warmup 18/18, banner shows DASH present / NVDA absent). Book is CLEAN & FLAT (broker-confirmed **0 positions,
+0 open orders**, equity **$9,089.13**, `last_equity` == `equity` — a **fifth** consecutive session that did not
+move the book) → **nothing locked**. The 08-21 daily review's instruction — *"the watchlist is not the problem,
+the tape was… no watchlist change is indicated by today's session"* — is honoured: **neither change today is a
+performance park.** One is event risk, one is an addition on its own merits.
+
+### Market context
+**A data-heavy, event-heavy week opening on a soft tape, with the board's largest scheduled risk on Wednesday.**
+- **Futures slightly lower / mixed, and the sources genuinely disagree — recorded as such rather than smoothed.**
+  The Alpaca tape at 09:30Z headlines *"S&P 500, Nasdaq 100 Futures Slip Ahead of Data-Heavy Week, Nvidia
+  Earnings, and Jackson Hole"*; WebSearch returned one feed with **ES +0.4% / NQ +0.3%** and another with **Dow
+  up, S&P and Nasdaq down**. **Taken as flat-to-slightly-lower, low conviction.** `sonar` gave **no futures
+  direction at all**. Per the standing rule no primary quote check was possible — **IEX carries no pre-market
+  prints**, so this figure rests on secondary sources and is flagged accordingly.
+- **The rates backdrop is the driver, and it is the same one that broke last week.** US 10-year at **~4.74%, a
+  20-month high**; the 30-year hit its **highest level since 2007**. S&P 500 sits **~2% below its record** after
+  a **−1.4% week**; **the Philadelphia semiconductor index fell ~5% last week.** That last figure matters more
+  than the index numbers — **five of the eighteen enabled names are semis.**
+- **In-session releases today: none of consequence.** The Chicago Fed National Activity Index prints **08:30 ET,
+  before the open**; 3- and 6-month bill auctions at 10:30 ET are not tradeable events. **`sonar` mislabelled the
+  Chicago Fed print as a market-hours release — verified against the calendar and corrected here.**
+- **This week's real calendar:** **NVDA Wed 08-26 AMC** · **July core PCE Wed 08:30 ET** · Q2 GDP revision +
+  durable goods Wed · **Jackson Hole 08-27→29, Chair Warsh keynote Fri 10:00 ET**. Also reporting: PDD/XPeng
+  today, INTU Tue, **CRWD + CRM + HPQ + OKTA Wed**, **MRVL + ULTA Thu**.
+- **No enabled board name reports today, and none reports during market hours this week.** NVDA is the only
+  board name with a print at all, and it is being parked for it below.
+
+### Carried from the 08-21 daily + weekly reviews
+- **🔴 "PARK NVDA BEFORE WED 08-26 — this is the one item with real money attached."** Done, today. See below
+  for why it was not deferred to Tuesday.
+- **"No watchlist change is indicated by today's session"** (daily) — honoured. **Nothing is parked for being
+  quiet, and no dead-signal clock was started or advanced.** QQQ, TSM and UBER printed near-zero ribbon spread
+  on 08-21 (0.00116 / 0.00186 / 0.00058) and the daily asked whether they are *"chronically inert or just quiet
+  on a narrow tape."* **The answer is: quiet.** On a 0.89%-range QQQ session, ribbon spread is not a symbol
+  property. All three clear the volatility floor on their own bars (**TSM ATR 3.26% / med range 2.43%**,
+  **UBER 3.47% / 3.07%**); **QQQ is the market-filter symbol and is structurally unparkable regardless**
+  (`bot/strategy.py:255-278` — the gate fails **OPEN** if `MARKET_FILTER_SYMBOL` leaves the watchlist).
+- **"PLTR and TSLA are the two names worth keeping"** (daily) — kept, and both are vindicated on fresh bars:
+  **PLTR +14.41% vs 20MA / +29.52% vs 50MA, ATR 4.28%, $6.18B/day**, the strongest chart on the board; **TSLA
+  +10.58% / −0.82%, +5.14% on Friday alone, ATR 3.82%, $11.66B/day**.
+- **"GOOG chopped hard — 5 refusals, the most of any symbol"** (daily) — **noted, not acted on.** Its
+  dead-signal test is dated **08-31** and 7 refusals in 5 sessions means it is reaching the scorer, so the
+  second leg fails anyway. Chart −1.46% / −2.40%. **Untouched.**
+- **Frequency collapse is the project's binding constraint** (weekly: 45 → 2 trades/week over seven weeks).
+  **This is the lens the DASH add is justified under** — it adds opportunity **without touching a single
+  filter**, which is the only direction the weekly left open.
+
+### Watchlist review (18 enabled, SIP daily bars through 08-21)
+
+**➖ NVDA — PARKED on a verified scheduled binary. This is the weekly's red-flag item and the only change here
+with capital at stake.**
+- **Confirmed Wednesday 2026-08-26, after the close** (press release ~13:20 PT, call 14:00 PT). Consensus
+  **~$91.85B revenue / $2.08 EPS** against company guidance of $91.0B ±2%. **Options are pricing a ~6% move**,
+  with sell-side notes flagging downside toward **$190** on a miss — NVDA closed **$214.72**.
+- **Why today and not Tuesday, which is the real decision.** The bot never holds overnight, so the mechanical
+  risk is only the 08-26 session itself. **But the bot has no earnings guard of its own** — its sole protection
+  is *this routine*, and **this routine crashed on 08-19 (`claude exited rc=1`) and left WMT and BABA unparked
+  into their prints.** Nothing bad happened then because the gate was 0.0% open on 08-20 — **that was luck, not
+  control**, and the weekly said so. Parking three sessions early costs two sessions of a **neutral** chart
+  (**+0.72% vs 20MA / +3.44% vs 50MA, −4.64% on 5 days**) with a **negative all-time record (−$16.65 / 13
+  trades)**; deferring costs a dependency on two more runs not crashing. **The insurance is cheaper than the
+  risk it removes.**
+- Headline flow is heavy but irrelevant to the decision: Cantor reiterated Overweight/$350, NVDA in talks to
+  back Perplexity at **$30B+**, a **$6B** Poolside deal, and Bloomberg reporting AI-server price hikes >15%.
+  **None of that is a reason to hold an enabled name into a 6% implied move.**
+- **Re-enable 2026-08-27**, once the print clears — the same pattern AAPL, AMZN, MSFT and TSLA were all
+  re-enabled on.
+
+**⚠️ BABA — KEPT, and this is the closest call of the run, so the reasoning is written out rather than
+asserted.** It is the board's worst two-day chart: **−8.57% on Friday** (a move **no prior entry captured**,
+because it happened after the 08-21 pre-market run) and **another ~3.7% lower pre-market today**.
+- **The cause is now known and it is dilution, not an earnings miss:** Alibaba **priced a HK$80B (~$10B) Hong
+  Kong placement of 710M new shares at HK$112.70**, reported Sunday, to fund AI capex. HK-listed shares fell
+  **~10%**. CEO Wu Yongming bought 350K shares; Michael Burry publicly rotated BABA → JD.
+- **It does not meet any standing park rule.** Chart is **−4.02% vs 20MA but +4.36% vs 50MA** — above one MA, so
+  the two-leg trend rule does not fire. ATR **3.80%**, median range **2.13%**, **95% of 20 sessions ≥1.25%** —
+  it clears the volatility floor comfortably. Its dead-signal clock is **paused to 09-09**. All-time **+$52.80
+  on 12 trades**, and **12 refusals in the last 5 sessions — the most of any symbol**, so it is very much alive
+  to the scorer.
+- **The governing precedent is three days old and points the same way:** TSLA's **1.96M-vehicle recall** was
+  logged-not-acted-on on 08-21 because *"it is not a scheduled binary and not a guidance change, it is priced
+  pre-open, and the bot never holds overnight."* **A priced placement is the same class of fact.** Bending a
+  rule to reach a park is the exact error this log refused on AVGO (08-18) and INTC (08-20).
+- **The clean resolution, stated in advance so it cannot be rationalised later: BABA's 50MA cushion is +4.36%
+  and it is gapping ~3.7% lower today. If it closes below its 50MA, the two-leg rule fires on its own and it
+  parks tomorrow — on the rule, not on the headline.** No new rule needed. **On notice.**
+
+**⚠️ INTC — kept, on notice, and it is now the worst chart on the enabled board.** **−5.88% vs 20MA / −16.74%
+vs 50MA, −12.13% over 5 days**, and the **worst recent P&L on the board: −$40.48 over 4 trades in 14 days.**
+The trend leg fires emphatically. **The second leg still fails** — it last traded **08-17 (7 days)** and
+produced 2 scored refusals on 08-20, so it is reaching the scorer. **Its re-check is dated 08-27 and I am
+honouring the date**, exactly as the 08-20/08-21 entries did when the temptation ran the other way. It remains
+the **#2 all-time earner (+$150.78 / 24 trades)**, ATR 7.22%, $10.05B/day. **Flagged as the most likely park of
+the week.**
+
+**⚠️ UBER — kept, one session old, and the risk its add note named has already landed.** The 08-21 entry said
+*"live risk is regulatory/labour headline flow, not a scheduled event."* Today: **Dutch regulators reportedly
+seeking nearly $1B in fines** over automated driver suspensions (08:48Z). **A reported fine is not a ruling and
+not a scheduled binary**; the chart is unhurt (**+6.71% vs 20MA / +8.07% vs 50MA, ATR 3.47%, med range 3.07%,
+100% of 20 sessions ≥1.25%**). **Kept. Recorded because a risk called in advance and then hit within one
+session is worth scoring the call on, either way.**
+
+**✅ MU — kept, and it is the board's liquidity anchor.** **+7.87% vs 20MA / +0.23% vs 50MA, ATR 6.90%, median
+range 5.42%, $33.56B/day** — the most liquid name on the board by 35%. Down **~3.3% pre-market** with the semi
+complex (`sonar` lead, consistent with SOX −5% last week), against a CEO piece: *"No End to AI Memory Supply
+Crunch."* **#1 all-time earner (+$189.55 / 25 trades).** Nothing to do.
+
+**🔒 QQQ — structurally locked, restated because the trade record keeps arguing for parking it.** Last traded
+**07-14 — 41 days**, the longest silence on the enabled board, ATR **1.59%**, median range **1.30%**, and only
+**50% of sessions clear the 1.25% trail**. **On the 08-21 volatility floor it would be a park candidate, and it
+must still never be parked:** it is `MARKET_FILTER_SYMBOL`, and removing it from the watchlist makes the market
+gate **fail OPEN** — one WARNING line and the bot's best-evidenced edge (four agreeing replay windows) silently
+switches off. On its own merits it is also the best record on the board: **7 trades, 6 wins, +$80.15.**
+
+**✅ The rest, briefly.** **ABNB** +10.84% / +21.94%, ATR 3.07% — strong, still the **thinnest enabled name at
+$0.80B/day**, on notice for that alone. **TSLA** +10.58% / −0.82%, **+5.14% Friday**. **NFLX** +5.72% / +6.80%,
+8 refusals in 5 sessions — genuinely active despite an all-time −$82.34. **LLY** +4.78% / +6.43%, ATR 3.34%,
+$3.22B/day, 2 refusals — settling in. **MSFT** +2.15% / +15.10%. **TSM** +1.35% / −1.31%, 5 refusals.
+**AMZN** −1.05% / +3.56%, above the 50MA so the trend leg fails, **re-check 09-02** unchanged. **JPM** −1.54% /
++2.22%, ATR 1.77% / median range 1.40% — **still the closest enabled name to SPY's volatility failure**, but
+80% of sessions clear the trail and it is above its 50MA; **dead-signal test 08-27**. **AAPL** −1.59% / −0.28%,
+**test 08-27**. **AMD** −1.63% / −7.25%, ATR 6.00%, below both MAs but last traded 08-13 — second leg fails,
+**dated 09-12**. **GOOG** −1.46% / −2.40%, **test 08-31**. **Liquidity floor clean: no sub-$5 names, no halts,
+thinnest enabled is ABNB at $0.80B/day.**
+
+### ➕ Add — DASH, and it is justified on the weekly's own diagnosis rather than on the NVDA slot
+**Verified on Alpaca `/v2/assets`: `tradable: true`, `status: active`, NASDAQ, us_equity.**
+- **Trend, both legs: +7.20% vs 20MA, +16.68% vs 50MA**, +2.98% on 5 days, +3.34% on 10 days.
+- **It clears the 08-21 volatility floor by the widest margin of any candidate screened: ATR 3.60%, median
+  session range 3.64%, and 100% of the last 20 sessions ranged ≥1.25% *and* ≥2%.** The floor exists because
+  SPY could not pay for its own 1.25% trailing stop; DASH's *median* session is nearly 3× that width.
+- **Event calendar clear.** Q2 2026 reported **2026-08-05** (revenue $4.454B, +36% y/y; adj. EBITDA $914M, +40%;
+  Q3 guidance **raised**). Q3 is due **late Oct → early Nov** — **~10 weeks clear**, the same standard LLY and
+  UBER were added on.
+- **Its move is operating momentum, not one binary to mean-revert out of.** Today's tape carries a DASH CFO
+  piece on share gains as consumers cut back (10:21Z); the company also took FAA Part 135 certification for
+  drone delivery and is scaling its "Dot" delivery robot.
+- **Why it is the right add on a week like this one:** the board carries **5 semis** into a week where **SOX
+  fell 5%** and the sector's bellwether reports Wednesday. DASH is a **consumer-platform** name, the second
+  after UBER, and it is uncorrelated to both the NVDA print and the rates move driving the tape.
+- **The honest debit, stated up front: $0.81B/day median dollar volume makes it the joint-thinnest name on the
+  board with ABNB.** It clears the floor but sits at it. **On notice for liquidity from day one.**
+
+**Rejected on fresh evidence:**
+- **HOOD — rejected, and it is the day's instructive rejection.** It screens spectacularly (**+15.18% vs 20MA,
+  ATR 5.66%, $1.60B/day**) — because it is **+13.70% pre-market on a Trump/Clarity Act crypto headline**. That
+  is a **gap**, and this bot's entire lifetime loss is concentrated in buying moves that already happened
+  (IMP-017). **A one-day news spike is the worst possible entry condition for a 1-min ribbon cross.**
+- **MSTR (+20.98% / +19.51%) and COIN (+19.70% / +17.65%) — rejected on the 08-21 crypto-beta rule**, applied
+  consistently rather than re-litigated because the numbers got prettier. Both are bitcoin proxies.
+- **SNOW — rejected on a verified date, exactly as MRVL was on 08-21.** It screens well (**+5.49% / +19.43%,
+  ATR 3.96%, $1.43B/day**) but **Snowflake reports this week**. Same reason MRVL (Thu 08-27), CRM and CRWD
+  (both Wed 08-26) are all off the table.
+- **NOW — rejected for a third time, and deliberately not overridden.** It is better than DASH on liquidity
+  (**$2.29B/day**) and volatility (ATR 4.87%, median range 5.02%) and it was tempting to reverse. **But it was
+  rejected on 08-18 and again on 08-21 for a V-bounce shape, and nothing in the fresh bars refutes that** — it
+  is still **+7.12% vs 20MA against +17.96% vs 50MA**, the same stretched gap. **Overturning a twice-stated
+  rejection with no new evidence is churn wearing a chart.** Re-screen when the 20/50 gap compresses.
+- **SMCI** (+13.38% / +22.16% but **−6.53% on 5 days** — erratic, not trending), **ORCL** (+4.03% / **+0.72%**
+  — the 50MA leg is effectively flat), **SHOP** (−3.29% on 5 days), **ANET** (−5.12% on 5 days), **META**
+  (−4.61% / −7.27%), **GE** (−4.37% / −3.17%), **CAT** (−1.60% / −8.57%), **BA** (−5.25% / −3.46%), **ARM**
+  (−6.69% / −19.53%), **APP** (−13.75% / −28.43%), **VST** (−6.08% / −11.18%), **RBLX** (−3.14% / −17.85%).
+- **DIS and V — rejected on the volatility floor, applied to candidates on the same day it is applied to
+  holdings.** DIS ATR **2.10%** / median range **1.82%** / only **40% of sessions ≥2%**; V ATR **1.87%** /
+  median range **1.65%** / **35% ≥2%**. Both trend fine. **The floor is not a trend rule.**
+- **Parked set — all four condition-gated re-enables re-checked, none met.** **XOM** is closest and genuinely
+  improved (**+4.28% / +10.84%, ATR 2.22%, $2.23B/day**) but its 08-17 condition was *"only if the oil headline
+  regime quiets down"* — with the Iran blockade still live it is **not quiet**; **unmet**. **AVGO −6.97% /
+  −5.16%** (chart-gated, unmet). **UNH −3.91% / −5.72%** (unmet). **SPY ATR 0.91%, median range 0.69%, 25% of
+  sessions ≥1.25%, 0% ≥2%** — the floor that parked it on Friday is **more** binding today, not less; **unmet**.
+
+### Changes applied to dbo.watchlist
+Two parameterized statements, `watchlist` the only table touched, **no DELETEs**. Note lengths were
+**pre-checked against `VARCHAR(128)`** (105 and 109 chars) — the truncation failure the 08-21 run hit is now
+a guard rather than a lesson:
+1. `UPDATE ... SET enabled = 0, note = ?` — **NVDA** (Q2 FY27 earnings Wed 08-26 AMC, options imply ~6%;
+   re-enable 08-27 once the print clears).
+2. `MERGE ... WHEN NOT MATCHED THEN INSERT` — **DASH** enabled 1 (new row; Alpaca-verified tradable/active).
+Both committed in one transaction. Re-read after commit: **18 enabled ≤ 30 ✓**, **31 rows ✓**, **13 parked ✓**.
+
+### Final watchlist
+**18 enabled** (≤30 ✓): AAPL ABNB AMD AMZN BABA **DASH** GOOG INTC JPM LLY MSFT MU NFLX PLTR QQQ TSLA TSM UBER.
+Parked (13): AVGO BIRD C COST ENPH **NVDA** QCOM SE SPY UNH WMT WPM XOM.
+**Service restarted (required — the table changed) and verified, not assumed:** `is-active` → **active**,
+**MainPID 1622230**, `ActiveEnterTimestamp` **2026-08-24 11:37:11 UTC**, **NRestarts=0**. Journald confirms the
+banner *"Watchlist (dbo.watchlist): AAPL, ABNB, AMD, AMZN, BABA, DASH, GOOG, INTC, JPM, LLY, MSFT, MU, NFLX,
+PLTR, QQQ, TSLA, TSM, UBER"* — **DASH present, NVDA absent** — **warmup primed 18/18**, the IEX stream
+subscribed to exactly those 18, account `PA34DFFLTHRT` reconciled at equity 9089.13 with **no open positions**,
+and **0 WARNING-or-above lines** in the 20 lines since start.
+🔒 Locked: **none (0 positions, 0 open orders)**.
+**Ops note, benign but recorded:** the *pre-restart* process logged a `ValueError: connection limit exceeded` on
+a websocket reconnect at **07:04:22 UTC** and **reconnected successfully one second later**, outside market
+hours. Same class as the two keepalive reconnects the 08-21 weekly logged. **On the old PID, not the current
+one; no action.**
+**Upcoming: NVDA re-enable 08-27 (after the 08-26 AMC print) · core PCE + Q2 GDP Wed 08-26 · AAPL and JPM
+dead-signal tests 08-27 · INTC on-notice re-check 08-27 · Jackson Hole 08-27→29 (Warsh Fri 10:00 ET) · MRVL
+and SNOW re-screen after their prints · CRM add after 08-26 · GOOG dead-signal test 08-31 · AMZN re-check
+09-02 · BABA 09-09 (and see the 50MA trigger above, which may fire first) · AMD 09-12 · AVGO, UNH, XOM and SPY
+re-enables are condition-gated, not dated.**
+
+### Perplexity `sonar` — run 16: thinnest ticker layer yet, and it missed the day's biggest board event
+**16 of 18 names returned *"no specific overnight/pre-market catalyst surfaced"*** — on a morning when the
+Alpaca news tape carried **Alibaba pricing a $10B share placement**, a **~$1B Dutch fine report against UBER**,
+and a **Cantor reiteration on NVDA**. **It missed the BABA placement entirely**, which is the single most
+consequential fact about the board today. It also **gave no futures direction at all** (*"not explicitly
+reported"* for both indices) and **mislabelled the Chicago Fed National Activity Index as a market-hours
+release** when it prints 08:30 ET, pre-open — an error that would have manufactured a fake in-session event
+had it been taken at face value. **Sixteenth consecutive thin-or-wrong run.**
+**Credit where it is due, and it is narrow but real:** its pre-market decliner list (**MU −3.3%, AMD −2.0%,
+INTC −1.7%, NVDA −0.3/0.5%, TSLA −0.4%**) was directionally consistent with SOX −5% last week and with the
+independently-confirmed HOOD +13.7% spike, and **that lead is what sent me to check HOOD and reject it.**
+**Standing rule unchanged: lead-generation only, never a regime source, never a clock, never a price.**
+WebSearch (futures, NVDA's and DASH's earnings dates, the week's calendar), the Alpaca news tape (50 headlines),
+SIP daily bars, `/v2/assets` and journald carried this run.
+
+### Note for the daily review
+**Two decisions here are falsifiable tonight and should be scored, not assumed:**
+1. **BABA was kept through a −8.57% Friday and a ~3.7% pre-market gap.** If it printed a scored candidate today
+   and that candidate went badly, the TSLA-recall precedent deserves re-examination — *priced pre-open* may be
+   doing less work for a **structural supply overhang** than it does for a one-off recall. **Check `--refusals`
+   for BABA's forward outcomes specifically.**
+2. **DASH is the first name added on the volatility floor as a positive screen** rather than the floor being
+   used to park something. **Whether it scores at all on day one is the first datapoint on whether the floor
+   selects for signal or only against dead names.**
+Also: **NVDA is parked, so 08-26's session carries no board exposure to the print** — but the **semi cluster
+(AMD, TSM, MU, INTC) will still trade the read-through**, and that is unhedged by design.
+
+---
