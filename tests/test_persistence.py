@@ -6,7 +6,7 @@ without a driver or a network, mirroring the executor/market-data test style.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time, timedelta
 
 import pytest
 
@@ -662,6 +662,9 @@ class _ClosedTradesConn:
         self._raise = raise_it
         self.sql = None
         self.params = None
+        # Every statement, in order. ``performance_summary`` issues three, so asserting
+        # on ``sql`` alone would only ever see the last one (IMP-035).
+        self.statements: list[tuple[str, tuple]] = []
 
     def cursor(self):
         return self
@@ -671,7 +674,11 @@ class _ClosedTradesConn:
             raise RuntimeError("db down")
         self.sql = " ".join(sql.split())
         self.params = tuple(params)
+        self.statements.append((self.sql, self.params))
         return self
+
+    def fetchone(self):
+        return None  # aggregates fall back to their zero row
 
     def fetchall(self):
         return self._rows
@@ -732,6 +739,92 @@ def test_refusals_keeps_unmeasured_columns_none_across_schema_generations():
 
 def test_refusals_returns_empty_on_error():
     assert TradeStore(lambda: _ClosedTradesConn([], raise_it=True)).refusals() == []
+
+
+# --- report windows are calendar days, not a rolling clock (IMP-035) -------
+
+
+def _rolling_cutoff(anchor: datetime, days: int) -> datetime:
+    """The OLD window: ``DATEADD(day, -N, SYSUTCDATETIME())`` — no DATE cast."""
+    return anchor - timedelta(days=days)
+
+
+def _calendar_cutoff(anchor: datetime, days: int) -> datetime:
+    """The NEW window: ``CAST(DATEADD(day, -(N - 1), SYSUTCDATETIME()) AS DATE)``."""
+    return datetime.combine((anchor - timedelta(days=days - 1)).date(), time.min)
+
+
+@pytest.mark.parametrize(
+    "reader, expected_table",
+    [
+        ("performance_summary", "dbo.trades"),
+        ("closed_trades", "dbo.trades"),
+        ("refusals", "dbo.entry_refusals"),
+    ],
+)
+def test_all_windowed_readers_cut_on_a_calendar_date(reader, expected_table):
+    """No reader may cut at the raw clock — that is what made windows run-time dependent."""
+    conn = _ClosedTradesConn([])
+    getattr(TradeStore(lambda: conn), reader)(days=3)
+
+    windowed = [
+        (sql, params)
+        for sql, params in conn.statements
+        if "SYSUTCDATETIME()" in sql
+    ]
+    assert len(windowed) == 1, "exactly one statement should carry the report window"
+    sql, params = windowed[0]
+    assert expected_table in sql
+    assert "CAST(DATEADD(day, -(? - 1), SYSUTCDATETIME()) AS DATE)" in sql
+    # The old rolling form must be gone, or the window silently follows the clock again.
+    assert "DATEADD(day, -?, SYSUTCDATETIME())" not in sql
+    assert params == (3,)
+
+
+@pytest.mark.parametrize("days", [0, -1, -99])
+def test_window_days_below_one_is_clamped_not_inverted(days):
+    """``-(N - 1)`` with N < 1 would put the cutoff in the future and return nothing."""
+    conn = _ClosedTradesConn([])
+    TradeStore(lambda: conn).refusals(days=days)
+    assert conn.params == (1,)
+    # And the clamp must not quietly widen a valid window.
+    conn = _ClosedTradesConn([])
+    TradeStore(lambda: conn).refusals(days=7)
+    assert conn.params == (7,)
+
+
+def test_days_one_means_today_regardless_of_the_hour_the_routine_fires():
+    """Regression: the real 2026-08-25 pre-market-slot drift.
+
+    ``--days 1`` fired at the 11:30 UTC pre-market slot used to reach back to
+    10:30 UTC *yesterday*, sweeping the previous session's afternoon into "today":
+    68 refusals against the day's true 36. At the 21:10 UTC post-close slot the same
+    code was correct, because the cutoff landed after the prior 20:00 UTC close.
+    The calendar cutoff must return the same population at both hours.
+    """
+    yesterday_afternoon = datetime(2026, 8, 24, 15, 22)  # a real 08-24 refusal candle
+    today_morning = datetime(2026, 8, 25, 14, 4)  # UBER 14:04, conf 68.8, gate open
+
+    premarket = datetime(2026, 8, 25, 11, 30)
+    postclose = datetime(2026, 8, 25, 21, 10)
+
+    # OLD: the pre-market slot wrongly includes yesterday; the post-close slot does not.
+    assert yesterday_afternoon >= _rolling_cutoff(premarket, 1)
+    assert yesterday_afternoon < _rolling_cutoff(postclose, 1)
+
+    # NEW: today only, and the answer no longer depends on when the routine ran.
+    for anchor in (premarket, postclose):
+        cutoff = _calendar_cutoff(anchor, 1)
+        assert yesterday_afternoon < cutoff
+        assert today_morning >= cutoff
+
+
+def test_days_n_spans_n_calendar_days_inclusive_of_today():
+    """``--days 2`` is today + yesterday — not a 48h tail off the current instant."""
+    anchor = datetime(2026, 8, 25, 11, 30)
+    assert _calendar_cutoff(anchor, 1) == datetime(2026, 8, 25, 0, 0)
+    assert _calendar_cutoff(anchor, 2) == datetime(2026, 8, 24, 0, 0)
+    assert _calendar_cutoff(anchor, 5) == datetime(2026, 8, 21, 0, 0)
 
 
 # --- load_watchlist --------------------------------------------------------

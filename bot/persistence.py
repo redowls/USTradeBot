@@ -62,6 +62,35 @@ _GO_SEPARATOR = re.compile(r"(?im)^[ \t]*GO[ \t]*$")
 _SCHEMA_INIT_ATTEMPTS = 3
 _SCHEMA_INIT_RETRY_DELAY_SEC = 5.0
 
+# ``--days N`` means N *calendar* days ending today (UTC) — not a rolling N×24h
+# window ending at the instant the query runs (IMP-035).
+#
+# Cutting at a bare ``DATEADD(day, -N, SYSUTCDATETIME())`` put the boundary at
+# whatever hour the routine happened to fire, which made every "last N days"
+# figure in the review history non-reproducible:
+#   * at the 11:30 UTC pre-market slot, ``--days 1`` swept in the *previous*
+#     session's afternoon — 68 refusals instead of the day's true 36 on
+#     2026-08-25, and ``--days 5`` returned 118 against a true 91;
+#   * at the 21:10 UTC post-close slot it happened to be correct, because the
+#     cutoff landed after the prior session's 20:00 UTC close.
+# Same code, same data, different answer by time of day. Anchoring on the DATE
+# boundary makes the window depend only on N. ``-(? - 1)`` so that ``--days 1``
+# is today, ``--days 2`` is today plus yesterday, and so on.
+#
+# One shared fragment rather than three copies: the three windowed readers below
+# must agree, or a multi-window study silently compares different populations.
+_WINDOW_START_SQL = "CAST(DATEADD(day, -(? - 1), SYSUTCDATETIME()) AS DATE)"
+
+
+def _window_days(days: int) -> int:
+    """Clamp a report window to at least 1 calendar day.
+
+    ``_WINDOW_START_SQL`` offsets by ``-(N - 1)``, so N < 1 would push the cutoff
+    into the *future* and silently return an empty window. The CLI already clamps,
+    but the store is called directly from tests and the replay harness too.
+    """
+    return max(1, int(days))
+
 
 def _sub(breakdown: ConfidenceBreakdown | None, field: str) -> float | None:
     """Pull one 0–1 sub-score off the breakdown, or ``None`` when we don't have it."""
@@ -561,8 +590,8 @@ class TradeStore:
                 "SUM(pnl), AVG(pnl) "
                 "FROM dbo.trades "
                 "WHERE status = 'CLOSED' AND pnl IS NOT NULL "
-                "AND exit_time_utc >= DATEADD(day, -?, SYSUTCDATETIME())",
-                (days,),
+                f"AND exit_time_utc >= {_WINDOW_START_SQL}",
+                (_window_days(days),),
             )
             row = cur.fetchone() or (0, 0, None, None)
             trades = int(row[0] or 0)
@@ -619,9 +648,9 @@ class TradeStore:
                 "FROM dbo.trades "
                 "WHERE status = 'CLOSED' AND pnl IS NOT NULL "
                 "AND exit_time_utc IS NOT NULL AND entry_time_utc IS NOT NULL "
-                "AND exit_time_utc >= DATEADD(day, -?, SYSUTCDATETIME()) "
+                f"AND exit_time_utc >= {_WINDOW_START_SQL} "
                 "ORDER BY entry_time_utc",
-                (days,),
+                (_window_days(days),),
             )
             return [
                 ClosedTrade(
@@ -655,9 +684,9 @@ class TradeStore:
                 "market_gate_open, atr_pct, ribbon_spread_pct "
                 "FROM dbo.entry_refusals "
                 "WHERE candle_start_utc IS NOT NULL AND close_price IS NOT NULL "
-                "AND candle_start_utc >= DATEADD(day, -?, SYSUTCDATETIME()) "
+                f"AND candle_start_utc >= {_WINDOW_START_SQL} "
                 "ORDER BY candle_start_utc",
-                (days,),
+                (_window_days(days),),
             )
             return [
                 RefusedCandidate(
