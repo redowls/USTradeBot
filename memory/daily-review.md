@@ -5332,3 +5332,155 @@ the pattern — see below.
   INTC will trade the read-through unhedged by design**. Jackson Hole runs 08-27→29.
 - **Dated items due 08-27:** NVDA re-enable, AAPL and JPM dead-signal tests, INTC
   on-notice re-check.
+
+---
+
+## 2026-08-25 — Daily Review
+
+### Stats
+- **Closed trades: 0.** **Sixth consecutive session with no trade** — the last fill was
+  **2026-08-17** (MU, INTC, both stopped). Net P&L **$0.00**, win rate n/a.
+- **Equity $9,089.13**, unchanged for the sixth session (cash identical, `last_equity`
+  identical, `balance_asof` 2026-08-24). **DB ↔ broker reconcile exactly**: `dbo.trades`
+  0 rows touching today, `/v2/positions` empty, `/v2/orders?status=all&after=today`
+  empty. Account `PA34DFFLTHRT`. No drift, no missed fill, nothing carried overnight.
+- **Service healthy.** `is-active` → active, started **11:37:04 UTC** by the pre-market
+  routine, **0 WARNING-or-above lines all session**, no restarts, no reconnects,
+  warmup primed **19/19** symbols.
+- **Scored refusals: 36** across 12 symbols — the reviewable population tonight, and the
+  most active refusal day yet (32 on 08-24).
+- **Market gate duty cycle: 32 open / 89 candles = 36%** (`stacked` 57, `fast_rising` 45),
+  against **0% on 08-24** and 49.3% on 08-21.
+
+### Trade-by-trade review → refusal-by-refusal review
+No trades, so the population is the 36 refusals, each scored against its own forward
+tape (`bot.report --refusals`, IMP-033).
+
+**Today's cohort:**
+```
+cohort        n   avgMFE   avgMAE   avgFwd  <0.5%MFE  hitTrail  stopped
+crossover    17   +0.66%   -0.57%   +0.18%    5/17      1/17     1/17
+confidence   16   +0.29%   -0.16%   +0.07%   12/16      0/16     0/16
+gate          3   +1.21%   -0.77%   +0.61%    0/3       1/3      0/3
+ALL          36   +0.54%   -0.40%   +0.17%   17/36      2/36     1/36
+```
+Livelier than 08-24 (avgFwd −0.14%, 0/32 trail) but still thin: **2 of 36 declined
+candidates reached the 1.25% trail**, and 17 of 36 never traded 0.5% above their entry.
+
+**⚖️ The binding constraint moved, and that is tonight's finding.** For four sessions the
+answer to "why no trades" was *the gate*. Today the gate was **open 36% of the session**
+and the bot **still took zero trades**. The killer was `MIN_CROSSOVER`:
+
+- **16 refusals died on the 0.25 crossover floor while their total confidence was already
+  ≥ 60** (60.6 → 70.2). They passed the score and were vetoed by the separate geometry
+  floor. **Five of those had the gate open**: UBER 14:04 (conf 68.8, xo 0.23), DASH 16:00
+  (66.2, 0.13), LLY 15:33 (63.8, 0.12), UBER 15:56 (60.9, 0.08), UBER 15:58 (60.6, 0.07).
+- Only **3 refusals were gate vetoes** today (AMD ×2, SPOT) — down from 4-of-32 shape.
+- The near-misses cluster tight against the floor: **xo 0.20–0.24 on five candidates**.
+
+**And the score is still mostly a constant.** Across all 36 refusals: **`conf_rsi` = 1.00
+on 36/36** and **`conf_volatility` ≥ 0.85 on 36/36 (1.00 on 33)**. That is **35 of 100
+points handed to every candidate that reaches scoring**, exactly the dead weight logged
+on 08-24. The live score is effectively `39·crossover + 26·trend + ~34.5`, so with a
+threshold of 60 a candidate needs ~25.5 of the 65 discriminating points. **Confidence and
+`MIN_CROSSOVER` are therefore measuring nearly the same thing twice** — which is why 16
+candidates cleared one and failed the other.
+
+### What worked / what didn't
+- **Worked — capital protection, again.** Six sessions flat at $9,089.13 is the correct
+  outcome of a filter set reading a tape it has no edge in, not a malfunction.
+- **Worked — ops.** Clean session, exact broker reconciliation, gate telemetry on its
+  third full day (89 rows, first at 12:12 UTC vs the 11:37 restart → no warmup
+  contamination).
+- **⚖️ REFUTED AGAIN — loosening `MIN_CROSSOVER`.** Tonight's 17-strong crossover cohort
+  is the most tempting yet (avgFwd +0.18%, best declined AMD MFE +1.28%), and the 7-day
+  cohort settles it: **n=67, avgMFE +0.44%, avgFwd −0.11%, 3/67 reached the trail,
+  41/67 never made 0.5%.** The floor is declining garbage. **Seventh independent
+  confirmation. Do not loosen it** — and note the trap: the one-day cohort has now argued
+  *for* loosening on 3 of the last 4 sessions while the pooled window argued against
+  every time. Judge this on the pooled window only.
+- **Not re-opened — the gate.** Closed by 8 windows on 08-24. Today it was open 36% of
+  the session, so it was not even the constraint. Nothing to revisit.
+- **Didn't work — Perplexity `sonar`, 18th consecutive thin-or-wrong run, and wrong in
+  the same direction as yesterday.** It reported *"trending risk-on… Nasdaq up 0.42% to
+  26,089… tech leading… volatility lower"* and *"no same-day catalyst"* for **18 of 18**
+  tickers. IEX 1-min bars, 13:30→20:00 UTC, say the opposite about the index: **QQQ
+  −0.06% on a 0.90% range, SPY −0.04% on 0.47%** — flat, for the second straight day.
+  Constituents moved hard in **both** directions: **SPOT +3.64%, NFLX +3.45%,
+  DASH +2.10%, BABA +1.43%, UBER +1.25%, MSFT +1.23%** against **INTC −2.98%,
+  PLTR −2.22%, LLY −1.13%, GOOG −0.76%, AMZN −0.69%**. **Standing rule earned its keep a
+  fourth time: regime comes from IEX bars, `sonar` is lead-generation only.**
+- **Note the regime shape has changed underneath the drought.** 08-24 was a flat index
+  with constituents trending *up* together. Today was a flat index with constituents
+  **dispersing** — big winners and big losers side by side. That is a two-sided tape, and
+  a long-only bot correctly finds less in it than the headline dispersion suggests.
+
+### Lessons & improvement candidates
+1. **SHIPPED — IMP-035: report windows are calendar days, not a rolling clock.**
+   `performance_summary`, `closed_trades` and `refusals` all cut at
+   `DATEADD(day, -N, SYSUTCDATETIME())`, so the boundary landed at whatever hour the
+   routine fired. Proven against tonight's real data by re-anchoring the same queries:
+   at the **11:30 UTC pre-market slot `--days 1` returns 68 refusals** — the previous
+   session's afternoon swept in — **against today's true 36**, and `--days 5` returns
+   **118 against a true 91**; at the 21:10 UTC slot both forms agree, which is why this
+   went unnoticed for months. Fixed to
+   `CAST(DATEADD(day, -(N-1), SYSUTCDATETIME()) AS DATE)` behind one shared
+   `_WINDOW_START_SQL` (three copies would drift), plus a `_window_days` clamp because
+   `-(N-1)` with N<1 pushes the cutoff into the future and returns an empty window.
+   **442 tests (+8)**, the 08-25 pre-market-slot scenario kept as a regression, verified
+   non-vacuous by reverting the constant (all 3 reader tests fail). Live DB after the
+   fix: `--days 1/2/5/7` → **36 / 68 / 91 / 144**, stable at any hour.
+   **Why this and not a strategy change:** six sessions without a fill is a regime
+   drought whose two candidate fixes are both refuted (gate closed by 8 windows,
+   crossover floor by 7 confirmations), and the *next* strategy change — item 2 — is a
+   multi-window replay study whose windows were not reproducible until tonight. Fixing
+   the instrument before running the experiment beats shipping a cosmetic tweak.
+2. **NEXT, and now unblocked on tooling: re-express `conf_rsi` and `conf_volatility` as
+   explicit gates and free their 35 points.** Tonight is the third session confirming
+   they are near-constant (36/36 and 36/36 today). `conf_rsi` still does hit 0.0 at
+   RSI ≥ 70, so it is a **de-facto veto wearing a ranking term's clothes** — the change
+   is to refuse on RSI ≥ 70 and ATR/close ≥ `_ATR_BAD` outright and redistribute 35
+   points to crossover and trend. **Still blocked on IMP-034 live evidence, and one
+   zero-trade session has produced none** — IMP-034 has been live for exactly one
+   session and has not scored a single fill. Hold until the bot trades again.
+3. **New candidate — `MIN_CROSSOVER` and `ENTRY_THRESHOLD` are largely redundant.**
+   16 of 36 refusals tonight cleared confidence ≥ 60 and died on the crossover floor,
+   which is unsurprising once crossover carries 39 of the 65 live discriminating points
+   (IMP-034 raised it from 30). The floor may now be double-counting the score's
+   largest term. **This is a merge/simplify question, not a loosen question** — the
+   pooled data says both currently decline the same garbage. Measure after item 2, since
+   item 2 changes the weights the redundancy is computed from. Filed to `todo.md`.
+4. **Not a candidate: loosening anything, or adding a filter.** 2 of 36 declined
+   candidates reached the trail. A `ribbon_spread_pct` floor (08-24 item 3) remains the
+   wrong direction on a bot that has not traded in six sessions.
+
+### Notes for pre-market research
+- **No watchlist change is indicated, and the board is not the problem.** 12 distinct
+  symbols produced 36 scored candidates, the highest count yet. Everything is reaching
+  the scorer; nothing is reaching the trigger.
+- **UBER is tonight's headline near-miss — 6 refusals, and the single best one.** UBER
+  14:04 scored **conf 68.8 with the gate OPEN** and missed on **xo 0.23 vs the 0.25
+  floor**; it closed **+1.25%**. It also supplied three of the day's confidence-band
+  misses (58.1 / 56.8 / 55.4). Most consistent near-miss on the board.
+- **SPOT (+3.64%) and NFLX (+3.45%) were the day's two best movers and went untraded.**
+  SPOT produced 3 refusals (one gate veto at conf 70.9, two confidence 59.6 / 56.3 —
+  **59.6 against a threshold of 60**), NFLX 3 crossover misses. Both are working as
+  watchlist names; the triggers fire late and thin, which is GOOG's 08-24 pattern.
+- **DASH continues to justify its slot** — 4 refusals, **+2.10%**, second-best mover.
+  Two sessions, two strong days. The volatility floor is selecting for signal. **Keep.**
+- **MSFT is the opposite case — 7 refusals, all on confidence (52.5–55.0), none close.**
+  Its `conf_trend` sat at **0.63–0.66 all session** while it ran +1.23%: the 5m ribbon
+  was stacked but flat, so it never earned the `fast_rising` half. Worth watching, not
+  acting on.
+- **INTC (−2.98%) and PLTR (−2.22%) were the day's worst names and correctly produced
+  zero candidates between them.** The long-only filters read the downside cleanly.
+- **GOOG cooled sharply: 0 refusals today after 6 on 08-24**, and it closed **−0.76%**.
+  Dead-signal test still dated 08-31 — do not act early.
+- **Regime expectation:** two consecutive flat-index sessions, but with **opposite
+  internals** — 08-24 trending together, 08-25 dispersing two-sided. If QQQ resumes
+  trending, entries should appear with no code change.
+- **Wednesday 08-26 is the week's pivot: NVDA AMC + July core PCE 08:30 ET.** NVDA is
+  parked, but **AMD, TSM, MU and INTC trade the read-through unhedged by design** — and
+  INTC is already the weakest name on the board. Jackson Hole runs 08-27→29.
+- **Dated items due 08-27:** NVDA re-enable, AAPL and JPM dead-signal tests, INTC
+  on-notice re-check.

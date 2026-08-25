@@ -2498,3 +2498,88 @@ banner clean: watchlist 18/18, **warmup primed 18/18**, IEX stream subscribed to
 account `PA34DFFLTHRT` reconciled at equity **9089.13** with no open positions,
 **NRestarts=0**, **0 WARNING-or-above lines** since start. Files left
 `ustradebot:ustradebot`; `.env` untouched.
+
+---
+
+## IMP-035 — 2026-08-25 (daily) — report windows are calendar days, not a rolling clock
+
+### Problem
+`TradeStore.performance_summary`, `.closed_trades` and `.refusals` each cut their window
+at `DATEADD(day, -?, SYSUTCDATETIME())`. That is a rolling N×24h tail ending at **the
+instant the query runs**, so the boundary moved with the hour the routine happened to
+fire. Same code, same database, different answer by time of day.
+
+Proven against tonight's real `dbo.entry_refusals`, re-anchoring the identical queries:
+
+| `--days N` | anchored 11:30 UTC (pre-market slot) | anchored 20:00 UTC (post-close) | true calendar |
+|---|---|---|---|
+| 1 | **68** | 36 | **36** |
+| 2 | 68 | 68 | 68 |
+| 5 | **118** | 91 | **91** |
+| 7 | 144 | 144 | 144 |
+
+At the **11:30 UTC pre-market slot, `--days 1` reached back to 10:30 UTC *yesterday***
+and swept the previous session's afternoon into "today" — 68 refusals against the day's
+true 36. At the 21:10/20:00 UTC post-close slot the same code was correct **by luck**,
+because the cutoff landed after the prior session's 20:00 UTC close. That is exactly why
+this survived months of nightly use: the routine that reads these numbers most often sits
+in the one slot where the bug is invisible, while the **pre-market routine reads a
+silently doubled window every morning**.
+
+First spotted 2026-08-24 (item 4: `--days 5` reported n=82 against a true 4-session
+population of n=108) and filed to `todo.md` as the leading candidate for the next run.
+
+### Change
+- New module-level `_WINDOW_START_SQL = "CAST(DATEADD(day, -(? - 1), SYSUTCDATETIME()) AS DATE)"`
+  in `bot/persistence.py`, interpolated into all three readers. **One shared fragment, not
+  three copies** — if the three drift, a multi-window study silently compares different
+  populations, which is the failure mode this fix exists to remove.
+- `-(N - 1)` so `--days 1` = today, `--days 2` = today + yesterday. `--days N` now means
+  N calendar days **ending today**, UTC.
+- New `_window_days(days)` clamp (`max(1, int(days))`) applied at all three bindings.
+  Without it, `days=0` yields `-(0-1) = +1` → a cutoff **one day in the future** → a
+  silently empty window. `report._parse_days` already clamped, but the store is called
+  directly from tests and the replay harness.
+- **No trading logic touched.** Entry, exit, sizing, gate and risk paths are untouched;
+  this is read-only reporting.
+
+### Validation
+- **442 tests pass** (434 → 442, +8).
+- New coverage in `tests/test_persistence.py`:
+  - `test_all_windowed_readers_cut_on_a_calendar_date` — parametrized over all three
+    readers; asserts the calendar form is present **and** the old rolling form is absent,
+    and that exactly one statement carries the window.
+  - `test_days_one_means_today_regardless_of_the_hour_the_routine_fires` — the real
+    2026-08-25 scenario as a regression: a 08-24 15:22 candle and the 08-25 14:04 UBER
+    candle, asserting the old form includes yesterday at the 11:30 anchor and excludes it
+    at 21:10, while the new form gives the same answer at both.
+  - `test_days_n_spans_n_calendar_days_inclusive_of_today`, and a clamp test over
+    `days ∈ {0, -1, -99}` that also asserts a valid window is **not** widened.
+  - `_ClosedTradesConn` now records **every** statement (`performance_summary` issues
+    three, so asserting on the last one alone would have missed the windowed query).
+- **Non-vacuity verified**: reverting `_WINDOW_START_SQL` to the rolling form fails all
+  three reader tests.
+- `bot.preflight`: Alpaca PASS, SQL Server PASS, Telegram PASS, 1 expected market-closed
+  warning.
+- **Live DB after the fix**: `--days 1/2/5/7` → **36 / 68 / 91 / 144**, matching the
+  calendar column above and now stable at any run hour.
+- Deployed: committed `09b7acb`, pushed to `origin/main`, `systemctl restart` at
+  20:10:45 UTC → **active**, warmup primed **19/19**, clean startup, no warnings.
+
+### Why this, on a sixth consecutive zero-trade session
+The two changes today's refusal data superficially argues for are both already refuted:
+the market gate is closed by 8 agreeing windows (08-24) and the `MIN_CROSSOVER` floor by
+7 confirmations (its 7-day cohort is n=67, avgFwd **−0.11%**, 3/67 reaching the trail).
+Shipping either would be thrash. Meanwhile the **next** real strategy change — freeing
+the 35 near-constant `conf_rsi`/`conf_volatility` points, which tonight's 36/36 readings
+confirm for the third session — is a **multi-window replay study**, and its windows were
+not reproducible until tonight. Fix the instrument, then run the experiment.
+
+### Follow-ups
+- Every "last N days" figure in the review history **written from a non-21:10 slot is
+  suspect**, including the pre-market routine's daily reads. Do not retro-correct the
+  archive; treat pre-08-25 windowed counts as approximate.
+- Filed to `todo.md`: `MIN_CROSSOVER` and `ENTRY_THRESHOLD` may now be largely redundant
+  (16 of 36 refusals tonight cleared confidence ≥ 60 and died on the crossover floor,
+  which follows from IMP-034 raising crossover to 39 of the 65 live discriminating
+  points). Measure **after** the rsi/volatility change, which moves those weights.

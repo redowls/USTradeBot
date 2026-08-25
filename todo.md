@@ -331,17 +331,26 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       and hand their 35 points to crossover and trend — measured in replay across ≥3 windows,
       gate ON, against the IMP-034 baseline. **Blocked until IMP-034 has live evidence — one
       scoring change at a time.**
-- [ ] **`--days N` is a rolling timestamp, not a calendar boundary — every study window is
-      clock-dependent.** `performance_summary`, `closed_trades` and `refusals` all filter on
-      `DATEADD(day, -?, SYSUTCDATETIME())`, so the cutoff lands at *the hour the routine
-      happens to run*. Consequence: `--days 3` run on a Monday evening returns **only
-      Monday** — Friday's session ended before the cutoff — and `--days 5` reported n=82
-      against a true 4-session refusal population of n=108 on 2026-08-24. It is harmless at
-      the 21:10 UTC slot and wrong at the 11:30 UTC pre-market slot, and it makes every "last
-      N days" figure in the review history non-reproducible. **Fix:** cut at
-      `CAST(DATEADD(day, -(N-1), SYSUTCDATETIME()) AS DATE)` so `--days N` means N calendar
-      days ending today. Cheap, zero trading risk, and it underpins the pre-registered
-      multi-window studies. **Leading candidate for the next daily run.**
+- [x] **DONE (IMP-035, 2026-08-25) — `--days N` is a rolling timestamp, not a calendar
+      boundary.** All three readers now cut at
+      `CAST(DATEADD(day, -(? - 1), SYSUTCDATETIME()) AS DATE)` behind one shared
+      `_WINDOW_START_SQL`, plus a `_window_days` clamp for N < 1. Measured before shipping:
+      at the 11:30 UTC pre-market slot `--days 1` returned **68** refusals against a true
+      **36**, and `--days 5` returned **118** against **91**; at the post-close slot both
+      forms agreed, which is why it hid for months. 442 tests. **Windows are reproducible
+      from 2026-08-25 on; earlier windowed counts written from a non-21:10 slot are
+      approximate and should not be retro-corrected.**
+
+- [ ] **`MIN_CROSSOVER` and `ENTRY_THRESHOLD` may now be largely redundant — measure, do
+      not loosen.** On 2026-08-25, **16 of 36 refusals cleared confidence ≥ 60 (60.6–70.2)
+      and died on the 0.25 crossover floor**. That follows mechanically from IMP-034 raising
+      `crossover` to 39 of the ~65 *live discriminating* points (`conf_rsi` and
+      `conf_volatility` are near-constant, contributing a ~34.5-point floor to every
+      candidate), so the floor may be double-counting the score's largest term. **This is a
+      merge/simplify question, not a loosen question** — the pooled 7-day window says both
+      currently decline the same garbage (crossover cohort n=67, avgFwd −0.11%, 3/67 reach
+      the trail). **Sequence: measure only *after* the rsi/volatility change above, which
+      moves the very weights the redundancy is computed from.**
 
 ---
 
