@@ -4363,3 +4363,222 @@ dates, futures, today's economic calendar), the Alpaca news tape (50 headlines),
    evidence the dated-test discipline is costing money and it should be written up, not smoothed over.**
 
 ---
+
+## 2026-08-26 — Pre-market Research
+
+**One change: AMGN added (19 → 20 enabled). No parks, no re-enables — INTC and JPM are dated 08-27 and were
+honoured for a fourth consecutive run.** Book is CLEAN & FLAT (broker-confirmed **0 positions, 0 open orders**,
+equity **$9,089.13**, `last_equity` == `equity` == `cash` → no overnight marks) → **nothing locked**. NVDA
+reports **tonight AMC** and has been parked since 08-24, so the board carries **no direct exposure to the
+print**. Service restarted clean (warmup 20/20).
+
+### Market context
+- **Futures flat-to-mixed ahead of the week's two events.** Dow futures higher, **S&P −0.07% to −0.13%**,
+  **Nasdaq −0.18% to −0.29%**; ETF proxies **SPY −0.04% at $765.63, QQQ −0.13% at $709.83**. **NVDA +0.3%
+  pre-market, MU −0.7%, SMH +0.22%** — the tape is in wait-and-see, not risk-off. Gold −0.95%, crude −1.17%.
+- **⚠️ The macro is heavy but ALL of it is 08:30 ET — pre-open, not in-session:** July **durable goods**, the
+  **Q2 GDP second estimate**, and **personal income/spending carrying the July PCE deflator** (core PCE
+  consensus **3.3%, unchanged**). **There is no 10:00 ET cluster today** — that was yesterday's Consumer
+  Confidence / New Home Sales / Richmond Fed. **The bot's first eligible candle at `ENTRY_START` is therefore
+  a normal candle today, which makes this the clean control session for the 08-25 review's item 2.**
+- **The pivot is tonight: NVDA Q2 FY27 after the close.** Options are priced for the quietest NVDA reaction in
+  years. **NVDA is parked (dated re-enable 08-27); AMD, TSM, MU and INTC trade the read-through unhedged, by
+  design** — and that read-through lands on **08-27's open**, not today's session, because the bot flattens
+  every close. **Jackson Hole 08-27→29, Warsh keynote Fri 08-28 10:00 ET.**
+- **No enabled name reports today.** Today's prints are **CRWD and CRM, both AMC**, neither on the board.
+- **INTU −11.8% pre-market** — upbeat Q4, **FY27 guidance below estimates**. **ZM −5.2%** on soft Q3 guidance.
+- Headline flow, none of it decision-changing: MSFT/HUMAIN AI collaboration, AAPL's new Mac mini + Mac Studio,
+  a Reuters report on Moonshot revenue-sharing talks with AMZN/GOOG/MSFT, LLY real-world Zepbound retention
+  data, a Bill Gates AI-jobs warning tagged PLTR. **Priced pre-open, no scheduled binary, no overnight hold.**
+
+### Carried from daily review (08-25 EOD)
+- **"No watchlist change is indicated, and the board is not the problem"** — the *park* side honoured in full:
+  **no symbol was parked today**, and the liveness check below independently confirms it.
+- **"Does SPOT print a scored candidate on day one?" — YES, and this is the finding that drove today's work.**
+  SPOT produced **3 scored refusals on day one** (one gate veto at conf 70.9, two on confidence 59.6 / 56.3)
+  and was **the session's best mover at +3.64%**. **The gap-shape screen is now 2 for 2** — DASH scored 3 on
+  day one and was that day's best mover; SPOT did the same. That is why the same screen was run again today
+  and why its output was acted on rather than merely logged.
+- **"The 10:00 ET data cluster lands exactly on `ENTRY_START`"** → **the confound is absent today** (all
+  releases 08:30 ET). Flagged forward as a controlled comparison rather than acted on.
+- **"INTC and JPM both come due 08-27 and both got worse"** → **both left dated.** Neither pulled forward,
+  for the fourth run in a row.
+
+### Watchlist review
+**Liveness check first: 144 scored refusals across 21 symbols over the last 5 instrumented sessions (08-19,
+08-20, 08-21, 08-24, 08-25), and every one of the 19 previously-enabled names appears.** NFLX 16 · MSFT 14 ·
+BABA 13 · DASH 13 · GOOG 13 · PLTR 10 · UBER 10 · AMD 9 · TSLA 8 · TSM 6 · MU 6 · AMZN 6 · LLY 3 · AAPL 3 ·
+SPOT 3 · QQQ 2 · INTC 2 · JPM 1 · ABNB 1. **Everything is reaching the scorer; there is no dead weight to cut.**
+Second consecutive session where the board is demonstrably not the constraint — hence one add and nothing else.
+
+**⚠️ INTC — kept, date honoured, still the worst chart on the board.** **−8.43% vs 20MA / −18.12% vs 50MA,
+−9.52% over 5 days**, ATR 5.91%. Worst 14-day P&L on the board (**−$40.48 / 4 trades**). **The trend leg fires;
+the dead-signal leg still fails** — it last traded **08-17 (9 days)** against the ~30-day bar, and it printed 2
+refusals in 5 sessions. **Its re-check is dated 08-27 and I am honouring it**, as 08-20, 08-21, 08-24 and 08-25
+did. It remains the **#2 all-time earner (+$150.78 / 24 trades)** at $9.80B/day. **Still the most likely park of
+the week — and note it sits squarely in tonight's NVDA blast radius, which is a reason to decide tomorrow with
+the print in hand rather than today without it.**
+
+**⚠️ JPM — kept, date honoured, and it is still the weakest name on the volatility floor.** **ATR 1.53%, median
+session range 1.36%, only 70% of 20 sessions ≥1.25% and 20% ≥2%** — the 1.25% trail sits essentially at the
+median session, the shape that got SPY parked on 08-21. **30 days since its last trade**, all-time **−$51.50 on
+9 trades**, and **1 refusal in 5 sessions — fewest on the board**. **But its trend leg fails: −0.10% vs 20MA
+against +3.23% vs 50MA** — still above one MA. Dead-signal test **dated 08-27**, when the clock reads 31 days.
+**Kept one more session on the rule. INTC and JPM both settle tomorrow.**
+
+**🔒 QQQ — structurally locked, restated because its own record keeps arguing for a park.** ATR **1.18%**,
+median range **1.05%**, only **40% of sessions ≥1.25%**, and **43 days since its last trade** — on the 08-21
+volatility floor it is a park candidate and **it must never be parked**: it is `MARKET_FILTER_SYMBOL`, and
+removing it makes the market gate **fail OPEN**, silently disabling the bot's best-evidenced edge. On merit it
+is also the best record on the board: **7 trades, 6 wins, +$80.15**. Gate duty cycle stays **bimodal** —
+`dbo.market_gate`: 08-21 **42%**, 08-24 **0%**, 08-25 **42%**.
+
+**✅ AMD — kept, and the upgrade worked.** **−0.26% vs 20MA / −5.85% vs 50MA**, recovered hard from 08-24's
+−4.69% / −10.37% on Raymond James' Strong Buy (PT $641). ATR 4.31%, $10.84B/day, 9 refusals. Re-check **09-12**.
+
+**✅ MU — the board's liquidity anchor, unchanged.** **$31.33B/day**, ATR 5.99%, median range 5.15%,
++3.39% / −3.01%. **#1 all-time earner (+$189.55 / 25 trades).** Reports late September, not this week.
+
+**✅ The rest, briefly.** **ABNB** +10.11% / +22.16%, ATR 3.68% — strongest trend on the board and still the
+**thinnest enabled name at $0.83B/day**, on notice for that alone. **DASH** +9.83% / +19.94%, 13 refusals —
+fully settled in. **SPOT** +8.67% / +13.05%, day-one validated above. **NFLX** +7.83% / +10.33%, **16 refusals —
+the most active name on the board**. **UBER** +7.30% / +9.56%, 10 refusals and yesterday's headline near-miss
+(conf 68.8, xo 0.23). **PLTR** +6.65% / +22.74%, ATR 4.31%. **TSLA** +5.41% / −3.71%. **LLY** +2.70% / +4.25%,
+$3.22B/day. **MSFT** +1.82% / +16.02%, 14 refusals but none close (all on confidence 50–55). **TSM** +0.54% /
+−1.59%. **AAPL** −0.51% / −0.31%, sitting on both MAs, 30 days quiet, **test 08-27**. **AMZN** −1.27% / +4.18%,
+above the 50MA so the trend leg fails, **re-check 09-02**. **GOOG** −1.41% / −1.80%, 13 refusals, **test 08-31**.
+**BABA** −4.24% / +4.22% — below the 20MA but **above the 50MA, so the two-leg rule does not fire**, **09-09**
+unchanged. **Liquidity floor clean: no sub-$5 names, no halts, thinnest enabled is ABNB at $0.83B/day.**
+
+### ➕ Add — AMGN, chosen on a 24-session accumulation record rather than a 9-session one
+**Verified on Alpaca `/v2/assets`: `tradable: true`, `status: active`, NASDAQ, us_equity.**
+- **The decisive test, run over a longer window than any previous add: is this a trend or a gap?**
+  **Across 24 sessions the largest single overnight gap is 2.04%**, and the move is carried by **intraday
+  closes — o2c +3.20%, +3.68%, +2.82%, +2.57%, +2.43%**. SPOT cleared this on 9 sessions with a 1.6% max gap;
+  AMGN clears it on **24 sessions**. **This is accumulation, not a headline spike** — the opposite of the
+  condition that concentrated this bot's lifetime loss (IMP-017), and the opposite of MRK/NEM/FCX/HOOD.
+- **Trend, both legs, with a tight gap between them: +6.82% vs 20MA, +15.62% vs 50MA** — an **8.80pp** spread,
+  **tighter than DASH's 9.5pp at its add** and far tighter than NOW (11.3pp) or ADBE (12.8pp). The 10-day
+  return is **+6.74%**, so it does not fail the way BKNG did (9.4pp on a flat +0.23%).
+- **Clears the 08-21 volatility floor, but by the smallest margin of any add since the floor was set — and
+  that is stated plainly rather than buried: ATR 2.31%, median session range 2.45% (≈2× the 1.25% trail),
+  95% of the last 20 sessions ≥1.25%, 75% ≥2%.** That is the **NFLX (2.78% / 95% / 65%) and ABNB (2.92% / 95% /
+  70%) band** — both enabled and both productive — and clearly above the **COST band (1.71% / 25% ≥2%)** that
+  was rejected on this floor yesterday. It is **not** the SPOT/DASH band (3.9% / 3.4%). **This is a deliberate
+  step down the volatility scale and it is the falsifiable part of today's decision.**
+- **Liquidity $1.10B/day median — it does not become the new thinnest name**, sitting above ABNB ($0.83B),
+  DASH ($0.90B) and SPOT ($1.00B). At MIN_ALLOC 0.05 × $36,356 buying power it sizes to **4 whole shares at
+  $442.24**, clear of the sub-1-share skip across the whole confidence range.
+- **Event calendar clear, verified rather than assumed.** Q2 reported late July / early August 2026; **the Q3
+  report is expected early November** (Amgen's historical pattern, and no confirmed date is out) — ~10 weeks
+  away. Same standard DASH, LLY, UBER and SPOT were added on. **Only one AMGN headline in five days**, and it
+  was a retrospective puff piece.
+- **Why this name on this day:** the board carries **4 enabled semis into tonight's NVDA print**. AMGN is
+  **healthcare** — the first non-tech/non-consumer add in weeks and the second pharma after LLY — uncorrelated
+  to both tonight's print and the rates move driving the tape.
+
+**Rejected on fresh evidence:**
+- **MELI — the day's important rejection, and it lost on sizing rather than on the chart.** It screened as the
+  **best-shaped candidate of the entire run**: **+6.46% vs 20MA / +10.70% vs 50MA (4.24pp — tighter than
+  SPOT's 4.15pp-class shape), ATR 3.95%, median range 2.95%, 100% ≥1.25%, 90% ≥2%, max gap 1.15%, $0.85B/day.**
+  **It fails the sub-1-share test at $1,997/share:** MIN_ALLOC 0.05 × $36,356 = **$1,817.83 → qty 0**, so
+  **every entry below roughly conf 64 is silently skipped**, and even at conf 100 it sizes to **1 share**.
+  **Rejected on exactly the test SPOT was cleared on** — the rule cuts both ways or it is not a rule.
+- **VRTX — rejected on two independent counts.** It screens beautifully (**+7.95% / +11.67%, 3.7pp, ATR
+  3.02%**) but the move is carried by an **+8.75% overnight gap on 08-10** (HOOD/MRK/NEM precedent), and at
+  **$0.57B/day it would become the new thinnest name** by a wide margin.
+- **DIS — rejected on the volatility floor, applied consistently.** Its shape is genuinely good (**+7.41% /
+  +10.93%, 3.5pp legs, max gap 0.67%, $0.88B/day**) but **ATR 2.02%, median range 1.76%, only 40% of sessions
+  ≥2%** — that is the **COST band rejected on this same floor yesterday**. Closest thing to a second add today
+  and refused on a stated rule.
+- **SHOP — rejected on the BKNG shape.** **+7.41% / +19.95% = 12.5pp** with a **flat 10-day return (+0.83%)**.
+  A wide 20/50 gap plus a flat recent tape is a V-bounce, not a trend, however clean the gaps look (1.25%).
+- **NOW — rejected a fifth time, and its stated re-screen condition moved the wrong way again.** The 20/50 gap
+  was 10.84pp (08-24), 11.26pp (08-25), and is now **11.34pp**. **It has widened on three consecutive runs.**
+  **ADBE** 12.5pp and **BKNG** 9.2pp on a +0.43% 10-day return — both re-rejected on the same rule.
+- **INTU — yesterday's rejection paid inside one session.** Refused on 08-25 for reporting into a same-day
+  binary while screening as the strongest chart available; it is **−11.8% pre-market** on FY27 guidance below
+  estimates. **Re-screen only once the post-print tape settles.**
+- **CRM, CRWD, SNOW, MRVL — all off the table on earnings timing.** CRM and CRWD report **tonight AMC** (the
+  standing "CRM add after 08-26" note now means *after tonight's print*); SNOW and MRVL report Thursday. MRVL
+  also carries an **11.17% max gap**, so it would likely fail the gap-shape test regardless.
+- **MSTR (+25.20% / +26.97%), COIN (+18.93% / +17.39%) and HOOD (+17.69% / +11.07%) — rejected on the 08-21
+  crypto-beta rule**, re-applied without re-litigation despite screening at the very top; all three also carry
+  **6–9% max overnight gaps**, so they fail the gap-shape test independently. **SMCI** max gap **10.73%**,
+  still erratic rather than trending.
+- **The wider screen produced nothing else.** 60 names screened across two batches. **META** is the most
+  liquid unenabled mega-cap and **does not screen — it is below both MAs (−0.61% / −3.85%)**. ORCL (+1.12% /
+  +0.66%, no trend), ANET (−3.49% on 10 days), GS/MS/SCHW (vol floor or flat), PANW, APP, DDOG, TTD, ZS,
+  LULU, NKE, DAL, RCL, RBLX, CVNA and the power/industrial complex (GEV, VST, CEG, GE, ETN, URI, CAT) all fail
+  on at least one of: **below a moving average, liquidity under the ABNB floor, or the volatility floor.**
+- **Parked set — all condition-gated re-enables re-checked, none met.** **XOM** failed on *both* halves this
+  time: its 08-17 condition is *"only if the oil headline regime quiets down"* and the tape still leads with
+  Iran sanctions and Hormuz mine-clearing (crude −1.17%), **and its chart deteriorated** from +3.31% / +9.87%
+  yesterday to **+0.92% / +7.39% with a −2.97% 5-day**. **WPM** screens spectacularly (**+23.15% / +35.44%**)
+  and is refused on **the exact reason it was parked — $0.25B/day, the thinnest name in the whole 60-name
+  screen.** A precious-metals momentum spike does not fix a liquidity park. **SE** +5.67% / +15.34%, chart now
+  genuinely good, **$0.47B/day — still about half ABNB**. **COST** +0.66% / +1.30% fails the vol floor (ATR
+  1.80%, 25% ≥2%). **SPY** ATR **0.63%**, **20% ≥1.25%, 0% ≥2%** — unmet and still deteriorating. **QCOM**
+  +0.40% / −9.09% · **C** −0.96% / −2.61% · **UNH** −1.70% / −4.07% · **WMT** −5.54% / −6.75% · **AVGO**
+  −9.37% / −7.93% · **ENPH** −4.71% / −11.92% · **BIRD** $2.37 (sub-$5) — all chart- or floor-gated, all unmet.
+  **NVDA** −0.71% / +2.52% **reports tonight AMC** and is dated 08-27 — it stays parked.
+
+### Changes applied to dbo.watchlist
+**One parameterized statement**, `watchlist` the only table touched, **no DELETEs**. Note length **pre-checked
+against `VARCHAR(128)`** (123 chars):
+1. `MERGE ... WHEN NOT MATCHED THEN INSERT` — **AMGN** enabled 1 (new row; Alpaca-verified tradable/active).
+Committed in one transaction. Re-read after commit: **20 enabled ≤ 30 ✓**, **33 rows ✓**, **13 parked ✓**.
+
+### Final watchlist
+**20 enabled** (≤30 ✓): AAPL ABNB AMD **AMGN** AMZN BABA DASH GOOG INTC JPM LLY MSFT MU NFLX PLTR QQQ SPOT
+TSLA TSM UBER. Parked (13): AVGO BIRD C COST ENPH NVDA QCOM SE SPY UNH WMT WPM XOM.
+**Service restarted (required — the table changed) and verified, not assumed:** `is-active` → **active**,
+**MainPID 1781073**, `ActiveEnterTimestamp` **2026-08-26 11:38:24 UTC**, **NRestarts=0**. Journald confirms the
+banner *"Watchlist (dbo.watchlist): AAPL, ABNB, AMD, AMGN, AMZN, BABA, DASH, GOOG, INTC, JPM, LLY, MSFT, MU,
+NFLX, PLTR, QQQ, SPOT, TSLA, TSM, UBER"* — **AMGN present, NVDA absent** — **warmup primed 20/20**, the IEX
+stream subscribed to exactly those 20, account `PA34DFFLTHRT` reconciled at equity 9089.13 with **no open
+positions**, and **0 WARNING-or-above lines** since start.
+🔒 Locked: **none (0 positions, 0 open orders)**.
+**Upcoming: NVDA re-enable 08-27 (after tonight's AMC print) · AAPL and JPM dead-signal tests 08-27 · INTC
+on-notice re-check 08-27 · Jackson Hole 08-27→29 (Warsh Fri 08-28 10:00 ET) · CRM and CRWD re-screen after
+tonight's prints · MRVL and SNOW after Thursday's · INTU re-screen once the −11.8% settles · GOOG dead-signal
+test 08-31 · AMZN re-check 09-02 · BABA 09-09 · AMD 09-12 · AVGO, UNH, XOM, COST, SPY, SE and WPM re-enables
+are condition-gated, not dated.**
+
+### Perplexity `sonar` — run 19: thinner than yesterday, and wrong on the week's single most important fact
+**The failure is not thinness this time, it is a false statement about a scheduled binary.** It reported
+**NVDA "is listed as reporting before the open"**. **NVDA reports AFTER today's close** — verified against the
+Yahoo Finance and Benzinga pre-market tape. Acting on that claim would have inverted the entire risk picture
+for the day. It also returned **"no specific catalyst identified" for 18 of 19 tickers**, and claimed **"no
+U.S. economic releases during market hours were identified"** — accidentally correct today, but arrived at
+with no evidence and while **never mentioning the 08:30 ET PCE / Q2 GDP / durable-goods slate at all**. It
+missed **INTU −11.8%**, **ZM −5.2%** and **CRWD's after-close report**. **Credit where due: its futures
+direction was right** (S&P −0.07/−0.13%, Nasdaq −0.18/−0.29%, corroborated). **Nineteenth consecutive
+thin-or-wrong ticker layer, and the first to state a false earnings time for a name this board actively
+manages. Standing rule reaffirmed and now load-bearing: lead-generation only, never a regime source, never a
+clock, never an earnings calendar.** WebSearch (NVDA timing, AMGN earnings, today's economic calendar,
+futures), the Alpaca news tape (36 headlines), SIP daily bars over 60 names, `/v2/assets`, `dbo.trades`,
+`dbo.entry_refusals`, `dbo.market_gate` and journald carried this run.
+
+### Note for the daily review
+**Three things are falsifiable tonight and should be scored, not assumed:**
+1. **AMGN is the lowest-volatility add since the 08-21 floor was set** (median session range **2.45%** against
+   SPOT's 3.91% and DASH's 3.44%) and the **first selected on a 24-session accumulation record** rather than a
+   9-session one. DASH and SPOT each printed **3 scored candidates on day one**. **Does AMGN?** If it prints
+   zero while the rest of the board is active, the volatility floor is being stretched too far and today's add
+   was a mistake — **say so rather than waiting for a 30-day dead-signal clock to say it.**
+2. **Today is the clean control for the 08-25 `ENTRY_START` question.** Yesterday's 10:00 ET data cluster landed
+   exactly on the first eligible candle; **today all macro was 08:30 ET and there was no in-session release.**
+   Same board, same config. **Compare the 14:00–14:30 UTC refusals' `ribbon_spread_pct` against 08-25's** — if
+   they are indistinguishable, the "macro print widens ribbons at unlock" hypothesis is dead and should be
+   closed rather than carried.
+3. **Tonight's NVDA print makes 08-27 a gap-reaction session for 4 of 20 enabled names.** AMD, TSM, MU and INTC
+   are unhedged by design, and the bot's every-close flatten means **there is no overnight exposure — the risk
+   is entirely in tomorrow's open, not tonight.** INTC is already the weakest chart on the board (−18.12% vs
+   50MA) **and its on-notice re-check falls on exactly that session.** Note tonight whether the semis' behaviour
+   argues for deciding INTC on 08-27 or deferring it one more day.
+4. **INTC and JPM were again not pulled forward — fourth consecutive run honouring a date.** Both settle
+   tomorrow. **If either produced a bad scored candidate today, that is evidence the dated-test discipline is
+   costing money and it should be written up, not smoothed over.**
+
+---
