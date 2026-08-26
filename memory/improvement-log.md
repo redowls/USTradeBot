@@ -2745,3 +2745,17 @@ needs no new instrumentation.
   drought or a malfunction — it is this change working. The pre-market routine has been
   warned in today's "Notes for pre-market research".
 - Deployed: committed, pushed to `origin/main`, `systemctl restart` — see below.
+
+### Live validation (2026-08-26 20:26 UTC)
+- `signals.py` mtime **20:21:13** precedes `ExecMainStartTimestamp` **20:26:27**, so the
+  running process (**PID 1811318**) carries the new code — the deploy-gap check, not an
+  assumption that "restarted" means "reloaded".
+- Constants confirmed in the venv: `_ATR_DEAD=0.0020`, `_ATR_LIVE=0.0030`. The PLTR-like
+  dead tape (atr 0.090%) now scores **0.00** where it scored 1.00; a live tape (0.350%)
+  scores **1.00** where it scored 0.81.
+- Clean boot: `is-active` **active**, schema ensured (14 batches), warmup primed
+  **20/20**, broker handshake `PA34DFFLTHRT` equity **$9,094.41**, **no open positions**,
+  IEX stream connected and subscribed to all 20 symbols. **Zero WARNING-or-above lines
+  since the restart.**
+- 444 tests green immediately before the commit. Commits `8f5b655` (IMP-036) and
+  `2e6406d` (daily review), pushed to `origin/main`.
