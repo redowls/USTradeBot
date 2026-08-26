@@ -5484,3 +5484,168 @@ candidates cleared one and failed the other.
   INTC is already the weakest name on the board. Jackson Hole runs 08-27→29.
 - **Dated items due 08-27:** NVDA re-enable, AAPL and JPM dead-signal tests, INTC
   on-notice re-check.
+
+---
+
+## 2026-08-26 — Daily Review
+
+### Stats
+- **Closed trades: 1** — 1W / 0L → **100% win rate**. Net realized P&L **+$5.28**
+  (+0.271% on the position). **The 6-session drought ended**; the previous fill was
+  2026-08-17. Profit factor undefined (no losing trade).
+- **Equity $9,094.41**, up **+$5.28** from `last_equity` $9,089.13. **DB ↔ broker
+  reconcile to the cent**: `dbo.trades` one row (+$5.28); Alpaca `/v2/account` equity
+  = cash = portfolio_value = $9,094.41, `long_market_value` 0, `/v2/positions` empty,
+  `/v2/orders` exactly 3 rows (the bracket parent, its two cancelled legs, and the
+  close). Account `PA34DFFLTHRT`. **No drift, no missed fill, nothing carried overnight.**
+- **Service healthy.** `is-active` → active, started **11:38:24 UTC** by the pre-market
+  routine, **0 WARNING-or-above lines all session**, no restarts, warmup primed 20/20.
+- **Scored refusals: 47** across 11 symbols — the most yet (36 on 08-25, 32 on 08-24).
+- **Market gate duty cycle: 36 open / 87 candles = 41%**, against 36% on 08-25 and 0%
+  on 08-24. Gate was **not** the binding constraint today.
+
+### Trade-by-trade review
+
+**PLTR — model A — 1W, +$5.28 (+0.271%)**
+- Entry **18:34:02 UTC @ 177.27**, qty 11 ($1,950 notional), stop 173.75 (−2%),
+  target 195.03 (+10%). Confidence **65.82** — crossover 0.3304, trend 1.0000,
+  rsi 0.5968, volume 1.0000 (unweighted since IMP-034), volatility 1.0000.
+  Tape at entry: **atr 0.090%**, ribbon spread 0.030%.
+- Exit **19:45:24 UTC @ 177.75, end-of-day flatten**. Held 71 minutes.
+- Excursion (IEX 1-min over the hold): **MFE +0.660%, MAE −0.147%, realized +0.271%**.
+  The 1.25% trail **never armed** — the broker-side stop ratcheted 17 times from 173.75
+  up to 176.22, tracking a high-water mark that topped out at ~178.45. The give-back
+  from MFE to exit was 0.39pp, and the clock, not the exit logic, ended the trade.
+- **Root cause of the (small) win: neither signal quality nor regime — position in the
+  day's range.** PLTR was **the best mover on the board: +4.10% o2c on a 5.54% range**.
+  The bot captured **+0.27% of a 5.54% range** because it entered at 18:34, into a local
+  lull late in a move that had already happened. The entry candle's 1-min ATR was
+  **0.090% of price** — a dead local tape — and a dead tape cannot travel the 1.25% the
+  trail needs before the flatten. This trade is the textbook member of its cohort:
+  **77% of all `conf_volatility == 1.00` trades exit on the flatten**, versus 45% of the
+  rest. It won by drifting, not by working.
+- **The filters declined the good PLTR entries and took the dull one.** Same symbol,
+  same session: **16:25 refused on confidence 59.71 < 60** — and that candle ran
+  **MFE +1.91%, forward +1.45%**, the best declined candidate of the day; **18:09 refused
+  on crossover 0.244 < 0.25** at confidence **70.5**, the highest-scoring candidate of
+  the session. The one PLTR candle that cleared every filter is the one that went
+  nowhere. Note the near-misses are *narrow*: 59.71 against a 60.0 bar, 0.244 against a
+  0.250 floor.
+
+**The other 47 candidates (refusal cohort, `bot.report --refusals`)**
+```
+cohort        n   avgMFE   avgMAE   avgFwd  <0.5%MFE  hitTrail  stopped
+crossover    20   +0.34%   -0.49%   +0.06%   17/20      1/20     0/20
+confidence   24   +0.35%   -0.25%   +0.12%   20/24      1/24     0/24
+gate          3   +1.11%   -0.42%   +0.33%    0/3       1/3      0/3
+ALL          47   +0.39%   -0.36%   +0.11%   37/47      3/47     0/47
+```
+- **3 of 47 declined candidates reached the trail; 37 of 47 never traded 0.5% above
+  their entry; 0 of 47 would have been stopped.** The filters declined garbage, again.
+- **All 20 crossover refusals had confidence ≥ 60** (60.8 → 70.5) — but that is an
+  artefact of check order, not evidence of redundancy: `evaluate_entry` only reaches the
+  crossover floor after the total bar passes. Recording this so the 08-25 "the two
+  filters are redundant" candidate is not scored on a tautology.
+- **MU was the day's loudest miss and it was the gate**: 15:20 conf **71.07** and 15:02
+  conf **70.66**, both vetoed by "QQQ 5m ribbon not bullish". MU closed +1.12%.
+
+### What worked / what didn't
+- **Worked — the exit plumbing, end to end.** The bracket's two open legs were cancelled
+  at 19:45:22 **before** the market close order went in at 19:45:23 (IMP-001/IMP-005
+  ordering), the fill came back at 19:45:23.77, and the book was flat well inside the
+  runway. Trailing-stop replacement rotated the broker order id 17 times without a
+  single 422 (the IMP-018-era failure mode). **No naked overnight, no order-state bug.**
+- **Worked — capital protection and reconciliation.** Broker is the source of truth and
+  it agrees with the DB to the cent.
+- **⚖️ Didn't work — the confidence score's volatility term, and this is tonight's
+  finding.** `conf_volatility` is not merely inert, it is **pointing the wrong way**, and
+  two independent populations say so. See "Lessons" item 1. Today's single trade is the
+  archetype it mis-ranks: full marks (15/100) for the quietest possible entry tape.
+- **⚖️ Not the gate, and not the crossover floor.** The gate ran 41% open — the
+  highest yet — and the bot still took one trade, so the gate was not binding. The
+  crossover cohort (n=20, avgFwd +0.06%, 1/20 reaching the trail) is the **eighth**
+  consecutive confirmation that the 0.25 floor declines garbage. **Do not loosen it.**
+  The one-day cohort has now argued *for* loosening on 4 of the last 5 sessions while
+  the pooled window has argued against every time; judge on the pooled window only.
+- **Didn't work — Perplexity `sonar`, 19th consecutive thin-or-wrong run.** It returned
+  *"No specific catalyst was identified"* for **10 of 10** tickers and called the day
+  *"choppy / mildly risk-off"* on **S&P −0.07% / Nasdaq −0.28%** — a close-vs-prior-close
+  read that includes the overnight gap. The bot only trades the intraday leg, and IEX
+  1-min bars 13:30→20:00 UTC say the opposite: **QQQ +0.39% on a 0.69% range, SPY +0.16%
+  on 0.44%** — quietly *up* and exceptionally narrow. Both statements can be true; only
+  the intraday one is the bot's regime. **Standing rule holds: regime comes from IEX
+  bars, `sonar` is lead-generation only.**
+- **Regime shape: a third consecutive flat, narrow index with violently dispersing
+  constituents.** PLTR **+4.10%**, INTC +1.90%, MSFT +1.74%, AMD +1.16%, MU +1.12%
+  against UBER **−3.71%**, LLY **−3.38%**, ABNB −1.18%, GOOG −1.13%. A long-only bot on
+  a 0.69%-range index correctly finds little, and what it does find is late.
+
+### Lessons & improvement candidates
+1. **SHIPPED — IMP-036: the volatility sub-score was sign-inverted; it now scores range
+   availability instead of quietness.** `score_volatility` was written as a *spread*
+   proxy ("tight is good, spikes are bad") because the IEX trade feed gives no bid/ask.
+   On a bot whose entire exit structure is a **1.25% trail, a 2% stop and a 10% target**,
+   that aimed 15 of 100 points at precisely the tape that cannot reach any of them.
+   Two independent populations agree on the direction **and on the breakpoint**:
+   - **269 closed trades (P&L).** ATR/close ≤ 0.20% → n=175, **−$253.62**; > 0.20% →
+     n=94, **+$245.68**. In the live regime (entries ≥ 10:00 ET): dead n=161 **−$328.91**
+     vs live n=67 **+$728.32**. Negative on the **median** and after **trimming the
+     extremes** in every era cut, so no single blowup carries the sign.
+   - **191 refused candidates over 8 sessions** — never traded, so no P&L, sizing or
+     capital confound at all. avg MFE by band: **+0.182% / +0.353% / +0.680% / +1.197% /
+     +1.695%** (≤0.05 / 0.05–0.10 / 0.10–0.20 / 0.20–0.30 / >0.30%), **monotone across
+     all five**, with trail-reach going **0% → 2% → 12% → 38% → 100%**.
+   Kept as a **ranking** term at its existing 15 points rather than promoted to a veto:
+   on the live-regime population the soft form beat a hard veto on every window
+   (n=69 / 61% win / PF 3.18 vs n=67 / 55% / PF 2.57), because the 11 dead-tape setups
+   strong enough to clear the bar anyway made **+$28.77** while the 150 it declined lost
+   **−$357.68**. The dead anchor is the **incumbent `_ATR_GOOD` constant (0.20%)**, not a
+   fitted one. **444 tests (+3), replay across six windows — full detail and the honest
+   cost in `improvement-log.md`.**
+2. **The cost is stated, not buried: replay net dollars FALL 4–12% in 5 of 6 windows**
+   while win rate and PF rise in **all six** and per-trade P&L rises ~60%. Trade count
+   drops ~44%. I shipped anyway because the removed cohort is worth **+$1.35/trade in
+   an idealized-fill simulation** and **−$2.04/trade in the live record** — a gap that
+   is exactly execution, and it lands hardest on small moves on quiet tape where the
+   whole "profit" is a few cents a share. **This is the falsifiable part.** If over the
+   next ~15 fills the retained trades do not show a better win rate and a better
+   per-trade P&L than the pre-IMP-036 book, revert it.
+3. **Next candidate — the bot enters late in the move.** PLTR ran +4.10% and the bot
+   banked +0.27% of it, entering at 18:34 after the day's range was made. This is
+   IMP-017's finding (the lifetime loss came from buying moves that had already
+   happened) reappearing on a *winning* trade. Measure entry timestamp against the
+   symbol's session range before proposing anything — do **not** act on one trade.
+4. **Not a candidate: loosening the crossover floor, re-opening the gate, or adding a
+   filter.** 3 of 47 declined candidates reached the trail. Nothing in today's data
+   argues for admitting more.
+5. **Carried, still blocked: `conf_rsi` is 35-of-100 dead weight's remaining half.**
+   47/47 refusals scored `conf_rsi` 1.00 today (fourth consecutive session). Note the
+   naive version of this — redistribute the points and hold `ENTRY_THRESHOLD` at 60 —
+   is now **refuted by arithmetic**: it would have scored today's PLTR entry at 59.8
+   against a 60 bar and killed the only trade of the day for a reason unrelated to its
+   merits. Any version must be **threshold-neutral** (60 → ~38.5 on a 65-point scale).
+   Hold until IMP-036 has live fills to judge it against.
+
+### Notes for pre-market research
+- **The board is still not the constraint; the tape is.** 11 symbols produced 47 scored
+  candidates, the highest count yet, and every enabled name is reaching the scorer.
+- **PLTR — the day's standout, and worth flagging rather than acting on.** +4.10% o2c on
+  a 5.54% range, produced **4 scored candidates and the day's only fill**, plus the day's
+  best declined candidate (16:25, MFE +1.91%). It is doing exactly what a good watchlist
+  name should. No change requested.
+- **MU — twice vetoed by the market gate at conf 71.07 and 70.66, the two highest scores
+  of the session**, and it closed +1.12%. Not a watchlist issue (the gate is a
+  market-wide veto and is closed by 8 windows), but worth knowing MU is generating the
+  strongest signals on the board.
+- **UBER −3.71% and LLY −3.38%** were the day's worst, and **neither produced a single
+  scored candidate** — the long-only filters correctly stayed away. No action.
+- **QQQ printed 6 refusals, all on confidence 50.1–53.6** — the lowest scores on the
+  board, consistent with its 0.69% range. It remains **structurally locked** as
+  `MARKET_FILTER_SYMBOL`; do not park it.
+- **⚠️ Heads-up for tomorrow: IMP-036 will visibly cut the fill count.** A quiet entry
+  candle now scores 15 points lower, so expect **fewer entries and more
+  "confidence X < 60" refusals**, concentrated on the low-ATR names. That is the change
+  working, not a malfunction — do not diagnose it as a drought.
+- **Dated items due 08-27 (unchanged, all still owed):** NVDA re-enable, AAPL and JPM
+  dead-signal tests, INTC on-notice re-check. NVDA reported after tonight's close, so
+  AMD / TSM / MU / INTC carry the read-through into tomorrow's open unhedged, by design.
