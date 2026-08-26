@@ -35,7 +35,7 @@ def _snap(
     rsi=55.0,
     prev_rsi=50.0,
     avg_volume=100.0,
-    atr=0.2,
+    atr=0.35,  # 0.35% of close — a live tape, full marks after IMP-036
     interval_seconds=60,
     symbol="NFLX",
 ) -> RibbonSnapshot:
@@ -97,11 +97,60 @@ def test_volume_ratio_mapping():
     assert score_volume(_snap(avg_volume=None)) == 0.0
 
 
-def test_volatility_tight_high_spike_low():
-    assert score_volatility(_snap(atr=0.1, close=100.0)) == 1.0  # 0.1% tight
-    assert score_volatility(_snap(atr=2.0, close=100.0)) == 0.0  # 2% spike
-    mid = score_volatility(_snap(atr=0.6, close=100.0))  # 0.6% between
+def test_volatility_dead_tape_low_live_tape_high():
+    """IMP-036 reversed this: range availability, not spread sanity.
+
+    A 1-min ATR of 0.1% of price cannot reach the 1.25% trail before the flatten, so
+    it now scores 0.0 where it used to score full marks.
+    """
+    assert score_volatility(_snap(atr=0.1, close=100.0)) == 0.0  # 0.10% — dead tape
+    assert score_volatility(_snap(atr=0.35, close=100.0)) == 1.0  # 0.35% — travels
+    assert score_volatility(_snap(atr=2.0, close=100.0)) == 1.0  # lively stays lively
+    mid = score_volatility(_snap(atr=0.25, close=100.0))  # 0.25% — on the ramp
     assert 0.0 < mid < 1.0
+
+
+def test_volatility_is_monotone_non_decreasing_in_atr():
+    """The whole point of IMP-036 is the sign. Guard the direction, not one value.
+
+    Reverting the ramp makes this fail, which is the regression that matters — a
+    future edit that "restores tight-is-good" cannot pass silently.
+    """
+    ratios = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.5, 1.0, 2.0]
+    scores = [score_volatility(_snap(atr=r, close=100.0)) for r in ratios]
+    assert scores == sorted(scores)
+    assert scores[0] == 0.0 and scores[-1] == 1.0
+
+
+def test_pltr_2026_08_26_dead_tape_entry_no_longer_clears_the_bar():
+    """The 2026-08-26 session's only trade, kept as the motivating regression.
+
+    PLTR 18:34 UTC entered on a 1-min ATR of 0.090% of price — deep dead tape — and
+    did exactly what 77% of that cohort does: drifted to the end-of-day flatten for
+    +0.27% (+$5.28) without ever arming the trail. Recorded sub-scores were
+    crossover 0.3304, trend 1.0000, rsi 0.5968, volume 1.0000, volatility 1.0000,
+    total 65.82 against ENTRY_THRESHOLD 60.
+
+    Under IMP-036 the volatility term reads 0.0 instead of 1.0, so the same candle
+    scores 50.82 and is refused. Losing this winner is the acknowledged cost of the
+    change; the cohort it belongs to lost −$328.91 over 161 live-regime trades.
+    """
+    weights = ScoreWeights()
+    recorded = dict(crossover=0.3304, trend=1.0000, rsi=0.5968, volume=1.0000)
+    old_total = (
+        recorded["crossover"] * weights.crossover
+        + recorded["trend"] * weights.trend
+        + recorded["rsi"] * weights.rsi
+        + recorded["volume"] * weights.volume
+        + 1.0 * weights.volatility  # what the old tight-is-good ramp returned
+    )
+    assert old_total == pytest.approx(65.82, abs=0.01)
+
+    # The tape it actually entered on now scores zero, not full marks.
+    assert score_volatility(_snap(atr=0.090, close=100.0)) == 0.0
+    new_total = old_total - weights.volatility
+    assert new_total == pytest.approx(50.82, abs=0.01)
+    assert old_total >= 60.0 > new_total
 
 
 def test_confidence_weighted_total_in_range():
@@ -113,7 +162,7 @@ def test_confidence_weighted_total_in_range():
         rsi=55.0,
         volume=200.0,
         avg_volume=100.0,
-        atr=0.1,
+        atr=0.35,
     )
     gate = _snap(ribbon=(102.0, 101.0, 100.0), prev_ribbon=(101.0, 100.5, 100.0), close=100.0)
     breakdown = confidence(strong, gate, weights)
@@ -146,7 +195,7 @@ def test_volume_subscore_is_reported_but_does_not_move_the_total():
         prev_ribbon=(99.9, 100.4, 100.0),
         close=100.0,
         rsi=55.0,
-        atr=0.1,
+        atr=0.35,
     )
     chased = confidence(_snap(volume=200.0, avg_volume=100.0, **common), gate)  # 2.0x
     quiet = confidence(_snap(volume=10.0, avg_volume=100.0, **common), gate)  # 0.1x
@@ -172,7 +221,7 @@ def test_todays_refused_msft_no_longer_outranks_the_wider_cross():
         prev_ribbon=(100.2, 100.1, 100.0),
         close=100.0,
         rsi=55.0,
-        atr=0.1,
+        atr=0.35,
     )
     thin_volume = confidence(_snap(volume=50.0, avg_volume=100.0, **common), gate)
     heavy_volume = confidence(_snap(volume=300.0, avg_volume=100.0, **common), gate)
@@ -185,7 +234,7 @@ def test_todays_refused_msft_no_longer_outranks_the_wider_cross():
             prev_ribbon=(99.9, 100.4, 100.0),
             close=100.0,
             rsi=55.0,
-            atr=0.1,
+            atr=0.35,
             volume=50.0,
             avg_volume=100.0,
         ),
@@ -336,7 +385,7 @@ def _fresh_trigger() -> RibbonSnapshot:
         rsi=55.0,
         volume=200.0,
         avg_volume=100.0,
-        atr=0.1,
+        atr=0.35,
     )
 
 
@@ -376,7 +425,7 @@ def _weak_xo_trigger() -> RibbonSnapshot:
         rsi=55.0,
         volume=200.0,
         avg_volume=100.0,
-        atr=0.1,
+        atr=0.35,
     )
 
 
@@ -432,7 +481,7 @@ def _midweak_xo_trigger() -> RibbonSnapshot:
         rsi=55.0,
         volume=200.0,
         avg_volume=100.0,
-        atr=0.1,
+        atr=0.35,
     )
 
 
@@ -461,7 +510,9 @@ def test_imp020_floor_blocks_the_0_20_to_0_25_band_that_0_20_admitted():
 
 
 def test_entry_candidate_below_threshold_does_not_enter():
-    # A fresh cross but weak confirmation (thin volume, wide ATR, neutral RSI).
+    # A fresh cross but weak confirmation (thin volume, dead tape, neutral RSI).
+    # IMP-036 flipped which ATR is the weak one: 0.10% of close cannot travel far
+    # enough to arm the trail, so it now scores 0.0 where a 1.5% spike scores 1.0.
     weak = _snap(
         ribbon=(100.05, 100.02, 100.0),
         prev_ribbon=(99.99, 100.02, 100.0),
@@ -470,7 +521,7 @@ def test_entry_candidate_below_threshold_does_not_enter():
         prev_rsi=45.0,
         volume=40.0,
         avg_volume=100.0,
-        atr=1.5,
+        atr=0.1,
     )
     d = evaluate_entry(weak, _open_gate(), threshold=60.0)
     assert d.candidate and not d.enter

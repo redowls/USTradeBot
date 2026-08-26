@@ -101,7 +101,7 @@ def _fresh_strong_trigger() -> RibbonSnapshot:
         prev_rsi=50.0,
         volume=200.0,
         avg_volume=100.0,
-        atr=0.1,
+        atr=0.35,  # 0.35% of close — a live tape, full marks after IMP-036
     )
 
 
@@ -1071,7 +1071,7 @@ def test_entry_signal_carries_the_tape_context(cfg):
     sig = eng.on_short_candle(_candle())
 
     assert sig is not None
-    assert sig.atr_pct == pytest.approx(0.1)  # _fresh_strong_trigger: atr 0.1 @ close 100
+    assert sig.atr_pct == pytest.approx(0.35)  # _fresh_strong_trigger: atr 0.35 @ close 100
     assert sig.ribbon_spread_pct == pytest.approx(1.0)
 
 
@@ -1139,7 +1139,7 @@ def _near_miss_trigger() -> RibbonSnapshot:
         prev_rsi=50.0,
         volume=90.0,
         avg_volume=100.0,
-        atr=0.1,
+        atr=0.35,  # live tape, so the refusal under test is the crossover floor
     )
 
 

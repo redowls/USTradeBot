@@ -2583,3 +2583,165 @@ not reproducible until tonight. Fix the instrument, then run the experiment.
   (16 of 36 refusals tonight cleared confidence ≥ 60 and died on the crossover floor,
   which follows from IMP-034 raising crossover to 39 of the 65 live discriminating
   points). Measure **after** the rsi/volatility change, which moves those weights.
+
+---
+
+## IMP-036 — 2026-08-26 (daily) — the volatility sub-score was sign-inverted: score range availability, not quietness
+
+### The problem
+`score_volatility` was written as a **spread proxy**. Its own docstring said so: *"the
+IEX trade feed gives us no bid/ask spread to measure directly"*, so it used ATR/close as
+a stand-in and scored **tight = 1.0, spiky = 0.0** (`_ATR_GOOD = 0.20%`,
+`_ATR_BAD = 1.00%`).
+
+A cost control was thereby wired in as a **ranking** term. On a bot whose entire exit
+structure is a **1.25% trail, a 2% stop and a 10% target**, it handed 15 of 100 points
+to exactly the tape that cannot reach any of them.
+
+It also never worked as the spread guard it was meant to be: on a **1-minute** candle,
+ATR/close for these names runs 0.02%–0.15%, so the score sat pinned at **1.00 for
+175 of 269 trades** and could only reach 0.0 at a 1-min ATR of 1% of price, which never
+happens. It was simultaneously a dead constant for most candidates and an *inverted*
+discriminator for the rest.
+
+**Two independent populations agree on the direction and on the breakpoint.**
+
+**(1) 269 closed trades — real P&L, real fills.** Split at the old saturation point:
+
+| 1-min ATR/close | n | win % | net P&L | median % | trimmed |
+|---|---|---|---|---|---|
+| **≤ 0.20% ("full marks")** | **175** | 46% | **−$253.62** | **−0.069%** | −$270.45 |
+| > 0.20% | 94 | 46% | **+$245.68** | −0.035% | +$200.72 |
+
+Restricted to the live regime (entries ≥ 10:00 ET, post-IMP-017): dead **n=161,
+−$328.91** against live **n=67, +$728.32**. The dead band is negative on the **median**
+and **after trimming the extremes** in every era cut (all-time, ≥07-25, ≥08-05), so no
+single blowup carries the sign. Its raw dollar loss *is* July-concentrated
+(Jun −$0.97 / Jul −$258.03 / Aug +$5.38) — which is why the median and trimmed columns
+are the ones this rests on, not the total.
+
+**(2) 191 refused candidates over 8 sessions — never traded**, so no P&L, no sizing,
+no capital confound. Scored against their own forward tape via `bot.refusals`:
+
+| 1-min ATR/close | n | avg MFE | avg fwd | hit trail |
+|---|---|---|---|---|
+| ≤ 0.05% | 37 | +0.182% | −0.075% | 0/37 |
+| 0.05 – 0.10% | 92 | +0.353% | −0.053% | 2/92 |
+| 0.10 – 0.20% | 51 | +0.680% | −0.069% | 6/51 |
+| 0.20 – 0.30% | 8 | +1.197% | **+0.738%** | 3/8 |
+| > 0.30% | 3 | +1.695% | **+1.305%** | 3/3 |
+
+**MFE rises monotonically across all five bands** and the trail-reach rate goes
+**0% → 2% → 12% → 38% → 100%**. That is the mechanism stated directly: the 1-min ATR
+predicts how far the tape will travel, and every exit this bot owns needs travel.
+
+**Today's single trade is the archetype.** PLTR 18:34, entry ATR **0.090%** — deep dead
+tape — scored 65.82 with volatility at full marks, then did what **77%** of that cohort
+does (against 45% of the rest): drifted to the flatten for **+0.27%**, MFE +0.660%, the
+1.25% trail never arming. PLTR itself ran **+4.10% on a 5.54% range** that day. The bot
+took the flat part of the best mover on the board.
+
+### The change
+`bot/signals.py` only. Anchors **reversed, not re-fitted**:
+
+```
+_ATR_GOOD = 0.0020  ->  _ATR_DEAD = 0.0020   # <= this -> 0.0 (was 1.0)
+_ATR_BAD  = 0.0100  ->  _ATR_LIVE = 0.0030   # >= this -> 1.0 (was 0.0)
+```
+
+Four deliberate choices:
+1. **The dead anchor is the incumbent constant.** 0.20% is where the old score
+   saturated *and* where the sign flips in both populations. It is not a fitted
+   parameter — I reused the number already in the file.
+2. **Kept as a ranking term at 15 points, not promoted to a veto.** A dead-tape
+   candidate must now earn the full `ENTRY_THRESHOLD` from crossover + trend + rsi
+   alone. On the live-regime population the soft form beat the hard veto on every
+   window (**n=69 / 61% win / PF 3.18** vs **n=67 / 55% / PF 2.57**), because the 11
+   dead-tape setups strong enough to clear the bar anyway made **+$28.77** while the
+   150 it declined lost **−$357.68**.
+3. **No weight change and no threshold change.** Exactly one thing moves. (This also
+   sidesteps the trap that killed the naive version of the `conf_rsi` plan — see
+   "What this refutes".)
+4. **No taper above `_ATR_LIVE`.** The highest observed band (0.40–1.00%) was the best
+   performer (n=10, 70% win, +$235.22), so there is no evidence for one, and the 2% stop
+   already bounds a single over-lively name. Slippage control belongs to the watchlist
+   liquidity floor, which is enforced and clean.
+
+Sensitivity is a **plateau, not a knife-edge**. Upper anchor 0.25 / 0.30 / 0.35 / 0.40 /
+0.50% → net +$830 / +$886 / +$802 / +$791 / +$731, win 58–61%, PF 2.79–3.18. Dead anchor
+0.10 / 0.15 / **0.20** / 0.25% → +$681 / +$773 / **+$886** / +$662.
+
+### Validation
+- **444 tests pass** (441 → 444, +3), full suite, no regressions.
+- New coverage in `tests/test_signals.py`:
+  - `test_volatility_dead_tape_low_live_tape_high` — the reversed endpoints.
+  - `test_volatility_is_monotone_non_decreasing_in_atr` — guards the **sign** across
+    ten ratios rather than any single value, so a future "restore tight-is-good" edit
+    cannot pass silently.
+  - `test_pltr_2026_08_26_dead_tape_entry_no_longer_clears_the_bar` — **today's real
+    trade as the motivating regression**: recorded sub-scores reproduce 65.82, and the
+    same candle now scores 50.82 against a 60 bar.
+- **Non-vacuity verified**: monkeypatching `score_volatility` back to the old ramp fails
+  **all three** new tests (exit code 1, captured).
+- **Fixture recalibration, disclosed:** 10 fixtures across `test_signals.py` and
+  `test_strategy.py` used `atr=0.1`/`0.2` to mean *"a healthy candidate"*, which under
+  the new semantics is a dead tape. They were moved to `atr=0.35` (a live tape) so each
+  test still exercises the filter it was written for; `test_entry_candidate_below_
+  threshold_does_not_enter` went the other way (1.5 → 0.1), since the weak-confirmation
+  ATR is now the quiet one. **No assertion was weakened.**
+- **`bot.replay`, current config, gate ON, six windows — baseline → IMP-036:**
+
+| window | n | net | win % | PF | avg/trade |
+|---|---|---|---|---|---|
+| 10d | 7 → **2** | −35.23 → **−10.76** | 42.9 → **50.0** | 0.48 → **0.59** | −5.03 → −5.38 |
+| 20d | 23 → **9** | +129.54 → **+81.39** | 60.9 → **77.8** | 1.89 → **2.82** | +5.63 → **+9.04** |
+| 30d | 44 → **23** | +341.54 → **+302.61** | 61.4 → **65.2** | 2.22 → **3.10** | +7.76 → **+13.16** |
+| 45d | 56 → **30** | +434.15 → **+367.51** | 62.5 → **66.7** | 2.12 → **2.97** | +7.75 → **+12.25** |
+| 60d | 86 → **47** | +617.95 → **+512.31** | 55.8 → **57.4** | 1.96 → **2.52** | +7.19 → **+10.90** |
+| 90d | 129 → **72** | +710.74 → **+633.78** | 56.6 → **59.7** | 1.69 → **2.09** | +5.51 → **+8.80** |
+
+- `bot.preflight` not required (no connectivity/config surface touched); pure function.
+
+### ⚠️ The honest cost, stated up front
+**Replay net dollars FALL in 5 of 6 windows** (−4% to −12%; 90d +$710.74 → +$633.78) and
+**trade count drops ~44%**. Win rate, profit factor and per-trade P&L rise in **every**
+window, the last by roughly 60%.
+
+I shipped it anyway, and the reason is a measurable reconciliation rather than a
+preference. Over 90d the replay's removed cohort is worth **+$76.96 across 57 trades =
++$1.35/trade**. The *same cohort in the live record* is worth **−$2.04/trade** across 161
+live-regime fills. That gap is execution: idealized fills flatter small moves on quiet
+tape most, because there the entire "profit" is a few cents per share. A +$1.35/trade
+simulated edge does not survive the sim-to-live gap; a PF of 1.69 → 2.09 does.
+
+Second reason: the live book's all-time net is **−$7.93 over 269 trades**. A simulated
+PF of 1.69 has produced **no live edge at all**. Raising per-trade edge ~60% is the thing
+most likely to close that gap; adding trade count is not.
+
+**This is falsifiable and I am pre-registering the test.** If over the next ~15 fills the
+retained trades do not show both a better win rate and a better per-trade P&L than the
+pre-IMP-036 book, **revert it**. `conf_volatility` remains computed and persisted to
+`dbo.trades` and `dbo.entry_refusals` on every entry and refusal, so the measurement
+needs no new instrumentation.
+
+### What this refutes
+- **The 08-25 "free the 35 near-constant points" plan, in its naive form.** Redistribute
+  `conf_rsi` + `conf_volatility`'s 35 points proportionally to crossover/trend and hold
+  `ENTRY_THRESHOLD` at 60, and today's PLTR entry scores **59.8 against a 60 bar** — the
+  only trade of the day, killed for a reason unrelated to its merits. Removing a
+  ~constant subsidy while holding the threshold silently moves the effective bar from
+  ~38.5% to 60% of the discriminating range. IMP-034's renormalisation logic **does not
+  transfer** to a term that sits at full marks. Any future version must be
+  threshold-neutral (60 → ~38.5 on a 65-point scale). **Filed to `todo.md`.**
+- **"`conf_volatility` is dead weight"** (08-24, 08-25, carried three sessions). Half
+  right: it is a constant on the *refusal* population, but across 269 trades it takes
+  **94 distinct values** and ranks them **backwards**. It was never inert — it was
+  inverted, which is worse, and the near-constancy on refusals hid that.
+
+### Follow-ups
+- `conf_rsi` is now the **only** remaining dead-weight term (1.00 on 47/47 refusals
+  today, 252/269 trades). Blocked on IMP-036 live fills; must be threshold-neutral.
+- **Expect visibly fewer fills from 08-27.** Do not diagnose the lower count as a
+  drought or a malfunction — it is this change working. The pre-market routine has been
+  warned in today's "Notes for pre-market research".
+- Deployed: committed, pushed to `origin/main`, `systemctl restart` — see below.

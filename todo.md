@@ -352,6 +352,30 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       the trail). **Sequence: measure only *after* the rsi/volatility change above, which
       moves the very weights the redundancy is computed from.**
 
+- [ ] **`conf_rsi` is the last dead-weight term — and any fix MUST be threshold-neutral.**
+      `conf_rsi` scored **1.00 on 47/47 refusals on 2026-08-26** (fourth consecutive
+      session) and on **252 of 269 trades**, so its 20 points are a flat subsidy handed to
+      every candidate that reaches scoring. It is a **de-facto veto wearing a ranking
+      term's clothes** — it only leaves 1.00 above RSI 65 and only hits 0.0 at RSI ≥ 70.
+      **IMP-036 refuted the naive fix by arithmetic:** redistribute the points
+      proportionally to crossover/trend and hold `ENTRY_THRESHOLD` at 60, and
+      2026-08-26's PLTR entry scores **59.8 against a 60 bar** — the only trade of that
+      day, killed for a reason unrelated to its merits. Removing a ~constant subsidy while
+      holding the threshold silently moves the effective bar from **~38.5% to 60%** of the
+      discriminating range. **IMP-034's renormalise-to-100 logic does not transfer to a
+      term that sits at full marks.** Any version must move `ENTRY_THRESHOLD` **60 → ~38.5**
+      in the same change, or convert `conf_rsi` to an explicit RSI ≥ 70 veto and re-derive
+      the bar. **Blocked until IMP-036 has live fills to judge it against.**
+
+- [ ] **IMP-036 pre-registered revert test (owner: whoever reviews ~15 fills after
+      2026-08-26).** IMP-036 reversed the volatility sub-score's sign; replay net dollars
+      **fell 4–12% in 5 of 6 windows** while win rate, PF and per-trade P&L rose in all
+      six. It was shipped on the argument that the removed cohort is **+$1.35/trade in
+      simulation but −$2.04/trade in the live record**, the gap being execution. **If over
+      the next ~15 fills the retained trades do not show BOTH a better win rate AND a
+      better per-trade P&L than the pre-IMP-036 book, revert it.** No new instrumentation
+      needed — `conf_volatility` is still computed and persisted on every entry and refusal.
+
 ---
 
 ### Suggested build order

@@ -13,8 +13,10 @@ The confidence is a *relative ranking* of setups, **not** a probability of profi
 (summary.md). Weights are illustrative — tune them on paper. The market-hours gate
 lives here too but is applied by the state machine (it owns the clock).
 
-All functions are pure. The volatility sub-score uses an ATR/price proxy because
-the IEX trade feed gives us no bid/ask spread to measure directly.
+All functions are pure. The volatility sub-score reads the 1-min ATR/price as a
+proxy for *range availability* — how far the tape is likely to travel before the
+flatten — not, as it originally did, as a stand-in for the bid/ask spread the IEX
+trade feed does not give us (IMP-036).
 """
 
 from __future__ import annotations
@@ -39,9 +41,11 @@ _TREND_WIDTH_FULL = 0.0040  # (fast-slow)/close at which the gate width score sa
 _VOL_RATIO_LOW = 0.5
 _VOL_RATIO_HIGH = 1.5
 
-# Volatility / spread sanity: ATR/close. Tight is good; spikes score low.
-_ATR_GOOD = 0.0020  # <= this -> 1.0
-_ATR_BAD = 0.0100  # >= this -> 0.0
+# Range availability: 1-min ATR/close. A tape that does not travel cannot pay
+# (IMP-036). Anchors reversed, not re-fitted — ``_ATR_DEAD`` is the incumbent
+# ``_ATR_GOOD`` breakpoint, which is where the sign flips in both populations.
+_ATR_DEAD = 0.0020  # <= this -> 0.0 (cannot reach the 1.25% trail before the flatten)
+_ATR_LIVE = 0.0030  # >= this -> 1.0
 
 
 @dataclass(frozen=True)
@@ -172,16 +176,70 @@ def score_volume(trigger: RibbonSnapshot) -> float:
 
 
 def score_volatility(trigger: RibbonSnapshot) -> float:
-    """Volatility / spread sanity (ATR/price proxy): tight scores high, spikes low."""
+    """Range availability (1-min ATR/price): a tape that travels scores high (IMP-036).
+
+    This sub-score used to run the other way — it was written as a *spread* proxy
+    ("tight is good, spikes are bad") because the IEX trade feed gives us no bid/ask.
+    On a bot whose whole exit structure is a 1.25% trail, a 2% stop and a 10% target,
+    that pointed 15 of 100 points at exactly the tape that cannot reach any of them.
+
+    Two independent populations, measured 2026-08-26, agree on the direction *and* on
+    the breakpoint — which is why the dead anchor below is the incumbent constant
+    rather than a fitted one:
+
+    **269 closed trades** (P&L), split at the old saturation point:
+
+    ==========================  ===  =====  =========  =========
+    1-min ATR/close               n  win %  net P&L    median %
+    ==========================  ===  =====  =========  =========
+    <= 0.20% ("full marks")     175    46%  −$253.62     −0.069%
+    >  0.20%                     94    46%  +$245.68     −0.035%
+    ==========================  ===  =====  =========  =========
+
+    Restricted to the live regime (entries >= 10:00 ET, IMP-017): dead n=161 −$328.91
+    against live n=67 +$728.32. Negative on the median and after trimming the extremes
+    in every era cut, so it is not one blowup carrying the sign.
+
+    **191 refused candidates** over 8 sessions — never traded, so no P&L, sizing or
+    capital confound at all. How far the tape then ran:
+
+    ==================  ===  =========  =========  ==========
+    1-min ATR/close       n  avg MFE    avg fwd    hit trail
+    ==================  ===  =========  =========  ==========
+    <= 0.05%             37    +0.182%    −0.075%       0/37
+    0.05 – 0.10%         92    +0.353%    −0.053%       2/92
+    0.10 – 0.20%         51    +0.680%    −0.069%       6/51
+    0.20 – 0.30%          8    +1.197%    +0.738%        3/8
+    >  0.30%              3    +1.695%    +1.305%        3/3
+    ==================  ===  =========  =========  ==========
+
+    MFE rises monotonically across all five bands and the trail-reach rate goes 0% →
+    2% → 12% → 38% → 100%. That is the mechanism stated directly: the 1-min ATR
+    predicts how far the tape will travel, and every exit this bot owns needs travel.
+
+    Kept as a **ranking** term at its existing 15 points rather than promoted to a
+    veto: a dead-tape candidate now has to earn the full ``ENTRY_THRESHOLD`` from
+    crossover, trend and rsi alone. On the live-regime population that soft form beat
+    the hard veto on every window (n=69 / 61% win / PF 3.18 versus n=67 / 55% / 2.57),
+    because the 11 dead-tape setups strong enough to clear the bar anyway were
+    collectively profitable (+$28.77) while the 150 it declined lost −$357.68.
+
+    No taper above ``_ATR_LIVE``: the highest observed band (0.40–1.00%) was the best
+    performer (n=10, 70% win, +$235.22), so there is no evidence for one, and the 2%
+    stop already bounds a single over-lively name. Revisit if the bot ever trades a
+    genuinely spiky tape. Slippage control is the watchlist's liquidity floor, not
+    this term — it never functioned as a spread guard anyway, being pinned at 1.00 for
+    65% of all trades and only able to reach 0.0 at a 1-min ATR of 1% of price.
+    """
     atr = trigger.atr
     if atr is None or trigger.close <= 0:
         return 0.0
     ratio = atr / trigger.close
-    if ratio <= _ATR_GOOD:
-        return 1.0
-    if ratio >= _ATR_BAD:
+    if ratio <= _ATR_DEAD:
         return 0.0
-    return _clamp01((_ATR_BAD - ratio) / (_ATR_BAD - _ATR_GOOD))
+    if ratio >= _ATR_LIVE:
+        return 1.0
+    return _clamp01((ratio - _ATR_DEAD) / (_ATR_LIVE - _ATR_DEAD))
 
 
 def confidence(
