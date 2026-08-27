@@ -5649,3 +5649,151 @@ ALL          47   +0.39%   -0.36%   +0.11%   37/47      3/47     0/47
 - **Dated items due 08-27 (unchanged, all still owed):** NVDA re-enable, AAPL and JPM
   dead-signal tests, INTC on-notice re-check. NVDA reported after tonight's close, so
   AMD / TSM / MU / INTC carry the read-through into tomorrow's open unhedged, by design.
+
+---
+
+## 2026-08-27 — Daily Review
+
+### Stats
+- Closed trades (DB): **4** — **4W / 0L → 100% win rate**. Net realized **+$51.39**
+  (avg **+$12.85**/trade). Avg win +$12.85, **no losers → profit factor ∞** (n=4; a
+  one-session PF of ∞ is a small-sample artifact, not a claim).
+- **Equity reconciles exactly.** Session open **$9,094.34** → close **$9,145.73** =
+  **+$51.39**, identical to DB realized P&L to the cent. **0 open positions** at the
+  broker; nothing carried overnight.
+- **Broker reconciliation clean (read-only, `alpaca-usbot` MCP).** 4 buy fills + 4 sell
+  fills, every one matching `dbo.trades` on price and qty: NVDA 12 @224.5875→224.9025,
+  TSM 4 @423.98→425.25, PLTR 13 @184.240769→186.235385, TSLA 5 @351.23→354.55. **No
+  missed fill, no qty drift, no phantom row.** 51 stop-replace orders and **zero 422s**.
+- Service **active** all session, **0 WARNING-or-above lines** after the 11:37:46 UTC
+  pre-market restart.
+- **This was IMP-036's first live session** (volatility sub-score reversed 08-26).
+
+### Trade-by-trade review
+All four entries fired between **14:01 and 14:08 UTC (10:01–10:08 ET)** — the first eight
+minutes after the IMP-017 opening-range blackout lifts. All model A.
+
+| sym | in (UTC) | entry | out | exit | conf | xo/trend/rsi/vol/vlt | P&L |
+|---|---|---|---|---|---|---|---|
+| NVDA | 14:01 | 224.5875 | 15:38 | 224.9025 | 82.4 | .55/1.00/1.00/.08/**1.00** | **+$3.78** (+0.14%) |
+| TSM | 14:04 | 423.98 | 18:28 | 425.25 | 62.5 | .43/0.98/1.00/.00/**0.02** | **+$5.08** (+0.30%) |
+| PLTR | 14:06 | 184.2408 | 19:46 | 186.2354 | 88.4 | .70/1.00/1.00/.00/**1.00** | **+$25.93** (+1.08%) |
+| TSLA | 14:08 | 351.23 | 19:45 | 354.55 | 71.8 | .63/0.82/1.00/.20/**0.39** | **+$16.60** (+0.95%) |
+
+- **Regime, not skill, carried the day.** Perplexity `sonar` (usable this run): S&P
+  **+0.6–0.8%**, Nasdaq **+1.3–1.5%**, *"trending risk-on, not choppy"*, tech-led on the
+  NVDA post-earnings reaction with the semis following. Every name we held was long the
+  day's dominant factor. **A 4/4 day on this tape is the expected outcome of being
+  long anything, and must not be read as validation of the signal.**
+- **NVDA — the day's real lesson, and it is a loss disguised as a win.** Entered 224.5875,
+  ran to a **227.17 high-water close (+1.15%)**, which tripped `TRAIL_TIGHTEN_AFTER`
+  (+1.0%), so the stop jumped from `peak×0.9875` to `peak×0.99` = **224.90** and filled
+  on the next dip (bar low 224.87) at 15:38. Booked **+0.14%**. **NVDA then ran to
+  230.47 (+2.62%) and closed the session at ~228.2.** Capture ≈ **12%**. Root cause is
+  **exit logic**, not signal, regime or stop placement: the signal was right for four
+  more hours.
+- **TSM — same mechanism, opposite verdict.** Peak close ~429.6 (+1.33%) → tightened stop
+  425.31, filled 425.25 at 18:28 (6c slippage through the stop). Booked +0.30%. Here the
+  tightening **helped**: a flat 1.25% trail would have sat at 424.23 and been taken out at
+  ~+0.06% in the 19:00 window. Recorded so the finding below is not read one-sided.
+- **PLTR and TSLA — the honest winners.** Neither triggered the tighten early enough to be
+  scratched; both rode to the EOD flatten for **+1.08% / +0.95%**. These are what the exit
+  structure looks like when it is left alone.
+- **PLTR's exit reason is mislabelled.** The bot's own market close (`beaf8a97`) submitted
+  19:45:27 and filled 19:45:34.82, but the open-position check ran at 19:45:34.25 — **0.6 s
+  early** — so it declared a failed close and let `reconcile_exit` re-find *its own order*,
+  tagging it `end-of-day flatten (stop/target filled broker-side)`. Price and P&L are
+  correct; the **label** is not. Filed to `todo.md` — it means `exit_reason` cannot
+  currently separate "trail hit" from "EOD flatten", which is why tonight's analysis had
+  to be done with price arithmetic instead.
+
+### What worked / what didn't
+- **IMP-036 is biting, and biting where it was aimed.** `conf_volatility` is no longer
+  pinned at 1.00: today's four entries scored **1.00 / 0.02 / 1.00 / 0.39** — real spread,
+  where 08-26 had it near-constant. TSM cleared the bar at **62.5 with volatility 0.02**,
+  which is exactly the designed behaviour (soft ranking term, not a veto) and it won.
+  **Pre-registered test now at 4 of 15 fills: 4W/0L, +$12.85/trade vs the pre-IMP-036
+  book's −$0.03/trade. Tracking well; nowhere near conclusive.**
+- **`conf_rsi` was 1.00 on all four entries again** — the last remaining dead-weight term,
+  now ~256/273 trades. Unchanged, still blocked on IMP-036 fills, still must be
+  threshold-neutral when it moves.
+- **The entry cluster is a feature, not a bug.** All 4 entries landed in the first 8
+  minutes of the entry window. Across the whole post-IMP-021 book, **12 of 29 entries (41%)
+  fall in 14:00–14:15 UTC**, a 15-minute slice = 4.3% of the entry window — and that cohort
+  is **+$180.34 of the book's +$193.43, 9W/3L (75%)**. The 10:00 ET release is landing on
+  genuine post-opening-range trend establishment, not on stale crosses (the ribbons update
+  through the blackout, so a 09:45 cross is not "fresh" at 10:01). **No change warranted;
+  worth protecting.**
+
+### Lessons & improvement candidates
+**1. The overdue IMP-021 verdict, finally settled — criterion (b) PASSES.** IMP-021 (08-03)
+pre-registered "two consecutive weeks of live trading" before judgement and its capture
+rerun was never done. Run tonight on 29 live post-IMP-021 fills with real IEX 1-min bars:
+
+| MFE bucket | n | avg MFE | avg realized | capture | net |
+|---|---|---|---|---|---|
+| < 0.5% | 7 | 0.23% | −0.98% | — | **−$100.96** |
+| 0.5–1.0% | 7 | 0.72% | −0.10% | — | −$21.02 |
+| **1.0–2.0%** | **9** | **1.40%** | **+0.63%** | **45%** (was 17%) | +$113.75 |
+| > 2.0% | 6 | 2.68% | +1.75% | **65%** | +$201.66 |
+
+**The 1.0–2.0% bucket went 17% → 45% capture. IMP-021 did what it claimed.** Do not revert.
+
+**2. Where the money now leaks has moved — and it is no longer the exit.** The two winning
+buckets capture 45–65%. **All of the loss sits in trades that never went anywhere: 14 of 29
+(48%) had MFE < 1% and lost −$122 combined.** The exit structure is not the binding
+constraint any more; **entry selectivity is** — which is precisely IMP-036's target, four
+fills into a fifteen-fill test. **This is the argument for not touching the exits tonight.**
+
+**3. Retuning the two-stage trail — investigated, measured, and deliberately NOT shipped.**
+The mechanism is real and today's NVDA is its cost: `TRAIL_TIGHTEN_AFTER` (1.0%) equals
+`TRAIL_PERCENT_TIGHT` (1.0%), so the "profit lock" lands the stop on `peak×0.99` ≈ entry —
+**it banks exactly zero**, converting a proven winner into a scratch on the first 1% wobble.
+I tested it properly rather than asserting it:
+- **Live counterfactual (29 fills, real bars):** a flat 1.25% trail would have made
+  **+$241.18 vs the shipped +$193.43**. But the −$48 gap is **two trades** (NVDA 08-27
+  −$31, INTC 08-13 −$15); on the 15 affected trades the tightening **helped 6, hurt 9**.
+- **Replay, 6 windows (10/20/30/45/60/90d), 20 symbols:** reverting to flat 1.25% **loses
+  in 5 of 6 windows** (90d +$697 vs +$777). **The live counterfactual is refuted by the
+  wider evidence — the two-trade gap was noise, and reverting IMP-021 would have been a
+  mistake.** Recording this because it is exactly the trap the ≥3-window rule exists for.
+- The one variant that beats shipped in **6/6 windows** is `TIGHTEN_AFTER 1.5% / TIGHT 1.0%`
+  (+$12.91/+$30.82/+$19.24/+$13.36/+$13.29/+$4.17). **Still not shipped**, for two reasons:
+  its **PF is slightly worse** (90d 2.42 vs 2.44) and its **win rate is 9pp worse** (53.2%
+  vs 62.3%), so unlike IMP-021 it *does* trade hit-rate for payoff; and the 90-day edge is
+  **+0.5%**, inside noise. Shipping a second exit change on top of a 4-of-15-fill experiment
+  would confound IMP-036 and is textbook thrash. **Filed to `todo.md` as the leading
+  candidate once IMP-036's test completes.**
+- **Bonus finding that reframes IMP-021's own scorecard:** the shipped config is the *only*
+  variant with an elevated win rate (62.3% vs 53.2% for every other setting). That is
+  **breakeven scratches counting as wins**. IMP-021 was praised for "not trading hit-rate
+  for payoff" — in fact it *bought* hit-rate by scratching. Judge it on capture (which it
+  genuinely improved) and PF, not win rate.
+
+**4. Shipped instead: IMP-037 — persist in-trade excursion (MFE/MAE).** Every finding above
+required re-downloading 1-min bars and re-deriving excursion by hand, which is exactly why
+IMP-021's criterion (b) sat unmeasured for **24 days**. Capture is the metric this bot now
+turns on and it was not recorded anywhere. See `improvement-log.md`.
+
+### Notes for pre-market research
+- **NVDA traded beautifully and we captured 12% of it.** +2.62% intraday range from our
+  entry, closed near the highs on the post-earnings continuation. Keep enabled — the
+  problem today was ours, not the symbol's.
+- **PLTR and TSLA both ran clean to the EOD flatten** (+1.08% / +0.95%) with high
+  confidence (88.4 / 71.8). Both earning their slots.
+- **TSM won on a 0.02 volatility sub-score** — the first live case of IMP-036 correctly
+  *allowing* a dead-tape name through on the strength of the other terms. Watch it, don't
+  act on it.
+- **QQQ (48.0) and MSFT (54.2, twice) were the only sub-threshold candidates all day.**
+  Both refused on confidence, neither close. No watchlist implication yet.
+- **Expect the 08-27 4/4 to revert.** The tape was trending risk-on and tech-led; a
+  choppier session is the real test of IMP-036. **Do not widen anything on the strength of
+  today.**
+- Dated items still standing: **AMGN zero-candidate verdict 09-02** (08-26 and 08-27 both
+  zero — that is now **two** sessions, and the 08-26 note said to bring the park forward if
+  so; recommend parking at the 09-02 check at the latest), **AMZN re-check 09-02**, **INTC
+  on-notice re-check 09-03**, **BABA 09-09**, **AAPL dead-signal test 09-10**, **AMD 09-12**,
+  **GOOG dead-signal test 08-31**. **Warsh Jackson Hole keynote is tomorrow (Fri 08-28)** —
+  a macro event that can invalidate the trend regime intraday.
+- **INTC produced no scored candidate today**, so yesterday's "second-leg requirement too
+  permissive" test is still unresolved — carry it forward.

@@ -2876,3 +2876,17 @@ analysis used price arithmetic instead.
 - The 14:00–14:15 UTC entry cluster is **41% of entries and +$180 of +$193** — protect it;
   do not "spread out" entries without evidence.
 - Deployed: committed, pushed to `origin/main`, `systemctl restart` — see below.
+
+### Live validation (2026-08-27 20:25 UTC)
+- **Deploy-gap check, not an assumption**: `bot/risk.py` mtime **20:20:43** precedes
+  `ExecMainStartTimestamp` **20:24:55**, so the running process (**PID 1898233**) carries
+  the new code. Confirmed in the venv: `ExitResult` fields are
+  `[symbol, reason, exit_price, qty, order_id, entry_fill_price, mfe_pct, mae_pct]`.
+- Clean boot: `is-active` **active**, **NRestarts=0**, schema ensured (**16 batches** — the
+  two new `ALTER`s), warmup primed **20/20**, broker handshake `PA34DFFLTHRT` equity
+  **$9,145.73** with **no open positions**, IEX stream subscribed to all 20 symbols.
+  **Zero WARNING-or-above lines since the restart.**
+- 451 tests green immediately before the commit; `bot.preflight` OK with the expected
+  market-closed warning. Commit `60b62c3`, pushed to `origin/main`.
+- **First rows land tomorrow (2026-08-28).** Every trade closed before today is NULL by
+  design.
