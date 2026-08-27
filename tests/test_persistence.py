@@ -257,8 +257,10 @@ def test_record_exit_closes_trade_with_pnl_and_drops_position():
     assert "pnl = (? - COALESCE(?, entry_price)) * qty" in update_sql
     assert "status = 'CLOSED'" in update_sql
     # entry_fill_price defaults to None → COALESCE keeps the stored entry_price (common case).
+    # Trailing None, None are the IMP-037 excursion columns, unmeasured on this exit.
     assert params == (
-        "close-1", None, 101.5, "bearish 1-min ribbon cross", 101.5, None, 101.5, None, "NFLX",
+        "close-1", None, 101.5, "bearish 1-min ribbon cross", 101.5, None, 101.5, None,
+        None, None, "NFLX",
     )
     assert any("INSERT INTO dbo.orders" in s and "'EXIT'" in s for s in _sql(conn.calls))
     assert any("DELETE FROM dbo.positions" in s for s in _sql(conn.calls))
@@ -284,8 +286,28 @@ def test_record_exit_corrects_entry_price_from_delayed_fill():
     # the corrected fill (547.873) is threaded into entry_price + both P/L formulas
     assert params == (
         "close-1", 547.873, 538.88, "end-of-day flatten",
-        538.88, 547.873, 538.88, 547.873, "AMD",
+        538.88, 547.873, 538.88, 547.873, None, None, "AMD",
     )
+
+
+def test_record_exit_persists_the_in_trade_excursion():
+    """IMP-037: mfe/mae reach the row, and a COALESCE guard stops a later re-record
+    (an exit re-run with no measurement) from blanking a value already stored."""
+    conn = _FakeConn(next_id=7, open_qty=12)
+    exit_res = ExitResult(
+        symbol="NVDA",
+        reason="stop/target filled broker-side",
+        exit_price=224.9025,
+        qty=12,
+        order_id="close-1",
+        mfe_pct=1.15,
+        mae_pct=-0.32,
+    )
+    _store(conn).record_exit(exit_res)
+
+    update_sql, params = next(c for c in conn.calls if "UPDATE dbo.trades" in c[0])
+    assert "mfe_pct = COALESCE(?, mfe_pct), mae_pct = COALESCE(?, mae_pct)" in update_sql
+    assert params[-3:] == (1.15, -0.32, "NVDA")
 
 
 def test_record_exit_uses_open_trade_qty_for_audit_order():

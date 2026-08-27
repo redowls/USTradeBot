@@ -68,6 +68,11 @@ class ExitResult:
     qty: int | None
     order_id: str | None
     entry_fill_price: float | None = None  # corrected entry fill, when a delayed fill needs it
+    # In-trade excursion, % of entry, measured on managed 1-min closes (IMP-037).
+    # ``None`` when the position was never managed (a startup-reconciled holding, or an
+    # exit before its first managed candle) — absence of measurement, not a zero excursion.
+    mfe_pct: float | None = None
+    mae_pct: float | None = None
 
 
 OnExit = Callable[[ExitResult], None]
@@ -97,6 +102,11 @@ class RiskManager:
         # drifts away from the original key and must be tracked separately.
         self._trail_stops: dict[str, float] = {}
         self._live_stop_oid: dict[str, str] = {}
+        # In-trade excursion (IMP-037): symbol -> (high-water close, low-water close).
+        # Keyed by SYMBOL, not by stop-leg id, so a position whose stop leg can't be
+        # moved (a startup-reconciled holding) is still measured. Cleared on exit, so it
+        # never leaks across re-entries.
+        self._excursion: dict[str, tuple[float, float]] = {}
         # Broad-adverse-day stand-down (IMP-016). Session-scoped, reset each session
         # open via :meth:`roll_session`. Once tripped, ``entries_allowed`` goes False so
         # the strategy stops opening NEW positions (open ones are still managed/flattened)
@@ -266,6 +276,9 @@ class RiskManager:
         bug — AMD/SE stopped out broker-side at ~15:07 UTC yet the move 422'd ~minutely
         for ~4.5h while the symbols sat MANAGING and un-re-enterable).
         """
+        # Measure BEFORE the early return: a position with no movable stop leg still has
+        # an excursion worth recording, and the exit path reads this state (IMP-037).
+        self._track_excursion(trigger, entry)
         key = getattr(entry, "stop_order_id", "") if entry is not None else ""
         if not key:
             return TrailResult.HELD
@@ -291,6 +304,45 @@ class RiskManager:
         self._trail_stops[key] = new_stop
         log.info("trailing stop %s: %.4f -> %.4f", entry.symbol, current, new_stop)
         return TrailResult.MOVED
+
+    # --- in-trade excursion (IMP-037, observational) ----------------------
+
+    def _track_excursion(
+        self, trigger: RibbonSnapshot, entry: ExecutionResult | None
+    ) -> None:
+        """Carry this position's high/low-water **close** forward one candle.
+
+        Measured on closes rather than intrabar highs/lows deliberately: the ratchet
+        sets the stop from ``close``, so a close-based excursion is the move the exit
+        structure could actually have banked. An intrabar high the trail can never reach
+        would flatter every capture ratio computed off this column.
+
+        Seeded at the entry price, so a trade that only ever goes against us records
+        ``mfe_pct = 0`` (it reached its entry, no more) rather than a misleading negative.
+        """
+        entry_px = getattr(entry, "entry_price", 0.0) or 0.0
+        symbol = getattr(entry, "symbol", "") if entry is not None else ""
+        if entry_px <= 0 or not symbol:
+            return  # no anchor to measure against (startup-reconciled holding)
+        # Keyed off the POSITION's symbol, not the candle's, so this side and the
+        # exit-side pop (which is handed the strategy's symbol) agree by construction.
+        hi, lo = self._excursion.get(symbol, (entry_px, entry_px))
+        self._excursion[symbol] = (max(hi, trigger.close), min(lo, trigger.close))
+
+    def _excursion_pct(
+        self, symbol: str, entry: ExecutionResult | None
+    ) -> tuple[float | None, float | None]:
+        """Pop this position's excursion and express it as % of entry.
+
+        Popping is what keeps the state from leaking into a later re-entry of the same
+        symbol; ``(None, None)`` when the position was never managed.
+        """
+        watermarks = self._excursion.pop(symbol, None)
+        entry_px = getattr(entry, "entry_price", 0.0) or 0.0
+        if watermarks is None or entry_px <= 0:
+            return None, None
+        hi, lo = watermarks
+        return (hi / entry_px - 1.0) * 100.0, (lo / entry_px - 1.0) * 100.0
 
     def exit_position(
         self,
@@ -412,6 +464,7 @@ class RiskManager:
         if key:  # trade is done — drop its trailing-stop state
             self._trail_stops.pop(key, None)
             self._live_stop_oid.pop(key, None)
+        mfe_pct, mae_pct = self._excursion_pct(symbol, entry)
         result = ExitResult(
             symbol=symbol,
             reason=reason,
@@ -419,13 +472,16 @@ class RiskManager:
             qty=getattr(entry, "qty", None),
             order_id=order_id or None,
             entry_fill_price=entry_fill,
+            mfe_pct=mfe_pct,
+            mae_pct=mae_pct,
         )
         log.info(
-            "EXIT %s @ %.4f (%s)%s",
+            "EXIT %s @ %.4f (%s)%s%s",
             result.symbol,
             result.exit_price,
             result.reason,
             f" qty={result.qty}" if result.qty is not None else "",
+            "" if mfe_pct is None else f" mfe={mfe_pct:+.2f}% mae={mae_pct:+.2f}%",
         )
         self._account_for_standdown(result, entry, entry_fill)
         if self._on_exit is not None:

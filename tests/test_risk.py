@@ -628,3 +628,99 @@ def test_two_stage_trail_amd_2026_08_03_regression(cfg_two_stage):
     # Strictly better than what actually happened, and still below the peak.
     assert tightened > 484.68
     assert tightened < 490.85
+
+
+# --- in-trade excursion (IMP-037) ---------------------------------------
+
+
+def test_excursion_tracks_high_and_low_water_closes(cfg):
+    """MFE/MAE follow the running extremes of the managed closes, not the last one."""
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    entry = _entry()
+    for close in (101.0, 103.0, 99.0, 100.5):  # up, up, down, back up
+        rm.update_trailing_stop(_rising(close), entry)
+
+    result = rm.exit_position("NFLX", 100.5, "test", entry)
+
+    assert result.mfe_pct == pytest.approx(3.0)  # 103.0 vs 100.0 entry
+    assert result.mae_pct == pytest.approx(-1.0)  # 99.0 vs 100.0 entry
+
+
+def test_excursion_is_seeded_at_entry_so_a_pure_loser_reports_zero_mfe(cfg):
+    """A trade that never trades above entry reports mfe 0, not a negative."""
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    entry = _entry()
+    for close in (99.5, 98.5):
+        rm.update_trailing_stop(_rising(close), entry)
+
+    result = rm.exit_position("NFLX", 98.5, "test", entry)
+
+    assert result.mfe_pct == pytest.approx(0.0)
+    assert result.mae_pct == pytest.approx(-1.5)
+
+
+def test_excursion_is_none_when_the_position_was_never_managed(cfg):
+    """Absence of measurement is None — never a zero excursion (startup-reconciled)."""
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+
+    result = rm.exit_position("NFLX", 100.0, "test", _entry())
+
+    assert result.mfe_pct is None
+    assert result.mae_pct is None
+
+
+def test_excursion_is_measured_without_a_movable_stop_leg(cfg):
+    """A holding whose stop leg can't be moved still gets measured: the tracker runs
+    before update_trailing_stop's no-key early return."""
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    entry = _entry(stop_order_id="")  # adopted holding: nothing to replace
+
+    assert rm.update_trailing_stop(_rising(102.0), entry) is TrailResult.HELD
+    result = rm.exit_position("NFLX", 102.0, "test", entry)
+
+    assert result.mfe_pct == pytest.approx(2.0)
+
+
+def test_excursion_does_not_leak_across_a_re_entry(cfg):
+    """State is popped at exit, so the next trade in the same symbol starts clean."""
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    entry = _entry()
+    rm.update_trailing_stop(_rising(105.0), entry)
+    first = rm.exit_position("NFLX", 105.0, "test", entry)
+    assert first.mfe_pct == pytest.approx(5.0)
+
+    second_entry = _entry(stop_order_id="stop-2")
+    rm.update_trailing_stop(_rising(101.0), second_entry)
+    second = rm.exit_position("NFLX", 101.0, "test", second_entry)
+
+    assert second.mfe_pct == pytest.approx(1.0)  # not the 5.0 the previous trade reached
+
+
+def test_nvda_2026_08_27_giveback_is_now_measurable(cfg):
+    """The trade that motivated IMP-037, from the real fills.
+
+    NVDA entered @224.5875 on 2026-08-27, ran to a 227.17 high-water close (+1.15%),
+    tripped the +1% tighten so the stop landed at 224.90, and booked +0.14%. The whole
+    give-back was invisible in dbo.trades: pnl_pct said +0.14% and nothing recorded that
+    the move had been there at all. Capture = realized / mfe must now be reconstructable
+    from the row alone.
+    """
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    entry = ExecutionResult(
+        symbol="NVDA", order_id="o-nvda", qty=12, notional=2695.05,
+        entry_price=224.5875, stop_price=220.25, take_profit_price=247.23,
+        confidence=82.43, status="accepted", model="A", stop_order_id="stop-nvda",
+    )
+    for close in (225.40, 226.27, 227.17, 225.34):
+        rm.update_trailing_stop(_rising(close), entry)
+
+    result = rm.exit_position("NVDA", 224.9025, "stop/target filled broker-side", entry)
+
+    assert result.mfe_pct == pytest.approx(1.15, abs=0.01)
+    realized_pct = (224.9025 / 224.5875 - 1.0) * 100.0
+    assert realized_pct / result.mfe_pct < 0.15  # capture under 15% — the finding

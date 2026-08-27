@@ -56,6 +56,21 @@ IF COL_LENGTH('dbo.trades', 'ribbon_spread_pct') IS NULL
 ALTER TABLE dbo.trades ADD ribbon_spread_pct DECIMAL(9, 5) NULL;
 GO
 
+-- In-trade excursion (IMP-037). How far the position ran in our favour (mfe_pct) and
+-- against us (mae_pct) while held, as % of entry, measured on 1-min CLOSES — the same
+-- series the trailing ratchet acts on, so `realized / mfe_pct` is the capture ratio the
+-- exit structure could actually have banked (intrabar highs are NOT reachable by a
+-- close-driven trail and would flatter it). Observational: nothing in the trading path
+-- reads them back, so they are NULL for every trade closed before 2026-08-27 and any
+-- study must exclude, not zero-fill, those.
+IF COL_LENGTH('dbo.trades', 'mfe_pct') IS NULL
+ALTER TABLE dbo.trades ADD mfe_pct DECIMAL(9, 4) NULL;
+GO
+
+IF COL_LENGTH('dbo.trades', 'mae_pct') IS NULL
+ALTER TABLE dbo.trades ADD mae_pct DECIMAL(9, 4) NULL;
+GO
+
 -- Fast lookup of the single open trade per symbol (the exit-update predicate).
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_trades_symbol_status' AND object_id = OBJECT_ID('dbo.trades'))
 CREATE INDEX IX_trades_symbol_status ON dbo.trades (symbol, status);

@@ -376,6 +376,42 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       better per-trade P&L than the pre-IMP-036 book, revert it.** No new instrumentation
       needed — `conf_volatility` is still computed and persisted on every entry and refusal.
 
+- [ ] **Trail retune: separate `TRAIL_TIGHTEN_AFTER` from `TRAIL_PERCENT_TIGHT` (leading
+      candidate, 2026-08-27).** Both are **1.0%**, so the IMP-021 profit lock places the
+      stop at `peak x 0.99` ~= entry — **it banks exactly zero** and scratches a proven
+      winner on the first 1% wobble. NVDA 08-27 is the archetype: peak +1.15%, booked
+      +0.14%, then ran to +2.62%. Measured, not asserted: a 6-window x 7-variant replay
+      says **`TIGHTEN_AFTER 1.5% / TIGHT 1.0%` beats shipped in 6/6 windows on net**
+      (+$12.91 / +$30.82 / +$19.24 / +$13.36 / +$13.29 / +$4.17) but on a **worse PF**
+      (90d 2.42 vs 2.44) and a **9pp worse win rate**, with a 90d margin of **+0.5%** —
+      inside noise. **Also established: reverting to a flat 1.25% trail loses in 5 of 6
+      windows**, so do NOT revert IMP-021 (a live 29-trade counterfactual favoured the
+      revert by $48, but that gap was two trades). **Blocked until IMP-036's 15-fill test
+      completes** — shipping this on top of it would confound both. Re-run the sweep with
+      `mfe_pct` (IMP-037) available; capture is the metric this should be judged on, not
+      net dollars.
+
+- [ ] **`exit_reason` is unreliable for attribution — fix the close/fill race
+      (2026-08-27).** `exit_position` submits the close, then checks whether the position
+      is still open; when the fill lands **inside that check window** it declares a failed
+      close and lets `reconcile_exit` re-find **its own order**, tagging it
+      `(stop/target filled broker-side)`. PLTR 08-27: submitted 19:45:27, filled
+      19:45:34.82, checked 19:45:34.25 — **0.6 s early**. P&L and price are correct; the
+      **label** is wrong, so SQL cannot separate "trail hit" from "EOD flatten" and the
+      08-27 review had to use price arithmetic instead. Likely fix: before treating a
+      close as failed, poll the submitted order's own fill status (`close_fill_price`)
+      rather than the position, and only fall through to `reconcile_exit` when *that*
+      order is genuinely unfilled. Cheap, observational-only, and it unlocks exit-reason
+      cohorts for every future exit study.
+
+- [ ] **IMP-036 mechanism test, now measurable (owner: ~15 trades after 2026-08-27).**
+      IMP-036 claims the 1-min ATR **predicts how far the tape will travel** — evidenced
+      on refused candidates (MFE rising monotonically across 5 ATR bands) but **never on
+      fills**. With `mfe_pct` persisted (IMP-037), test it directly: **if IMP-036's
+      retained fills do not show higher mean MFE than the pre-IMP-036 book, the stated
+      mechanism is not operating**, which is a revert argument independent of P&L and
+      independent of the existing win-rate/per-trade test above.
+
 ---
 
 ### Suggested build order

@@ -465,6 +465,10 @@ class TradeStore:
                 "exit_price = ?, exit_reason = ?, "
                 "pnl = (? - COALESCE(?, entry_price)) * qty, "
                 "pnl_pct = (? / COALESCE(?, entry_price) - 1) * 100, "
+                # In-trade excursion (IMP-037). COALESCE keeps any already-stored value
+                # when the risk manager has none to offer, so a re-recorded exit can
+                # never blank a measurement it simply didn't observe.
+                "mfe_pct = COALESCE(?, mfe_pct), mae_pct = COALESCE(?, mae_pct), "
                 "updated_at_utc = SYSUTCDATETIME() "
                 "OUTPUT INSERTED.id, INSERTED.qty "
                 "WHERE symbol = ? AND status = 'OPEN'",
@@ -477,6 +481,8 @@ class TradeStore:
                     entry_fill,
                     result.exit_price,
                     entry_fill,
+                    getattr(result, "mfe_pct", None),
+                    getattr(result, "mae_pct", None),
                     result.symbol,
                 ),
             )

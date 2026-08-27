@@ -2759,3 +2759,120 @@ needs no new instrumentation.
   since the restart.**
 - 444 tests green immediately before the commit. Commits `8f5b655` (IMP-036) and
   `2e6406d` (daily review), pushed to `origin/main`.
+
+---
+
+## IMP-037 — 2026-08-27 (daily) — persist in-trade excursion (MFE/MAE): make capture a column, not a re-derivation
+
+**Status: SHIPPED & LIVE.**
+
+### The problem — the bot cannot measure the metric it now turns on
+Every exit decision this bot owns is a give-back decision: a 1.25% trail tightening to
+1.0%, a 2% stop, a 10% ceiling, an EOD flatten. The metric that judges all of them is
+**capture = realized / MFE**. It was recorded **nowhere**. `dbo.trades` stores where a
+trade started and where it ended, and nothing about where it *went*.
+
+The cost of that gap is documented in this very file. **IMP-021 pre-registered a capture
+rerun as criterion (b) on 2026-08-03 and it went unmeasured for 24 days**, the 08-07
+weekly recording only *"criterion (b) was not rerun"*. Tonight I finally ran it — and it
+took a bar re-download over 29 trades and a purpose-built script, for a number the bot
+had in memory at the moment of every exit and threw away.
+
+It ran because today handed over the archetype. **NVDA** entered 224.5875, made a
+**227.17 high-water close (+1.15%)**, tripped the +1% tighten so the stop moved to
+**224.90**, and filled at **+0.14%**. NVDA then ran to **230.47 (+2.62%)**. In
+`dbo.trades` that trade is `pnl_pct = +0.1403` — **a win**. Every aggregate the review
+routine computes calls it a win. The −$31 of foregone move is invisible.
+
+### The change
+Three files, all additive, **no trading logic touched**.
+
+- **`bot/risk.py`** — `RiskManager` carries `_excursion: dict[str, (hi, lo)]`, updated by
+  `_track_excursion()` at the **top of `update_trailing_stop`, before its no-key early
+  return**, so a position whose stop leg cannot be moved (a startup-reconciled holding) is
+  still measured. `_excursion_pct()` pops the state at exit and converts to % of entry;
+  `ExitResult` gains `mfe_pct` / `mae_pct`, and the `EXIT` log line now carries them.
+- **`bot/persistence.py`** — `record_exit` writes both, guarded
+  `mfe_pct = COALESCE(?, mfe_pct)` so a re-recorded exit that has no measurement can never
+  blank one already stored. Read via `getattr`, the established optional-field pattern.
+- **`sql/schema.sql`** — `mfe_pct` / `mae_pct` `DECIMAL(9,4) NULL`, idempotent
+  `IF COL_LENGTH(...) IS NULL ALTER TABLE`, the IMP-029 template.
+
+**Four deliberate choices:**
+1. **Measured on CLOSES, not intrabar highs.** The ratchet sets the stop from `close`, so
+   a close-based excursion is the move the exit structure could *actually* have banked. An
+   intrabar high a close-driven trail can never reach would flatter every capture ratio.
+   Stated in the schema comment so no future study silently assumes highs.
+2. **Keyed by the position's symbol, not the candle's** — the exit-side pop is handed the
+   strategy's symbol, so both sides agree by construction rather than by coincidence.
+3. **Seeded at the entry price**, so a trade that only ever goes against us records
+   `mfe_pct = 0` (it reached its entry, no more) rather than a misleading negative.
+4. **`None`, never `0`, when never managed.** Absence of measurement is not a zero
+   excursion. NULL for every trade closed before today; studies must exclude, not
+   zero-fill — the same discipline IMP-029's columns carry.
+
+### Validation
+- **451 tests pass** (444 → 451, +7), full suite, no regressions.
+- New coverage — `tests/test_risk.py` (6): running high/low water (not last close);
+  entry-seeding so a pure loser reports mfe 0; `None` when never managed; **measured
+  without a movable stop leg** (pins the before-the-early-return ordering); no leak across
+  a re-entry of the same symbol; and
+  **`test_nvda_2026_08_27_giveback_is_now_measurable`** — today's real fills, asserting
+  `mfe_pct ≈ 1.15` and **capture < 15%**, so the failure that motivated this is now a
+  regression test. `tests/test_persistence.py` (1): both columns reach the row and the
+  COALESCE guard is present.
+- **Non-vacuity verified**: neutering `_track_excursion` fails **5 of the 6** new risk
+  tests (captured). The 6th is the `None`-when-never-managed case, which *should* still
+  pass — it asserts absence.
+- **Two legacy exact-tuple param pins updated, disclosed**: `test_record_exit_closes_
+  trade_with_pnl_and_drops_position` and `test_record_exit_corrects_entry_price_from_
+  delayed_fill` gain `None, None` before the symbol. **No assertion weakened** — they pin
+  more of the statement than before.
+- **Schema applied live and verified**, not assumed: `sys.dm_exec_describe_first_result_set`
+  reports `mfe_pct decimal(9,4)`, `mae_pct decimal(9,4)` on `dbo.trades`.
+- **`bot.preflight`: OK, 1 expected warning** — Alpaca ACTIVE (equity $9,145.73), SQL
+  Server connected + schema ensured (16 batches), Telegram delivered.
+- Replay not re-run for validation: this change is observational and cannot move a fill.
+
+### Why this and not the trail retune
+Tonight's sharper *trading* finding is that `TRAIL_TIGHTEN_AFTER` == `TRAIL_PERCENT_TIGHT`
+== 1.0% makes the profit lock bank **exactly zero**. I built the experiment
+(6 windows × 7 variants) rather than asserting it, and **did not ship the result**:
+- Reverting IMP-021 to a flat 1.25% trail **loses in 5 of 6 windows**, refuting a live
+  29-trade counterfactual that had favoured it by $48 — that gap was **two trades**. The
+  ≥3-window rule earned its keep tonight.
+- `TIGHTEN_AFTER 1.5% / TIGHT 1.0%` beats shipped in **6/6 windows on net**, but on a
+  **worse PF** (90d 2.42 vs 2.44) and a **9pp worse win rate**, with a 90-day margin of
+  **+0.5%** — inside noise.
+- Decisive reason: **IMP-036 is 4 fills into a pre-registered 15-fill revert test.** A
+  second exit-structure change now would confound it. Filed to `todo.md` as the leading
+  candidate once that test completes.
+
+Meanwhile the capture table says the exit structure is **no longer the binding
+constraint** (45% / 65% capture in the winning buckets); **48% of trades with MFE < 1%
+carry the entire −$122 loss**. That is an entry-selectivity problem — IMP-036's target.
+Instrument first, then run the experiment (the IMP-035 precedent).
+
+### Pre-registered use
+From tomorrow, `dbo.trades` answers **without a bar download**: capture by exit reason;
+whether IMP-036's retained trades have higher MFE than the pre-IMP-036 book (the direct
+test of its stated mechanism — *"1-min ATR predicts how far the tape will travel"*, so far
+supported only on refusals, never on fills); and the MFE<1% population that now holds all
+the loss. **If, once ~15 post-IMP-037 trades exist, IMP-036's fills do not show higher
+mean MFE than the pre-IMP-036 book, IMP-036's mechanism is not doing what it claims** —
+and that is a revert argument independent of P&L.
+
+### Known gap this does NOT fix (filed to `todo.md`)
+`exit_reason` is unreliable for attribution. Today **PLTR's own EOD market close**
+(submitted 19:45:27, filled 19:45:34.82) was checked **0.6 s early** at 19:45:34.25,
+declared a failed close, and re-found by `reconcile_exit` — which tagged the bot's own
+order `end-of-day flatten (stop/target filled broker-side)`. P&L is correct, the label is
+not, and it means "trail hit" cannot be separated from "EOD flatten" in SQL. Tonight's
+analysis used price arithmetic instead.
+
+### Follow-ups
+- `conf_rsi` remains the last dead-weight term (1.00 on 4/4 today, ~256/273 all-time).
+  Still blocked on IMP-036 fills; still must be threshold-neutral.
+- The 14:00–14:15 UTC entry cluster is **41% of entries and +$180 of +$193** — protect it;
+  do not "spread out" entries without evidence.
+- Deployed: committed, pushed to `origin/main`, `systemctl restart` — see below.
