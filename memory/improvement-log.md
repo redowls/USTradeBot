@@ -2499,6 +2499,17 @@ account `PA34DFFLTHRT` reconciled at equity **9089.13** with no open positions,
 **NRestarts=0**, **0 WARNING-or-above lines** since start. Files left
 `ustradebot:ustradebot`; `.env` untouched.
 
+- **Observed effect (weekly 08-28):** ⏳ **mechanism confirmed live, P&L not separable —
+  and it never will be.** All **6** of the week's fills scored with `volume` unweighted
+  (visible in the 08-26 PLTR entry: `volume 1.0000 (unweighted since IMP-034)`, and in
+  08-28 SPOT's `vol=0.00` contributing nothing). The week returned **+$44.85 on 6 trades,
+  83% win** — but **IMP-036 landed on the same score two days later**, so every fill from
+  08-26 onward carries *both* changes. **There is no clean post-IMP-034 / pre-IMP-036
+  cohort and there cannot be one** (08-24 and 08-25 took zero trades). The justification
+  stands on the 08-17 inversion finding, not on this week's P&L; **do not cite the week's
+  win rate as evidence for this change.** Lesson recorded: two edits to the same scoring
+  function inside 48 hours cost the ability to attribute either.
+
 ---
 
 ## IMP-035 — 2026-08-25 (daily) — report windows are calendar days, not a rolling clock
@@ -2583,6 +2594,15 @@ not reproducible until tonight. Fix the instrument, then run the experiment.
   (16 of 36 refusals tonight cleared confidence ≥ 60 and died on the crossover floor,
   which follows from IMP-034 raising crossover to 39 of the 65 live discriminating
   points). Measure **after** the rsi/volatility change, which moves those weights.
+
+- **Observed effect (weekly 08-28):** ✅ **VALIDATED — cross-checked against an independent
+  query tonight.** This weekly ran `bot.report --days 7` from the **21:00 UTC** slot (not
+  the 21:10 one the old rolling window happened to suit) and got **6 trades / +$44.85**;
+  an independent hand-written `WHERE exit_time_utc >= '2026-08-24'` query returned **the
+  same 6 rows and the same +$44.85 to the cent.** Under the pre-IMP-035 rolling
+  `DATEADD(day,-7,SYSUTCDATETIME())` the same call would have silently clipped the Monday
+  boundary. **This is the first review whose headline stat needed no manual window
+  correction** — the change paid off exactly where predicted, at a non-21:10 hour.
 
 ---
 
@@ -2760,6 +2780,26 @@ needs no new instrumentation.
 - 444 tests green immediately before the commit. Commits `8f5b655` (IMP-036) and
   `2e6406d` (daily review), pushed to `origin/main`.
 
+- **Observed effect (weekly 08-28):** ⏳ **mechanism operating as designed; P&L claim
+  UNPROVEN and this week cannot prove it.** First live session **08-27: 4 fills, 4W,
+  +$51.39** — the best session since 08-03. **I decline to credit IMP-036 for it.**
+  08-27 was the week's one genuinely trending tape (S&P 500 info-tech **+3.4% on the day**,
+  NVDA/CRM/CRWD leading per this week's deep-research recap); a long-only trend system
+  taking four winners into that is the regime, not the rescored volatility term. **A change
+  that predicts "trade more when range is available" cannot be validated on the one day
+  range was abundant — that is the confound, not the confirmation.**
+- **The genuinely informative datapoint is the loser, not the winners.** 08-28 SPOT scored
+  `vlt=0.00` on `atr_pct` 0.128% — the reversed score **correctly marked the tape dead** —
+  and the trade was taken anyway at confidence **63.94**, then lost −$11.82 to a 1.25%
+  trail its ATR could never support. **So IMP-036 works and `ENTRY_THRESHOLD=60` overrode
+  it.** The volatility term is now honest; the floor beneath it is what admitted the loss.
+  Logged as the lead for the entry-floor study (see the 08-28 weekly).
+- **Progress against its own gate:** todo.md's 15-fill mechanism test (does IMP-036's
+  retained cohort show higher mean MFE?) stands at **6 of 15 fills**, and only **1** of
+  those carries `mfe_pct` (IMP-037 shipped 08-27, after three of the four 08-27 entries).
+  **Effective progress is 1/15, not 6/15.** Do not revert and do not claim victory before
+  that test runs.
+
 ---
 
 ## IMP-037 — 2026-08-27 (daily) — persist in-trade excursion (MFE/MAE): make capture a column, not a re-derivation
@@ -2891,6 +2931,17 @@ analysis used price arithmetic instead.
 - **First rows land tomorrow (2026-08-28).** Every trade closed before today is NULL by
   design.
 
+- **Observed effect (weekly 08-28):** ✅ **mechanism VALIDATED on n=1; sample is the
+  limitation, not the code.** Exactly one row exists — **SPOT, MFE +0.54% / MAE −0.69%**
+  against a realised **−0.72%** — and it is immediately load-bearing: it is the evidence
+  that the 1.25% trail asked for **2.3× more favourable excursion than the trade ever
+  produced**, which is the cleanest statement of that failure shape the project has. The
+  other 5 fills this week closed before the column existed and are NULL by design.
+  **Consequence to respect: the trail-retune and the IMP-036 mechanism test both need ~15
+  excursion rows and currently have 1.** At this week's rate (6 fills/wk) that is ~2–3
+  weeks away — which makes fill frequency, not instrumentation, the binding constraint on
+  every queued exit question.
+
 ---
 
 ## IMP-038 — 2026-08-28 (daily) — name the leg that actually filled: split the broker-side exit catch-all
@@ -3007,3 +3058,17 @@ Committed, pushed to `origin/main`, `systemctl restart` — live validation belo
   market-closed warning. Commit `152908f`, pushed to `origin/main`.
 - **First live rows land Monday 2026-08-31.** Every exit recorded before tonight keeps its
   historical label — this is not backfilled, and the old strings stay valid for those rows.
+
+- **Observed effect (weekly 08-28, written ~45 min after it shipped):** ⏳ **zero live rows
+  — but it has already produced the most important finding of the week, in replay.** The
+  90-day validation split that this change made possible shows **in-session `trailing stop`
+  exits n=23 for −$168.59** against **trail fills discovered at the close +$344.68** and
+  pure EOD flattens **+$589.41**. **The live week independently agrees in sign**: the 3
+  trades that exited intraday netted **−$2.96**, the 3 carried to the bell netted
+  **+$47.81**. Two datasets, different mechanisms, same direction. **That is now the
+  best-evidenced open question in the project** and it is pre-registered as a falsifiable
+  replay test in the 08-28 weekly. Live label validation still owes Monday 08-31.
+- **Process note, in this entry's favour:** this change shipped at 20:16 UTC and the weekly
+  ran at 21:00 UTC — the reversed ordering this entry itself flagged. **The weekly stood
+  down and shipped no code**, so IMP-038 gets a clean, unconfounded first live session on
+  Monday. The scheduling hazard was caught by the daily and honoured by the weekly.

@@ -1264,3 +1264,219 @@ it.**
   switch and paper-only stay exactly as they are. Nothing this week justified touching any of them,
   and the shorting idea in `todo.md` remains explicitly out of scope for an unattended routine.
 
+
+---
+
+## Week ending 2026-08-28 — Grade: B+
+
+### Stats
+- **DB (closed, Mon 08-24 → Fri 08-28): 6 trades, 5W/1L → 83.3% win**, net **+$44.85**,
+  **PF 4.79** (gross win $56.67 / gross loss $11.82). Avg win **+$11.33** / avg loss
+  **−$11.82** → **payoff 0.96**. Best **+$25.93** (PLTR 08-27, +1.08%), worst **−$11.82**
+  (SPOT 08-28, −0.72%).
+- **By day: Mon 0 · Tue 0 · Wed 1 (+$5.28) · Thu 4 (+$51.39) · Fri 1 (−$11.82).**
+  By symbol: PLTR 2 tr **+$31.21** · TSLA **+$16.60** · TSM **+$5.08** · NVDA **+$3.78** ·
+  SPOT **−$11.82**.
+- **Equity $9,089.13 (Fri 08-21 close) → $9,133.71 = +$44.58 (+0.49%).** Broker curve:
+  9,089.13 (08-24) → 9,089.13 (08-25) → 9,094.34 (08-26) → 9,145.53 (08-27) → 9,133.71
+  (08-28). **Max drawdown ≈ $11.82 (0.13%)** — a single trade. Flat every night, 0 open
+  positions at every close, exact DB↔broker reconciliation **5 sessions of 5**.
+- **Frequency recovered but is still the constraint: 45 → 21 → 26 → 22 → 13 → 12 → 2 → 6.**
+  Last week's 2 was the floor; 6 is ~1.2 fills/day against **170 scored refusals** and 478
+  gate rows. The 28:1 refusal-to-fill ratio is unchanged in character.
+- **Lifetime 274 trades, +$31.64.** Post-08-03 window: **30 trades, +$181.61, PF 2.16.**
+- **Confidence still non-monotonic** (`vw_confidence_outcome`): 60-69 **151 tr, 41.7%,
+  −$94.34** · 70-79 **88 tr, 54.6%, +$267.44** · 80-89 **32 tr, 50.0%, +$2.96** · 90-100
+  **3 tr, 0%, −$144.42**.
+- **Ops: clean.** `is-active` active, **NRestarts=0**, zero WARNING-or-above lines in any
+  live session all week, warmup primed 18/18→20/20 daily, **459 tests green** on HEAD
+  (re-run by this review). The only journald noise is a websocket "connection limit
+  exceeded" storm on **Sat 08-22 12:18 UTC — market closed, no trading impact.**
+
+### Grade rationale
+**Results earn an A by the rubric; process earns a B; the honest blend is B+.**
+
+By the letter — *profitable, rules followed, no system errors* — this is an A week. Nothing
+was overridden, no risk limit approached, the book reconciled to the cent five days out of
+five, and the max drawdown was one −$11.82 trade. **It is held below A for one reason and
+it is a real one: the RSI-constant defect, which the 08-21 weekly named as the single
+best-evidenced open strategy question, was re-observed on all five sessions and fixed on
+none.** `conf_rsi = 1.00` on 47/47 refusals (08-26), on 4/4 entries (08-27), and on 94% of
+the lifetime book. It is now **carried for a second full week** while three of the week's
+five IMPs went to instrumentation on an already heavily instrumented bot. That is the
+pattern last week put on the record to be graded against, and it is being graded.
+
+**What lifts it back to B+ rather than down to B is that the other three pre-registered
+items were all executed, and executed properly** — including the two that returned answers
+favouring the status quo, which is the harder test of an honest process:
+- **🔴 NVDA parked before its 08-26 print — honoured.** Parked by the 08-24 pre-market run,
+  then correctly re-enabled to trade **08-27, the day after** the report, for +$3.78. The
+  week's one item with real capital attached was handled exactly right.
+- **⚖️ The gate ON/OFF falsifiable test — run as pre-registered, 4 fresh windows, and the
+  gate won 4 of 4** on net P&L, PF, win rate and avg/trade (10d/20d/30d/45d). The
+  revisability condition was "≤1 of 3"; the result was 0 of 4. **The temptation is closed
+  on eight agreeing windows.** This is the model for how this review should settle
+  questions, and it worked.
+- **🟠 The `ribbon_spread_pct` study — run with both caveats cleared** (n=108 over 4
+  sessions, gate state controlled). Verdict: it separates **less-dead from more-dead**, not
+  winners from losers — every bucket still has a ≤0 average forward return. **Correctly not
+  shipped.** Declining to ship a filter you spent a week measuring is a process credit.
+
+**Also correct: this review shipped no code.** The daily review ran **first** tonight (Fri
+20:00 UTC) and shipped IMP-038 at 20:16; this weekly ran at 21:00, 45 minutes later. The
+stand-down clause in the routine prompts is written for the old ordering and is now
+backwards — the daily caught this, filed it to `todo.md`, and verified no weekly commit
+existed before shipping. **The weekly honoured the intent rather than the letter and stood
+down.** Two strategy changes in one evening is the exact thrash these routines exist to
+prevent, and IMP-038 now gets a clean first live session on Monday.
+
+**The caution that keeps this from being a better grade than it looks:** +$44.85 on **n=6**
+is a *win-rate* outlier, not evidence of new edge. The week's payoff ratio was **0.96** —
+below the 1.60 IMP-018 was built to deliver — so the result rests entirely on hitting 5 of
+6. **Lifetime win rate is 46.4%.** At a 0.96 payoff this strategy needs >51% to break even.
+One good week does not move that.
+
+### What worked / what didn't
+- **✅ Worked — the bot read the regime correctly, and this is the week's most flattering
+  finding.** This week's deep-research recap describes compressed intraday ranges punctuated
+  by short trend bursts: Monday consolidation (SPX −0.3%, IXIC −0.8%), Tuesday mildly
+  positive, **Thursday a narrow tech surge (S&P info-tech +3.4%, NVDA/CRM/CRWD leading)**,
+  Friday macro-driven chop around core PCE and Jackson Hole. **The bot took zero trades on
+  the two mean-reverting days and four winners on the one clean trending day.** A
+  trend-follower being flat in chop and long in a trend burst is the system doing precisely
+  what it is for. The filters that produced last week's frustrating silence are the same
+  ones that produced this week's timing.
+- **✅ Worked — risk and reliability, again.** Five clean sessions, zero warnings, no
+  restarts, flat every night, exact reconciliation daily, `.env` untouched, every deploy
+  verified against a live PID rather than assumed.
+- **❌ Didn't — the RSI term.** Second week carried. See the rationale above.
+- **❌ Didn't — the bot still has no earnings guard of its own.** Last week recommended one
+  as an IMP; it was not built, and the number was spent on the volume-weight change instead.
+  The NVDA outcome was correct, **but it was correct because an external routine did not
+  crash this week** — the same routine that crashed on 08-19 and left WMT and BABA unparked
+  into their prints. **The hazard is unchanged and unmitigated in this repo.**
+- **⚠️ Didn't — two edits to the same scoring function inside 48 hours.** IMP-034
+  (`conf_volume` → 0, 08-24) and IMP-036 (`conf_volatility` un-inverted, 08-26) both change
+  the confidence score, and **no session traded between them** (08-24 and 08-25 were both
+  zero-fill days). **There is no cohort that isolates either one, and there never can be.**
+  Neither change is wrong — both rest on prior evidence — but the week forfeited the ability
+  to attribute its own result. **Rule going forward: do not edit the scoring function twice
+  before the first edit has traded.**
+
+### Improvements shipped this week
+Five, in the daily series. Two are genuine strategy decisions, three are instrumentation —
+which **does** clear last week's stated failure condition ("a sixth and seventh consecutive
+instrumentation IMP with **no strategy decision**"), but only just.
+- **IMP-034 (08-24, daily) — `conf_volume` weight 15 → 0.** *Strategy.* Observed: mechanism
+  live-confirmed (weights sum to 100 with volume=0); **P&L not separable, and never will be**
+  — confounded with IMP-036 from the first fill onward.
+- **IMP-035 (08-25, daily) — report windows are calendar days, not a rolling clock.**
+  *Tooling.* Observed: **✅ validated tonight.** `--days 7` from the 21:00 UTC slot returned
+  6 trades / +$44.85, matching an independent hand-written date-bounded query to the cent.
+  First weekly whose headline stat needed no manual window correction.
+- **IMP-036 (08-26, daily) — `conf_volatility` was sign-inverted; score range availability,
+  not quietness.** *Strategy.* Observed: **⏳ mechanism operating, P&L unproven.** Its first
+  session (08-27, 4W, +$51.39) was the week's one trending day — **I decline to credit the
+  change for a day the tape handed it.** The informative row is SPOT: `vlt=0.00` correctly
+  marked a dead tape and `ENTRY_THRESHOLD=60` bought it anyway. Its own 15-fill gate stands
+  at an effective **1 of 15**.
+- **IMP-037 (08-27, daily) — persist in-trade MFE/MAE.** *Instrumentation.* Observed: **✅
+  mechanism validated on n=1** (SPOT +0.54% / −0.69%), immediately load-bearing — it is the
+  proof the 1.25% trail demanded 2.3× more excursion than the trade produced.
+- **IMP-038 (08-28, daily, shipped 45 min before this review) — split the broker-side exit
+  catch-all into `trailing stop` / `stop loss` / `take profit`.** *Instrumentation.*
+  Observed: **⏳ zero live rows — and already the most valuable change of the week**, because
+  its 90-day validation replay produced the finding below. Live labels owe Monday 08-31.
+
+### ⚖️ Strategy verdict — viable, unproven, and the weak half is now located
+**Unchanged from last week in conclusion, but for the first time the defect has a specific
+address.** 274 lifetime trades for **+$31.64** is still a coin flip; the post-08-03 window
+(30 trades, +$181.61, PF 2.16) is still the best stretch in the bot's history and still too
+small to lean on. **Nothing this week condemns the strategy and nothing this week vindicates
+it.**
+
+**The new structural finding, and it is the reason this review exists: the exit structure
+appears to make money only when it does not fire.** Two independent datasets agree in sign:
+
+| source | exits that fired intraday | exits found at the close |
+|---|---|---|
+| 90-day replay (IMP-038 labels) | `trailing stop` **n=23, −$168.59** | trail-at-close **+$344.68**, pure EOD flatten **+$589.41** |
+| this live week (n=6) | 3 trades, **−$2.96** | 3 trades, **+$47.81** |
+
+**The honest caveat, stated before anyone leans on this: a large part of that gap is
+selection, not causation.** Trades that survive to 16:00 are *by construction* the ones that
+did not go against you; comparing them to trades stopped out is comparing winners to losers
+with extra steps. **So the finding is not "remove the trail" — it is that the correct test
+has never been run.** That test is pre-registered below.
+
+Two supporting measurements worth keeping: **the −2% bracket stop is confirmed dead** (all
+58 broker-side exits across 90 replay days were the trail; zero were the stop), and **the
+60-69 confidence band remains the book's single largest negative cohort** (151 trades,
+41.7%, −$94.34) — the floor is buying the worst decile of its own signal.
+
+### Focus for next week
+- **🟠 #1 — Settle whether the trailing stop should fire intraday at all. Pre-registered,
+  falsifiable, and ranked above the RSI item on new evidence.** This is a change to exit
+  *logic*, not a constant, and it is the natural successor to the gate test that worked so
+  well this week. **The test:** in replay, across **≥3 windows** on the current config,
+  compare (a) today's behaviour, (b) a trail that **ratchets but never sells** — EOD flatten
+  as the only exit — and (c) trail active but only after +1R. **Ship only if (b) or (c)
+  beats (a) on net P&L in ≥3 of 3 windows AND does not increase max drawdown.** If the
+  selection effect is doing the work, (b) will lose and the question is closed for good —
+  that is a valuable answer too. **Do not ship this off the live n=6.**
+- **🟠 #2 — The RSI constant, now carried a THIRD week. Recording that explicitly so it
+  cannot quietly become permanent.** `conf_rsi` returns a flat 1.0 across the 45-65 band
+  where a fresh bullish cross almost always sits — ~20 of 100 confidence points that never
+  discriminate. Re-fit `score_rsi` to have variance across that band or drop it and
+  re-weight; validate on **≥3 agreeing replay windows** *and* against the refusal rows.
+  **It is ranked #2 only because #1 arrived with two datasets behind it, not because this
+  got less important.** If it is unresolved again next Friday that is a C-grade process
+  item on its own.
+- **🟠 #3 — Price the `ENTRY_THRESHOLD` floor properly (replay study, not a tweak).** The
+  60-69 band is −$94.34 over 151 trades and SPOT (63.94) is a fresh example. **Note this is
+  not on the do-not-relitigate list — that list forbids *lowering* the floor, which is
+  refuted; raising it has never been tested.** The study must price the frequency cost
+  explicitly: raising to 70 would have removed roughly half the book's fills on a bot
+  already taking ~1.2/day. **Report both P&L and fills-per-week, and do not ship if the
+  frequency cost is not clearly paid for.**
+- **🔧 #4 — Build the in-repo earnings blackout (the IMP the 08-21 weekly asked for and did
+  not get).** The bot's only earnings protection is an external pre-market routine that has
+  already crashed once and left two names unparked into their prints. This is a capital-risk
+  mitigation that this repo should own, it is bounded work, and it does not touch position
+  size, loss limits or the kill switch. **Strong candidate for next week's single change if
+  #1's replay study comes back inconclusive.**
+- **📋 Sample-accrual watch (the constraint behind every item above).** The trail retune and
+  IMP-036's mechanism test each need ~15 excursion rows and **have 1**. At 6 fills/week that
+  is 2–3 weeks out. **Frequency is no longer just a diagnostic complaint — it is the gating
+  resource on three separate queued questions.** If fills stay ≤6/week, prefer replay-based
+  studies over live-accrual ones.
+- **Do-not-relitigate list (six entries):** `MIN_CROSSOVER` (six refutations) · `STOP_LOSS`
+  (**now measured dead** — 0 of 58 broker exits over 90 replay days) · `MARKET_FILTER_SYMBOL`
+  removal (**closed 08-24 on 4/4 windows, 8 agreeing windows total**) · `conf_volume`
+  (inverted, now zero-weighted) · loosening `ENTRY_THRESHOLD` *downward* · shipping a
+  `ribbon_spread_pct` floor (measured 08-27, separates less-dead from more-dead only).
+- **Next week's tape (Aug 31 – Sep 4):** post-Jackson-Hole follow-through plus the
+  early-September macro calendar — **ISM manufacturing, JOLTS, ADP, ISM services, and the
+  August jobs report Friday 09-04**, which is the week's dominant scheduled event risk.
+  Earnings season is past its peak, so **macro prints, not single names, will set intraday
+  tradability**; expect the sharpest gap/whipsaw risk around the Friday payrolls print at
+  13:30 UTC, comfortably inside the entry window. **Confirm the calendar in Monday's
+  pre-market run — this weekly's deep-research call truncated before its forward-looking
+  section, so the dates above are from a secondary recap and are not independently verified
+  here.**
+- **⚠️ Carry forward:** live-history bucket studies over 45+ days remain contaminated by
+  pre-IMP-021 trades — judge on the post-08-03 window or on replay. The refusal table is a
+  *different population* from the trade table: excellent for filter questions, **poor for
+  exit questions**, which is exactly what #1 is — so **#1 must be settled in replay, not on
+  refusals.**
+- **🔴 Scheduling defect, for the operator (outside this repo):** the routine prompts still
+  describe the weekly as running *before* the daily. It now runs **one hour after** it
+  (daily Fri 20:00 UTC, weekly Fri 21:00 UTC), so **the stand-down clause is backwards** and
+  currently depends on each routine noticing the inversion by hand — the daily did tonight,
+  and so did this review, but that is discipline covering for a stale config. **Fix
+  `/root/claude-routines` so the *weekly* checks for a same-evening daily IMP and stands
+  down**, rather than relying on both agents to catch it.
+- **Risk posture unchanged and non-negotiable:** position size, loss limits, the
+  stand-down/kill switch and paper-only stay exactly as they are. Nothing this week came
+  close to justifying a change to any of them, and the shorting idea in `todo.md` remains
+  out of scope for an unattended routine.
