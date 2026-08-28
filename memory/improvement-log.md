@@ -2994,3 +2994,16 @@ UTC tonight. Filed to `todo.md` for the operator.
 
 ### Deployed
 Committed, pushed to `origin/main`, `systemctl restart` — live validation below.
+
+### Live validation (2026-08-28 20:16:57 UTC)
+- **Deploy-gap check, not an assumption**: `bot/risk.py` mtime **20:06:27** and
+  `bot/replay.py` **20:09:42** both precede `ExecMainStartTimestamp` **20:16:57**, so the
+  running process (**PID 2012055**) carries the new code. Confirmed in the venv:
+  `RiskManager._broker_fill_reason` present, labels `trailing stop | stop loss | take profit`.
+- Clean boot: `is-active` **active**, **NRestarts=0**, schema ensured (16 batches), warmup
+  primed **20/20**, broker handshake `PA34DFFLTHRT` equity **$9,133.71** with **no open
+  positions**, IEX stream subscribed to all 20 symbols. **Zero WARNING-or-above lines.**
+- 459 tests green immediately before the commit; `bot.preflight` OK with the expected
+  market-closed warning. Commit `152908f`, pushed to `origin/main`.
+- **First live rows land Monday 2026-08-31.** Every exit recorded before tonight keeps its
+  historical label — this is not backfilled, and the old strings stay valid for those rows.
