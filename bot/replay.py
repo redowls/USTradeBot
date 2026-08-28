@@ -235,7 +235,14 @@ class SimBroker:
         stop = self._stop_price.get(stop_oid) if stop_oid else pos.stop_price
         # Pessimistic: when the bar covers both legs, assume the stop filled first.
         if stop is not None and candle.low <= stop:
-            self._filled[candle.symbol] = SimFill(self._next_id("fill"), stop, "stop", candle.start)
+            # Hand back the stop leg's OWN id — the ratcheted one once the trail has moved,
+            # exactly as Alpaca does. Minting a fresh synthetic id here would leave the
+            # RiskManager unable to recognise its own stop, so every simulated exit would
+            # collapse into the IMP-038 catch-all and replay could not answer the very
+            # question the trail-retune study runs it for (trail hit vs -2% stop-out).
+            self._filled[candle.symbol] = SimFill(
+                stop_oid or pos.stop_order_id, stop, "stop", candle.start
+            )
         elif candle.high >= pos.take_profit_price:
             self._filled[candle.symbol] = SimFill(
                 self._next_id("fill"), pos.take_profit_price, "target", candle.start

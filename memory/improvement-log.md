@@ -2890,3 +2890,107 @@ analysis used price arithmetic instead.
   market-closed warning. Commit `60b62c3`, pushed to `origin/main`.
 - **First rows land tomorrow (2026-08-28).** Every trade closed before today is NULL by
   design.
+
+---
+
+## IMP-038 — 2026-08-28 (daily) — name the leg that actually filled: split the broker-side exit catch-all
+
+### The defect
+Every exit that filled broker-side booked one string, **`stop/target filled broker-side`**,
+which conflates four different outcomes: a **trail hit**, the original **−2% stop**, the
+**take-profit**, and (via the close/fill race still open in `todo.md`) the bot's **own EOD
+sell**. The cost is not cosmetic:
+
+| exit_reason (lifetime, 274 trades) | n | net |
+|---|---|---|
+| `end-of-day flatten` | 178 | **+$1,146.92** |
+| `stop/target filled broker-side` | 51 | −$455.18 |
+| `end-of-day flatten (stop/target filled broker-side)` | 34 | −$550.21 |
+| `trailing stop (stop/target filled broker-side)` | 2 | −$54.69 |
+
+**87 of 274 exits (32%) sat in the ambiguous buckets and they carry −$1,060 — the entire
+loss side of the book** — while the one bucket that names the trail read **n=2**.
+
+### Today's proof that n=2 is an undercount
+**2026-08-28 SPOT**, the day's only trade. The trail ratcheted **eight times** — 538.65 →
+543.47 → 543.63 → 543.96 → 544.12 → 544.22 → 544.50 → **546.05** — Alpaca minting a fresh
+order id at each replace. The broker record is unambiguous: order **`8d587433`** (the eighth
+link) **filled @546.05**, i.e. **1.37% above the original stop**, while the take-profit leg
+`de6910e0` was **cancelled unfilled**. This was the trailing stop and nothing else. The bot
+booked it `stop/target filled broker-side`, and the trail took no credit for its own exit.
+
+### Why this and not the trail retune
+The sharper *trading* observation today is that a 1.25% trail cannot exit green on a **+0.54%
+MFE** — it sits below entry by arithmetic. I did **not** ship that:
+- It is **one trade**.
+- The trail retune is explicitly **blocked until IMP-036's 15-fill test completes** (today
+  was fill ~6). A second exit-structure change now would confound it.
+- The retune is supposed to be **"judged on capture, not net dollars"** — and capture *by
+  exit reason* was unreadable in SQL precisely because of this defect.
+
+So: **fix the instrument, then run the experiment** — the IMP-035 / IMP-037 precedent.
+
+### The change
+`RiskManager._broker_fill_reason(entry, order_id, exit_price)` resolves the filled order
+against bookkeeping the manager **already** maintains (`_live_stop_oid` / `_trail_stops`,
+both keyed by the trade's original stop-leg id):
+- id is anywhere in this trade's stop chain → **`trailing stop`** if the trail had ratcheted
+  above the bracket stop, else **`stop loss`**;
+- otherwise the fill cleared the take-profit → **`take profit`**;
+- anything unplaceable (unknown id, or no entry — a startup-reconciled holding) **keeps the
+  honest catch-all**. It never guesses.
+
+Wired into both broker-side paths (`exit_position`'s reconcile fallback and
+`reconcile_if_closed`), with de-duplication so the STOP_GONE caller cannot produce
+`trailing stop (trailing stop)`. No broker reads, no new state, no behaviour change.
+
+**Also fixed the same blindness in the measurement harness.** `bot/replay.py` was minting a
+*synthetic* fill id for simulated stop fills, so the RiskManager could not recognise its own
+stop and **every** replay exit would have collapsed into the catch-all — leaving the trail
+study blind in the very tool it must run in. The simulator now returns the stop leg's **own**
+id (the ratcheted one when the trail has moved), exactly as Alpaca does.
+
+### Validation
+- **459 tests pass** (was 451; +8). New coverage is built on the **real 08-28 SPOT trade** —
+  the eight-replace ratchet, its `trail-8` fill @546.05, and a P/L assertion that reconciles
+  to the broker's **−$11.82** — plus the stop-loss, take-profit, unattributable and
+  no-entry branches, and a guard that price/qty/entry-fill are untouched.
+- Three pre-existing tests had **incoherent fixtures** the classifier exposed: they narrated
+  a "broker-side **stop** fill" while using a fill price **above** the take-profit (113.21 /
+  397.13 against a 104.0 target). Corrected to match their own stories rather than
+  weakened — they now assert the precise leg.
+- **Behaviour-neutrality proven by A/B, not asserted.** Ran `bot.replay --days 90` on a
+  `git worktree` at HEAD and on the working tree, **same 20-symbol universe, same window**:
+
+  | | trades | net | win% | PF | avg |
+  |---|---|---|---|---|---|
+  | HEAD | 78 | +765.50 | 61.5 | 2.39 | +9.81 |
+  | IMP-038 | 78 | +765.50 | 61.5 | 2.39 | +9.81 |
+
+  Bucket-for-bucket identical (n=23 / 35 / 20 at −168.59 / +344.68 / +589.41). **Only the
+  labels moved.**
+- `bot.preflight`: **OK, 1 expected warning** — Alpaca ACTIVE (equity $9,133.71), SQL Server
+  connected + schema ensured, Telegram delivered. New labels are strictly **shorter** than
+  the ones they replace, so there is no column-truncation risk.
+
+### What it already bought us (first cohorts ever readable)
+From the 90-day validation run:
+- **All 58 broker-side exits were the trail; ZERO were the −2% bracket stop.** This confirms
+  `todo.md`'s "`STOP_LOSS` is a dead knob" with measurement instead of inference.
+- **In-session trail exits (`trailing stop`) are n=23 for −$168.59**, while trail fills
+  discovered at the close (`end-of-day flatten (trailing stop)`) are **+$344.68** and pure
+  EOD flattens **+$589.41**. The trail firing *during* the session is the losing cohort —
+  a direct, quantified lead for the retune once IMP-036 unblocks.
+
+### Scheduling note (read this before next Friday)
+The `ustradebot-daily-review.md` **"Friday stand-down" rule is stale.** Per the live crontab
+and `/root/claude-routines/SCHEDULE.md`, the weekly recap moved to **Sat 04:00 WIB = Fri
+21:00 UTC**, which is **one hour AFTER** this routine (Fri 20:00 UTC), not ~70 minutes
+before. Checked before shipping: `git log --since="6 hours ago"` was **empty** and no
+`(weekly)` entry exists today, so nothing had shipped and the stand-down did not apply.
+**The ordering is now reversed, so the risk has flipped: the weekly runs after us and should
+stand down when a daily IMP has already shipped that evening.** IMP-038 shipped at ~20:20
+UTC tonight. Filed to `todo.md` for the operator.
+
+### Deployed
+Committed, pushed to `origin/main`, `systemctl restart` — live validation below.

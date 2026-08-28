@@ -391,8 +391,20 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       `mfe_pct` (IMP-037) available; capture is the metric this should be judged on, not
       net dollars.
 
-- [ ] **`exit_reason` is unreliable for attribution — fix the close/fill race
-      (2026-08-27).** `exit_position` submits the close, then checks whether the position
+- [~] **`exit_reason` is unreliable for attribution — fix the close/fill race
+      (2026-08-27).** ⚠️ **HALF DONE — IMP-038 (2026-08-28) named the LEG; the race below is
+      still OPEN.** `RiskManager._broker_fill_reason` now resolves the filled order against
+      the trailing-stop bookkeeping and books `trailing stop` / `stop loss` / `take profit`,
+      keeping the catch-all only for fills it genuinely cannot place. Proven behaviour-neutral
+      by a HEAD-vs-change `--days 90` replay A/B (78 trades, +$765.50, PF 2.39,
+      bucket-for-bucket identical — only labels moved). **Exit cohorts are readable in SQL at
+      last, which unblocks "judge the trail on capture".** First findings: over 90 replay days
+      **all 58 broker-side exits were the trail, ZERO were the −2% stop**; **in-session
+      `trailing stop` exits are n=23 for −$168.59** vs **+$344.68** for trail fills found at
+      the close. **Why the race is still open:** a fill landing inside the close-check window
+      is the bot's *own* sell, whose id matches no bracket leg, so it correctly falls back to
+      the catch-all instead of being named. Fixing the race below closes this item.
+      `exit_position` submits the close, then checks whether the position
       is still open; when the fill lands **inside that check window** it declares a failed
       close and lets `reconcile_exit` re-find **its own order**, tagging it
       `(stop/target filled broker-side)`. PLTR 08-27: submitted 19:45:27, filled
@@ -403,6 +415,18 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       rather than the position, and only fall through to `reconcile_exit` when *that*
       order is genuinely unfilled. Cheap, observational-only, and it unlocks exit-reason
       cohorts for every future exit study.
+
+- [ ] **⚠️ OPERATOR: the "Friday stand-down" rule in the routine prompts is STALE and now
+      points the wrong way (found 2026-08-28).** `ustradebot-daily-review.md` still says the
+      weekly recap runs **Fri 20:00 UTC, ~70 min BEFORE** the daily. Per the live crontab and
+      `/root/claude-routines/SCHEDULE.md` the weekly moved to **Sat 04:00 WIB = Fri 21:00
+      UTC** — **one hour AFTER** the daily (Fri 20:00 UTC). The crontab comment already flags
+      the prompts as stale. **Consequence: the stand-down is now backwards.** The daily runs
+      first and can legitimately ship (IMP-038 did, ~20:20 UTC on Fri 2026-08-28, after
+      confirming no weekly commit existed); the risk is that **the weekly then ships a second,
+      unmeasured change an hour later**. The stand-down clause belongs in the *weekly* prompt
+      now: it should check `git log --since="2 hours ago"` for a daily IMP and stand down.
+      Prompt files live in `/root/claude-routines`, outside this repo.
 
 - [ ] **IMP-036 mechanism test, now measurable (owner: ~15 trades after 2026-08-27).**
       IMP-036 claims the 1-min ATR **predicts how far the tape will travel** — evidenced

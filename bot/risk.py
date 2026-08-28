@@ -43,6 +43,15 @@ if TYPE_CHECKING:  # avoid a runtime import cycle (executor imports nothing from
 
 log = logging.getLogger("ustradebot.risk")
 
+# Exit-reason phrases for a fill that happened broker-side (no bot sell drove it).
+# `_BROKER_SIDE_UNKNOWN` is the historical catch-all: it says only "some resting leg
+# filled" and cannot separate a trail hit from the original stop from the target. It is
+# now the *fallback*, kept for fills we genuinely cannot attribute (IMP-038).
+_BROKER_SIDE_UNKNOWN = "stop/target filled broker-side"
+_BROKER_SIDE_TRAIL = "trailing stop"
+_BROKER_SIDE_STOP = "stop loss"
+_BROKER_SIDE_TARGET = "take profit"
+
 
 class TrailResult(Enum):
     """Outcome of a :meth:`RiskManager.update_trailing_stop` pass.
@@ -371,7 +380,10 @@ class RiskManager:
             if reconciled is None:
                 return None
             order_id, exit_price = reconciled
-            reason = f"{reason} (stop/target filled broker-side)"
+            leg = self._broker_fill_reason(entry, order_id, exit_price)
+            # Don't say the same thing twice: the STOP_GONE caller already passes
+            # "trailing stop", so `trailing stop (trailing stop)` adds nothing.
+            reason = reason if leg == reason else f"{reason} ({leg})"
         else:
             # The bot's own market sell drove the exit; record it at the ACTUAL broker
             # fill price rather than the candle-close estimate passed in — they differ by
@@ -399,7 +411,8 @@ class RiskManager:
         read-only :meth:`OrderExecutor.reconcile_exit`, which returns ``None`` while the
         broker still holds the position, so it is safe to call on an open position (it never
         submits a sell). On a real fill it records the exit at the true broker price, tags it
-        ``stop/target filled broker-side``, and returns it; otherwise ``None``.
+        with the leg that actually filled (:meth:`_broker_fill_reason`, IMP-038), and returns
+        it; otherwise ``None``.
 
         Guard (2026-07-20 NVDA): a bracket entry can fill **seconds-to-minutes late**
         (NVDA's buy filled ~2.5 min after submission — the same delayed-fill pattern
@@ -424,7 +437,11 @@ class RiskManager:
             return None
         order_id, exit_price = reconciled
         return self._record_exit(
-            symbol, exit_price, "stop/target filled broker-side", entry, order_id
+            symbol,
+            exit_price,
+            self._broker_fill_reason(entry, order_id, exit_price),
+            entry,
+            order_id,
         )
 
     def _entry_filled_at(self, entry: ExecutionResult | None) -> datetime | None:
@@ -438,6 +455,50 @@ class RiskManager:
         """
         entry_oid = getattr(entry, "order_id", "") if entry is not None else ""
         return self._executor.entry_filled_at(entry_oid) if entry_oid else None
+
+    def _broker_fill_reason(
+        self, entry: ExecutionResult | None, order_id: str | None, exit_price: float
+    ) -> str:
+        """Name *which* resting leg filled broker-side, from state we already hold.
+
+        Every broker-side exit used to book the single phrase ``stop/target filled
+        broker-side``, which conflates four different outcomes. The cost is not cosmetic:
+        87 of 274 lifetime exits sat in those buckets carrying **−$1,060 — the whole loss
+        side of the book** — while the ``trailing stop`` bucket read **n=2**, a provable
+        undercount. 2026-08-28 SPOT is the archetype: the trail ratcheted **eight times**
+        (538.65 → 543.47 → … → 546.05), and the fill was that eighth order
+        (``8d587433…``) at 546.05 — **1.37% above the original stop**, with the
+        take-profit leg cancelled unfilled. The broker record is unambiguous; only our
+        label was not. Without this, "did the trail help or hurt?" — the question the
+        trail-retune and IMP-036 capture studies both turn on — is unanswerable in SQL.
+
+        Pure attribution: no broker reads, no behaviour change, no effect on price, P/L
+        or when anything exits. Resolution comes from the trailing-stop bookkeeping the
+        manager already maintains (:attr:`_live_stop_oid` / :attr:`_trail_stops`, both
+        keyed by the trade's original stop-leg id), so it MUST be called *before*
+        :meth:`_record_exit` drops that state.
+
+        - the filled id is anywhere in this trade's stop chain (the live replacement id,
+          or the original when it was never moved) → ``trailing stop`` if the trail had
+          ratcheted above the entry bracket's stop, else ``stop loss``;
+        - otherwise the fill cleared the take-profit limit → ``take profit``;
+        - anything we cannot place (an unknown id, no entry to compare against — e.g. a
+          startup-reconciled holding, or the bot's own close order re-found by the
+          close/fill race still open in ``todo.md``) keeps the honest catch-all rather
+          than guessing.
+        """
+        key = getattr(entry, "stop_order_id", "") if entry is not None else ""
+        if entry is None or not key or not order_id:
+            return _BROKER_SIDE_UNKNOWN
+        if order_id in (key, self._live_stop_oid.get(key, key)):
+            trailed = self._trail_stops.get(key)
+            if trailed is not None and trailed > entry.stop_price:
+                return _BROKER_SIDE_TRAIL
+            return _BROKER_SIDE_STOP
+        target = getattr(entry, "take_profit_price", 0.0) or 0.0
+        if target > 0.0 and exit_price >= target:
+            return _BROKER_SIDE_TARGET
+        return _BROKER_SIDE_UNKNOWN
 
     def _record_exit(
         self,

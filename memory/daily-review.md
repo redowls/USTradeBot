@@ -5797,3 +5797,104 @@ turns on and it was not recorded anywhere. See `improvement-log.md`.
   a macro event that can invalidate the trend regime intraday.
 - **INTC produced no scored candidate today**, so yesterday's "second-leg requirement too
   permissive" test is still unresolved — carry it forward.
+
+---
+
+## 2026-08-28 — Daily Review
+
+### Stats
+- Closed trades (DB): **1** — 0W / 1L → **0% win rate**. Net realized **−$11.82**
+  (avg −$11.82/trade). No winners, so **profit factor 0.00**.
+- Account **equity $9,133.71** (broker), down from `last_equity` **$9,145.53** — a
+  **−$11.82** delta that matches the DB to the cent. **0 open positions, 0 resting orders.**
+- Broker⇄DB reconciliation: **clean.** Entry buy `c4cef246` filled 15:04:01.95 @ **549.99**
+  ×3 (DB agrees); sell `8d587433` filled 16:59:58.48 @ **546.05** ×3 (DB agrees); the
+  take-profit leg `de6910e0` was **cancelled unfilled** at 16:59:57.70 (OCO). No qty drift,
+  no missed fill, nothing carried overnight.
+- Service **active** all session, **zero WARNING-or-above lines**, no restarts. The running
+  PID (1898233, started 2026-08-27 20:24:55 UTC) carries IMP-037, so today traded on `HEAD`.
+
+### Trade-by-trade review
+**SPOT — model A — LOSS −$11.82 (−0.72%)**
+- Entry **15:04:02 @ 549.99**, qty 3 ($1,648.92). Bracket stop **538.65** (−2.06%),
+  target **604.60** (+9.9%).
+- Confidence **63.94** — bottom band. Sub-scores: `xo=0.46 trend=1.00 rsi=1.00
+  vol=0.00 vlt=0.00`. Tape at entry: **atr=0.128%**, spread 0.102%.
+- Exit **16:59:58 @ 546.05** (booked 17:00:23 after the ~25 s reconcile poll — detection
+  lag only; the price is the true broker fill).
+- **MFE +0.54% / MAE −0.69%** (the first excursion row IMP-037 ever wrote).
+- **Root cause: exit logic on a trade that never earned its trail.** The trail ratcheted
+  **eight times** (538.65 → 543.47 → 543.63 → 543.96 → 544.12 → 544.22 → 544.50 → 546.05)
+  and then filled at its own level. With TRAIL_PERCENT 1.25% and a peak of only **+0.54%**,
+  the trail mathematically sits **below entry** (peak × 0.9875 = 546.05 = −0.72%), so it can
+  only ever book a loss. Arithmetic, not bad luck: **a trade whose MFE never exceeds 1.25%
+  cannot exit the trail green.** This is the "MFE < 1% cohort carries the entire loss"
+  population the 08-27 review identified, now with its first measured instance.
+- **Not** stop placement (the −2% stop was never approached), **not** slippage (fill == stop
+  price to the cent), **not** regime in the risk-off sense — see below.
+
+### What worked / what didn't
+- **The tape was the opposite of the excuse.** Perplexity: **S&P 500 +0.72% (7,730.99)**,
+  **Nasdaq +1.41% (26,498.02)**, read as **risk-on / trending**. A trend-following ribbon bot
+  took **one** trade on a strongly trending day and lost it. Regime does not explain today.
+- **What actually gated the book was scoring, not the market gate.** 48 scored decisions:
+  **43 refused on confidence < 60**, 3 on the QQQ gate, 1 entry. The refused distribution
+  topped out at **57.6** (AMZN) with a long tail to 40.2 — nothing was close-and-missed, so
+  simply lowering the bar would have bought the 50s, not near-misses.
+- **Two of five sub-scores contributed exactly zero to every candidate.** `vol=0.00` by
+  design (IMP-034 zeroed the weight) and `vlt=0.00` on the fill. With `rsi=1.00` a flat
+  subsidy, today's score was effectively **crossover + trend only**. On a +1.41% Nasdaq day
+  the volatility term read 0 because the **1-min** ATR was 0.128% — a steady grind up is
+  low-1-min-ATR. **Logged as an IMP-036 observation, not acted on: it is 6 fills into a
+  pre-registered 15-fill test and one trade cannot judge it.**
+- **The exit label was wrong, and provably so.** The bot booked
+  `stop/target filled broker-side` for a fill that was unambiguously **its own trailing
+  stop**, at a price **1.37% above the original stop**, with the target cancelled unfilled.
+  That is today's shippable finding — see below.
+
+### Lessons & improvement candidates
+1. **(SHIPPED — IMP-038) Exit attribution is broken and it is blocking the queue.**
+   Lifetime: **87 of 274 exits (32%) sat in `…broker-side` buckets carrying −$1,060 — the
+   entire loss side of the book** — while `trailing stop` read **n=2**, a provable
+   undercount (today alone should have been n=3). Every blocked experiment in `todo.md`
+   (trail retune "judged on capture", IMP-036's mechanism test) needs exit cohorts to be
+   readable in SQL. Fixed the instrument first — the IMP-035/IMP-037 precedent.
+2. **Do NOT retune the trail on today.** The 1.25% trail losing on a +0.54% MFE is real, but
+   it is **one trade**, and the trail retune is explicitly blocked until IMP-036's 15-fill
+   test completes. Shipping it tonight would confound both. **Now better armed:** the 90-day
+   replay run for IMP-038's validation shows in-session `trailing stop` exits are
+   **n=23 for −$168.59** while trail fills found at the close are **+$344.68** — the first
+   time that split has been measurable. Hand it to the retune when it unblocks.
+3. **Measured, not assumed: the −2% hard stop never fills.** Across 90 replay days,
+   **all 58 broker-side exits were the trail; zero were the bracket stop.** This confirms
+   `todo.md`'s "dead knob — do not spend a session on `STOP_LOSS`" with evidence.
+4. **Confidence remains non-monotonic** (`vw_confidence_outcome`, 274 trades): 60-69 **151 tr,
+   41.7% win, −$94.34** · 70-79 **88 tr, 54.6% win, +$267.44** · 80-89 **32 tr, +$2.96** ·
+   90-100 **3 tr, 0% win, −$144.42**. Today's only fill scored **63.9** — the losing band,
+   and it lost. The 60-69 floor is still buying the worst cohort. Unchanged verdict, still
+   correctly sequenced behind the rsi/volatility work.
+
+### Verdict on the strategy
+**Not condemned, but the entry score is the weak half.** The exit structure is doing real
+work (90d replay PF 2.39 on the same code), and the book's profit is concentrated in trades
+left to run. The demonstrated defect is **entry selectivity**: a 63.9-confidence signal
+built from two live terms out of five, on a tape whose 1-min ATR could not support a
+1.25% trail. That is a coherent, testable thesis — and the pre-registered tests already
+queued are the right way to settle it. One losing trade is not evidence to tear it up.
+
+### Notes for pre-market research
+- **SPOT** — the day's only entry and a clean mechanical loss, not a bad symbol: it trended
+  enough to trigger, but its **1-min ATR (0.128%) was too small to clear a 1.25% trail**.
+  Worth flagging as a **low-intraday-range name**; keep, but expect this failure shape again.
+- **MSFT (8 refusals), GOOG (8), DASH (7), UBER (6), AMZN (4), AAPL (4)** — all scored
+  repeatedly, **none reached 60**. Live but not productive; MSFT and GOOG are the most
+  frequent near-misses (peaks 57.0 / 52.0).
+- **AMGN, INTC, MU, NVDA, PLTR, TSLA, TSM, LLY, QQQ, ABNB, AMD, BABA, NFLX** produced
+  **≤1 scored candidate each**. **AMGN and INTC again produced none** — the AMGN
+  zero-candidate verdict (due 09-02) and the INTC "second-leg too permissive" test (due
+  09-03) both remain unresolved and are accumulating evidence in the same direction.
+- **The QQQ gate closed only 3 times** on a +1.41% Nasdaq day — the gate was permissive and
+  is **not** what suppressed the book. Do not loosen it.
+- **Warsh's Jackson Hole keynote landed at 14:00 UTC**, the exact minute the IMP-017
+  blackout lifts. The 14:00–14:15 cluster produced **no entry** today; the single fill came
+  at 15:04. One session — do not conclude the cluster is broken.

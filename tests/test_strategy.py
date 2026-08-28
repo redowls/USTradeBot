@@ -806,7 +806,8 @@ def test_tick_after_candle_flatten_is_idempotent(cfg):
 
 def test_tick_reconciles_broker_side_stop_fill_outside_close_window(cfg):
     exits: list = []
-    closer = _StopGoneCloser(fill=("stop-se", 113.21))  # broker-side stop fill in order history
+    # SE's stop filled on a DOWN move: the fill is the trade's own stop leg, below entry.
+    closer = _StopGoneCloser(fill=("stop-1", 97.88))  # broker-side stop fill in order history
     eng = StrategyEngine(
         cfg,
         risk=RiskManager(cfg, executor=closer, on_exit=exits.append),
@@ -818,8 +819,8 @@ def test_tick_reconciles_broker_side_stop_fill_outside_close_window(cfg):
     assert closer.closed == []  # read-only reconcile: never submitted a close
     assert closer.reconciled == ["NFLX"]  # detected the broker-side fill from order history
     assert len(exits) == 1
-    assert exits[0].exit_price == 113.21  # recorded at the real broker fill
-    assert "stop/target filled broker-side" in exits[0].reason
+    assert exits[0].exit_price == 97.88  # recorded at the real broker fill
+    assert exits[0].reason == "stop loss"  # IMP-038 names the leg, not a catch-all
     assert eng.state("NFLX") is BotState.WAITING  # freed, not stuck MANAGING for hours
     assert "NFLX" not in eng._positions
     # A second tick is a no-op — the symbol is already released (not MANAGING).

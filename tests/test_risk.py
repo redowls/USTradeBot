@@ -289,14 +289,16 @@ def test_exit_position_reconciles_broker_side_stop_fill(cfg):
     # 404'd (returns None). exit_position must reconcile the real fill from order
     # history, record the exit at THAT price (not the price passed in), tag the reason,
     # and release the symbol — instead of leaving a phantom-open position.
-    ex = _FakeExecutor(order_id=None, reconciled=("stop-leg", 397.13))
+    # The fill is this trade's own stop leg ("stop-1") at 97.94 — below the 98.0 bracket
+    # stop and never ratcheted — so IMP-038 names it `stop loss`, not the old catch-all.
+    ex = _FakeExecutor(order_id=None, reconciled=("stop-1", 97.94))
     seen = []
     rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
-    result = rm.exit_position("TSLA", 410.0, "end-of-day flatten", _entry())
+    result = rm.exit_position("TSLA", 99.5, "end-of-day flatten", _entry())
     assert result is not None
-    assert result.exit_price == 397.13  # the real broker-side fill, not the 410.0 passed in
-    assert "broker-side" in result.reason
-    assert result.order_id == "stop-leg"
+    assert result.exit_price == 97.94  # the real broker-side fill, not the 99.5 passed in
+    assert result.reason == "end-of-day flatten (stop loss)"
+    assert result.order_id == "stop-1"
     assert ex.reconcile_calls == ["TSLA"]
     assert seen == [result]  # on_exit fired → the exit is persisted
 
@@ -306,18 +308,151 @@ def test_reconcile_if_closed_records_broker_side_fill(cfg):
     # never surfaced by the trailing ratchet (no higher-high replace to 422), so the
     # wall-clock sweep polls order history to detect it. reconcile_if_closed must record the
     # exit at the real fill, tag it a broker-side fill, and NEVER submit a close.
-    ex = _FakeExecutor(reconciled=("stop-se", 113.21), entry_fill=108.0)  # entry did fill
+    # SE's stop filled on a DOWN move, so the fill is the stop leg below the entry — the
+    # narrative this fixture has always described. IMP-038 books it as `stop loss`.
+    ex = _FakeExecutor(reconciled=("stop-1", 97.88), entry_fill=100.0)  # entry did fill
     seen = []
     rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
     result = rm.reconcile_if_closed("SE", _entry())
     assert result is not None
     assert ex.closed == []  # read-only: never attempted a close
     assert ex.reconcile_calls == ["SE"]
-    assert result.exit_price == 113.21  # the true broker-side fill
-    assert "stop/target filled broker-side" in result.reason
-    assert result.order_id == "stop-se"
+    assert result.exit_price == 97.88  # the true broker-side fill
+    assert result.reason == "stop loss"
+    assert result.order_id == "stop-1"
     assert result.qty == 10  # carried from the entry
     assert seen == [result]  # persisted via on_exit
+
+
+# --- which leg actually filled? (IMP-038) ----------------------------------
+#
+# Every broker-side exit used to book one phrase, `stop/target filled broker-side`, which
+# conflates a trail hit, the original stop, the target and (via the still-open close/fill
+# race) the bot's own EOD sell. 87 of 274 lifetime exits sat in those buckets holding
+# −$1,060 — the entire loss side of the book — while `trailing stop` read n=2.
+
+
+def _spot_0828() -> ExecutionResult:
+    """The real 2026-08-28 SPOT trade: entry 549.99 x3, bracket stop 538.65, target 604.60."""
+    return ExecutionResult(
+        symbol="SPOT",
+        order_id="spot-entry",
+        qty=3,
+        notional=1648.92,
+        entry_price=549.99,
+        stop_price=538.65,
+        take_profit_price=604.60,
+        confidence=63.94,
+        status="accepted",
+        model="A",
+        stop_order_id="b4eac2b5",  # the original bracket stop leg
+    )
+
+
+def test_ratcheted_stop_fill_is_booked_as_trailing_stop(cfg):
+    # 2026-08-28 SPOT, the trade that motivated IMP-038. The trail ratcheted eight times
+    # (538.65 -> 543.47 -> ... -> 546.05), Alpaca issuing a fresh order id each replace, and
+    # the EIGHTH order filled @546.05 — 1.37% ABOVE the original stop, with the take-profit
+    # leg cancelled unfilled. The broker record is unambiguous; the bot booked it
+    # `stop/target filled broker-side` and the trail took no credit for the exit.
+    ex = _FakeExecutor(reconciled=("trail-8", 546.05), entry_fill=549.99)
+    seen = []
+    rm = RiskManager(cfg, executor=ex, on_exit=seen.append)
+    entry = _spot_0828()
+    # Replay the ratchet into the manager's bookkeeping, exactly as the live moves left it.
+    rm._trail_stops["b4eac2b5"] = 546.05
+    rm._live_stop_oid["b4eac2b5"] = "trail-8"
+
+    result = rm.reconcile_if_closed("SPOT", entry)
+    assert result is not None
+    assert result.reason == "trailing stop"  # NOT the old catch-all
+    assert result.exit_price == 546.05
+    assert result.order_id == "trail-8"
+    assert ex.closed == []  # attribution only: still read-only
+
+
+def test_unratcheted_stop_fill_is_booked_as_stop_loss(cfg):
+    # Same shape, but the trail never moved: the original bracket stop is still the live
+    # leg, so this is a genuine -2% stop-out and must NOT be credited to the trail.
+    ex = _FakeExecutor(reconciled=("b4eac2b5", 538.65), entry_fill=549.99)
+    rm = RiskManager(cfg, executor=ex, on_exit=lambda _: None)
+    result = rm.reconcile_if_closed("SPOT", _spot_0828())
+    assert result is not None
+    assert result.reason == "stop loss"
+
+
+def test_target_fill_is_booked_as_take_profit(cfg):
+    # The other resting leg: a limit sell that clears the take-profit price.
+    ex = _FakeExecutor(reconciled=("tp-leg", 604.60), entry_fill=549.99)
+    rm = RiskManager(cfg, executor=ex, on_exit=lambda _: None)
+    result = rm.reconcile_if_closed("SPOT", _spot_0828())
+    assert result is not None
+    assert result.reason == "take profit"
+
+
+def test_unattributable_fill_keeps_the_honest_catch_all(cfg):
+    # An id we cannot place, filling between the stop and the target — the shape of the
+    # close/fill race still open in todo.md (the bot's own sell, re-found by reconcile).
+    # We must NOT guess a leg; the catch-all stays so the ambiguity is visible in SQL.
+    ex = _FakeExecutor(reconciled=("who-knows", 551.00), entry_fill=549.99)
+    rm = RiskManager(cfg, executor=ex, on_exit=lambda _: None)
+    result = rm.reconcile_if_closed("SPOT", _spot_0828())
+    assert result is not None
+    assert result.reason == "stop/target filled broker-side"
+
+
+def test_startup_reconciled_holding_has_no_entry_to_attribute_against(cfg):
+    # No ExecutionResult (a position adopted at startup) → nothing to compare the fill to.
+    ex = _FakeExecutor(reconciled=("mystery", 100.0))
+    rm = RiskManager(cfg, executor=ex, on_exit=lambda _: None)
+    result = rm.reconcile_if_closed("NFLX", None)
+    assert result is not None
+    assert result.reason == "stop/target filled broker-side"
+
+
+def test_eod_flatten_that_finds_a_trail_fill_names_the_trail(cfg):
+    # The `exit_position` fallback path: the EOD flatten's close 404s because the trail had
+    # already filled broker-side. The caller's reason is kept AND the leg is named, so
+    # `end-of-day flatten (stop/target filled broker-side)` (n=34, -$550 lifetime) splits
+    # into the real causes instead of one opaque bucket.
+    ex = _FakeExecutor(order_id=None, reconciled=("trail-8", 546.05), entry_fill=549.99)
+    rm = RiskManager(cfg, executor=ex, on_exit=lambda _: None)
+    entry = _spot_0828()
+    rm._trail_stops["b4eac2b5"] = 546.05
+    rm._live_stop_oid["b4eac2b5"] = "trail-8"
+    result = rm.exit_position("SPOT", 545.0, "end-of-day flatten", entry)
+    assert result is not None
+    assert result.reason == "end-of-day flatten (trailing stop)"
+
+
+def test_stop_gone_caller_reason_is_not_duplicated(cfg):
+    # The STOP_GONE path already passes "trailing stop"; naming the leg must not produce
+    # `trailing stop (trailing stop)`.
+    ex = _FakeExecutor(order_id=None, reconciled=("trail-8", 546.05), entry_fill=549.99)
+    rm = RiskManager(cfg, executor=ex, on_exit=lambda _: None)
+    entry = _spot_0828()
+    rm._trail_stops["b4eac2b5"] = 546.05
+    rm._live_stop_oid["b4eac2b5"] = "trail-8"
+    result = rm.exit_position("SPOT", 545.0, "trailing stop", entry)
+    assert result is not None
+    assert result.reason == "trailing stop"
+
+
+def test_attribution_does_not_move_price_or_pnl(cfg):
+    # Guard the "observational only" claim: the recorded price and qty are identical to
+    # what the old catch-all produced — only `reason` changes.
+    ex = _FakeExecutor(reconciled=("trail-8", 546.05), entry_fill=549.99)
+    rm = RiskManager(cfg, executor=ex, on_exit=lambda _: None)
+    entry = _spot_0828()
+    rm._trail_stops["b4eac2b5"] = 546.05
+    rm._live_stop_oid["b4eac2b5"] = "trail-8"
+    result = rm.reconcile_if_closed("SPOT", entry)
+    assert result is not None
+    assert result.exit_price == 546.05  # the broker fill, untouched
+    assert result.qty == 3
+    assert result.entry_fill_price == 549.99
+    # ...and the real trade's P/L still reconciles to the broker's -$11.82.
+    assert round((546.05 - 549.99) * 3, 2) == -11.82
 
 
 def test_reconcile_if_closed_none_when_still_open(cfg):
