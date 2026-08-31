@@ -331,6 +331,14 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
       and hand their 35 points to crossover and trend — measured in replay across ≥3 windows,
       gate ON, against the IMP-034 baseline. **Blocked until IMP-034 has live evidence — one
       scoring change at a time.**
+      **⚠️ AMENDED 2026-08-31 — the "dead weight" framing is incomplete, read the settled
+      item below before running this experiment.** `conf_crossover` is *also* effectively
+      constant, but pinned at the **bottom** of its range (median 4.5 of its 39 points), and
+      that compression is **load-bearing selectivity**. So "hand the 35 points to crossover"
+      does **not** reward better crosses — it **raises the effective bar**, because nobody
+      earns those points. That may still be the right move, but it must be justified and
+      measured as *a threshold tightening*, not as *better ranking*, or the result will be
+      misread the way IMP-034's was.
 - [x] **DONE (IMP-035, 2026-08-25) — `--days N` is a rolling timestamp, not a calendar
       boundary.** All three readers now cut at
       `CAST(DATEADD(day, -(? - 1), SYSUTCDATETIME()) AS DATE)` behind one shared
@@ -444,3 +452,40 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
 
 Get Alpaca data flowing (1) and indicators correct (2) before the buy logic (3).
 Keep it on the paper account throughout — iterate freely.
+
+---
+
+### Settled by measurement — do NOT re-open without new evidence (2026-08-31)
+
+- [x] **SETTLED 2026-08-31 — `conf_crossover`'s near-zero scores are NOT a calibration bug.
+      Do not recalibrate `_CROSS_WIDTH_FULL` / `_CROSS_SLOPE_FULL`.** The observation that
+      invites the fix is real and stark: over **261 scored refusals** the median 1-min ribbon
+      spread is **0.0153%** against a **0.20%** saturation anchor (**13x below**), **0 of 261**
+      candidates ever earned full width marks, 93% sat under a quarter of it, and the
+      heaviest-weighted term in the model (**39 of 100 points**) pays out a **median 4.5**.
+      The constants are still labelled *"illustrative; tune on paper"* (`bot/signals.py:31`).
+      **Recalibrating them to the observed p88–p90 loses in all three windows tested** (30/60/90d,
+      real engines, gate ON): 90d goes **74 trades / +$753.36 / PF 2.43 → 237 trades / +$657.81
+      / PF 1.38**, win rate **62.2% → 50.6%**, avg/trade **+$10.18 → +$2.78**; 30d PF **3.33 →
+      1.16**. **Mechanism: because crossover reliably contributes only ~4–6 of its 39 points, a
+      candidate must be near-perfect on trend + RSI + volatility to clear 60 — the inert
+      component is what makes `ENTRY_THRESHOLD=60` selective at all.** Full tables in
+      `memory/daily-review.md` 2026-08-31.
+- [x] **SETTLED 2026-08-31 — the IMP-022 QQQ market gate is strongly accretive. Do not drop
+      or loosen it.** 90d replay A/B, identical config: **gate ON 74 trades / +$753.36 / 62.2%
+      / PF 2.43** vs **gate OFF 156 trades / +$534.43 / 50.6% / PF 1.39**. It roughly halves
+      trade count while more than doubling profit factor.
+      **⚠️ Methodological warning worth keeping: never judge a filter by its own refusal
+      cohort.** The `bot.report --refusals` table makes the gate look *anti*-predictive
+      (gate-refused: n=29, MFE +0.99%, fwd +0.23% — the best cohort on the board), but that
+      is **selection confounding**: a candidate must already pass confidence ≥60 and a fresh
+      cross to *reach* the gate, while the confidence cohort is by definition what failed.
+      The cohort table measures the filters *upstream*, not the filter named. Use a replay A/B.
+      *(This supersedes the still-open item above, "🟡 The QQQ market gate blocks idiosyncratic
+      single-name trends" — that concern may hold for individual names, but the gate is net
+      strongly positive at the book level and must not be removed on those grounds.)*
+- [x] **SETTLED 2026-08-31 — a minimum QQQ gate ribbon width adds nothing.** Motivated by
+      08-31's gate opening on EMAs just **0.015%** apart (fast 715.03 / mid 714.94 / slow
+      714.92). A width floor is a **no-op up to 0.03%** (0–1 trades changed across 30/60/90d)
+      and negative beyond it (90d @0.08%: +$605.60 / PF 2.29 vs +$753.36 / PF 2.43). The
+      existing `stacked AND fast_rising` conjunction already does this work.

@@ -5898,3 +5898,145 @@ queued are the right way to settle it. One losing trade is not evidence to tear 
 - **Warsh's Jackson Hole keynote landed at 14:00 UTC**, the exact minute the IMP-017
   blackout lifts. The 14:00–14:15 cluster produced **no entry** today; the single fill came
   at 15:04. One session — do not conclude the cluster is broken.
+
+---
+
+## 2026-08-31 — Daily Review
+
+### Stats
+- **No trades today.** 0 entries, 0 exits, 0 open positions. Net P&L **$0.00**.
+- Account **equity $9,133.65** — broker-confirmed, `cash == equity == last_equity`,
+  **0 positions, 0 orders of any status all day**. DB agrees exactly (0 rows in
+  `dbo.trades` touching today). **Reconciliation is clean; nothing carried, nothing missed.**
+- Service **active, 0 restarts, zero WARNING-or-above lines** in journald for the whole
+  session. `ActiveEnterTimestamp` 11:39 UTC = the normal pre-market start. No plumbing fault.
+- Scored candidates: **15 refusals across MU (7), PLTR (3), NFLX (2), TSLA (1), NVDA (1)**.
+
+### Trade-by-trade review
+No fills to review, so the reviewable evidence is **why the book stayed flat**. Two
+independent constraints both bound today, and they are not the same constraint:
+
+**1. The market gate was shut for 95.6% of the session.** `dbo.market_gate` recorded 91
+QQQ 5-min samples; **4 were gate-open (4.4%)** — and all four were **19:40–19:55 UTC**,
+i.e. the last twenty minutes, inside the EOD-flatten window where no entry can be taken
+anyway. The decomposition is the interesting part: **`fast_rising` was true 51.6% of the
+day, but `stacked` was true only 4.4%.** QQQ spent the session rising in a tangled ribbon —
+a bounce inside a downtrend, not a trend.
+
+**2. Signal strength never got near the bar.** Of 15 scored candidates, **14 were refused
+on confidence** with a best score of **54.4 vs the 60 threshold**. Only one candidate ever
+cleared 60: **MU at 14:19, conf 64.9**, refused on `market gate closed`.
+
+- **MU 14:19 (conf 64.9, the day's only qualifying signal) — the gate's refusal was
+  correct, and mildly so.** Forward counterfactual: **MFE +0.62%, MAE −0.94%, close
+  +0.32%**. It never travelled the 1.25% needed to arm the trail, and its adverse
+  excursion was 1.5x its favourable one. Refusing it cost roughly nothing; taking it
+  would have been an EOD flatten for small change with a −0.94% dip in the middle.
+- **The 14 confidence refusals share one shape.** Most carried **full trend and RSI marks
+  (T=1.0, R=1.0)** and still scored 47–54. Worked example, MU 19:42 → X=0.1, T=1.0, R=1.0,
+  Vol=0.0: `0.1×39 + 1.0×26 + 1.0×20 = 49.9` against an observed 49.2. **A candidate with
+  a perfect higher-timeframe trend and perfect RSI could not reach 60 today.**
+
+### What worked / what didn't
+- **The gate did its job, and the tape confirms it.** Perplexity/close data: **Nasdaq
+  −0.52%, S&P 500 −0.25%, 10 of 11 sectors negative**, weakness led by AI names — the
+  exact cohort this watchlist is built from (MU, NVDA, PLTR all scored today). A
+  long-only intraday bot going 0-for-0 into a broad risk-off session is **capital
+  protection working as designed**, not a missed day. Zero is the correct P&L here.
+- **What didn't work: nothing broke.** No errors, no restarts, no data gaps, no
+  reconciliation drift. Today is a *tape* outcome, not a *bot* outcome.
+
+### Lessons & improvement candidates
+Today's zero-trade day invites three plausible "fixes". **All three were tested against
+the replay harness and all three were refuted.** Recording the refutations is the day's
+actual output — each one would have made the bot worse, and each is the kind of change a
+future run looking at today's numbers would reach for.
+
+1. **"The gate is too strict / anti-predictive — loosen or drop it." → REFUTED, decisively.**
+   The refusal-cohort table is *seductive and misleading* here: over 60 days the gate-refused
+   cohort looks like the best cohort on the board (**n=29, avgMFE +0.99%, fwd +0.23%, 8/29
+   would have hit the trail**) versus the confidence-refused cohort (n=145, MFE +0.43%,
+   fwd +0.02%). **That comparison is confounded by selection** — to be refused *on the gate*
+   a candidate must already have passed confidence ≥60 and a fresh cross, whereas the
+   confidence cohort is by definition the candidates that failed. Comparing them measures
+   the confidence filter, not the gate. The unconfounded test is a replay A/B, and it is
+   emphatic (90d, real engines, identical config):
+   | | trades | net | win% | PF | avg |
+   |---|---|---|---|---|---|
+   | **gate ON (HEAD)** | 74 | **+$753.36** | **62.2%** | **2.43** | **+$10.18** |
+   | gate OFF | 156 | +$534.43 | 50.6% | 1.39 | +$3.43 |
+   **The gate roughly halves trade count while more than doubling profit factor. Do not
+   touch it.** ⚠️ Never judge a filter by its own refusal cohort — the cohort is selected
+   *by the filters upstream of it*.
+2. **"`conf_crossover` is broken — it is pinned near zero, recalibrate the anchors." →
+   REFUTED, and this is the most important entry in this review.** The observation is
+   real and large: across **261 scored refusals**, `_CROSS_WIDTH_FULL = 0.0020` (0.20%)
+   saturates the width score, but the **median observed 1-min ribbon spread is 0.0153%
+   — 13x below it**. **Zero of 261 candidates ever earned full width marks; 93% sat below
+   a quarter of it.** The sub-score carries **the heaviest weight in the model (39 of 100
+   points, raised there by IMP-034)** and earns a **median 4.5 and mean 6.0 of those 39**.
+   The back-solved slope half is the same story (median implied slope score 0.165 against
+   a 0.0010 anchor). The constants are still labelled *"illustrative; tune on paper"* in
+   `bot/signals.py:31` — they were never calibrated. **And they must not be.** Recalibrating
+   the saturation anchors to the observed p88–p90 loses in **every window tested**:
+   | anchors (width/slope) | 30d net / PF | 60d net / PF | 90d net / PF |
+   |---|---|---|---|
+   | **0.0020 / 0.0010 (HEAD)** | **+$270.74 / 3.33** | **+$397.47 / 2.45** | **+$753.36 / 2.43** |
+   | 0.0005 / 0.0005 | +$94.98 / 1.16 | +$303.66 / 1.30 | +$657.81 / 1.38 |
+   | 0.0004 / 0.0004 | +$117.32 / 1.19 | +$291.87 / 1.27 | +$589.20 / 1.32 |
+   | 0.0003 / 0.0003 | +$81.78 / 1.12 | +$251.37 / 1.20 | +$555.57 / 1.27 |
+   Trade count triples-to-quadruples (74 → 237 at 90d) and **win rate collapses 62% → 51%,
+   PF 2.43 → 1.38, avg/trade $10.18 → $2.78**. **The compression is load-bearing.** Because
+   crossover reliably contributes only ~4–6 of its 39 points, a candidate must be
+   near-perfect on trend + RSI + volatility to clear 60 — *the inert component is what makes
+   the 60 threshold selective at all.* This also reframes **IMP-034**: moving 9 points into
+   crossover did not reward better crosses, it **raised the effective bar**, which is why it
+   backtested well. **Do not "fix" `conf_crossover`. It is not a bug, it is the selectivity.**
+3. **"The gate opened on a degenerate stack — require a minimum gate width." → REFUTED
+   (no effect).** Today's four gate-open candles had QQQ EMAs separated by as little as
+   **0.015%** (fast 715.03 / mid 714.94 / slow 714.92) — visually noise, and today's
+   gate-open spreads are the thinnest in the record (median 0.047% vs 0.220% on 08-27, the
+   best day). But a width floor is a **no-op up to 0.03%** (0–1 trades removed across all
+   three windows) and turns negative beyond it (90d at 0.08%: +$605.60 / PF 2.29 vs
+   +$753.36 / PF 2.43). The `stacked` + `fast_rising` conjunction is already doing this
+   work. **No change.**
+
+**Verdict: no code change today.** Three candidate improvements, three replay-refuted.
+Shipping any of them would have cut profit factor. The strategy's current edge — high
+selectivity, few trades, PF ~2.4 in replay — is intact and today's flat book is
+consistent with it, not evidence against it.
+
+**Still open, unchanged and correctly not actioned today** (no fills ⇒ no new evidence):
+the `exit_reason` close/fill race (half-fixed by IMP-038), and the **IMP-036 mechanism
+test**, which needs ~15 fills after 08-27 and has **only 6 live fills since 08-21** —
+nowhere near enough. Do not force it early.
+
+### Notes for pre-market research
+- **Live results since gate telemetry began (08-21) are good and should not be panicked
+  away by today's zero: 6 trades, 5W/1L, net +$44.85.** Winners PLTR +$5.28, NVDA +$3.78,
+  TSM +$5.08, PLTR +$25.93, TSLA +$16.60; one loser SPOT −$11.82. **All 6 entered with the
+  gate genuinely open** (verified by joining `dbo.trades` to `dbo.market_gate`) — so the
+  IMP-022 gate's documented *fail-open* path is **not** silently firing in production. That
+  was checked explicitly today and is clean.
+- **The board is still not the binding constraint — the score is.** 15 candidates from 5
+  names on a risk-off day is normal liveness, not a dead watchlist. **Do not add symbols to
+  compensate for today's zero**, and do not lower `ENTRY_THRESHOLD`.
+- **MU is the most active name on the board today by a distance (7 of 15 candidates,
+  including the day's only 60+ score at 64.9).** It is signalling healthily; it simply met
+  a shut gate. Worth watching, no action.
+- **NFLX scored twice and both were the weakest of the day (37.2, 37.2, ATR 0.036–0.044%).**
+  It is the lowest-range name that scored. If it keeps printing high-30s on sub-0.05% ATR
+  it becomes a **volatility-floor park candidate** on the GOOG precedent — flagging for
+  accumulation, **not** recommending a park today (2 rows is not a case).
+- **AMGN produced zero rows again — that is now 4 consecutive sessions (08-26, 08-27,
+  08-28, 08-31) with not one scored candidate and not one gate refusal.** Its dated test
+  ("parked if zero candidates by **09-02**") is **due Wednesday**; the evidence is now 4/4
+  against it. Hold to the date as the log's discipline requires, then park.
+- **GOOG's park (08-31 pre-market) is consistent with today's tape** — it produced no rows.
+  Nothing to revisit.
+- **⚠️ Tomorrow (Tue 09-01) is the in-session hazard the pre-market flagged: ISM
+  Manufacturing + JOLTS both at 10:00 ET = 14:00 UTC — the exact minute the IMP-017 entry
+  blackout lifts.** Today's only 60+ candidate also came at 14:19. Expect the first
+  post-blackout candles to be noisy; this is a **watch-and-record** item, not a reason to
+  pre-emptively widen the blackout (one session is not evidence, and 08-28 already logged
+  the same 14:00 coincidence with Warsh).
