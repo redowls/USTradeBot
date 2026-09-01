@@ -3072,3 +3072,101 @@ Committed, pushed to `origin/main`, `systemctl restart` — live validation belo
   ran at 21:00 UTC — the reversed ordering this entry itself flagged. **The weekly stood
   down and shipped no code**, so IMP-038 gets a clean, unconfounded first live session on
   Monday. The scheduling hazard was caught by the daily and honoured by the weekly.
+
+---
+
+## IMP-039 — 2026-09-01 (daily) — the bot's own reporting now obeys the stop-exit doctrine
+
+### The problem
+The stop-exit doctrine ("a stop is a failed trade whatever the sign of its P&L", standing
+user directive 2026-09-01) existed only in the review prompts. Everything the **bot**
+printed still scored a win as `pnl > 0`:
+
+```
+bot/persistence.py:  SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END)   -> PerformanceSummary.wins
+bot/report.py:       f"closed trades: {s.trades} · win rate: {s.win_rate * 100:.0f}%"
+```
+
+So the Telegram digest, the journal line, and every figure quoted from them into
+`memory/` reported a win rate the doctrine says is meaningless. The gap is not academic —
+it is the exact mechanism by which a strategy with no edge keeps looking respectable.
+
+**Last three sessions that traded (2026-08-26..28), real `dbo.trades` rows:**
+
+| sym | entry | stop | target | exit | profit_R | P&L | exit_reason |
+|---|---|---|---|---|---|---|---|
+| PLTR | 177.27 | 173.75 | 195.03 | 177.75 | +0.14R | +$5.28 | end-of-day flatten |
+| NVDA | 224.59 | 220.25 | 247.23 | 224.90 | +0.07R | +$3.78 | stop/target filled broker-side |
+| TSM | 423.98 | 415.44 | 466.31 | 425.25 | +0.15R | +$5.08 | stop/target filled broker-side |
+| TSLA | 351.23 | 344.28 | 386.44 | 354.55 | +0.48R | +$16.60 | end-of-day flatten |
+| PLTR | 184.24 | 180.37 | 202.46 | 186.24 | +0.52R | +$25.93 | EOD flatten (broker-side) |
+| SPOT | 549.99 | 538.65 | 604.60 | 546.05 | −0.35R | −$11.82 | stop/target filled broker-side |
+
+**5 green of 6 = 83% headline. Zero reached +1R. Doctrine verdict: 0 WIN / 3 SCRATCH /
+3 FAIL, true win rate 0%, stop rate 4/6.** All-time the same gap runs 46% headline vs
+**7% true** over 274 trades, on an expectancy of **+0.008R/trade**.
+
+### The change
+New pure module **`bot/doctrine.py`** (no I/O, mirroring `bot/excursion.py`):
+
+- `risk_per_share()` — 1R from the ORIGINAL bracket stop (`dbo.trades.stop_price`, which
+  the broker-side trail never rewrites), falling back to `cfg.stop_loss × entry` only when
+  there is no recorded anchor.
+- `resolve_reason()` — **attributes the IMP-038 `stop/target filled broker-side` catch-all
+  by fill price** instead of dropping it: at/above `target × 0.995` it was the take-profit
+  leg, anything short of it was the stop leg. That bucket is 51+34+2 rows carrying
+  **−$1,060** all-time, so dropping it would have hidden most of the loss side.
+- `classify()` / `summarize()` — WIN (take-profit fill, or `profit_R ≥ +1.0`) /
+  SCRATCH (stop-driven `+0.25 < profit_R < +1.0`, or flatten between −0.25R and +1.0R) /
+  FAIL (stop-driven `profit_R ≤ +0.25`, or anything below −0.25R), with FAIL split
+  **full-stop** (`≤ −0.75R`) vs **BE-scratch**. Carries `pnl` only to expose the headline gap.
+- `format_stop_exits()` — the two lines the doctrine requires.
+
+Wiring:
+- `ClosedTrade` gains `stop_price` / `target_price` (defaulting to `None`, so rows
+  predating the columns stay distinguishable from a genuine zero); `closed_trades()`
+  selects them.
+- `bot/report.py` gains `stop_exit_summary()` and `format_summary(s, stop_exits)`.
+  **Always on** — it reuses the query the excursion study already runs and needs no
+  network, unlike opt-in `--mfe`/`--refusals`. It rides the **Telegram digest**, not
+  stdout-only: the true win rate governs the verdict, so it must travel beside the
+  headline it corrects.
+
+### Why this, and not a strategy change
+The doctrine's escalation clause fired today (FAIL+SCRATCH 100% over the last 3 trading
+sessions, 92% over 10, 93% all-time) and it says: **stop shipping parameter tweaks.**
+Independently, every strategy candidate in `todo.md` is explicitly **blocked** pending
+IMP-036's 15-fill test, and only ~6 fills have occurred since 08-26. So:
+
+- It touches **no trading logic** — IMP-036's test stays uncontaminated, no thrash.
+- Every number it prints is **harsher** than the one beside it. It cannot be gaming the
+  metric; it is the opposite of gaming it.
+- It makes the blocked IMP-036 revert test — specified in terms of *"win rate"* —
+  resolvable against the **true** rate instead of the misleading one.
+- Read-only, zero risk to the trading path.
+
+### Validation
+- **483 tests pass** (was 459; +24: 20 in new `tests/test_doctrine.py`, 3 in
+  `tests/test_report.py`, 1 in `tests/test_persistence.py`).
+- The doctrine tests are built on the **six real rows above**, so the reporting failure
+  that motivated this is now a regression test — `test_the_real_book_scores_zero_true_wins_against_an_83pc_headline`
+  asserts 0 WIN / 3 SCRATCH / 3 FAIL, 0% true vs 83% headline, stop rate 67%.
+- Also covered: catch-all attribution both ways, EOD-labelled catch-alls still counting as
+  stop-driven, full-stop vs BE-scratch split, a take-profit below 1R still a WIN, a
+  ≥1R trailing stop still a WIN (counted in the stop rate, not a failure), missing-anchor
+  fallback, empty windows (no divide-by-zero), and graceful degradation on malformed rows.
+- **Live cross-check against the real DB** (notifier bypassed, no spurious Telegram):
+  reproduced an independent ad-hoc analysis exactly in all four windows —
+  7d `4/6 (67%) · true 0% vs headline 83%`; 30d `23/33 (70%) · true 6% vs 64%`;
+  90d `91/274 (33%) · true 7% vs 46%`.
+- `python -m bot.preflight`: Alpaca PASS, SQL Server PASS, Telegram PASS, 1 expected
+  market-closed WARN.
+- Deployed: `systemctl restart`, service active, clean startup.
+
+### What this does NOT do
+It does not improve the edge, and it is not claimed to. Tonight's honest finding is
+recorded in `memory/daily-review.md` 2026-09-01: **no demonstrated edge** —
++0.008R/trade over 274 trades, 7% true win rate, only 7.3% of trades ever reaching +1R,
+and **0 of the last 18 FAILs being full stops** (every one a break-even or scratched
+trail — profit capture, not stop geometry). Handed to the weekly review with the
+recommendation to test an **entry-signal replacement** rather than another exit tweak.

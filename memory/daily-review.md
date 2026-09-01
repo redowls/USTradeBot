@@ -14,6 +14,13 @@ Entry template:
 (trades, wins/losses, net P&L $, win rate, avg win vs avg loss, profit factor,
 account equity; "no trades today" + why is a valid entry)
 
+### Stop-exit accounting
+(**a stop is a failed trade whatever the P&L sign** — the stop-exit doctrine in the
+routine prompt. Report: stop rate = stop-driven exits / closed trades; the
+WIN / SCRATCH / FAIL split with FAIL broken into full-stop vs break-even-or-scratched
+trail; true win rate vs headline win rate; the trailing-10-session stop rate; and the
+dominant failure cause — entry quality / stop geometry / profit capture)
+
 ### Trade-by-trade review
 (per trade: symbol, model, entry/exit time & price, confidence + sub-scores,
 exit reason (stop/target/flatten), P&L, and the root cause — signal quality,
@@ -6040,3 +6047,171 @@ nowhere near enough. Do not force it early.
   post-blackout candles to be noisy; this is a **watch-and-record** item, not a reason to
   pre-emptively widen the blackout (one session is not evidence, and 08-28 already logged
   the same 14:00 coincidence with Warsh).
+
+---
+
+## 2026-09-01 — Daily Review
+
+### Stats
+- **No trades today.** 0 entries, 0 exits, 0 open positions, net P&L **$0.00**.
+- Account **equity $9,133.65**, unchanged (`cash == equity == last_equity == 9133.65`).
+  Broker-confirmed via the `alpaca-usbot` MCP: **0 positions, 0 orders of any status**
+  since 00:00 UTC. DB agrees exactly (0 rows in `dbo.trades` touching today).
+  **Reconciliation clean — nothing carried, nothing missed, no qty drift.**
+- Scored candidates: **17 refusals across AAPL (10), LLY (2), AMGN (2), ABNB (2), MU (1)**,
+  spanning 14:02–19:31 UTC.
+- ⚠️ **Service crash-looped 09:40:53–09:41:32 UTC and stayed DOWN until 11:36:34** — see
+  "What worked / what didn't". Pre-market only; **zero trading impact**.
+
+### Stop-exit accounting
+**No closed trades today, so today contributes no buckets.** The doctrine is therefore
+reported on the trailing book, and the trailing book is where the story is.
+
+| Window | n | stop rate | WIN | SCRATCH | FAIL (full / BE-scratch) | true WR | headline WR |
+|---|---|---|---|---|---|---|---|
+| Today | 0 | n/a | — | — | — | n/a | n/a |
+| Last 3 sessions w/ trades (08-26..28) | 6 | 4/6 (67%) | 0 | 3 | 3 (0 / 3) | **0%** | 83% |
+| Trailing 10 sessions w/ trades | 37 | 24/37 (65%) | 3 | 16 | 18 (0 / 18) | **8%** | 65% |
+| All-time | 274 | 91/274 (33%) | 20 | 137 | 117 (33 / 84) | **7%** | 46% |
+
+- **🚨 ESCALATION TRIGGERED.** The doctrine's threshold is FAIL+SCRATCH ≥ 60% across the
+  last 3 sessions that had trades. Actual: **100%** (6 of 6). Trailing 10: **92%**.
+  All-time: **93%**. This is not a marginal breach; the bot has **never** cleared the bar.
+- **Dominant failure cause: profit capture** — and the evidence is unusually clean.
+  Of the 18 FAILs in the trailing 10 sessions, **0 are full stops and 18 are
+  break-even-or-scratched trails.** The bot is not being stopped out on its 1R risk;
+  it is running green, arming the ratchet, and then handing back every cent.
+  Capital protection is working exactly as designed. **Profit capture does not exist.**
+- **The whole profit_R distribution says the same thing (274 trades):**
+  `≤ −1.0R: 4.0% · −1.0..−0.25R: 32.8% · −0.25..+0.25R: 35.0% · +0.25..+1.0R: 20.8% ·
+  +1.0..+2.0R: 5.5% · ≥ +2.0R: 1.8%`. **Only 7.3% of all trades ever exit at or above
+  +1R.** 35% die in the dead zone around entry.
+- **Expectancy: +0.008R per trade over 274 trades** (total +2.2R). Avg green +0.571R,
+  avg red −0.478R, payoff 1.19. That is **statistically indistinguishable from zero**
+  over a sample large enough to have shown an edge if one existed.
+- **Exit-bucket P&L is the sharpest cut of all (all-time):** `end-of-day flatten` n=178
+  **+$1,146.92** — the *only* profitable exit bucket. Every stop-driven path is negative:
+  broker-side stop leg −$455.18, EOD-flatten-discovered stop leg −$550.21, IMP-003
+  recovered stops −$55.21, named trailing stop −$54.69 (**−$1,115 combined**). Net +$31.64.
+  **Read carefully:** this is partly selection (a trade that survives to the close is by
+  construction one the stop did not take), so it is **not** a licence to widen or remove
+  stops — the anti-gaming rule holds. But it does say the exit structure contributes
+  nothing positive, and the clock is doing all the earning.
+
+### Trade-by-trade review
+No fills, so the reviewable evidence is **why the book stayed flat** — and today the
+answer is simpler and more emphatic than 08-31's.
+
+**1. The market gate was shut for the entire session — 0.0%.** `dbo.market_gate` recorded
+**90 QQQ 5-min samples and gate_open was true in 0 of them.** Not one bar, not even in the
+EOD window (08-31 at least printed 4 gate-open bars late). Decomposition: **`fast_rising`
+true 31.1% (28/90), `stacked` true just 1.1% (1/90)**. QQQ never held a stacked ribbon for
+even two consecutive samples. This is the gate's designed behaviour on a directionless tape.
+
+**2. Signal strength never came close.** All **17** scored candidates were refused on
+**confidence**, best score **AAPL 53.71 vs the 60 threshold** (day's mean ≈ 48). **Zero**
+candidates were refused on `market gate closed` — meaning nothing even reached the gate
+check, because confidence is evaluated first. Both constraints bound independently, and
+today the *score* bound first for every single candidate.
+
+**3. The tape confirms both refusals were correct.** Perplexity post-close read:
+**S&P 500 finished ≈ −0.30%; QQQ choppy-to-down, bid early then sold off into the close;
+regime risk-off with weak breadth and rotation out of high-beta tech.** No stock-specific
+catalyst was identified for any of NVDA/AAPL/MSFT/AMD/TSLA/PLTR/MU/LLY/AMGN/ABNB — this
+was a macro/breadth day, not a single-name day. **A long-only intraday trend bot printing
+zero into that tape is capital protection working, not a missed opportunity.**
+
+### What worked / what didn't
+- **✅ The gate and the confidence bar both did their job.** Zero is the correct P&L for
+  this tape. Two consecutive flat sessions (08-31, 09-01) on a risk-off drift is a
+  *feature* of a long-only trend system, not a fault.
+- **✅ Broker/DB reconciliation is exact.** Nothing held overnight, no missed fill.
+- **❌ The `.env` ownership hazard recurred and took the service down for ~2 hours.**
+  At **09:40:53 UTC** the service restarted and died with
+  `PermissionError: [Errno 13] Permission denied: '/opt/ustradebot/.env'` — `.env` had been
+  rewritten by root at 09:40. It crash-looped 5 times in 39s, then systemd hit
+  `start-limit` ("Start request repeated too quickly") and **gave up entirely**. The bot
+  was down 09:41–11:36:34 UTC until something restarted it. `.env` is now correct again
+  (`ustradebot:ustradebot`, mode 600) and the session ran clean from 11:36 to the close
+  with **0 restarts and 0 warnings**.
+  **Impact today: none** — 09:41–11:36 UTC is entirely pre-market (open is 13:30 UTC), and
+  the 11:36 start ran the normal warmup well before the bell. **But the failure mode is
+  serious: systemd stopped retrying.** Had the rewrite happened at 13:00 instead of 09:40,
+  the bot would have sat dead through the whole session with no page. Logged to `todo.md`.
+- **❌ The strategy itself.** See the verdict below. Nothing broke today; the thing that
+  isn't working is the edge, not the plumbing.
+
+### Verdict — no demonstrated edge (escalation, stated plainly)
+**Per the stop-exit doctrine's escalation clause, I am not shipping a strategy or
+parameter change tonight, and the reason is not that today had no trades. It is that
+274 trades is enough evidence to say the entry signal has no demonstrated edge, and
+tuning it further is not the honest response.**
+
+The numbers, without hedging:
+- **Expectancy +0.008R/trade over 274 trades.** Net +$31.64 on a $9,134 book across
+  three months. That is zero, reached expensively.
+- **True win rate 7% all-time, 8% over the trailing 10 sessions, 0% over the last 3.**
+  The 46% headline is an artefact of scoring `pnl > 0`; it has never meant what it said.
+- **FAIL+SCRATCH is 93% all-time.** There is no window in which this book clears 60%.
+- **Only 7.3% of trades ever reach +1R.** The exit structure cannot be tuned into an edge
+  that the entry never delivers: if the move does not come, no ratchet can bank it.
+- The IMP-036/IMP-021 open experiments are **both still blocked** for want of fills
+  (~6 fills since 08-26 against a 15-fill test), and the bot is now trading so rarely
+  that they will not resolve on their current schedule. **That is itself a finding:
+  the strategy cannot generate the evidence needed to fix itself.**
+
+**Handed to the weekly review with these numbers attached.** The structural question the
+weekly must answer is *not* "which trail width" — it is whether an EMA-ribbon crossover on
+1m gated by 5m has any predictive content on this watchlist at all, given that 35% of its
+trades die within ±0.25R of entry. My recommendation for that review: run the replay
+harness on an **entry-signal replacement**, not another exit tweak, and hold the
+capital-protection rules fixed while doing it.
+
+⚠️ **One methodological caution for whoever picks this up:** the replay harness is
+materially more optimistic than the live book (90d replay: 74 trades / +$753 / PF 2.43 /
+62% win, vs live 274 trades / +$32 / true WR 7%). IMP-036's own rationale already flagged
+this gap as execution. **Do not accept a replay-only improvement as proof again.**
+
+### Improvement shipped — IMP-039 (reporting, deliberately not strategy)
+Given the escalation, the one change tonight is the one that cannot confound the blocked
+experiments and cannot flatter the strategy: **make the bot's own reporting obey the
+doctrine.** `bot.report` scored a win as `pnl > 0` — the precise failure the doctrine
+exists to end — so every Telegram digest and every figure quoted into these files has
+been reporting 46–83% win rates for a book with a 7% true win rate. New `bot/doctrine.py`
+buckets WIN/SCRATCH/FAIL, attributes the IMP-038 broker-side catch-all by fill price, and
+the digest now carries **stop rate + true win rate beside the headline**. 483 tests pass.
+Details in `memory/improvement-log.md`.
+
+**Why this and not a strategy change:** it touches no trading logic (so IMP-036's 15-fill
+test stays uncontaminated), every number it produces is *harsher* than the one beside it
+(so it cannot be gaming), and it makes the IMP-036 revert test — which is specified in
+terms of "win rate" — resolvable against the **true** rate rather than the misleading one.
+
+### Notes for pre-market research
+- **AMGN broke its zero-candidate streak today (2 scored candidates, max conf 45.84).**
+  Yesterday's entry had it at 4 consecutive sessions with zero rows and a park test due
+  **09-02**. **That test is now moot — do not park AMGN on the 4-session evidence**, it
+  produced rows on day 5. It is alive, just weak.
+- **AAPL was by far the most active name on the board: 10 of 17 candidates and the day's
+  top score (53.71).** It is signalling healthily and never got near the bar. Watch it.
+- **LLY (2, max 51.71) and ABNB (2, max 41.60) both produced rows; MU produced only 1
+  (47.20)** — a sharp drop from 08-31 when MU was 7 of 15 and printed the day's only 60+.
+  MU's activity is regime-dependent, not structural. No action.
+- **NFLX produced zero rows today**, so the 08-31 "volatility-floor park candidate"
+  observation does **not** accumulate — it remains a 2-row anecdote. Do not act on it.
+- **NVDA, PLTR, TSLA, MSFT, AMD, TSM, INTC, AMZN, DASH, SPOT, BABA, UBER, QQQ produced no
+  scored candidates.** On a 0%-gate day this is expected and is **not** evidence of a dead
+  board. **Do not add symbols to compensate for two flat sessions**, and do not lower
+  `ENTRY_THRESHOLD` — 08-31 settled that recalibrating the crossover scale loses in all
+  three windows tested.
+- **The QQQ gate has now printed 13.0% (08-31) then 0.0% (09-01) open.** If tomorrow is a
+  third sub-15% day, that is a *regime* observation worth recording explicitly in the
+  research log — a long-only bot in a persistent risk-off drift will keep printing zeros,
+  and that is the correct outcome, not a bug to engineer around.
+- **The 14:00 UTC hazard flagged for today (ISM Manufacturing + JOLTS at the exact minute
+  the IMP-017 blackout lifts) passed without incident** — first refusal was 14:02 at
+  conf ~45, nothing near the bar. Two sessions logged now (08-28 Warsh, 09-01 ISM/JOLTS),
+  still **not** a reason to widen the blackout.
+- **⚠️ Operational, for whoever runs the morning routine: verify `.env` is
+  `ustradebot:ustradebot` mode 600 and `systemctl is-active` before the open.** Today's
+  crash-loop hit systemd's start limit and the unit stayed dead until manually started.
