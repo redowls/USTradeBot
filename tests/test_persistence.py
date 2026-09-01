@@ -712,16 +712,29 @@ class _ClosedTradesConn:
 def test_closed_trades_maps_rows_and_windows_by_days():
     t0 = datetime(2026, 8, 10, 16, 17)
     t1 = datetime(2026, 8, 10, 19, 45)
-    conn = _ClosedTradesConn([(" mu ", t0, t1, 879.35, 872.25, -14.20, "trail")])
+    conn = _ClosedTradesConn(
+        [(" mu ", t0, t1, 879.35, 872.25, -14.20, "trail", 861.76, 967.29)]
+    )
     rows = TradeStore(lambda: conn).closed_trades(days=7)
     assert len(rows) == 1
     r = rows[0]
     assert r.symbol == "MU"  # trimmed + upper-cased
     assert (r.entry_price, r.exit_price, r.pnl) == (879.35, 872.25, -14.20)
     assert (r.entry_time_utc, r.exit_time_utc) == (t0, t1)
+    # The doctrine's 1R anchor and take-profit leg travel with the row (IMP-039).
+    assert (r.stop_price, r.target_price) == (861.76, 967.29)
     assert conn.params == (7,)
     assert "status = 'CLOSED'" in conn.sql
     assert "exit_time_utc IS NOT NULL" in conn.sql
+
+
+def test_closed_trades_keeps_a_missing_bracket_leg_as_none():
+    """Rows predating ``stop_price`` must stay distinguishable from a zero stop."""
+    t0 = datetime(2026, 6, 10, 16, 17)
+    t1 = datetime(2026, 6, 10, 19, 45)
+    conn = _ClosedTradesConn([("MU", t0, t1, 879.35, 872.25, -14.20, "trail", None, None)])
+    r = TradeStore(lambda: conn).closed_trades(days=7)[0]
+    assert r.stop_price is None and r.target_price is None
 
 
 def test_closed_trades_returns_empty_on_error():

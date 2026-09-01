@@ -27,9 +27,13 @@ without touching the trading path.
 
 from __future__ import annotations
 
+import logging
 import sys
 
 from bot.config import Config, ConfigError
+from bot.doctrine import StopExitSummary, format_stop_exits
+from bot.doctrine import summarize as summarize_stop_exits
+from bot.doctrine import verdicts_for
 from bot.excursion import (
     alpaca_bar_fetcher,
     excursions_for,
@@ -46,12 +50,17 @@ from bot.refusals import (
 )
 
 
+log = logging.getLogger("ustradebot.report")
+
+
 def _money(x: float) -> str:
     sign = "+" if x >= 0 else "−"
     return f"{sign}${abs(x):,.2f}"
 
 
-def format_summary(s: PerformanceSummary) -> str:
+def format_summary(
+    s: PerformanceSummary, stop_exits: StopExitSummary | None = None
+) -> str:
     span = "today" if s.days == 1 else f"last {s.days} days"
     lines = [
         f"📊 USTradeBot — {span}",
@@ -59,6 +68,11 @@ def format_summary(s: PerformanceSummary) -> str:
         f"P&L: {_money(s.total_pnl)}  ·  avg/trade: {_money(s.avg_pnl)}",
         f"open positions: {s.open_positions}",
     ]
+    # The doctrine's figures ride the digest itself rather than a stdout-only study:
+    # the true win rate is what governs the verdict, so it has to travel beside the
+    # headline it corrects instead of sitting below the fold (IMP-039).
+    if stop_exits is not None and stop_exits.trades:
+        lines.append(format_stop_exits(stop_exits))
     if s.bands:
         lines.append("— by confidence (all-time) —")
         for b in s.bands:
@@ -92,6 +106,22 @@ def excursion_report(store, cfg, days: int, fetch_bars=None) -> str:
         return f"— MFE/MAE — unavailable ({e.__class__.__name__}: {e})"
 
 
+def stop_exit_summary(store, cfg, days: int) -> StopExitSummary | None:
+    """Bucket the window's closed trades WIN/SCRATCH/FAIL (IMP-039). Never raises.
+
+    Reads the same rows the excursion study uses, so it costs one query and no
+    network — which is why, unlike ``--mfe``/``--refusals``, it is always on.
+    """
+    try:
+        trades = store.closed_trades(days)
+        if not trades:
+            return None
+        return summarize_stop_exits(verdicts_for(trades, cfg.stop_loss))
+    except Exception:  # a reporting extra must never break the report
+        log.exception("failed to build the stop-exit summary")
+        return None
+
+
 def refusal_report(store, cfg, days: int, fetch_ohlc=None) -> str:
     """Build the refused-candidate outcome table (IMP-033). Never raises."""
     try:
@@ -121,13 +151,14 @@ def main(argv: list[str] | None = None) -> int:
         print("persistence disabled or unreachable — no report.")
         return 1
     summary = store.performance_summary(days)
+    stop_exits = stop_exit_summary(store, cfg, days)
     mfe_text = excursion_report(store, cfg, days) if want_mfe else None
     refusal_text = refusal_report(store, cfg, days) if want_refusals else None
     store.close()
     if summary is None:
         print("could not build the performance summary.")
         return 1
-    text = format_summary(summary)
+    text = format_summary(summary, stop_exits)
     print(text)
     if mfe_text:  # stdout/journal only — the Telegram digest stays short
         print(mfe_text)

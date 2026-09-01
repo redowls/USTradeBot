@@ -125,7 +125,14 @@ class TapeContext:
 
 @dataclass(frozen=True)
 class ClosedTrade:
-    """One closed round trip, enough to rebuild its excursion (IMP-025)."""
+    """One closed round trip, enough to rebuild its excursion (IMP-025).
+
+    ``stop_price``/``target_price`` are the entry-time bracket legs (IMP-039): the
+    stop is the 1R anchor the stop-exit doctrine measures ``profit_R`` against, and
+    the target is what attributes an IMP-038 broker-side catch-all to the leg that
+    actually filled. Both default to ``None`` — rows predating the columns must stay
+    distinguishable from a genuine zero.
+    """
 
     symbol: str
     entry_time_utc: Any  # naive UTC datetimes, as stored
@@ -134,6 +141,8 @@ class ClosedTrade:
     exit_price: float
     pnl: float
     exit_reason: str
+    stop_price: float | None = None
+    target_price: float | None = None
 
 
 @dataclass(frozen=True)
@@ -650,7 +659,7 @@ class TradeStore:
             cur = conn.cursor()
             cur.execute(
                 "SELECT symbol, entry_time_utc, exit_time_utc, entry_price, "
-                "exit_price, pnl, exit_reason "
+                "exit_price, pnl, exit_reason, stop_price, target_price "
                 "FROM dbo.trades "
                 "WHERE status = 'CLOSED' AND pnl IS NOT NULL "
                 "AND exit_time_utc IS NOT NULL AND entry_time_utc IS NOT NULL "
@@ -667,6 +676,10 @@ class TradeStore:
                     exit_price=float(r[4]),
                     pnl=float(r[5]),
                     exit_reason=str(r[6] or ""),
+                    # NULL stays NULL: the doctrine falls back to the configured
+                    # stop width only when there is no recorded anchor (IMP-039).
+                    stop_price=None if r[7] is None else float(r[7]),
+                    target_price=None if r[8] is None else float(r[8]),
                 )
                 for r in (cur.fetchall() or [])
             ]

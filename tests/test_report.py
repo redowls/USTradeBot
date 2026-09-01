@@ -162,7 +162,62 @@ def test_no_mfe_flag_skips_the_table(monkeypatch, capsys):
 
 class _FakeConfig:
     trail_percent = 0.0125
+    stop_loss = 0.02  # the doctrine's 1R fallback (IMP-039)
 
     @staticmethod
     def load():
         return _FakeConfig()
+
+
+# --- stop-exit doctrine block (IMP-039) -----------------------------------
+
+
+@dataclass(frozen=True)
+class _DoctrineTrade:
+    """A closed row carrying the bracket legs the doctrine measures against."""
+
+    symbol: str
+    entry_price: float
+    exit_price: float
+    pnl: float
+    exit_reason: str
+    stop_price: float
+    target_price: float
+
+
+# NVDA and TSM are real 2026-08-27 rows: both booked green on a broker stop leg.
+_DOCTRINE_ROWS = (
+    _DoctrineTrade("NVDA", 224.59, 224.90, 3.78, "stop/target filled broker-side", 220.25, 247.23),
+    _DoctrineTrade("TSM", 423.98, 425.25, 5.08, "stop/target filled broker-side", 415.44, 466.31),
+)
+
+
+def test_format_summary_omits_the_doctrine_block_when_there_are_no_trades():
+    assert "stop rate" not in format_summary(_summary())
+
+
+def test_report_shows_true_win_rate_beside_the_headline(monkeypatch, capsys):
+    """Both stop-driven exits booked a profit; the headline must not call them wins."""
+    store = _FakeStore(_summary(trades=2, wins=2, win_rate=1.0), trades=_DOCTRINE_ROWS)
+    notifier = _FakeNotifier()
+    monkeypatch.setattr(report, "Config", _FakeConfig)
+    monkeypatch.setattr(report, "open_store", lambda cfg: store)
+    monkeypatch.setattr(report, "open_notifier", lambda cfg: notifier)
+    assert report.main([]) == 0
+    out = capsys.readouterr().out
+    assert "win rate: 100%" in out  # the headline still says what it always said
+    assert "stop rate: 2/2 (100%)" in out
+    assert "true win rate: 0%" in out
+    assert "headline 100%" in out
+    # The correction has to reach Telegram, not just the journal.
+    assert "true win rate: 0%" in notifier.sent[0]
+
+
+def test_doctrine_block_degrades_quietly_on_malformed_rows(monkeypatch):
+    """A reporting extra must never break the report (rows lacking exit_reason)."""
+    store = _FakeStore(_summary(), trades=[object()])
+    monkeypatch.setattr(report, "Config", _FakeConfig)
+    monkeypatch.setattr(report, "open_store", lambda cfg: store)
+    monkeypatch.setattr(report, "open_notifier", lambda cfg: None)
+    assert report.main([]) == 0
+    assert report.stop_exit_summary(store, _FakeConfig(), 1) is None

@@ -227,6 +227,22 @@ install per [`deploy/DEPLOY.md`](deploy/DEPLOY.md) §8.
 
 ### Backlog (post-deploy, from daily reviews)
 
+- [ ] **🔴 OPERATIONAL — systemd gives up after the `.env` ownership trap, and nothing pages.
+      (2026-09-01.)** Recurred today: `.env` was rewritten by root at 09:40 UTC, the service
+      restarted into `PermissionError: [Errno 13] Permission denied: '/opt/ustradebot/.env'`,
+      crash-looped **5 times in 39 seconds**, then hit `StartLimitBurst` — *"Start request
+      repeated too quickly"* — and **systemd stopped retrying**. The unit stayed dead from
+      09:41 to 11:36:34 UTC and only came back because something restarted it.
+      **No trading impact today** (the window was entirely pre-market; the open is 13:30 UTC),
+      **but the failure mode is silent and total**: the same rewrite at 13:00 would have left
+      the bot dead through an entire session with no alert. The `OnFailure=` dependency did
+      trigger, so the hook exists — what is missing is that it evidently did not reach a human.
+      Candidates, cheapest first: (a) make the routine/pre-market check assert
+      `systemctl is-active` **and** `stat -c '%U:%G %a' .env` == `ustradebot:ustradebot 600`
+      before the open; (b) widen `StartLimitIntervalSec`/`StartLimitBurst` so a transient
+      permission fault self-heals instead of latching; (c) verify the `OnFailure=` unit
+      actually delivers a Telegram page and fix it if not. **Needs human sign-off — it edits
+      the systemd unit / alerting path, not the trading path.**
 - [ ] **Stale phantom-open cleanup (from 2026-06-17 / IMP-003).** 7 `dbo.trades` rows are
       `status='OPEN'` from 06-11/06-12 (ENPH, WPM, NFLX, TSLA, QCOM, INTC, AMD) but the broker
       holds **0** positions — they were stopped out broker-side before IMP-003 recorded such
