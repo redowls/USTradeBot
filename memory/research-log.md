@@ -5239,3 +5239,142 @@ subscription list (0 occurrences post-restart)**, and **zero WARNING-or-above li
   including the SPOT/ABNB counterexample that stops it from being a rule yet.
 
 ---
+
+## 2026-09-01 — Pre-market Research
+
+**The bot was DOWN when this run started — dead since 09:41 UTC on a `.env` permission fault — and
+restoring it was the run's real work. Watchlist: NO CHANGES, 19 enabled, and that is the correct
+outcome (not a single dated test comes due today).** Book is CLEAN & FLAT (broker-confirmed
+**0 positions, 0 open orders**, equity **$9,133.65**, `cash == equity == last_equity` → no overnight
+marks) → **nothing locked**. Service restarted clean at 11:36:34 UTC, warmup 19/19, ~1h55m of
+downtime, **entirely pre-market — zero trading impact.**
+
+### 🔴 Outage: `.env` went root-owned, the service crash-looped, and it would have missed the whole session
+- **Symptom:** `ustradebot.service` was `failed`, not active. `PermissionError: [Errno 13] Permission
+  denied: '/opt/ustradebot/.env'` in `Config.load()` → `load_dotenv()`. Five restarts in 5s, then
+  systemd gave up (`start request repeated too quickly`) at **09:41:32 UTC**.
+- **Cause:** `.env` was `root:root` mode 600 with mtime **09:40:37 UTC** — rewritten by root ~55s
+  before the first crash. That timestamp matches **no scheduled routine** (premarket 11:30,
+  daily-review 20:00, weekly 21:00 UTC), so it was a manual root edit. The service runs as
+  `ustradebot`, which then could not read its own config.
+- **Fix:** `chown ustradebot:ustradebot .env` + `chmod 600`. **Content untouched** — the file was never
+  rewritten, per the standing rule. `systemctl reset-failed` was required first (systemd had latched
+  the rate limit), then restart.
+- **No config drift:** startup re-reports the expected tunables — entry ≥60%, 10:00–16:00 ET window
+  with the IMP-017 blackout, stop −2.00%, target +10.00%, trail 1.25% tightening to 1.00% (IMP-018 /
+  IMP-021), QQQ market gate on (IMP-022) — and the account reconciled to PA34DFFLTHRT $9,133.65.
+- **This is the third form of the root-owns-files gotcha** (after repo files and `.git`). The earlier
+  two produced git friction; this one **silently takes the bot off the tape**. Worth noting that the
+  15-min health-check timer and `OnFailure` alert did fire — the alert path worked; the bot was simply
+  down until a human-equivalent ran. **Whoever edits `.env` as root must chown it back, always.**
+
+### Market context
+- **Mildly risk-off into the first session of September.** S&P 500 futures **−0.19%**, Nasdaq 100
+  futures **−0.57%** (Perplexity `sonar`). Pre-market: **MU −1.7% to −1.9%** and **NVDA −0.4% to −1.3%**
+  (the two heaviest semis on the board), against **AAPL +0.80%**, **TSLA +0.64%**, MSFT +0.07%. The
+  one large mover is GAP +18.95%, not an enabled name.
+- **⚠️ The in-session hazard pre-registered on 08-31 is today and it is confirmed:** **ISM Manufacturing,
+  JOLTS and Construction Spending all land 10:00 ET = 14:00 UTC — the exact minute the IMP-017 entry
+  blackout lifts.** (S&P Global Manufacturing PMI at 08:45 ET is pre-open and harmless.) Verified against
+  the NY Fed and Scotiabank September calendars, not taken from Perplexity. **Watch-and-record, as the
+  daily review specified — no pre-emptive widening of the blackout on one session's anticipation.**
+- **No enabled name reports today.** Light calendar (~11 reporters); tonight's AMC names are
+  DELL/PANW/MDB/CRDO/GTLB, none enabled. **Wed AMC is AVGO (parked) + SNOW** — AVGO remains the
+  AI-capex read-through into MU/NVDA/AMD/INTC/TSM on Thursday. Flagging, not acting.
+- Perplexity returned **no catalyst for any of the 19 tickers** for the second run running — usable only
+  for futures and pre-market prints. **Treated as thin, not as an all-clear**; the calendar above is
+  WebSearch-verified.
+
+### Carried from daily review (08-31 EOD)
+- **"Do not add symbols to compensate for today's zero" — honoured. No adds.**
+- **"AMGN dated test due 09-02"** — **held to its date, not accelerated.** Evidence is now stronger, not
+  weaker: `dbo.entry_refusals` shows **zero AMGN rows of any kind in the last 11 days** while the other
+  18 enabled names produced 196. It is the only enabled symbol absent from the table entirely. **09-02 is
+  tomorrow; there is no risk cost to letting a "does nothing at all" failure mode run one more session,
+  and the log's discipline is to settle on the date, not before it.**
+- **"NFLX volatility-floor park candidate — flagging for accumulation, not recommending a park"** —
+  **accumulated, and the case has now REVERSED. See below. This is today's one substantive finding.**
+- **"Live results since 08-21 (6 trades, 5W/1L, +$44.85) should not be panicked away"** — honoured.
+- **"Expect the first post-blackout candles to be noisy"** — the 14:00 UTC coincidence is confirmed above.
+
+### Watchlist review
+**Liveness: 196 scored refusals across 18 of 19 enabled names in the last 11 days.** MSFT 34 (best 71.0) ·
+DASH 21 (73.5) · MU 16 (79.0) · UBER 16 (70.2) · **NFLX 13 (66.8)** · AAPL 12 (61.6) · PLTR 10 (76.0) ·
+TSM 10 (64.3) · QQQ 9 (61.0) · AMD 9 (74.3) · AMZN 9 (83.2) · BABA 7 (68.6) · SPOT 6 (70.9) · TSLA 4 (77.3) ·
+INTC 3 (60.8) · LLY 3 (69.0) · ABNB 2 (67.0) · NVDA 2 (52.7) · **AMGN 0**. The board is live; the score is
+still the binding constraint, exactly as the daily review said.
+
+**🟢 NFLX — the 08-31 park flag is WITHDRAWN, on evidence that contradicts it.** The flag rested on two
+1-min rows with ATR 0.036–0.044% on a single risk-off session. Measured properly over 20 sessions on the
+daily chart, NFLX fails **none** of the GOOG park legs:
+- **Trend leg does NOT fire: +4.09% vs 20MA AND +8.47% vs 50MA — above both.** (GOOG was below both.)
+- **Volatility floor PASSES comfortably: ATR 2.67%, medRng 2.60%, 55% of 20 sessions ≥2%, 95% ≥1.25%,
+  $2.25B/day.** GOOG was parked at ATR 1.80% / medRng 1.64% / 30% ≥2%. NFLX is not in that cohort — it is
+  a full point of ATR above it and **+6.6% over 10 days**.
+- **It is live in the scorer: 13 refusals, best 66.8 — a score that cleared the 60 threshold**, i.e. NFLX
+  has produced a genuinely qualifying signal this fortnight. AMGN's problem (zero rows) is not NFLX's.
+- **Only the dead-signal clock is red (33d, last trade 07-29), and one leg has never been sufficient** —
+  that is precisely the AAPL exemption, applied twice. **Dead-signal clock re-set to 09-15** on the
+  above-both-MAs exemption. Its lifetime −$82.34 is noted and is *not* load-bearing on its own.
+- **The lesson is the generalisable part: a 1-min ATR reading taken on one shut-gate session is not a
+  volatility measurement.** The volatility floor is a 20-session daily-bar rule; it must be evaluated as
+  one. Two refusal rows nearly parked a name that is above both MAs and printing 66s.
+
+**✅ The rest — all kept, and no dated test comes due today.** **DASH** +5.29% / +15.94%, ATR 3.19%, 100%
+≥2%, 21 refusals — still the strongest all-round name. **TSLA** +7.87% / +2.26%, ATR 3.67%, 95% ≥2%,
+**+$45.76 over the last 20 days, the best recent earner**. **PLTR** +7.08% / +28.62%, ATR 3.64%, +$31.21.
+**SPOT** +5.51% / +9.89%, ATR 3.77%, 100% ≥2% — thinnest enabled at **$0.98B/day**, still on notice for
+liquidity alone. **UBER** −0.72% / +2.55%, ATR 3.59% — below the 20MA but above the 50MA, 16 refusals,
+no leg fires. **NFLX** above. **MSFT** +2.62% / +17.10%, most active on the board. **AMGN** held to 09-02.
+**ABNB** +1.84% / +14.81%, ATR 2.85%, $1.05B/day. **AAPL** +2.03% / +1.43% — above both, exempt, **09-10**.
+**MU** +3.39% / +0.76%, **$27.26B/day**, ATR 5.31%, #1 all-time earner (+$189.55); down ~1.9% pre-market.
+**NVDA** +0.93% / +5.83%. **TSM** −1.03% / −1.70% — below both but traded 08-27 (4d), clock nowhere near.
+**AMZN** −2.22% / **+3.10% — still above the 50MA so the two-leg rule does not fire; re-check 09-02**
+stands. **LLY** −3.95% / −2.63%, ATR 3.20%, $3.45B/day, added 08-20, no trade yet — too new to judge.
+**BABA** −8.15% / −1.04% — **it fell through the 20MA hard on 08-31 (−8.6% over 10 days) and is now below
+both**, but its dead-signal clock reads **21d**, so the second leg does not fire. **Re-check 09-09 stands
+and BABA is now the most likely name to park on that date.** **AMD** −2.21% / −6.74%, **09-12**. **INTC**
+−6.56% / −13.96% on a **−13.5% 10-day**, deepest downtrend and **−$40.48 over the last 20 days, the worst
+recent P&L on the board** — but the #2 all-time earner (+$150.78) with the best range availability here
+(ATR 5.23%, medRng 4.26%, 100% ≥2%); **re-check 09-03 stands, two sessions away.**
+**🔒 QQQ — structurally locked, restated: it is `MARKET_FILTER_SYMBOL` and parking it makes the market
+gate fail OPEN.** On merit it fails the volatility floor outright (ATR 1.14%, medRng 0.94%, 5% ≥2%).
+**Liquidity floor clean: no sub-$5 names, no halts, thinnest enabled is SPOT at $0.98B/day.**
+
+### ➕ Adds — NONE, and the refusal is the same one as 08-31, now with three names instead of one
+**~140 liquid large caps screened against the eight standing floors** (above BOTH MAs · ATR ≥2.3% ·
+medRng ≥2.0% · ≥80% of 20 sessions ≥1.25% · ≥$0.85B/day · max 24-session gap ≤4% · 20/50 leg spread ≤9pp ·
+positive 10-day return). **Three passed: TMO** (+1.88% / +10.09%, ATR 2.50%, $1.00B/day), **MCK** (+1.41% /
++6.05%, ATR 2.49%, $0.88B/day), **GILD** (+3.92% / +8.76%, ATR 2.49%, $0.88B/day).
+- **All three are refused, and they are refused for one reason: they are the AMGN profile.** Every one is
+  a **healthcare large cap at ~$0.9–1.0B/day with a low-2s ATR** — the exact template of the add that is
+  currently failing its own falsification test, **which resolves tomorrow.** Adding three more copies of
+  a profile the day before its test settles would make the test unreadable and is the clearest possible
+  version of the error the log exists to prevent. **If AMGN parks on 09-02, this screen needs the
+  IEX-tradability leg the 08-31 entry flagged (SIP dollar volume ≠ the tape the bot consumes) before any
+  of these three can be reconsidered.**
+- **The high-momentum names all failed on gap or spread, not on trend, and those floors did their job:**
+  CRM (+24.3% / +40.7%, spread 16.4pp, gap 11.9%), NOW (spread 14.4pp), TEAM (gap **31.7%**), CRWD (gap
+  10.1%), COIN (gap 7.8%), HOOD (gap 6.3%). Each is a 2%-stop-through-the-gap risk, not an intraday trend.
+- **PANW and SNOW were excluded on earnings** (tonight AMC and Wednesday AMC), not on the screen.
+- **Board headroom is 19/30 and is deliberately unused.** The daily review's finding stands: the score is
+  the binding constraint, not the number of symbols.
+
+### Changes applied to dbo.watchlist
+**NONE.** No adds, no parks, no re-enables. Not one dated test came due today, the two names carrying red
+legs (BABA, INTC) each fail only one leg, and the one name flagged for a park by yesterday's review (NFLX)
+was cleared by the measurement. **The `.env`/service fix was the day's only intervention.**
+
+### Final watchlist
+**19 enabled** (≤30 ✅): AAPL, ABNB, AMD, AMGN, AMZN, BABA, DASH, INTC, LLY, MSFT, MU, NFLX, NVDA, PLTR,
+QQQ, SPOT, TSLA, TSM, UBER. **Service restarted: YES — required, it was down.** `is-active` active,
+NRestarts=0, ActiveEnterTimestamp 11:36:34 UTC, warmup primed **19/19**, all 19 subscribed on the IEX
+feed, account reconciled (0 positions), **zero WARNING-or-above lines** (the single `grep` hit is the
+substring "cancelErrors" inside the INFO subscription line — a false positive, verified).
+
+### Dates carried forward
+- **AMGN 09-02 (tomorrow) — park on zero candidates; evidence is 5/5 against and 0 rows in 11 days.**
+- **AMZN 09-02 · INTC 09-03 · BABA 09-09 (now the most likely to fire) · AAPL 09-10 · AMD 09-12 ·
+  NFLX 09-15 (new).**
+- **Ops item, not a watchlist item: `.env` must never be left root-owned.** Any root edit needs
+  `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
