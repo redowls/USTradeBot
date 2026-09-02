@@ -6215,3 +6215,199 @@ terms of "win rate" — resolvable against the **true** rate rather than the mis
 - **⚠️ Operational, for whoever runs the morning routine: verify `.env` is
   `ustradebot:ustradebot` mode 600 and `systemctl is-active` before the open.** Today's
   crash-loop hit systemd's start limit and the unit stayed dead until manually started.
+
+---
+
+## 2026-09-02 — Daily Review
+
+### Stats
+- **No trades today.** 0 entries, 0 exits, 0 open positions, net P&L **$0.00**. Third
+  consecutive flat session (08-31, 09-01, 09-02).
+- Account **equity $9,133.65**, unchanged. Broker-confirmed via the `alpaca-usbot` MCP:
+  **0 positions, 0 orders of any status** since 00:00 UTC, `cash == equity ==
+  last_equity == portfolio_value == 9133.65`. DB agrees exactly (0 rows in `dbo.trades`
+  touching today). **Reconciliation exact — nothing carried, nothing missed, no drift.**
+- Service **active since 2026-09-01 23:17:54 UTC, NRestarts=0, zero WARNING-or-above
+  lines** in journald across 9,071 log lines. The 09-01 `.env` crash-loop did not recur.
+- Scored candidates: **37 refusals across 11 of 19 names** — INTC (7), MU (4), NFLX (4),
+  QQQ (4), SPOT (4), AMGN (4), UBER (3), ABNB (3), NVDA (2), AAPL (1), LLY (1).
+
+### Stop-exit accounting
+No closed trades today, so today contributes no buckets. Trailing book unchanged from
+09-01 (last fill was 08-28):
+
+| Window | n | stop rate | WIN | SCRATCH | FAIL (full / BE-scratch) | true WR | headline WR |
+|---|---|---|---|---|---|---|---|
+| Today | 0 | n/a | — | — | — | n/a | n/a |
+| Last 3 sessions w/ trades (08-26..28) | 6 | 4/6 (67%) | 0 | 3 | 3 (0 / 3) | **0%** | 83% |
+| Trailing 10 sessions w/ trades | 37 | 24/37 (65%) | 3 | 16 | 18 (0 / 18) | **8%** | 65% |
+| Last 30 calendar days | 30 | 20/30 (67%) | 2 | 14 | 14 (0 / 14) | **7%** | 63% |
+| All-time | 274 | 91/274 (33%) | 20 | 137 | 117 (33 / 84) | **7%** | 46% |
+
+- **🚨 ESCALATION REMAINS ACTIVE.** FAIL+SCRATCH is **100%** over the last 3 sessions
+  with trades, **92%** over the trailing 10, **93%** all-time. Per the doctrine I am
+  **not shipping a strategy or parameter change tonight** — same standing as 09-01.
+- **IMP-039 is live and working.** `bot.report` now carries the doctrine figures in the
+  digest itself: the 30-day window prints *stop rate 67% / true win rate 7% (headline
+  63%)*. The 63% headline is exactly the number that would have been reported as success
+  before last night. The instrument is doing its job.
+- **Dominant failure cause: RE-CLASSIFIED from profit capture to ENTRY QUALITY.** See the
+  verdict below — this is the substantive finding of the session and it overturns the
+  09-01 framing, using a measurement that did not exist until tonight.
+
+### Trade-by-trade review
+No fills, so the reviewable evidence is why the book stayed flat — and **today is the
+first session in this flat streak where the tape cannot be blamed.**
+
+**1. The gate was OPEN 37.1% of the session — the best gate day since 08-26.**
+`dbo.market_gate`: 89 QQQ 5-min samples, **33 gate-open (37.1%)**, `stacked` 61.8%,
+`fast_rising` 55.1%. Compare 08-31 (13.0%) and 09-01 (**0.0%**). The "long-only bot in a
+risk-off drift" explanation that correctly covered the last two sessions **does not apply
+today.** Perplexity post-close: S&P and Nasdaq both **+0.5–0.6%**, mildly risk-on,
+semis/AI bid. The tape cooperated.
+
+**2. The confidence score bound instead, for all but one candidate.** 36 of 37 refusals
+were on confidence, best **INTC 58.26 vs the 60 bar**. Only one candidate cleared 60 all
+day — **LLY 14:01, conf 65.40** — and it met a shut gate.
+
+**3. The one 60+ candidate was correctly refused, and not marginally.** LLY forward
+counterfactual: **MFE +0.15%, MAE −2.14%, forward −1.88%, would have been stopped out.**
+The gate saved a full 2% stop. (Noted: 14:01 is the first minute after the IMP-017
+blackout lifts — the *fourth* session running that the day's most notable candidate
+appears at 14:00–14:02. Still recording, not acting.)
+
+**4. Refusing the other 36 also cost almost nothing.** Cohort counterfactual: avg MFE
+**+0.50%**, avg forward **+0.13%**, **24 of 36 never travelled 0.5%**, only **3 of 36**
+would have reached the 1.25% trail, 0 stopped. Best declined was NVDA (MFE +1.80%,
+forward +0.13%). **The filters were right today.** Declining 37 candidates that averaged
++0.13% forward is good work, not a missed day.
+
+**5. And yet the names moved.** Day bars (SIP): **NVDA 218.48–227.95 = 4.34% range**
+(closed +2.6% on the open), **INTC 87.50–90.43 = 3.35%**, **LLY 1158–1187.83 = 2.58%**.
+The bot scored NVDA twice — 53.69 and 51.66 — on a day NVDA travelled 4.34%.
+**The opportunity was there; the signal did not find it.** That contradiction is what
+this session is actually about, and it is not visible in any table the bot had.
+
+### Verdict — the constraint is ENTRY TIMING, not the universe and not the exits
+Built the measurement tonight (IMP-040) and ran it over the whole 274-trade book. It
+decomposes each trade's opportunity into a ladder, one rung per stage:
+
+| rung | median | ≥ 1.25% trail |
+|---|---|---|
+| 1 session range (what the tape offered) | **3.38%** | **268/274 (98%)** |
+| 2 available at entry (still unspent when we committed) | **0.78%** | **90/274 (33%)** |
+| 3 MFE while held | 0.70% | 78/274 (28%) |
+| 4 realized | −0.04% | — |
+
+Median **unspent share 24%**; median **entry percentile 71%** of the session range.
+
+**Read it rung by rung:**
+- **Rung 1 clears on 98% of trades. The watchlist is NOT the problem.** The names this
+  bot trades move a median **3.38%** a session — **2.7x** the trail width it needs. Every
+  "the tape is dead / add livelier symbols / park the quiet names" hypothesis is refuted
+  by this row. Do not go looking for a more volatile universe.
+- **The book collapses at rung 1→2 and nowhere else. 268 → 90.** Two-thirds of all
+  trades are **dead on arrival**: by the time the bot commits, less than the trail width
+  remains in the day's move. No trail width, no stop geometry and no exit tweak can
+  rescue a trade that has 0.78% of room and needs 1.25%.
+- **Rung 2→3 loses only 12 more (90 → 78). Holding time is close to fine.**
+- **Median entry percentile 71%** — the bot systematically buys in the **top third** of
+  the day's range. A 1-min EMA fresh-cross gated by a 5-min stacked ribbon is, by
+  construction, a *confirmation* signal: it cannot fire until the move is already
+  visible on two timeframes. It is buying the late third of moves that are largely over.
+
+**Blackout-bias check (done before believing it).** ENTRY_START=10:00 ET means the
+09:30–10:00 range is unreachable by construction, which would inflate rung 1. Re-measured
+rung 1 over only the tradable window (10:00 ET → close): **median 2.80%, 256/274 (93%)
+clear the trail**, unspent share 31%, entry percentile 67%. **The finding survives
+intact** — the 1→2 collapse is 256 → 90, not an artefact of the blackout.
+
+**This overturns 09-01's "dominant cause: profit capture."** That entry was right that
+18/18 recent FAILs were break-even-or-scratched trails, but that is the *symptom*. A
+trade entered with 0.78% of room against a 1.25% ratchet **must** end as a BE-scratch or
+a drift to the flatten — the capture failure is downstream of an entry that never had
+enough runway. Both statements describe the same defect from opposite ends; the ladder
+identifies which end to fix.
+
+**Where this leaves IMP-036.** IMP-036 was *correct on its own terms* — 1-min ATR does
+predict travel — but tonight reframes what it did. It now scores **0.0 for 120 of the
+124 candidates (97%)** recorded since it shipped, because `_ATR_DEAD = 0.20%` sits at the
+**p95** of the observed 1-min ATR distribution (p50 = 0.079%). It is not a graded ranking
+term any more; it is a de facto hard filter that removes a flat 15 of 100 points from
+almost every candidate, raising the effective bar from 60 to ~75 of the 85 reachable
+points. Counterfactual on today's rows: **19 of the 36 confidence-refusals would have
+cleared 60 under the pre-IMP-036 scoring, and 6 of those had the gate open — the bot
+would have taken ~6 entries today instead of 0.** Per the refusal counterfactual those 6
+would have averaged roughly nothing, so **IMP-036 is not costing money and I am not
+reverting it.** But it must be named for what it is: the strategy's own filters are now
+declining ~97% of what its signal generates. **That is an abstention, not an edge.**
+⚠️ **Do not "fix" this by relaxing IMP-036 or lowering ENTRY_THRESHOLD.** Both would
+re-admit exactly the 0.78%-of-room cohort the ladder just showed cannot pay. The 08-31
+crossover refutation makes the same point from the other direction.
+
+**The structural question for the weekly (Fri 09-04), now sharply posed.** Not "which
+trail width", and — settled tonight — not "which universe" either. It is:
+**can any entry rule on this watchlist commit while more than the trail width of the
+day's move is still ahead of it?** The current signal answers no on 67% of its trades.
+Concretely, the weekly should replay an **entry-timing** change — a pullback/retest entry
+rather than a breakout-confirmation cross, or a hard "unspent range ≥ 2x trail" precondition
+— against the ladder, holding every capital-protection rule fixed. `--timing` now makes
+that measurable per variant.
+
+⚠️ **Methodological caution carried forward from 09-01, still binding:** the replay
+harness is materially more optimistic than the live book (90d replay: 74 trades / +$753 /
+PF 2.43 vs live 274 / +$32 / true WR 7%). **Do not accept a replay-only improvement as
+proof.** The ladder is measured on *real fills and real bars*, which is why it is the
+better instrument for this decision.
+
+### What worked / what didn't
+- **✅ Every filter was correct today.** Gate refusal saved a −1.88% stop-out; the 36
+  confidence refusals averaged +0.13% forward. Zero is the right P&L for these setups.
+- **✅ Plumbing is clean.** 0 restarts, 0 warnings, exact broker/DB reconciliation, the
+  09-01 `.env` hazard did not recur.
+- **✅ IMP-039 delivered.** The doctrine numbers now travel in the digest.
+- **❌ The entry signal.** It scored NVDA at 53.69 on a day NVDA ran 4.34%. Across 274
+  trades it commits with a median 24% of the day's move left, at the 71st percentile of
+  the range. **This is the defect, and it is structural, not a tuning error.**
+- **❌ Three sessions with no fills means the IMP-036 and IMP-021 mechanism tests remain
+  blocked** (~6 fills since 08-21 against a 15-fill bar). 09-01's observation stands and
+  hardens: **the strategy cannot generate the evidence needed to fix itself.**
+
+### Lessons & improvement candidates
+1. **Entry timing is the single constraint worth attacking.** Ranked first by a distance;
+   everything else is downstream. Hand to the weekly with the ladder attached.
+2. **Refuted tonight, do not re-propose:** "the watchlist is too quiet / add livelier
+   names" — rung 1 clears on 98% (93% tradable-window) of trades. The universe is fine.
+3. **Refuted tonight, do not re-propose:** "loosen IMP-036 / lower ENTRY_THRESHOLD so the
+   bot trades again." It would re-admit the cohort with 0.78% of room. Trading more is
+   not the goal; trading with runway is.
+4. **Open and unchanged:** the `exit_reason` close/fill race (half-fixed by IMP-038); the
+   IMP-036 and IMP-021 mechanism tests (blocked on fills); the `.env`-ownership crash-loop
+   hazard that hit systemd's start limit on 09-01 (logged in `todo.md`).
+
+### Notes for pre-market research
+- **Do NOT add symbols to compensate for three flat sessions, and do not park names for
+  being quiet.** Tonight's ladder settles it with 274 trades: the watchlist offers a
+  median **3.38%** session range and **98% of trades** were on names that moved more than
+  the 1.25% the bot needs. The board is not the constraint and never was. This supersedes
+  any liveness-driven park reasoning that rests on "the name doesn't travel".
+- **AMGN produced 4 scored rows today (best 47.02)** — its best liveness since the park
+  question was raised, and its 09-16 dated test ("score ≥60 or ≥8 rows in the prior 12
+  days") now has real rows accruing. No action; the test stands as written.
+- **AMZN produced zero rows today.** Its **09-04 re-check** (parks only if it loses the
+  50MA *and* the ≥30d dead-signal clock still holds) is due Friday — carry it.
+- **INTC was the most active name on the board (7 of 37 candidates, top score 58.26, and
+  the day's two closest misses at 58.26 / 57.57).** It also traded a 3.35% range and
+  closed near its high. It is the healthiest signal generator right now — watch it, no
+  action.
+- **NVDA is the day's cautionary tale: 4.34% range, and the bot scored it 53.69/51.66.**
+  Not a watchlist problem — a timing problem. Keep it.
+- **QQQ scored 4 refusals as a tradable symbol (best 35.71).** It is on the watchlist as
+  well as being the gate instrument; its own scores are consistently the weakest on the
+  board. Worth a look at some point, low priority, no action now.
+- **Gate duty cycle: 13.0% (08-31) → 0.0% (09-01) → 37.1% (09-02).** The risk-off drift
+  broke today. If the gate stays healthy and the book stays flat, that is further
+  confirmation of tonight's verdict rather than a new problem.
+- **⚠️ Operational, unchanged: verify `.env` is `ustradebot:ustradebot` mode 600 and
+  `systemctl is-active` before the open.** The 09-01 crash-loop hit systemd's start limit
+  and the unit stayed dead until manually started.

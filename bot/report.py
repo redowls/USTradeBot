@@ -7,6 +7,7 @@ Queries SQL Server for recent trading performance and pushes a digest to Telegra
     python -m bot.report --days 7          # weekly
     python -m bot.report --days 7 --mfe    # + max favourable/adverse excursion
     python -m bot.report --days 7 --refusals  # + what the entry filters declined
+    python -m bot.report --days 30 --timing   # + how much of the move was still on the table
 
 The headline figures (trades / win rate / P&L) cover the last ``--days``; the
 confidence-band breakdown is all-time, answering the question the whole confidence
@@ -20,6 +21,11 @@ digest stays the short headline it has always been.
 ``--refusals`` (IMP-033) does the same for the other population: how far each
 scored-but-refused candidate ran, grouped by the filter that refused it. Same opt-in,
 same stdout-only rule.
+
+``--timing`` (IMP-040) asks the prior question both of those assume away: how much
+of the day's range existed at all, and how much of it was still unspent when we
+committed. It separates "the tape was dead" from "the tape moved and we were late",
+which have opposite fixes. Same opt-in, same stdout-only rule.
 
 Read-only. If persistence is disabled or unreachable, it logs and exits non-zero
 without touching the trading path.
@@ -48,6 +54,8 @@ from bot.refusals import (
     outcomes_for,
     summarize_by_reason,
 )
+from bot.timing import alpaca_session_fetcher, format_timing, timings_for
+from bot.timing import summarize as summarize_timing
 
 
 log = logging.getLogger("ustradebot.report")
@@ -136,11 +144,27 @@ def refusal_report(store, cfg, days: int, fetch_ohlc=None) -> str:
         return f"— refused candidates — unavailable ({e.__class__.__name__}: {e})"
 
 
+def timing_report(store, cfg, days: int, fetch_session=None) -> str:
+    """Build the entry-timing ladder (IMP-040). Never raises."""
+    try:
+        trades = store.closed_trades(days)
+        if not trades:
+            return "— entry timing — no closed trades in this window."
+        fetch = fetch_session if fetch_session is not None else alpaca_session_fetcher(cfg)
+        rows, skipped = timings_for(trades, fetch)
+        return format_timing(
+            summarize_timing(rows, cfg.trail_percent), cfg.trail_percent, skipped
+        )
+    except Exception as e:  # a reporting extra must never break the report
+        return f"— entry timing — unavailable ({e.__class__.__name__}: {e})"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     days = _parse_days(args)
     want_mfe = "--mfe" in args
     want_refusals = "--refusals" in args
+    want_timing = "--timing" in args
     try:
         cfg = Config.load()
     except ConfigError as e:
@@ -154,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     stop_exits = stop_exit_summary(store, cfg, days)
     mfe_text = excursion_report(store, cfg, days) if want_mfe else None
     refusal_text = refusal_report(store, cfg, days) if want_refusals else None
+    timing_text = timing_report(store, cfg, days) if want_timing else None
     store.close()
     if summary is None:
         print("could not build the performance summary.")
@@ -164,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
         print(mfe_text)
     if refusal_text:  # same rule: study output never reaches Telegram
         print(refusal_text)
+    if timing_text:  # same rule again (IMP-040)
+        print(timing_text)
     notifier = open_notifier(cfg)
     if notifier is not None:
         notifier.send(text)

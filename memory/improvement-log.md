@@ -3170,3 +3170,113 @@ recorded in `memory/daily-review.md` 2026-09-01: **no demonstrated edge** —
 and **0 of the last 18 FAILs being full stops** (every one a break-even or scratched
 trail — profit capture, not stop geometry). Handed to the weekly review with the
 recommendation to test an **entry-signal replacement** rather than another exit tweak.
+
+---
+
+## IMP-040 — 2026-09-02 (daily) — measure entry timing: how much of the move was still on the table
+
+### The problem
+Three consecutive flat sessions (08-31, 09-01, 09-02), and on the third the tape
+cooperated: the QQQ gate was **open 37.1%** of the session (vs 13.0% and 0.0%), the
+indexes closed **+0.5–0.6%**, and the bot still took nothing. Meanwhile the names it was
+scoring *moved*: **NVDA traded a 4.34% range** (and was scored 53.69 and 51.66),
+**INTC 3.35%**, **LLY 2.58%**.
+
+That contradiction was **unmeasurable with the tooling the bot had.** `--mfe` (IMP-025)
+answers "how far did the trade run once we were in?"; `--refusals` (IMP-033) answers "how
+far did the ones we declined run?". Neither answers the prior question: **was there
+anything to catch, and had we already missed it by the time we committed?**
+
+This matters because "the tape was dead" and "the tape moved and we were late" produce
+**identical MFE tables** and have **opposite fixes** — the first says change the universe,
+the second says change the signal. The 09-01 review handed the weekly a structural verdict
+("no demonstrated edge") without a way to choose between them, and the 08-31 review nearly
+spent a session on watchlist liveness. Guessing here is how a review ships a watchlist edit
+that was really an entry bug.
+
+### The change
+New `bot/timing.py` + a `--timing` flag on `bot.report`. It decomposes each closed trade's
+opportunity into a four-rung ladder and reports where it collapses:
+
+1. `session_range_pct` — the whole session's high/low range on that symbol (opportunity
+   that existed at all).
+2. `available_pct` — entry price to the session high **after** the entry bar (opportunity
+   still unspent when we committed). The 1→2 gap is **entry timing**.
+3. `mfe_pct` — best unrealised gain over the **holding** window. The 2→3 gap is
+   **holding time**.
+4. `realized_pct` — what we kept. The 3→4 gap is **profit capture**.
+
+Each rung is also counted against `trail_percent`, since a trade must clear that width to
+finish green on the ratchet at all (IMP-018). Plus `entry_percentile` (where in the day's
+range the fill sat, 0 = bought the low) and `unspent_share` (rung 2 / rung 1).
+
+The three gaps map one-to-one onto the stop-exit doctrine's three causes.
+
+**Deliberately not a strategy change.** The escalation clause triggered on 09-01 is still
+active (FAIL+SCRATCH 100% over the last 3 sessions with trades), which bars parameter
+tweaks. This touches **no trading logic**: it is read-only, opt-in, stdout-only, cannot
+reach the Telegram digest, and cannot contaminate the blocked IMP-036 / IMP-021 mechanism
+tests. Same rationale as IMP-039 — under escalation, the highest-impact change available
+is the instrument that makes the structural decision decidable.
+
+Structure mirrors its siblings: arithmetic is **pure** and unit-tested, the only I/O is an
+injected session-bar fetcher. Session bounds are derived through `bot.config.EASTERN`
+(09:30–16:00 ET) rather than a hardcoded 13:30–20:00 UTC span, so the window does not shift
+by an hour across the DST boundary — the IMP-026 lesson, applied up front.
+
+### What it found (274 trades, the whole book)
+| rung | median | ≥ 1.25% trail |
+|---|---|---|
+| 1 session range | **3.38%** | **268/274 (98%)** |
+| 2 available at entry | **0.78%** | **90/274 (33%)** |
+| 3 MFE while held | 0.70% | 78/274 (28%) |
+| 4 realized | −0.04% | — |
+
+Median unspent share **24%**; median entry percentile **71%** of the session range.
+
+- **The universe is not the problem** — rung 1 clears on 98% of trades; these names move a
+  median 3.38%, 2.7x the trail width.
+- **The book collapses at 1→2 and nowhere else (268 → 90).** Two-thirds of trades are dead
+  on arrival: less than the trail width remains when the bot commits.
+- **The bot buys the top third of the day's range** (71st percentile). A 1-min fresh cross
+  gated by a 5-min stacked ribbon is a *confirmation* signal — it cannot fire until the
+  move is already visible on two timeframes.
+- **Blackout-bias check:** re-measured rung 1 over only the tradable window (ENTRY_START
+  10:00 ET → close) — median 2.80%, **256/274 (93%)** clear the trail, unspent share 31%,
+  entry percentile 67%. **The finding survives; it is not an artefact of IMP-017.**
+
+This **re-classifies the dominant failure cause from profit capture (09-01) to entry
+quality.** The 18/18 break-even-scratched trails are real but downstream: a trade entered
+with 0.78% of room against a 1.25% ratchet *must* end that way.
+
+### Validation
+- **500 tests pass** (483 → 500, +17), full suite, no regressions.
+- New `tests/test_timing.py`:
+  - Ladder arithmetic — `available` excludes range that happened *before* the entry bar;
+    the entry bar is inclusive on both windows; MFE stops at the exit while `available`
+    does not; favourable excursions clamp at zero; a missing session is dropped, not
+    scored flat.
+  - `test_session_bounds_follow_eastern_across_the_dst_boundary` — pins 13:30 UTC in EDT
+    and 14:30 UTC in EST, so a future edit cannot reintroduce a fixed offset.
+  - `test_summarize_uses_medians_not_means` — guards against one >2% runner dragging the
+    typical-trade figure.
+  - `test_nvda_2026_09_02_wide_range_but_the_signal_caught_the_flat_part` — **today's real
+    session as the motivating regression**: the 4.34% range and the 14:55 cross, asserting
+    rung 1 clears the trail while the entry sits at the 58th percentile.
+  - `test_the_ladder_separates_a_dead_tape_from_a_late_entry` — two rows with **identical
+    MFE** that the ladder splits, which is the module's entire reason to exist.
+- Ran live against the book to produce the table above (`--days 90 --timing`).
+- Service restarted and verified active with a clean startup (no trading-path change, but
+  the deploy is verified rather than assumed — the IMP-003 lesson).
+
+### What this hands the weekly (Fri 09-04)
+The structural question, now sharply posed and **decidable**: not "which trail width", and
+— settled here — not "which universe" either, but **can any entry rule on this watchlist
+commit while more than the trail width of the day's move is still ahead of it?** Replay a
+pullback/retest entry, or a hard "unspent range ≥ 2x trail" precondition, against the
+ladder with every capital-protection rule fixed.
+
+⚠️ Do **not** respond to this by relaxing IMP-036 or lowering `ENTRY_THRESHOLD`. Both
+re-admit exactly the 0.78%-of-room cohort the ladder shows cannot pay. Counterfactual on
+today's rows: 19 of 36 confidence-refusals would have cleared 60 under pre-IMP-036 scoring
+and 6 had the gate open — but per the refusal study those 6 averaged ~nothing forward.
