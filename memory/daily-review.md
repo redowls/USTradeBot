@@ -6411,3 +6411,201 @@ better instrument for this decision.
 - **⚠️ Operational, unchanged: verify `.env` is `ustradebot:ustradebot` mode 600 and
   `systemctl is-active` before the open.** The 09-01 crash-loop hit systemd's start limit
   and the unit stayed dead until manually started.
+
+---
+
+## 2026-09-03 — Daily Review
+
+### Stats
+- **1 closed trade** — TSLA, +$36.99 (+1.41%). Headline **100% win rate**; **true win rate 0%**
+  (see below). First fill since 08-28 — the four-session flat streak broke.
+- Account **equity $9,170.64**, up from $9,133.65. Broker-reconciled via `alpaca-usbot` MCP:
+  `equity == cash == portfolio_value == 9170.64`, `last_equity 9133.65` → **+$36.99 exactly,
+  to the cent, matching `dbo.trades`**. **0 open positions, 0 resting orders.** The bracket's
+  target leg was cancelled 19:35:45 and the stop leg filled 19:35:46 — clean, nothing carried.
+- Service **active since 2026-09-02 20:18:34 UTC, NRestarts=0**, `running`, **zero
+  WARNING-or-above lines** across 9,154 journald lines. `.env` verified `ustradebot:ustradebot`
+  mode 600. No restarts, no errors, no reconnects.
+- **Gate open 80.2%** (91 QQQ samples, 73 open, `stacked` 100%, `fast_rising` 80.2%) — **the
+  healthiest gate day on record**, against 37.1% (09-02), 13.0% (08-31), 0.0% (09-01).
+- Scored candidates: **45 refusals across 14 names**, every one on confidence. Best of the
+  day was **PLTR 56.4** against the 60 bar. NVDA 6 (54.0) · INTC 5 (53.9) · AAPL 5 (51.1) ·
+  AMZN 4 (47.9) · TSM 4 (46.4) · BABA 4 (41.1) · PLTR/MSFT/ABNB/QQQ 3 each.
+
+### Stop-exit accounting
+TSLA exited on the **trailing stop** — a stop-driven exit, so **stop rate 1/1 (100%)**.
+`R = 374.765714 − 367.00 = 7.7657` (2.07% of entry); `profit_R = (380.05 − 374.765714)/R =`
+**+0.68R**. That is `+0.25 < 0.68 < 1.0` on a stop-driven exit → **SCRATCH. Not a win.**
+The +$36.99 and the +1.41% are real money and the trade was well handled, but the thesis
+was never paid: TSLA never delivered the 2.07% the bot risked to earn.
+
+| Window | n | stop rate | WIN | SCRATCH | FAIL (full / BE-scratch) | true WR | headline WR |
+|---|---|---|---|---|---|---|---|
+| Today | 1 | 1/1 (100%) | 0 | 1 | 0 | **0%** | 100% |
+| Last 3 sessions w/ trades (08-27, 08-28, 09-03) | 6 | 5/6 (83%) | 0 | 3 | 3 (0 / 3) | **0%** | 67% |
+| Trailing 10 sessions w/ trades | 34 | 24/34 (71%) | 2 | 15 | 17 (0 / 17) | **5.9%** | 64.7% |
+| Last 30 calendar days | 24 | 19/24 (79%) | 1 | 9 | 14 (0 / 14) | **4%** | 54% |
+| All-time | 275 | 92/275 (33%) | 20 | 138 | 117 (33 / 84) | **7.3%** | 46.5% |
+
+- **🚨 ESCALATION REMAINS ACTIVE — fourth consecutive session.** FAIL+SCRATCH is **100%**
+  over the last 3 sessions with trades, **94%** over the trailing 10, **93%** all-time.
+  No parameter or strategy change ships tonight. Tonight's change (IMP-041) is an
+  observational correctness fix that touches no trading logic — see below.
+- **Dominant failure cause today: profit capture. Dominant cause of the book: entry
+  quality — unchanged, and hardened by today.** Today's single trade is the *inverse* of
+  the book's pathology, which is exactly what makes it worth the whole review.
+
+### Trade-by-trade review
+
+**TSLA — long, model A, conf 78.68 (xo 0.45 · trend 1.00 · rsi 1.00 · volume 0.03 ·
+volatility 1.00), tape atr 0.367% spread 0.030%.**
+Entry 14:09:01 UTC, 7 sh @ **374.765714** ($2,621.43 notional), stop 367.00, target 411.94.
+Exit 19:35:46 UTC (broker fill) @ **380.05** on the trailing stop. **+$36.99, +1.41%, +0.68R.**
+
+- **Entry quality: excellent, and the best the ladder has recorded.** `--timing` for the
+  day: session range **4.92%**, **available at entry 2.47%**, MFE while held **2.47%**,
+  realized +1.41%. **Entry percentile 49%** — it bought the *middle* of the day's range
+  against a book median of **71%**; **unspent share 50%** against a book median of **24%**.
+  Rungs 2→3 lost **nothing**: the bot held to the exact top of everything that was still
+  available after it committed. On the one measurement that 09-02 named the binding
+  constraint, this trade scored near-perfectly.
+- **The trail machinery worked exactly as designed, and IMP-021 is confirmed live for the
+  first time.** 27 ratchets. The first **8** used the wide 1.25% width; the moment the
+  close crossed `entry × 1.01` (378.35) at 14:24 the width switched to the tight **1.00%**
+  and stayed there for the remaining **19** moves. Measured implied widths: 1.249–1.251%
+  before the threshold, 0.999–1.001% after. 09-02 logged IMP-021's mechanism test as
+  "blocked on fills" — **this fill unblocks and passes it.**
+- **Why it still only booked 0.68R — and why that was nonetheless the right outcome.**
+  Peak managed close **383.91 at 16:10 UTC**; the stop parked at **380.07** at 16:11 and
+  never moved again. TSLA then chopped 380–383 for **3h25m** without a new high before
+  ticking into the stop at 19:35:46. The give-back was 1.0% (the tight trail width) =
+  **0.48R**. Crucially, **the alternative exits were all worse**: TSLA's 19:30 bar closed
+  **376.34**, so the EOD flatten (~19:45) would have booked roughly **+0.6% / +0.29R** —
+  a *worse* SCRATCH, nearly a FAIL. **The trail beat holding by ~0.4R.** This is not a
+  profit-capture failure of the "bot handed back a winner" kind; it is a trade the exit
+  structure handled better than any rule the bot currently owns.
+- **Root cause of the SCRATCH: the move was event anticipation, and it round-tripped.**
+  Perplexity post-close: S&P 500 **+0.46%** (7,666.6), Nasdaq **+0.45%** (26,217.8),
+  regime **risk-on / trending**, tech-led. **TSLA finished only +0.26%** — the catalyst was
+  the **Cybercab robotaxi event scheduled for Sept 3 in Austin**, not earnings or guidance.
+  The bot rode a +2.5% anticipation spike from 10:09 to 12:10 ET and then sat through the
+  full give-back. The ribbon thesis was right for two hours and then the tape took it back.
+  **Assigned cause: profit capture** — with the caveat above that the current structure
+  already extracted more than any alternative it has.
+- **One genuine capture gap, and it is structural, not a tuning miss.** TSLA crossed
+  **+1.0R (382.53)** at ~15:07 UTC and stayed above it until ~19:33 — **4.4 continuous
+  hours above the doctrine WIN line** — and the bot banked 0.68R. It has **no mechanism to
+  bank a proven move**: `TAKE_PROFIT=0.10` sits at **+4.83R**, a target that has filled
+  **0 times in 275 trades** (see below). The only exits this bot owns are a stop and a clock.
+
+### What worked / what didn't
+- **✅ Entry timing was excellent** — 49th percentile, 50% unspent, zero holding-time loss.
+  The first trade in the book to clear the rung the 09-02 verdict named.
+- **✅ IMP-021's two-stage trail confirmed live**, mechanism test passed, and it beat the
+  EOD flatten by ~0.4R on the day.
+- **✅ Plumbing flawless** — 0 restarts, 0 warnings, exact broker/DB reconciliation to the
+  cent, `.env` clean, bracket legs cancelled/filled correctly.
+- **✅ Filters were right again** — 45 refusals, best 56.4, on a day when only one name
+  produced a genuine setup.
+- **❌ The entry signal remains the constraint, and today removed its last excuse.** The
+  gate was open **80.2%** — the best on record — on a **trending risk-on tape**, and the
+  signal produced **one qualifying candidate out of 46 scored (a 98% abstention rate)**.
+  On 09-02 the flat book could still be argued as a 37%-gate day. It cannot be argued today.
+- **❌ There is no profit-taking mechanism.** All-time exit ledger:
+
+  | exit_reason | n | P&L |
+  |---|---|---|
+  | end-of-day flatten | 178 | **+$1,146.92** |
+  | stop/target filled broker-side | 51 | −$455.18 |
+  | end-of-day flatten (stop/target filled broker-side) | 34 | −$550.21 |
+  | reconciled: not held at broker | 5 | $0.00 |
+  | stop filled broker-side (recovered, IMP-003) | 4 | −$55.21 |
+  | trailing stop (stop/target filled broker-side) | 2 | −$54.69 |
+  | trailing stop | 1 | +$36.99 |
+  | **take profit** | **0** | **—** |
+
+  **The +10% target has never filled, once, in 275 trades.** The bot exits on a stop or on
+  the clock. ⚠️ *Do not read the +$1,146.92 EOD-flatten row as "stops cost money, hold
+  instead": trades reaching the flatten are by definition the ones that were not stopped —
+  pure survivorship. That is the same trap 08-31 flagged about judging a filter by its own
+  refusal cohort. Hold-overnight was already refuted by forward replay (IMP-017).*
+
+### The structural ceiling — measured tonight on the whole book
+Ran IMP-040's ladder over all **275** closed trades and expressed MFE in **R** (median
+R = 2.01% of price):
+
+| threshold | trades reaching it |
+|---|---|
+| MFE ≥ 0.5R | 97/275 (35.3%) |
+| **MFE ≥ 1.0R** | **44/275 (16.0%)** |
+| MFE ≥ 1.5R | 14/275 (5.1%) |
+| MFE ≥ 2.0R | 6/275 (2.2%) |
+
+**Only 16% of entries ever print +1R at all.** Even a *perfect* exit that banked the WIN
+line on every trade that touched it would cap the true win rate at **16%** — so the 7.3%
+we have is not primarily an exit failure, and no exit change can lift it past 16%.
+**This is an entry-signal ceiling, and it confirms 09-02 rather than overturning it.**
+
+Of the 44 that did print +1R: mean MFE **+1.44R**, mean realized **+0.87R**, median
+give-back **0.43R**; **17/44** finished ≥ +1R, and **8/44 round-tripped all the way to
+FAIL** (≤ +0.25R).
+
+**Counterfactual — bank half the position at +1.0R, let the rest exit exactly as it did:**
+book total **+2.9R → +5.8R** (avg **+0.011R → +0.021R per trade**). It **doubles the book,
+and both numbers are indistinguishable from zero.** That is the honest reading: partial
+profit-taking is a real but second-order improvement layered on a signal with no
+demonstrated edge. **It is not a rescue, and it must not be sold as one.**
+
+### Verdict
+Today is the cleanest evidence yet, because for once the confounds all broke the right way:
+**the best gate day on record (80.2%), a trending risk-on tape, and an entry that landed at
+the 49th percentile with half the day's move still ahead of it — and the outcome was still
+a SCRATCH.** When this strategy does everything right, it produces +0.68R.
+
+The constraint is not the watchlist (settled 09-02: rung 1 clears on 98%), not the gate
+(80.2% open today), not the trail (IMP-021 confirmed working and it beat the alternative),
+and not entry timing *on this trade*. It is that **the signal finds a ≥1R move 16% of the
+time and fires at all ~2% of the time.** Handed to tomorrow's weekly with the numbers above.
+
+### Lessons & improvement candidates
+1. **For the weekly (Fri 09-04): the entry signal, with the 16% ceiling attached.** The
+   question 09-02 posed is now sharper — not just "can an entry rule commit with runway
+   left", but "can any entry rule on this watchlist find moves ≥1R more than 16% of the
+   time?" If not, the honest finding is **no demonstrated edge**, and that is the verdict
+   to write rather than another filter.
+2. **Second, and only after (1): give the bot a profit-taking mechanism.** `TAKE_PROFIT=0.10`
+   is decorative at 0/275 fills; a partial scale-out at +1R is worth ~+0.010R/trade on the
+   recorded book. **Pre-registered here, deliberately not shipped** — it would confound the
+   weekly's entry replay tomorrow, and doubling a zero is not a mandate. Requires ≥3
+   agreeing replay windows per the IMP-021 rule before it ships.
+3. **Refuted tonight, do not re-propose:** "the trail gives winners back / tighten it."
+   Today the trail beat the EOD flatten by ~0.4R and IMP-021's tightening fired correctly
+   on all 19 post-threshold ratchets. Anti-gaming rules apply: it stays.
+4. **Refuted 09-02, still refuted:** "add livelier symbols" and "loosen IMP-036 / lower
+   ENTRY_THRESHOLD". Today's 45 refusals had a best score of 56.4 — lowering the bar to
+   admit them re-admits precisely the no-runway cohort.
+5. **Open and unchanged:** the `exit_reason` close/fill race (half-fixed by IMP-038); the
+   IMP-036 mechanism test (still blocked — needs ~15 fills, has ~2); the `.env`-ownership
+   crash-loop hazard in `todo.md`. **IMP-021's mechanism test is now CLOSED — passed.**
+
+### Notes for pre-market research
+- **The board is fine and the gate is fine — do not touch either.** Gate open **80.2%**
+  today, `stacked` 100%, and 14 of 19 names produced scored candidates. Four sessions of
+  near-zero fills are a *signal* problem, now measured twice over (98% abstention today on
+  an ideal tape; a 16% ≥1R hit rate across 275 trades). **No adds, no parks, no threshold
+  edits** — none of those address it and all of them would muddy tomorrow's weekly verdict.
+- **TSLA traded beautifully and is the board's best name by a distance.** 4.92% session
+  range, the only 60+ candidate all day (78.68), and the only fill. Note the move was
+  **Cybercab-event anticipation (Sept 3, Austin) and it round-tripped to +0.26% on the
+  close** — if there is event follow-through or a sell-the-news gap tomorrow, that is a
+  TSLA-specific catalyst worth flagging, not a reason to park it. **Keep, unchanged.**
+- **PLTR (best refusal 56.4), MSFT (55.1), NVDA (6 rows, 54.0), INTC (5 rows, 53.9)** were
+  the closest misses. INTC continues to be among the most active generators — its 09-03
+  KEEP resolution looks right.
+- **AMZN produced 4 rows today (best 47.9)** — it was flagged 09-02 as having produced zero
+  rows, and its **09-04 re-check is due tomorrow (Friday)**. It is generating again, which
+  bears on that test. **LLY produced 1 row (37.7)** — still thin, still too new to judge.
+- **AMGN produced 2 rows (best 42.8)**, now ~8 rows over the window; its 09-16 dated test
+  keeps accruing. No action.
+- **⚠️ Operational, unchanged: verify `.env` is `ustradebot:ustradebot` mode 600 and
+  `systemctl is-active` before the open.** Service was restarted tonight for IMP-041.

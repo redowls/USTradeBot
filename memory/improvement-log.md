@@ -3280,3 +3280,84 @@ ladder with every capital-protection rule fixed.
 re-admit exactly the 0.78%-of-room cohort the ladder shows cannot pay. Counterfactual on
 today's rows: 19 of 36 confidence-refusals would have cleared 60 under pre-IMP-036 scoring
 and 6 had the gate open — but per the refusal study those 6 averaged ~nothing forward.
+
+---
+
+## IMP-041 — 2026-09-03 (daily) — measure excursion against the fill we actually got
+
+### The problem
+2026-09-03 TSLA was only the **second trade ever** to carry IMP-037's `mfe_pct` column, and
+it exposed that the column is anchored to the wrong price.
+
+The row records `entry_price = 374.765714` (the broker fill), `pnl = +$36.99` and
+`pnl_pct = +1.41%` — all computed off that fill. But it also records `mfe_pct = 2.4853%`,
+and 2.4853% is the high-water close (383.91) expressed against **374.60** — the *planned*
+entry, not the fill. Against the fill the truth is **2.4400%**.
+
+**Why the two diverge.** `executor.execute` polls `entry_fill_price` for a short budget and
+falls back to `plan.entry_price` when the parent buy is still `pending_new` at the submit ack
+— which it was here (`BRACKET TSLA ... entry=374.6000 ... (model A, pending_new)`). The
+correction exists and works: at exit `risk._finish_exit` re-reads `entry_fill_price`, hands it
+to `ExitResult.entry_fill_price`, and persistence COALESCEs it over the stored entry so
+`entry_price`/`pnl`/`pnl_pct` all become exact. `_account_for_standdown` prefers it too
+(`entry_ref = entry_fill if entry_fill is not None else ...`).
+
+**`_excursion_pct` was the one consumer in that function that ignored it** — `entry_fill` was
+computed five lines above the call and simply not passed. So `mfe_pct`/`mae_pct` were the only
+pair of columns in the row measured against a different price than every sibling column.
+
+**The bias has a direction, and it flatters us.** A market buy into a fresh bullish cross fills
+at or above its plan, so the plan anchor is the *smaller* denominator **and** the larger
+numerator: `mfe_pct` comes out **overstated** and `mae_pct` **understated**. Every capture
+ratio (`realized / mfe`) built on the column is therefore optimistic. It is worst exactly where
+it matters most — on **delayed fills**, which are the trades whose `ExecutionResult` stays
+stale by construction: 2026-06-25 AMD planned 544.71 vs filled 547.873, **+0.58%**, about a
+quarter of a typical 2% R.
+
+The timing here is not incidental. Tomorrow's weekly (Fri 09-04) has been handed the
+entry-vs-exit structural verdict and will lean on exactly these capture ratios. An instrument
+with a known optimistic bias must not be the one that decides whether this strategy has an edge.
+
+### The change
+`bot/risk.py`, two edits, observational only:
+
+1. **`_excursion_pct` takes `entry_fill` and prefers it**, mirroring `_account_for_standdown`'s
+   existing `entry_ref` idiom; the call site passes the `entry_fill` it already had.
+2. **`_track_excursion` stores observed closes only — the synthetic seed at the entry price is
+   gone**, and the zero-clamp moved to `_excursion_pct`
+   (`max(0.0, ...)` / `min(0.0, ...)`).
+
+(2) is required by (1), not scope creep: the watermarks were *seeded* at the stale plan price,
+so re-anchoring the denominator alone would have leaked the plan price back in as a phantom
+drawdown (today: a fake `mae_pct = −0.0442%` on a trade that never traded below its fill).
+Clamping at percentage time against the authoritative anchor preserves IMP-037's documented
+invariant — "a trade that only ever goes against us reports `mfe_pct = 0`, it reached its entry
+and no more" — while removing the only place the uncorrectable error could hide.
+
+**Touches no trading logic.** Nothing in the bot reads `mfe_pct`/`mae_pct` to make a decision:
+`persistence` writes them, `report` prints them, and `refusals` computes its own excursion from
+bars via `bot.excursion`. Entries, sizing, stops, the trail and the gate are byte-identical.
+It therefore **cannot confound tomorrow's weekly replay** — which, with the escalation clause
+active for a fourth session, is the reason this and not a strategy change is tonight's work.
+
+### Validation
+- **503 tests pass** (`test_risk.py` 55 → 58), no regressions. `bot.preflight`: Alpaca PASS
+  (equity 9170.64, 0 positions), SQL Server PASS, Telegram PASS, 1 expected market-closed WARN.
+- Three new regression tests, the first built from today's real fills:
+  - `test_excursion_is_measured_against_the_corrected_entry_fill` — plan 374.60, fill
+    374.765714, peak close 383.91 → asserts **2.4400%, not 2.4853%**, and `mae_pct == 0.0`
+    (the phantom-drawdown guard).
+  - `test_excursion_falls_back_to_the_recorded_entry_when_no_fill_is_readable` — an unreadable
+    fill leaves the planned anchor rather than voiding the measurement.
+  - `test_excursion_never_reports_a_negative_mfe_when_the_fill_slipped_up` — the IMP-037
+    invariant re-asserted at the corrected anchor.
+- Deployed: `systemctl restart ustradebot.service`, confirmed `active`, clean startup.
+
+### Scope and residue
+- **Two historical rows predate this fix** (2026-08-28 SPOT, 2026-09-03 TSLA) and keep their
+  plan-anchored values. **Deliberately not backfilled**: today's error is 0.045pp, SPOT's plan
+  price is no longer recoverable from journald, and a half-backfilled column is worse than a
+  uniformly-labelled pre-IMP-041 population of two. Every row from tomorrow is fill-anchored.
+- Does **not** change the 275-trade ladder numbers the review quotes — `bot/timing.py`
+  recomputes MFE from bars against the DB's (already corrected) `entry_price`, so the
+  structural findings are unaffected. This fix aligns the *stored* column with that.

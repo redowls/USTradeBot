@@ -326,8 +326,14 @@ class RiskManager:
         structure could actually have banked. An intrabar high the trail can never reach
         would flatter every capture ratio computed off this column.
 
-        Seeded at the entry price, so a trade that only ever goes against us records
-        ``mfe_pct = 0`` (it reached its entry, no more) rather than a misleading negative.
+        Stores **observed closes only** — no synthetic seed at the entry price. The
+        anchor these are expressed against is not knowable here: a fill delayed past the
+        submit-ack budget leaves ``entry.entry_price`` at the *planned* price, and the
+        true fill only arrives at exit (IMP-041). Seeding at the stale plan price would
+        bake that error into the watermarks themselves, where no later correction can
+        reach it. :meth:`_excursion_pct` clamps at zero instead, which preserves the
+        IMP-037 invariant (a trade that only ever goes against us reports ``mfe_pct = 0``
+        — it reached its entry, no more — rather than a misleading negative).
         """
         entry_px = getattr(entry, "entry_price", 0.0) or 0.0
         symbol = getattr(entry, "symbol", "") if entry is not None else ""
@@ -335,23 +341,48 @@ class RiskManager:
             return  # no anchor to measure against (startup-reconciled holding)
         # Keyed off the POSITION's symbol, not the candle's, so this side and the
         # exit-side pop (which is handed the strategy's symbol) agree by construction.
-        hi, lo = self._excursion.get(symbol, (entry_px, entry_px))
+        hi, lo = self._excursion.get(symbol, (trigger.close, trigger.close))
         self._excursion[symbol] = (max(hi, trigger.close), min(lo, trigger.close))
 
     def _excursion_pct(
-        self, symbol: str, entry: ExecutionResult | None
+        self,
+        symbol: str,
+        entry: ExecutionResult | None,
+        entry_fill: float | None = None,
     ) -> tuple[float | None, float | None]:
-        """Pop this position's excursion and express it as % of entry.
+        """Pop this position's excursion and express it as % of the entry **fill**.
 
         Popping is what keeps the state from leaking into a later re-entry of the same
         symbol; ``(None, None)`` when the position was never managed.
+
+        Anchored on the corrected broker fill when we have it, exactly as ``pnl`` and
+        ``_account_for_standdown`` already are (IMP-041). ``ExecutionResult.entry_price``
+        is only the *planned* price whenever the parent buy was still ``pending_new`` at
+        the submit ack, so anchoring on it made ``mfe_pct``/``mae_pct`` the one pair of
+        columns in the row measured against a different price than ``entry_price``,
+        ``pnl`` and ``pnl_pct`` — and biased *optimistically*, since a market buy into a
+        fresh bullish cross fills at or above its plan. 2026-09-03 TSLA is the worked
+        case: planned 374.60, filled 374.765714, peak close 383.91 → the row recorded
+        ``mfe_pct`` 2.4853% where the truth against the fill is 2.4400%. The error is
+        worst on delayed fills (2026-06-25 AMD planned 544.71 vs filled 547.873, +0.58%
+        — a quarter of a typical 2% R), i.e. precisely the trades whose excursion the
+        capture studies lean on.
+
+        Clamped at zero rather than seeded there (see :meth:`_track_excursion`): the
+        watermarks are real observed closes, so the sign convention is applied here,
+        against the authoritative anchor.
         """
         watermarks = self._excursion.pop(symbol, None)
-        entry_px = getattr(entry, "entry_price", 0.0) or 0.0
+        entry_px = entry_fill if entry_fill is not None else (
+            getattr(entry, "entry_price", 0.0) or 0.0
+        )
         if watermarks is None or entry_px <= 0:
             return None, None
         hi, lo = watermarks
-        return (hi / entry_px - 1.0) * 100.0, (lo / entry_px - 1.0) * 100.0
+        return (
+            max(0.0, (hi / entry_px - 1.0) * 100.0),
+            min(0.0, (lo / entry_px - 1.0) * 100.0),
+        )
 
     def exit_position(
         self,
@@ -525,7 +556,7 @@ class RiskManager:
         if key:  # trade is done — drop its trailing-stop state
             self._trail_stops.pop(key, None)
             self._live_stop_oid.pop(key, None)
-        mfe_pct, mae_pct = self._excursion_pct(symbol, entry)
+        mfe_pct, mae_pct = self._excursion_pct(symbol, entry, entry_fill)
         result = ExitResult(
             symbol=symbol,
             reason=reason,

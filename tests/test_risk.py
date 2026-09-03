@@ -859,3 +859,70 @@ def test_nvda_2026_08_27_giveback_is_now_measurable(cfg):
     assert result.mfe_pct == pytest.approx(1.15, abs=0.01)
     realized_pct = (224.9025 / 224.5875 - 1.0) * 100.0
     assert realized_pct / result.mfe_pct < 0.15  # capture under 15% — the finding
+
+
+# --- excursion anchored on the corrected entry fill (IMP-041) ------------
+
+
+def test_excursion_is_measured_against_the_corrected_entry_fill(cfg):
+    """MFE/MAE use the broker fill, not the planned price the signal sized off.
+
+    2026-09-03 TSLA, from the real fills: the bracket was submitted with a planned
+    entry of 374.60 and was still ``pending_new`` at the submit ack, so
+    ``ExecutionResult.entry_price`` kept 374.60 while the parent buy actually filled
+    at 374.765714. The high-water close was 383.91. Anchored on the plan that is
+    +2.4853%; against the fill the truth is +2.4400%. Every sibling column in the row
+    (``entry_price``, ``pnl``, ``pnl_pct``) already used the fill, so the excursion pair
+    was the only one measured against a different price — and biased optimistically,
+    which flatters exactly the capture ratios the exit-structure studies turn on.
+    """
+    ex = _FakeExecutor(entry_fill=374.765714)
+    rm = RiskManager(cfg, executor=ex)
+    entry = ExecutionResult(
+        symbol="TSLA", order_id="o-tsla", qty=7, notional=2621.43,
+        entry_price=374.60,  # the PLANNED price — the fill was not readable yet
+        stop_price=367.00, take_profit_price=411.94,
+        confidence=78.68, status="pending_new", model="A", stop_order_id="stop-tsla",
+    )
+    for close in (375.80, 378.80, 381.53, 383.91, 380.05):
+        rm.update_trailing_stop(_rising(close), entry)
+
+    result = rm.exit_position("TSLA", 380.05, "trailing stop", entry)
+
+    assert result.entry_fill_price == pytest.approx(374.765714)
+    assert result.mfe_pct == pytest.approx(2.4400, abs=0.001)  # NOT 2.4853 vs the plan
+    # The synthetic seed must not leak in as a phantom drawdown: no managed close ever
+    # traded below the fill, so the honest MAE is zero.
+    assert result.mae_pct == pytest.approx(0.0)
+
+
+def test_excursion_falls_back_to_the_recorded_entry_when_no_fill_is_readable(cfg):
+    """An unreadable fill leaves the planned anchor in place rather than voiding MFE."""
+    ex = _FakeExecutor(entry_fill=None)
+    rm = RiskManager(cfg, executor=ex)
+    entry = _entry()
+    for close in (101.0, 103.0):
+        rm.update_trailing_stop(_rising(close), entry)
+
+    result = rm.exit_position("NFLX", 102.0, "test", entry)
+
+    assert result.mfe_pct == pytest.approx(3.0)  # 103.0 vs the recorded 100.0
+
+
+def test_excursion_never_reports_a_negative_mfe_when_the_fill_slipped_up(cfg):
+    """A fill above every managed close reports mfe 0, never a negative.
+
+    The IMP-037 invariant, now enforced at the corrected anchor: slipping into a trade
+    that immediately went against us must read "it never traded above our fill", not a
+    negative excursion that would corrupt capture ratios downstream.
+    """
+    ex = _FakeExecutor(entry_fill=101.0)  # filled ABOVE every close below
+    rm = RiskManager(cfg, executor=ex)
+    entry = _entry()
+    for close in (100.5, 99.0):
+        rm.update_trailing_stop(_rising(close), entry)
+
+    result = rm.exit_position("NFLX", 99.0, "test", entry)
+
+    assert result.mfe_pct == pytest.approx(0.0)
+    assert result.mae_pct == pytest.approx((99.0 / 101.0 - 1.0) * 100.0)
