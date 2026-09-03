@@ -5543,3 +5543,215 @@ for no benefit, ~3h before the open.
   returned junk calendar entries. Worth checking the sonar call is still fit for purpose.
 - **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
   `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
+
+---
+
+## 2026-09-03 — Pre-market Research
+
+**INTC's dated test resolved KEEP and it was not close: the park rule needs a ≥30d dead-signal clock and
+INTC is at 17d. AVGO's print landed soft-guide, not sector-rout, and the semi read-through is muted. No
+adds. NO CHANGES — 19 enabled, unchanged, service NOT restarted.** Book is CLEAN & FLAT (broker-confirmed
+**0 positions, 0 orders of any status since 09-02**, equity **$9,133.65**, `cash == equity == last_equity
+== portfolio_value`) → **nothing locked, nothing at risk from any decision below.** Service `active`,
+**NRestarts=0**, up since 2026-09-02 20:18:34 UTC with **warmup primed 19/19** and **zero WARNING-or-above
+lines** in 101 log lines since; **`.env` verified `ustradebot:ustradebot` mode 600** — the 09-01
+crash-loop hazard checked and clear before the open, as the reviews keep demanding.
+
+### Market context
+- **The three-day risk-off drift is breaking, and the driver that caused it is the driver easing it.**
+  Futures higher: Dow futures gain **as oil prices and US yields ease** after three consecutive down
+  sessions. Last close: Dow 53,020.18 (+0.48%), S&P 500 7,668.15 (+0.48%), Nasdaq 26,199.24 (+0.38%).
+  Crude retreated *despite* renewed US–Iran tension — **Brent −0.85% to $94.82, WTI −0.69% to $90.38**.
+  This is the exact reversal of the 09-02 setup (10-yr at a 3-year high, oil $90, QQQ −0.59% pre-market).
+- **⚠️ Macro-heavy morning, and the 14:00 UTC coincidence is now on its FOURTH consecutive session.**
+  Jobless claims **8:30 ET** (205k exp vs 203k prior; continuing 1.79M vs 1.778M), S&P Global Services PMI
+  **9:45 ET** (56.8 exp, unchanged), **ISM Services 10:00 ET = 14:00 UTC** (54.1 exp; prices paid 69.5 vs
+  70.3, employment 49 vs 47.4). **10:00 ET is the exact minute the IMP-017 opening blackout lifts** — the
+  fourth session running that a macro print lands there. Also **Waller 8:30 ET**, **Hammack + Goolsbee
+  15:00 ET**, Challenger job cuts, July trade data, final Q2 productivity (+1.4%). Tomorrow is **nonfarm
+  payrolls**, which is what the tape is actually positioning for. **Still logging the 14:00 coincidence,
+  still not acting on it** — that is a code decision for the daily review, not a watchlist lever.
+- **AVGO (parked) reported AMC 09-02 — verified, and the read-through is far milder than feared.**
+  **EPS $3.32 vs $3.24, revenue $29.59B vs $29.36B** (+86% y/y), semiconductor revenue **$16.7B vs $15.2B
+  est**, AI semi revenue **+221% y/y / +54% q/q**. The miss was **guidance**: Q4 revenue **$34.8B vs
+  $35.03B** consensus, bottom of the range → **−5% AH, ~−2.6% pre-market**. Note Q4 **AI** revenue is
+  guided to **$21.7B, +236% y/y** — the AI capex line accelerated; it was infrastructure software
+  ($8.75B vs $8.82B) and the blended guide that disappointed. **This corrects yesterday's flag**, which
+  carried a ~$2.55 EPS consensus and cited AVGO's 12.6% post-print drop as the precedent: that 12.6%
+  followed a *reiterate-don't-raise* AI outlook in June. This print raised the AI line.
+- **The semi complex is trading it as stock-specific, not sectoral.** Pre-market: **NVDA +0.12%,
+  MU −0.52%, TSLA +1.15%** — muted. **No park trigger for MU / NVDA / AMD / INTC / TSM.** The June
+  precedent (MU −7% on an AVGO disappointment) is the tail risk to respect intraday, and the gate is the
+  instrument that handles it, not a pre-emptive park on a −0.5% pre-market tape.
+- **No enabled name reports today.** Today's calendar is **CIEN, CPRT, ZS, IOT, GWRE, LULU** — zero
+  overlap with the board. Next enabled-name print is **MU on 09-30**. No halts, no M&A, no FDA/legal
+  event, no verified downgrade on any of the 19.
+- **TSLA — noted, not acted on:** China-made EV sales **+3.6% y/y in August**, a sharp deceleration. It is
+  a fundamental datapoint with no intraday binary attached, TSLA is **+1.15% pre-market**, above its 20MA
+  (+3.68%), 95% of sessions ≥2%, and it is the board's best recent earner. Keep.
+- **LLY — noted, not acted on:** positive flow (Phase 3b Taltz+Zepbound one-year data 08-31, Merida
+  Biosciences acquisition, Jefferies Buy reiterated 09-01) against a **drug-pricing policy overhang** (a
+  dozen drugmakers voluntarily cutting prices under White House deals). Price is the tell: **−9.39% over
+  10 days**, now below both MAs. At **14d on the board with no trade yet it is too new to judge** — same
+  standing as 09-02. Watching.
+- **Perplexity earned its place this run, after three empty ones.** It returned AVGO's print with figures,
+  the semi read-through and pre-market levels for NVDA/MU/TSLA. It still **failed to return futures
+  direction** (said so explicitly rather than inventing it, which is the right failure mode) and its
+  calendar was thin — Challenger/mortgage rates but not the ISM Services print that actually matters.
+  Every trade-critical figure above is WebSearch-verified; the AVGO EPS estimate it gave ($3.21) was
+  **wrong against the verified $3.24**, which is exactly why the verify step exists. **Withdrawing
+  yesterday's "flag it to the operator" recommendation** — run four was useful.
+
+### Carried from daily review (09-02 EOD)
+- **"Do NOT add symbols to compensate for three flat sessions, and do not park names for being quiet."
+  HONOURED — and this is the most consequential instruction on file.** IMP-040's ladder settles it on
+  **274 real trades**: rung 1 (session range ≥ the 1.25% trail) clears on **98%** of trades (**93%**
+  measured inside the tradable post-blackout window), median session range **3.38%**. **The universe is
+  not the constraint and never was.** No add reasoning and no park reasoning below rests on liveness.
+- **"AMGN produced 4 scored rows (best 47.02) — its 09-16 test now has real rows accruing. No action."**
+  HONOURED. Confirmed at **6 rows / 12d, best 47.02**. See below — accruing, not yet passing.
+- **"AMZN produced zero rows today. Its 09-04 re-check is due Friday — carry it."** CARRIED, and the
+  cushion thinned again on schedule. See below.
+- **"INTC was the most active name on the board — the healthiest signal generator right now. Watch it,
+  no action."** Confirmed and extended: its re-check came due today and resolved KEEP on the merits.
+- **"NVDA is the day's cautionary tale: 4.34% range, scored 53.69/51.66. Not a watchlist problem — a
+  timing problem. Keep it."** HONOURED, NVDA kept without further argument.
+- **"QQQ's own scores are the weakest on the board. Low priority, no action."** Acknowledged; QQQ is
+  structurally exempt from parking regardless — re-verified in code again this run.
+- **"⚠️ Verify `.env` ownership and `is-active` before the open."** Done, both clean, stated above.
+
+### Watchlist review
+**Liveness (12d, scored refusals): 239 rows across 19 of 19 enabled names — every name produced at least
+one, and volume is UP from 194 a fortnight ago.** MSFT 33 (best 71.0) · AAPL 23 (61.6) · MU 21 (79.0) ·
+DASH 21 (73.5) · UBER 18 (70.2) · NFLX 16 (66.8) · QQQ 11 (53.6) · SPOT 10 (70.9) · **INTC 10 (60.8)** ·
+AMZN 9 (**83.2 — still the top score on the board**) · TSM 9 (55.9) · BABA 7 (68.6) · PLTR 7 (70.5) ·
+AMD 6 (74.3) · ABNB 6 (54.7) · **AMGN 6 (47.0)** · LLY 4 (65.4) · NVDA 4 (53.7) · TSLA 1 (49.3).
+(GOOG 14 / JPM 3 also appear — both **parked**, rows predate their park dates. No action.)
+
+**🟢 INTC — dated test due today, resolved KEEP, and not a close call.** The two-leg park rule requires
+**both** a ≥30d dead-signal clock **and** price below both MAs. **Leg two fires** (−4.86% vs 20MA,
+−11.84% vs 50MA, −2.96% over 10 days — still the deepest downtrend on the board). **Leg one does not:
+last entry 2026-08-17 is 17 days, thirteen short of the 30d bar.** One leg has never been sufficient and
+today is not the day to invent an exception, because every other number argues the other way:
+- **It is the healthiest signal generator on the board.** 10 scored rows in 12d, **best 60.84 — it
+  actually cleared the 60 bar**, one of only a handful of names to do so this fortnight. It produced
+  **7 of the 37 candidates on 09-02** and the day's two closest misses (58.26 / 57.57).
+- **Volatility is the best on the board:** ATR **4.73%**, medRng **4.09%**, **100% of 20 sessions ≥2%**.
+- **Liquidity is deep:** **$9.22B/day.** No sub-$5 risk, no halt risk.
+- **It is the #2 lifetime earner: +$150.78 over 24 trades.**
+- **AVGO read-through checked and cleared** — muted pre-market, guide-driven and stock-specific.
+**New dated test, stated so it cannot be moved: 09-16 — the date the 30d clock actually expires (08-17 +
+30d). On that date, park if it is still below both MAs.** Same rule, same legs, just the honest date.
+
+**🟡 AMZN — not due today; 09-04 re-check carried, and the cushion thinned again exactly as predicted.**
+Leg one **fires**: last entry 2026-08-03 = **31d**. Leg two **still does not**: **−3.29% vs 20MA but
++0.85% vs 50MA**. The 50MA cushion has now gone **+3.10% (09-01) → +0.99% (09-02) → +0.85% (today)**.
+One ordinary down session puts both legs in force. Countervailing evidence is unchanged and strong:
+**9 scored rows, best 83.21 — still the single highest confidence print on the whole board.** A name
+scoring 83 is not a dead signal. **Test stands as written for tomorrow, 09-04.**
+
+**🟡 AMGN — not due; accruing toward its 09-16 test, and the weakness is deepening.** Rows went **2 → 6**
+in 12d (best **47.02**, still the **lowest maximum on the entire board**, 13 points short of the bar), so
+the "≥8 rows in 12d" leg is live but unmet and the "≥60 print" leg is nowhere near. **ATR has decayed
+further to 2.09%** — it was admitted on 08-26 at 2.31% against a 2.3% floor, so it now sits **below the
+volatility floor it was admitted under**, for a second consecutive session. Above both MAs (+3.43 /
++12.53), so the trend leg cannot fire and no exemption is needed. **No action — the test is dated 09-16
+and the log's rule is to settle on the date against the stated condition.** Recording the decay so the
+09-16 decision is already evidenced.
+
+**✅ Everything else kept; no other dated test comes due.** **Below both MAs, clock nowhere near 30d:**
+TSM (−0.97 / −1.31, traded **6d** ago) · AMD (−4.21 / −8.89, **21d**, **09-12**) · BABA (−8.72 / −3.25,
+**−13.26% over 10 days — the deepest 10-day drawdown on the board**, **24d**; **09-09 stands and BABA
+remains the most likely name to park on its date**) · LLY (−3.81 / −2.53, added 08-20, **no trade yet at
+14d — too new to judge**, ATR 3.14%, $3.14B/day, 4 rows best 65.4).
+**Above both MAs, trend leg cannot fire:** AAPL (+4.15 / +3.64, clock **38d** but exempt on leg two,
+**09-10**) · NFLX (+5.18 / +10.19, clock 36d, exempt, ATR 2.61%, **09-15**) · MSFT (+0.32 / +13.34,
+**clock has now passed 30d at 30d** — leg one fires for the first time, but at **+13.34% vs the 50MA**
+leg two is not remotely in play; **most active name on the board at 33 rows, best 71.0**; noted, no test
+armed, the 20MA cushion of +0.32% is the thing to watch) · DASH (+1.82 / +11.97, ATR 3.26%, medRng 3.26%,
+**100% ≥2%**, 21 rows — still the strongest all-round name) · SPOT (+7.08 / +12.22, ATR 3.71%, 100% ≥2%,
+**thinnest enabled at $0.87B/day — above the $0.85B add-floor but only just; on notice for liquidity
+alone, unchanged**) · AMGN · ABNB (+0.10 / +13.58 — sitting **on** its 20MA, $1.06B/day) · TSLA (+3.68 /
+−0.37, 95% ≥2%, best recent earner) · PLTR (−3.43 / +15.15, ATR 4.24%, 100% ≥2%).
+**Mixed:** MU (+2.53 / +1.28, **$26.35B/day**, ATR 4.87%, medRng 4.38%, #1 all-time earner **+$189.55**) ·
+NVDA (+2.34 / +7.23, **$27.92B/day**, ex-dividend $0.25 on **09-10** — noted, immaterial to an intraday
+long) · UBER (−0.43 / +3.34, ATR 3.40%, 18 rows best 70.2).
+**Liquidity floor clean: no sub-$5 names, no halts, thinnest is SPOT at $0.87B/day.**
+
+**🔒 QQQ — both park legs fire on merit; structurally exempt. Re-verified in code this run, not taken on
+faith.** QQQ is **50d without a trade** and below both MAs (−1.16 / −0.23), and it fails the volatility
+floor outright (**ATR 1.13%, medRng 0.92%, 0% of 20 sessions ≥2%, only 15% ≥1.25%**). On merit it is the
+worst name on the board and its own scores are the weakest (11 rows, best 53.6). **It must not be parked.**
+`bot/config.py:332` defaults `MARKET_FILTER_SYMBOL` to **QQQ**, and `bot/strategy.py:_market_gate_open`
+resolves it out of `self._gate_snap` — when the symbol has no ready ribbon, which is exactly what happens
+when it leaves the watchlist, it **`return True` and only logs a warning** (the docstring states the
+intent outright: *"a watchlist edit must never silently halt trading, so the miss warns instead"*).
+Parking QQQ therefore does not tighten the bot; it **silently disables the market filter and fails the
+gate OPEN** — the opposite of the intent, and near-invisible in the logs. Restated with file:line so no
+future run has to re-derive it.
+
+### 🌐 Regime observation
+**Gate duty cycle: 42.0% (08-25) · 43.3% (08-26) · 71.1% (08-27) · 28.1% (08-28) · 13.0% (08-31) · 0.0%
+(09-01) · 38.7% (09-02).** The collapse to zero **broke on 09-02** and today opens with yields and oil
+easing — the two things that caused the drift. **This continues to be the gate working, not failing.**
+The standing conclusion is unchanged and was re-armed by last night's ladder: the binding constraint is
+**entry timing** (median 24% of the day's move left at commit, entry at the **71st percentile** of the
+session range), not the board, not the gate, and not the symbol count. **The correct response to flat
+sessions remains: do not add symbols, do not lower `ENTRY_THRESHOLD`, do not relax IMP-036.** With the
+strategy at **+0.008R/trade over 274 trades and a 7% true win rate under the stop doctrine, a flat book
+is currently the best outcome available to it** — churning the watchlist to manufacture fills converts a
+harmless zero into a live drawdown. That is the reasoning behind today's no-change decision as much as
+any individual symbol's numbers.
+
+### ➕ Adds — NONE
+**~50 liquid large caps screened against the eight standing floors** (above BOTH MAs · ATR ≥2.3% ·
+medRng ≥2.0% · ≥80% of 20 sessions ≥1.25% · ≥$0.85B/day · max 24-session gap ≤4% · 20/50 leg spread ≤9pp ·
+positive 10-day return). **Exactly one name cleared: MCK** (+5.19 / +9.93, ATR 2.38%, medRng 2.55%,
+95% ≥1.25%, $0.86B/day, +8.32% 10d, gap 3.99%, spread 4.7pp). **Refused, for four reasons:**
+1. **It is the AMGN profile, and AMGN is getting worse, not better** — a healthcare large cap at
+   ~$0.86B/day on a low-2s ATR. AMGN's live behaviour under that profile after two weeks on the board:
+   **6 rows in 12 days, best 47.02, ATR decayed to 2.09%, below its own admission floor.** Copying a
+   profile whose one live instance is the weakest name on the board is not a considered add.
+2. **It clears by margins too thin to survive the measurement.** $0.86B/day vs a $0.85B floor and a
+   3.99% gap vs a 4.00% ceiling — both inside noise. The **IEX-tradability leg is still not built**
+   (SIP dollar volume ≠ the IEX tape the bot actually consumes), and at $0.86B it would plausibly decide
+   this name outright.
+3. **TMO and GILD, which cleared on 08-31 and 09-02, no longer clear at all** — the screen's healthcare
+   cohort is not stable across three runs. That is a reason to wait, not to buy the survivor.
+4. **The standing instruction not to add after flat sessions**, now backed by the 274-trade ladder that
+   refutes the premise behind every liveness-driven add.
+**The high-momentum cohort failed as before** — CRM, NOW, TEAM, CRWD, COIN, HOOD all rejected on
+gap/spread: each is a 2%-stop-through-the-gap risk, not an intraday trend. **Board headroom is 19/30 and
+stays deliberately unused: the binding constraint is the score and the gate, not the symbol count.**
+
+### Changes applied to dbo.watchlist
+**NONE.** No adds, no parks, no re-enables. The one dated test due today (INTC) resolved **KEEP** — its
+dead-signal clock is at 17d against a 30d bar, and on merit it is the board's best signal generator, most
+volatile liquid name, and #2 lifetime earner. The only name whose park legs both fire is **QQQ**, which is
+structurally exempt. No enabled name reports earnings today, and no enabled name has a verified negative
+catalyst — AVGO's soft guide was checked directly against MU/NVDA/AMD/INTC/TSM and the pre-market
+reaction is muted and stock-specific.
+
+### Final watchlist
+**19 enabled** (≤30 ✅), unchanged: AAPL, ABNB, AMD, AMGN, AMZN, BABA, DASH, INTC, LLY, MSFT, MU, NFLX,
+NVDA, PLTR, QQQ, SPOT, TSLA, TSM, UBER. **Service restarted: NO — not needed, nothing changed.** Left
+`active`, NRestarts=0, up since 2026-09-02 20:18:34 UTC with **warmup primed 19/19** and all 19 symbols
+subscribed on the trade stream. Deliberately not restarted: a restart with an identical watchlist would
+discard a warm 19/19 ribbon set and re-warm it for no benefit ~3h before the open.
+
+### Dates carried forward
+- **AMZN 09-04 (TOMORROW) — parks if it loses the 50MA; the 30d clock leg has already fired and the
+  cushion is down to +0.85%.**
+- **BABA 09-09 (most likely to fire) · AAPL 09-10 · AMD 09-12 · NFLX 09-15 · AMGN 09-16 (score-quality:
+  ≥60 print or ≥8 rows in 12d, else park — currently 6 rows / best 47.0) · INTC 09-16 (new: the honest
+  30d-clock expiry; park then only if still below both MAs).**
+- **Watch, no test armed:** MSFT's clock has just crossed 30d — leg two is far off (+13.34% vs 50MA) but
+  its 20MA cushion is **+0.32%**. SPOT at **$0.87B/day** remains the thinnest enabled name.
+- **For tonight's daily review:** the **14:00 UTC macro coincidence is now on its fourth consecutive
+  session** (ISM Services 10:00 ET today, the exact minute the IMP-017 blackout lifts). Four data points
+  is enough to *measure*; it is a code question, not a watchlist one.
+- **For the operator:** Perplexity run four was genuinely useful (AVGO print, semi read-through,
+  pre-market levels) — **withdrawing yesterday's recommendation to flag the sonar call.** It still misses
+  futures direction and thins the calendar, so keep verifying anything trade-critical.
+- **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
+  `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
