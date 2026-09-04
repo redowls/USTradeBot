@@ -3361,3 +3361,85 @@ active for a fourth session, is the reason this and not a strategy change is ton
 - Does **not** change the 275-trade ladder numbers the review quotes — `bot/timing.py`
   recomputes MFE from bars against the DB's (already corrected) `entry_price`, so the
   structural findings are unaffected. This fix aligns the *stored* column with that.
+
+---
+
+## IMP-042 — 2026-09-04 (daily) — express excursion in R: report the +1R ceiling
+
+**Commit:** `ec9a711` · **Files:** `bot/excursion.py`, `bot/report.py`,
+`tests/test_excursion.py` · **Tests:** 513 pass (10 new) · **Deployed:** service
+restarted 20:15:40 UTC, clean boot, 19/19 warmup primed.
+
+### Why
+The escalation verdict turns on one number — **what share of entries ever print +1R** —
+and the bot could not produce it. `--mfe` reports MFE in *percent bands*, but the
+doctrine's WIN line is **+1R**, and R is per-trade (`entry − stop`, a median 2.01% of
+price but ranging from under 1% to over 4%). A 1.5% excursion clears +1R on a
+tight-stop trade and misses it on a wide-stop one, so **no fixed percent band separates
+a winnable trade from an unwinnable one.**
+
+The 2026-09-03 review needed that split and rebuilt it by hand over 275 rows — the same
+by-hand rebuild `bot/excursion.py` was written to end, one level up. It also had to
+approximate, applying a *single median R* to every trade. Measured properly, per trade,
+against each row's own recorded stop, the ceiling is **18.8%, not the 16.0%** that
+estimate produced.
+
+Today's MU is the worked example that made it undeniable: **91% capture, +1.23% MFE —
+and +0.60R.** The percent table calls that one of the best-handled trades in the book;
+the R table shows it could not have been a WIN under any exit rule. Both readings are
+arithmetically correct and they disagree about what the trade *was*. The doctrine's is
+the one that governs.
+
+### What changed
+- `Excursion.risk_per_share` (optional) + `Excursion.mfe_r` — the conversion happens on
+  the individual row, before anything is summed, because R cannot be applied in aggregate.
+- `ceiling_table()` → rungs at **0.5R / 1.0R / 1.5R / 2.0R**; rows without a usable 1R are
+  **dropped, never defaulted**, so the denominator is always the measured population.
+- `format_ceiling()` — prints the ladder, names the WIN line, and splits the shortfall
+  into *exit-recoverable* vs *entry signal* by drawing the realized true win rate beside
+  the ceiling.
+- `excursions_for(..., stop_loss)` takes 1R from `bot.doctrine.risk_per_share` — **the
+  same denominator the WIN/SCRATCH/FAIL buckets use**, so the two studies cannot disagree
+  about what one R is.
+- `report.excursion_report` scores the true win rate over **exactly the cohort the ladder
+  measured** (the rows that produced bars), not the whole window — a ceiling and a floor
+  from different populations are not comparable. Degrades to the ladder alone if the rows
+  cannot be bucketed; the ladder is the deliverable.
+
+### Result (all-time, 276 trades)
+| MFE ≥ | trades | share |
+|---|---|---|
+| 0.5R | 108/276 | 39.1% |
+| **1.0R** | **52/276** | **18.8%** ← doctrine WIN line |
+| 1.5R | 20/276 | 7.2% |
+| 2.0R | 12/276 | 4.3% |
+
+Realized true win rate **7.2%** → **11.6pp exit-recoverable, 81.2pp is the entry signal.**
+
+### Why this and not a strategy change
+Escalation is active for the **fifth** consecutive session (F+S 100% last-3, 94%
+trailing-10, 93% all-time), and the doctrine forbids parameter tweaks under escalation.
+The weekly review runs **45 minutes after this one** (cron is WIB: daily 20:00 UTC,
+weekly 21:00 UTC — the weekly runs *after* the daily, not before it as the routine
+prompt assumes) and 09-03 deliberately withheld a change so its entry replay would be
+clean. A trading-path edit tonight would confound that replay. **IMP-042 is read-only
+and touches no trading logic**, so the replay runs against unchanged strategy code.
+
+### Rejected tonight, with evidence
+- **Flatten later / hold into the close.** MU made its high *after* the flatten, which
+  looked like a leak. Measured over every trade that reached the flatten (n=167,
+  assumption-free, no trail modelling): **−0.007R/trade, t = −0.50, −$57.64**, up 47% of
+  the time. ⛔ Refuted — do not re-propose.
+- **A full trail simulator** to answer that question was built first and **discarded for
+  failing validation**: it stopped out 59/179 trades that in reality reached the flatten,
+  and its baseline was 2× off the actual. Shipping off an unvalidated simulator is how
+  IMP-045 went wrong on the VWAP gate.
+- **Loosening the gate** because it blocked the day's top score (INTC 82.9, which then
+  finished +4.52%). Counterfactual: the blocked cohort had **avgMFE +0.76%, 0/2 reaching
+  the 1.25% trail**. The gate cost nothing — INTC's move was the opening gap, already
+  blocked by `ENTRY_START=10:00`. ⛔ Refuted.
+
+### Validation
+`.venv/bin/python -m pytest -q` → **513 passed**. Ladder run live against the book
+(276 trades) and today (1 trade) — both render. Regression test pins MU 2026-09-04 at
+91% capture / +0.59R so the percent-vs-R divergence stays covered.

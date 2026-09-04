@@ -6609,3 +6609,223 @@ time and fires at all ~2% of the time.** Handed to tomorrow's weekly with the nu
   keeps accruing. No action.
 - **⚠️ Operational, unchanged: verify `.env` is `ustradebot:ustradebot` mode 600 and
   `systemctl is-active` before the open.** Service was restarted tonight for IMP-041.
+
+---
+
+## 2026-09-04 — Daily Review
+
+### Stats
+- **1 closed trade** — MU, **+$22.21 (+1.11%)**. Headline **100% win rate**; **true win
+  rate 0%** (see below). Second fill in two sessions; the flat streak stays broken.
+- Account **equity $9,192.77**, up from $9,170.56. Broker-reconciled via the
+  `alpaca-usbot` MCP: `equity == cash == portfolio_value == 9192.77`,
+  `last_equity 9170.56` → **+$22.21 exactly, to the cent, matching `dbo.trades`**.
+  **0 open positions, 0 resting orders.** Bracket target leg (1096.58) cancelled
+  19:45:19, trailed stop leg (999.36) cancelled 19:45:19, market sell filled 19:45:21
+  @ 1008.67. Nothing carried.
+- Service **active, NRestarts=0**, `running`, **9,105 journald lines, exactly one ERROR**
+  (below). `.env` verified `ustradebot:ustradebot` mode 600.
+- **Gate open 21.6%** (88 QQQ samples, stacked 42.0%, fast_rising 45.5%) — against
+  76.0% (09-03), 38.7% (09-02), 0.0% (09-01). Open windows: 13:15–14:15, 16:45–17:00,
+  19:55–20:05 UTC.
+- Scored candidates: **16 refusals across 7 names** (vs 45 across 14 yesterday).
+  14 on confidence, **2 on the gate**. Best refusal of the day was **INTC 82.9** — the
+  highest-scoring candidate of the session, higher than the trade we took.
+
+### ⚠️ Market context: the Perplexity read was wrong, and it mattered
+Perplexity `sonar` reported "S&P 500 **+1.06%** … Nasdaq **+1.40%** … trending risk-on".
+**Broker ground truth (Alpaca daily bars, 09-03 close → 09-04 close) says otherwise:**
+
+| | 09-03 | 09-04 | move |
+|---|---|---|---|
+| SPY | 773.115 | 770.18 | **−0.38%** |
+| QQQ | 717.675 | 719.10 | **+0.20%** |
+| SMH (semis) | 552.72 | 567.05 | **+2.59%** |
+| MU | 958.325 | 1015.00 | **+5.91%** |
+| INTC | 91.66 | 95.80 | **+4.52%** |
+
+The real tape was a **narrow semiconductor rally on a flat-to-down broad market** —
+rotation *into* semis, *out of* everything else. Not "trending risk-on". Two
+consequences, and they point in opposite directions from the ones the wrong read
+would have suggested:
+1. **The 21.6% gate reading was correct, not broken.** The gate is a QQQ proxy and QQQ
+   genuinely did nothing (+0.20%). It was right to be shut 78% of the day.
+2. **Do not repeat yesterday's inference pattern on a bad premise.** 09-03 reasoned
+   from "80.2% gate + risk-on tape". Tonight the tape claim was false on verification.
+   **Verify the index move against broker bars before using it as evidence** — it costs
+   one MCP call and it changed tonight's verdict.
+
+### Stop-exit accounting
+MU exited on the **end-of-day flatten** — not stop-driven, so **stop rate 0/1 (0%)**.
+`R = 997.565 − 976.95 = 20.615` (2.07% of entry); `profit_R = (1008.67 − 997.565)/R =`
+**+0.539R**. A flatten exit between −0.25R and +1.0R → **SCRATCH. Not a win.**
+Real money, competently handled, thesis unpaid: MU never delivered the 2.07% risked.
+
+| Window | n | stop rate | WIN | SCRATCH | FAIL (full / BE) | true WR | headline WR | F+S |
+|---|---|---|---|---|---|---|---|---|
+| Today | 1 | 0/1 (0%) | 0 | 1 | 0 | **0%** | 100% | **100%** |
+| Last 3 sessions w/ trades (08-28, 09-03, 09-04) | 3 | 2/3 (67%) | 0 | 2 | 1 (0/1) | **0%** | 67% | **100%** |
+| Trailing 10 sessions w/ trades | 32 | 21/32 (66%) | 2 | 16 | 14 (0/14) | **6.2%** | 65.6% | **94%** |
+| All-time | 276 | 92/276 (33%) | 20 | 139 | 117 (33/84) | **7.2%** | 46.7% | **93%** |
+
+- **🚨 ESCALATION REMAINS ACTIVE — fifth consecutive session.** F+S is **100%** over the
+  last 3 sessions with trades, **94%** trailing 10, **93%** all-time. Per the doctrine,
+  **no parameter or strategy change ships tonight.** IMP-042 is observational only and
+  touches no trading logic.
+- **Dominant failure cause today: entry quality** — and for once that is a measurement,
+  not an inference. See the timing section.
+
+### Trade-by-trade review
+
+**MU — long, model A, conf 72.08 (xo 0.28 · trend 1.00 · rsi 1.00 · volume 0.23 ·
+volatility 1.00).** Entry 14:16:01 UTC, 2 sh @ **997.565** ($1,995.13 notional), stop
+976.95, target 1096.58. Exit 19:45:21 UTC @ **1008.67**, end-of-day flatten.
+**+$22.21, +1.11%, +0.539R → SCRATCH.**
+
+- **Capture was excellent; the trade was still never winnable.** MFE +1.23%, MAE −0.47%,
+  realized +1.11% → **91% capture**, one of the best in the book. In R, though, MFE was
+  **+0.60R** against a WIN line of +1.0R. **A 91%-capture trade that could not have been
+  a WIN under any exit rule.** This single row is why IMP-042 exists — the percent table
+  flatters it, the R table indicts it. It is now a regression test.
+- **The entry was late, and the tape shows exactly how late.** MU **opened at 971.40**
+  and the bot bought at **997.565 — already +2.7% off the open**, at 10:16 ET. Session
+  range 4.99%; available at entry 2.03%; entry percentile 58%. The signal confirmed a
+  move that had already run.
+- **The trail worked and was not the problem.** 13 ratchets, 976.95 → 999.36, from 330
+  managed candles — i.e. it moved only on genuine new highs, exactly as designed (I
+  checked the candle count specifically: **the feed is not starving the trail**). At the
+  flatten the stop sat at 999.36 and the flatten got 1008.67, so **the flatten beat the
+  trail by +0.45R** on this trade.
+- **Root cause: entry quality (late entry into a spent move).** Not stop geometry, not
+  profit capture.
+
+### The flatten-timing question — asked, measured, and closed
+MU made its session high (**1017.77**) and closed (**1015.00**) in the **15 minutes after
+the 19:45 flatten**. That is a tempting story: "the flatten cost us +0.3R". It is wrong,
+and I tested it rather than shipping it.
+
+- First attempt — a full trail simulator over all 179 EOD-flatten trades — **failed
+  validation** and was discarded: it stopped out 59/179 trades that in reality reached
+  the flatten, and its 15-min baseline (+0.091R mean) was 2× off the actual (+0.190R).
+  An unvalidated simulator is how IMP-045 went wrong on the VWAP gate. **Not shipped.**
+- Second attempt — **assumption-free, no trail modelling**: for every trade that reached
+  the flatten (n=167 with bars), compare the realized exit against the tape that
+  followed it, in R.
+
+| post-flatten path | mean | median | sum | share up |
+|---|---|---|---|---|
+| to the closing print | **−0.0070R** | −0.0216R | −1.17R | 78/167 (**47%**) |
+| best (high) | +0.1280R | +0.0993R | +21.38R | 153/167 (92%) |
+| worst (low) | −0.1301R | −0.1086R | −21.72R | 20/167 (12%) |
+
+  Holding to the bell is worth **−0.007R/trade, t = −0.50, −$57.64 across 167 trades** —
+  **indistinguishable from zero and slightly negative**, a 47% coin flip. **MU today was
+  luck, not a leak.** ⛔ **REFUTED — do not re-propose "flatten later / hold into the
+  close".** (09-03 raised the mirror-image anecdote: TSLA's flatten would have been
+  *worse*. Both were anecdotes; the book says zero. This is now settled with n=167.)
+
+### The gate blocked the day's best candidate — and was right to
+**INTC scored 82.9** at 14:21 (higher than the MU trade we took) and **70.9** at 14:36,
+and the QQQ gate refused both. INTC finished **+4.52%** on the day, which looks damning
+until the counterfactual is run: the refusal cohort scores **avgMFE +0.76%, avgFwd
++0.17%, 0/2 reaching the 1.25% trail give-back.** Neither could have finished green.
+
+The reason is the same as MU's: **INTC opened at 92.43 and was already ~95.2 when the
+signal fired.** The +4.52% was almost entirely the opening gap, which `ENTRY_START=10:00`
+already blocks by design. What remained after the trigger was +0.76%. ✅ **The gate cost
+nothing today. Do not loosen it** — and note it was *not* the binding constraint either.
+
+### What worked / what didn't
+- **✅ Plumbing flawless** — 0 restarts, exact broker/DB reconciliation to the cent,
+  bracket legs cancelled and filled correctly, `.env` clean, 19/19 warmup on restart.
+- **✅ Exit machinery was right on all three counts** — the trail ratcheted correctly on
+  new highs only, the flatten beat the trail by +0.45R, and holding longer is worth zero.
+- **✅ The gate was right** (QQQ genuinely flat) **and the filters were right** (the one
+  82.9 they blocked had +0.76% of runway left).
+- **✅ Verifying Perplexity against broker bars changed the verdict.** Worth the call.
+- **❌ Both of today's candidates fired *after* the move.** MU entered +2.7% off the open
+  and captured 91% of a +0.60R excursion; INTC's trigger arrived with +0.76% left of a
+  +4.52% day. **This is the entry signal being a lagging confirmation of a move already
+  spent** — the 09-02/09-03 "no runway" finding, now visible in both of today's names.
+- **❌ One ERROR:** `failed to persist gate sample for QQQ` at 12:10:19,
+  `pyodbc.OperationalError 08S01` (TCP provider, connection dropped). **Single
+  occurrence, self-recovered, no trading impact** — the gate sample is telemetry, not a
+  trading input. Logged for pattern-watching; not tonight's fix.
+
+### The ceiling, now measured properly (IMP-042)
+09-03 estimated the +1R ceiling by hand at **16.0%** using a *single median R* (2.01% of
+price) for all 275 trades. Measured per trade against each row's own recorded stop:
+
+| MFE ≥ | trades | share |
+|---|---|---|
+| 0.5R | 108/276 | 39.1% |
+| **1.0R** | **52/276** | **18.8%**  ← doctrine WIN line |
+| 1.5R | 20/276 | 7.2% |
+| 2.0R | 12/276 | 4.3% |
+
+**18.8% of entries ever print +1R.** Realized true win rate is **7.2%**, so
+**11.6pp is exit-recoverable and the remaining 81.2pp is the entry signal.** That is the
+split the escalation turns on, and it is now a command (`--mfe`) rather than a hand-build.
+
+### Verdict
+The exits are not the problem and were tested three separate ways tonight — the trail
+(ratchets correctly, beat the flatten by 0.45R), the flatten (holding longer is worth
+−0.007R/trade, t=−0.50, n=167), and the ceiling (81.2pp of the shortfall is upstream of
+any exit). The gate is not the problem — QQQ really was flat, and the one high-confidence
+name it blocked had 0.76% of runway left. The watchlist is not the problem — MU and INTC
+both moved 4.5–5.9%.
+
+**The problem is that the entry signal is a lagging confirmation.** Both of today's
+candidates triggered after the bulk of their move: MU at +2.7% off the open, INTC with
++0.76% of a +4.52% day remaining. Across the book that shows up as an **18.8% ceiling on
++1R** and a median entry percentile of 71%. A fresh 1-min EMA crossover is, by
+construction, evidence that a move has *already happened*.
+
+**Handed to tonight's weekly (21:00 UTC) with the numbers attached: this is an entry-signal
+verdict, not a tuning one.** Fifth consecutive escalated session.
+
+### Lessons & improvement candidates
+1. **For the weekly, tonight: the entry signal, with the corrected 18.8% ceiling and the
+   11.6pp/81.2pp split.** The question is no longer "which filter" — it is whether a
+   *lagging* trigger can be replaced by one that commits with runway left, or whether the
+   honest finding is **no demonstrated edge**. Both of today's names are clean worked
+   examples.
+2. **Still pre-registered, still not shipped: partial scale-out at +1R.** Worth ~+0.010R
+   /trade on the recorded book (09-03). Withheld a second night for the same reason:
+   it would confound the weekly's entry replay, which runs 45 minutes from now.
+3. ⛔ **REFUTED tonight — flatten later / hold into the close.** n=167, t=−0.50. Settled.
+4. ⛔ **Refuted tonight — "the gate blocked our best candidate".** It did, and it was
+   right; the blocked cohort had 0/2 reaching the trail.
+5. ⛔ **Refuted 09-03, still refuted:** tighten the trail. It beat the flatten again today.
+6. **New standing practice:** verify index/tape claims against broker daily bars before
+   reasoning from them. Perplexity was wrong by ~1.4pp on SPY and ~1.2pp on QQQ tonight.
+7. **Open and unchanged:** the `exit_reason` close/fill race (half-fixed by IMP-038); the
+   IMP-036 mechanism test (still blocked — needs ~15 fills, has ~3); the `.env`-ownership
+   crash-loop hazard in `todo.md`. Watch the `08S01` persistence drop for recurrence.
+
+### Notes for pre-market research
+- **The board is fine. Do not touch it.** MU ran **+5.91%** and INTC **+4.52%** — the
+  watchlist produced two genuinely explosive names. The bot's problem was arriving late
+  to both, which no watchlist edit fixes. **No adds, no parks, no threshold edits**, and
+  especially none tonight: the weekly is running an entry replay and board churn would
+  muddy it.
+- **⚠️ Semis-specific rotation, not a broad rally.** SMH **+2.59%** against SPY
+  **−0.38%** and QQQ **+0.20%**. If that rotation persists Monday, expect the same
+  pattern: strong single names, a flat QQQ, and a gate that is correctly shut most of the
+  day. **The gate being closed on a day your semis run is not a malfunction.**
+- **MU is the board's standout** — 4.99% session range, +5.91% on the day, the only fill,
+  and it made its high in the closing 15 minutes. **Keep, unchanged.**
+- **INTC generated the day's top score (82.9) and finished +4.52%** — it is the most
+  informative name on the board right now and the cleanest illustration of the late-entry
+  problem. **Keep.** Its 09-03 KEEP resolution continues to look right.
+- **AMD (2 rows, best 57.9), TSM (3 rows, best 56.9), NVDA (2 rows, best 59.3 — a 0.7
+  miss)** were the near-misses. **BABA produced 5 rows, best 45.5, with ATR as low as
+  0.024%** — it is the deadest name on the board by a distance and has now generated
+  volume without ever approaching the bar. Flagging it for the **weekly**, not for a
+  pre-market park.
+- **AMZN produced zero rows today** after 4 yesterday; its **09-04 re-check was due
+  today and is inconclusive** (one quiet session either way). Roll the observation
+  forward rather than acting on it.
+- **⚠️ Operational: verify `.env` is `ustradebot:ustradebot` mode 600 and
+  `systemctl is-active` before the open.** Service was restarted tonight for IMP-042
+  (clean boot, 19/19 warmup primed, 19/19 subscribed).
