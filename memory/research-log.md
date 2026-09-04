@@ -5755,3 +5755,187 @@ discard a warm 19/19 ribbon set and re-warm it for no benefit ~3h before the ope
   futures direction and thins the calendar, so keep verifying anything trade-critical.
 - **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
   `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
+
+---
+
+## 2026-09-04 — Pre-market Research
+
+**Payrolls Friday. The one dated test due today (AMZN) resolves KEEP on its own stated terms —
+its 50MA cushion RECOVERED rather than broke. No changes; 19 enabled, unchanged.** Book is CLEAN
+& FLAT (broker-confirmed **0 positions**, 0 open orders, equity **$9,170.56**, `last_equity` ==
+`equity` → no overnight marks) → **nothing locked**. Honouring last night's explicit pre-registered
+instruction — *"no adds, no parks, no threshold edits"* — because **tonight is the weekly** that was
+handed the entry-vs-exit structural verdict, and a watchlist edit today changes the population its
+replay runs over. Service left running (not restarted; nothing changed).
+
+### Market context
+- **Futures mixed/flat into the dominant scheduled event of the week.** Dow **−0.06%**, S&P 500
+  **+0.04%**, Nasdaq-100 **+0.4%** (05:50 ET). Follows a strong **Thu 09-03**: Dow **+1.2%** (best
+  day since Aug 4), S&P **+1%**, Nasdaq **+1.4%**, on yields retreating after Fed Governor Waller
+  said he'd be "inclined" to hold at 3.5–3.75% on Sept 15–16.
+- **⚠️ August jobs report at 08:30 ET.** Consensus **+53K** payrolls, unemployment **4.1%** (July
+  was **−23K**); Citi is an outlier at +20K / 4.2%. Watch the revisions — July carried >100K of
+  combined May/June downward revisions.
+- **🕒 TIMING CORRECTION, and it matters — the 08-28 weekly is wrong on this.** It recorded payrolls
+  at "13:30 UTC, comfortably inside the entry window." September is **EDT (UTC−4)**, so 08:30 ET =
+  **12:30 UTC** — **before the 13:30 UTC open**, and a full **90 minutes** before IMP-017's blackout
+  lifts at 10:00 ET / 14:00 UTC. **The bot cannot trade the print or its first hour.** The gap and
+  the initial whipsaw are absorbed before it may enter. That is a *favourable* posture, not a risk,
+  and it is the opposite of what the weekly assumed. Correcting it here so tonight's review does not
+  inherit the error.
+- **Perplexity sonar (run five): one genuinely high-value hit, otherwise thin.** It surfaced the
+  NVDA/Hugging Face deal and flagged AAPL −0.49% pre-market, but returned "no catalyst found" for 17
+  of 19 names, gave **no** futures figures, and **misstated payrolls as "12:30 PM ET"** (it is
+  08:30 ET) — the same UTC/ET confusion the weekly made. **Keep verifying anything trade-critical;
+  the calendar line in particular was wrong in a way that would have mattered.**
+
+### Carried from daily review
+- **"The board is fine and the gate is fine — do not touch either. No adds, no parks, no threshold
+  edits."** Gate open **80.2%** on 09-03 (best on record), `stacked` 100%, 14 of 19 names produced
+  scored candidates, and the session still yielded **1 qualifying candidate out of 46 scored** — a
+  98% abstention rate on an ideal tape. Combined with the 275-trade ladder (**only 16.0% of entries
+  ever print +1R**), the constraint is measured to be the **entry signal**, not the watchlist.
+  **Acted on: no changes.**
+- **AMZN's 09-04 re-check was flagged due today, with the note that it "is generating again"**
+  (4 rows on 09-03, best 47.9). Settled below.
+- **TSLA: "if there is event follow-through or a sell-the-news gap tomorrow, that is a TSLA-specific
+  catalyst worth flagging, not a reason to park it."** The gap happened. Flagged, not parked.
+
+### Watchlist review
+**🎯 AMZN — dated test due TODAY. Resolution: KEEP.** The test as written on 09-03 was *"parks if it
+loses the 50MA"*; the 30d dead-signal leg had already fired (last trade 08-03, now **31d**). **It did
+not lose the 50MA — it moved away from it.** Cushion trail, recomputed from bars this run:
+**+3.10% (08-31) → +0.99% (09-01) → +0.85% (09-02) → +2.20% (09-03)**. The three-session decay that
+armed the test **reversed on 09-03** (close 258.90 vs 50MA 253.32). It remains below its 20MA
+(−1.56%), but the 20MA was never the stated condition and the log's rule is to settle on the date
+**against the stated condition**. Corroborating: it produced **4 scored rows** on 09-03 after having
+produced zero on 09-02 — the signal is alive again. ATR 2.31%, $8.58B/day, no earnings, no catalyst.
+**KEEP, test closed. Not re-armed** — re-arming a test the name just passed would be moving the
+target after the fact.
+
+**⚠️ TSLA — sell-the-news gap, and it is explicitly NOT a park.** Down **~2% pre-market** after the
+Sept 3 Cybercab launch drew a *"largely a bust"* verdict (Gary Black) — the two-seat Cybercab was
+added to the fleet and rides were offered, but the presentation was brief, unstreamed, and gave no
+deployment roadmap; **45 Cybercabs registered in Texas** against a 420-vehicle fleet vs Waymo's ~1,000,
+and **NHTSA is evaluating** the rides since the vehicle has no wheel, pedals or mirrors. Bull case
+intact (Munster: +300 in Austin within a month). **Why this is a keep, stated plainly:** TSLA closed
+**+5% Thursday**, is **+8% on the week**, sits **above both MAs (+8.41 / +5.02)**, carries **ATR 3.75%
+with 95% of 20 sessions ≥2%**, and is the board's **best recent earner** (+$53.59 over 2 trades in 14d,
++$80.27 all-time over 18). A −2% pre-market move on a 3.75%-ATR name is **inside one ordinary session's
+range**, not a regime break. The 5-min gate will simply refuse to open if the tape trends down, and the
+10:00 ET blackout means the bot never touches the open. **This is precisely the case the gate exists to
+handle — parking it would be substituting my judgement for the filter's, on the board's best name.**
+
+**✅ NVDA — M&A confirmed, and it is a non-event for an intraday long.** Perplexity's lead **verified
+independently** (CNBC, TechCrunch, Forbes, Variety): NVDA confirmed **09-03** it is acquiring
+**Hugging Face for $12.93B** (~$11.9B to investors, up to $1B employee retention), its second-largest
+deal ever, **closing H1 2027** per the SEC filing. **NVDA is the acquirer, not the target** — no halt
+risk, no binary downside, no deal-break gap; pre-market higher. Target revenue is ~$150M against a
+multi-trillion acquirer, so it is immaterial to price mechanics. Above both MAs (+3.95 / +8.85),
+**$24.29B/day**, ATR 3.23%, traded 7d ago. **Keep. Note the ex-dividend $0.25 on 09-10 still stands —
+immaterial to an intraday long.**
+
+**🔒 QQQ — re-confirmed structurally exempt, not re-derived on faith.** Worst name on the board on
+merit (**51d** no trade, ATR **1.15%**, medRng **0.92%**, **0%** of 20 sessions ≥2%, −0.01 / +0.93),
+and it still must not be parked: `bot/config.py:332` defaults `MARKET_FILTER_SYMBOL` to **QQQ**, and
+`bot/strategy.py:_market_gate_open` fails **OPEN** with only a warning when the symbol has no ready
+ribbon — which is exactly what parking it causes. Parking QQQ would **silently disable the market
+filter**, the opposite of the intent.
+
+**🟡 SPOT — liquidity now BELOW the add-floor. On notice, not parked, and the distinction is
+deliberate.** Median dollar volume has slipped **$0.87B → $0.83B/day**, under the **$0.85B** floor.
+That floor governs **adds**, not incumbents, and SPOT is otherwise the board's strongest volatility
+profile (**ATR 3.64%, medRng 3.76%, 100% of sessions ≥2%**, +6.35 / +11.89, +5.06% 10d) and traded
+**6d ago**. Parking the most volatile liquid name for a 2%-of-floor liquidity miss, on the day the
+weekly is deciding whether the *signal* has an edge, is churn. **Escalating it to a dated test instead:
+09-11 — park if median $vol is still <$0.85B AND it has gone 14d without a trade.** That gives it a
+falsifiable condition rather than an indefinite "on notice" that has now run three sessions.
+
+**✅ Everything else kept; no other dated test comes due.** **Below both MAs, clock short of 30d:**
+TSM (−0.59 / −0.84, 7d) · AMD (−4.06 / −8.84, 21d, **09-12**) · BABA (−8.16 / −3.45, **−14.34% 10d —
+still the deepest drawdown on the board**, 24d; **09-09 stands, still the most likely park**) · LLY
+(−3.72 / −2.64, −6.81% 10d, no trade yet at 15d — too new to judge) · INTC (−2.73 / −9.55, 17d, but
+**ATR 4.63% / medRng 4.09% / 100% ≥2%** and the **#2 lifetime earner at +$150.78**; **09-16**).
+**Above both MAs, trend leg cannot fire:** AAPL (+4.92 / +4.44, 38d, exempt, **09-10**) · NFLX (+4.51 /
++9.80, 36d, exempt, **09-15**) · MSFT (+2.90 / +15.61 — **20MA cushion recovered +0.32% → +2.90%**, the
+watch item from 09-03 has resolved itself; clock 30d but leg two nowhere near) · DASH (−0.29 / +9.40,
+ATR 3.46%, medRng 3.26%, 100% ≥2%) · AMGN (+3.25 / +12.33; **ATR 2.09%, a third session below the
+2.3% floor it was admitted under** — accruing to **09-16**, no action) · ABNB (+0.27 / +14.24) · PLTR
+(+3.24 / +22.88, ATR 4.32%, 100% ≥2%) · UBER (−1.42 / +2.62). **Mixed:** MU (+2.33 / +1.69,
+**$25.45B/day**, ATR 4.91%, **#1 all-time earner +$189.55**).
+**Liquidity floor: no sub-$5 names, no halts, all 19 verified `tradable:true` / `status:active` this
+run. Thinnest is SPOT at $0.83B/day.**
+
+**No enabled name reports earnings today.** Verified: Friday 09-04 carries ~45 reports, all small- and
+micro-cap — large caps essentially never report on a Friday, and none of the 19 appear. The next
+relevant prints (ADBE, ORCL, NKE) are later in September.
+
+### ➕ Adds — NONE, but one real candidate is now on the board's doorstep
+**~90 liquid large caps screened against the eight standing floors** (above BOTH MAs · ATR ≥2.3% ·
+medRng ≥2.0% · ≥80% of 20 sessions ≥1.25% · ≥$0.85B/day · max 24-session gap ≤4% · 20/50 leg spread
+≤9pp · positive 10-day return).
+
+**🟢 META cleared all eight — and unlike every recent clear, it cleared with real margin:**
++6.09 / +2.81, **ATR 3.22%**, medRng **2.92%**, **100%** of sessions ≥1.25%, **$8.83B/day**, **+11.88%
+10d**, max gap **3.55%**, spread **3.3pp**. That liquidity is **10× the floor**, which retires the
+single objection that killed the last three candidates — the unbuilt **IEX-tradability leg** (SIP
+dollar volume ≠ the IEX tape the bot consumes) cannot plausibly decide a name at $8.83B/day the way it
+could at $0.86B. Verified on Alpaca this run: **`tradable: true`, `status: active`.**
+
+**Deliberately NOT added today. Three reasons, in order of weight:**
+1. **It would confound tonight's weekly.** Last night pre-registered *"no adds, no parks, no threshold
+   edits — all of them would muddy tomorrow's weekly verdict,"* and that weekly has been handed the
+   entry-vs-exit structural question. Changing the symbol population on the morning of the verdict is
+   exactly the confound the instruction names. **A candidate that is good today is still good Monday.**
+2. **It does not address the measured constraint.** "Add livelier symbols" is on the refuted list
+   (09-02, restated 09-03): rung 1 clears on 98% of scored candidates, and the ceiling is a **16% ≥1R
+   hit rate** across 275 trades. META cannot lift a signal-quality ceiling.
+3. **Payrolls day is the worst possible session to start a new name's baseline** — its first days of
+   data would be macro-whipsaw days, unrepresentative of anything.
+
+**➡️ Carried to Monday 09-07 as a live proposal with the verification already banked** — the first
+add candidate in weeks that I would actually defend on merit rather than refuse on margins.
+
+**MCK — yesterday's lone clear — has already failed.** It has slipped **$0.86B → $0.80B/day** and no
+longer clears the liquidity floor at all. That is direct vindication of the 09-03 refusal reasoning
+("clears by margins too thin to survive the measurement") and is worth recording as evidence the
+thin-margin rule works. **The healthcare cohort remains unstable across four runs: TMO (now fails on
+a −1.45% 10d return), GILD ($0.76B), MCK ($0.80B) have each cleared once and failed since.**
+**The high-momentum cohort failed as always, all on gap:** CRWD (10.1%), COIN (7.8%), HOOD (6.4%),
+DELL (8.7%), ORCL (5.0%), NOW (spread 14.2pp) — each is a 2%-stop-through-the-gap risk, not an
+intraday trend. **Board headroom is 19/30 and stays unused by choice.**
+
+### Changes applied to dbo.watchlist
+**NONE.** No adds, no parks, no re-enables. The one dated test due today (**AMZN**) resolved **KEEP**
+on its stated condition — the 50MA cushion recovered to +2.20%. No enabled name reports earnings
+today, none is halted, all 19 verified tradable and active. The only name whose park legs both fire is
+**QQQ**, which is structurally exempt. **META cleared the add screen on merit and was still refused**,
+to protect tonight's weekly verdict from a population change.
+
+### Final watchlist
+**19 enabled** (≤30 ✅), unchanged: AAPL, ABNB, AMD, AMGN, AMZN, BABA, DASH, INTC, LLY, MSFT, MU,
+NFLX, NVDA, PLTR, QQQ, SPOT, TSLA, TSM, UBER. **Service restarted: NO — not needed, nothing changed.**
+Left `active`, **NRestarts=0**, up since **2026-09-03 20:17:58 UTC** (last night's IMP-041 restart)
+with **warmup primed 19/19** and all 19 subscribed on the IEX trade stream; zero real errors since
+boot (the lone `grep` hit is the literal `cancelErrors` field name in the subscribe ack, not a fault).
+`.env` verified **`ustradebot:ustradebot` mode 600**. A restart with an identical watchlist would only
+discard a warm 19/19 ribbon set ~2h before the open.
+
+### Dates carried forward
+- **BABA 09-09 (most likely to fire) · AAPL 09-10 · SPOT 09-11 (NEW: park if $vol still <$0.85B AND
+  14d without a trade) · AMD 09-12 · NFLX 09-15 · AMGN 09-16 (≥60 print or ≥8 rows in 12d, else park;
+  ATR now 2.09%, below its admission floor for a third session) · INTC 09-16 (30d-clock expiry; park
+  then only if still below both MAs).**
+- **AMZN: test CLOSED as KEEP on 09-04, not re-armed.** Its clock now stands at 31d — if it goes
+  quiet again *and* loses the 50MA, that is a fresh test to arm on its own evidence, not a revival.
+- **➕ META — decide on Monday 09-07.** Cleared all eight floors on 09-04 with 10× the liquidity floor;
+  Alpaca-verified tradable/active. Held back only to protect tonight's weekly. **Re-run the screen
+  before adding — do not add on today's numbers alone.**
+- **For tonight's weekly:** (1) **the payrolls timing correction above** — the 08-28 weekly's
+  "13:30 UTC, inside the entry window" is wrong; it was 12:30 UTC, pre-open, and the bot was blacked
+  out until 14:00 UTC, so **today's session must not be read as evidence about macro-day entries**.
+  (2) The **14:00 UTC macro coincidence is now on its fifth consecutive session** — a code question,
+  not a watchlist one. (3) The board question is settled for the fourth run running: **the watchlist
+  is not the constraint.**
+- **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
+  `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
