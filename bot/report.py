@@ -16,7 +16,9 @@ model exists for — *do higher-confidence trades actually pay off?*
 ``--mfe`` (IMP-025) appends the excursion table from :mod:`bot.excursion`: how far
 each closed trade ran in our favour versus what it kept. It costs one historical-bars
 call per trade, so it is opt-in, and it prints to **stdout only** — the Telegram
-digest stays the short headline it has always been.
+digest stays the short headline it has always been. Since IMP-042 it also prints the
+**R ladder**: the share of entries that ever printed +1R, the doctrine's WIN line and
+therefore a hard ceiling on the true win rate whatever the exits do.
 
 ``--refusals`` (IMP-033) does the same for the other population: how far each
 scored-but-refused candidate ran, grouped by the filter that refused it. Same opt-in,
@@ -42,7 +44,9 @@ from bot.doctrine import summarize as summarize_stop_exits
 from bot.doctrine import verdicts_for
 from bot.excursion import (
     alpaca_bar_fetcher,
+    ceiling_table,
     excursions_for,
+    format_ceiling,
     format_excursions,
     summarize,
 )
@@ -102,14 +106,36 @@ def _parse_days(argv: list[str]) -> int:
 
 
 def excursion_report(store, cfg, days: int, fetch_bars=None) -> str:
-    """Build the MFE/MAE table for the window. Never raises — reporting is optional."""
+    """Build the MFE/MAE table + R ladder for the window. Never raises."""
     try:
         trades = store.closed_trades(days)
         if not trades:
             return "— MFE/MAE — no closed trades in this window."
         fetch = fetch_bars if fetch_bars is not None else alpaca_bar_fetcher(cfg)
-        rows, skipped = excursions_for(trades, fetch)
-        return format_excursions(rows, summarize(rows), cfg.trail_percent, skipped)
+        rows, skipped = excursions_for(trades, fetch, cfg.stop_loss)
+        text = format_excursions(rows, summarize(rows), cfg.trail_percent, skipped)
+        return f"{text}\n{format_ceiling(ceiling_table(rows), _true_win_rate(trades, rows, cfg))}"
+    except Exception as e:  # a reporting extra must never break the report
+        return f"— MFE/MAE — unavailable ({e.__class__.__name__}: {e})"
+
+
+def _true_win_rate(trades, rows, cfg) -> float | None:
+    """Realized true win rate over exactly the cohort the R ladder measured.
+
+    Scored on the rows that produced bars, not on the whole window: a ceiling and a
+    floor drawn from different populations are not comparable. Returns ``None`` rather
+    than raising if the rows cannot be bucketed — the ladder is the deliverable here
+    and it must still print without the overlay.
+    """
+    try:
+        scored = {(e.symbol, e.entry_price) for e in rows}
+        cohort = [t for t in trades if (t.symbol, t.entry_price) in scored]
+        if not cohort:
+            return None
+        return summarize_stop_exits(verdicts_for(cohort, cfg.stop_loss)).true_win_rate
+    except Exception:
+        log.exception("could not score the true win rate for the R ladder")
+        return None
     except Exception as e:  # a reporting extra must never break the report
         return f"— MFE/MAE — unavailable ({e.__class__.__name__}: {e})"
 

@@ -15,8 +15,10 @@ import pytest
 from bot.excursion import (
     Excursion,
     bucket_of,
+    ceiling_table,
     compute_excursion,
     excursions_for,
+    format_ceiling,
     format_excursions,
     summarize,
 )
@@ -235,3 +237,109 @@ def test_2026_08_10_mu_gave_back_its_entire_excursion():
     assert mu.mfe_pct == pytest.approx(0.60, abs=0.01)
     assert mu.realized_pct == pytest.approx(-0.81, abs=0.01)
     assert mu.capture == pytest.approx(-134, abs=2)
+
+
+# --- the R ladder (IMP-042) -----------------------------------------------
+
+
+def test_mfe_r_divides_the_excursion_by_the_trades_own_risk():
+    """MFE in R is the move in price over 1R, not a rescaled percentage."""
+    # entry 100, stop 98 -> 1R = 2.00. A 3% MFE is 3.00 of price = +1.5R.
+    e = compute_excursion("X", 100.0, 101.0, 1.0, [(103.0, 99.0)], 2.0)
+    assert e is not None
+    assert e.mfe_pct == pytest.approx(3.0)
+    assert e.mfe_r == pytest.approx(1.5)
+
+
+def test_the_same_mfe_percent_lands_on_either_side_of_the_win_line():
+    """Why a percent band cannot answer the doctrine's question.
+
+    Identical +1.5% excursions, different stops: one is a WIN-line move, one is not.
+    """
+    tight = compute_excursion("T", 100.0, 100.0, 0.0, [(101.5, 100.0)], 1.0)
+    wide = compute_excursion("W", 100.0, 100.0, 0.0, [(101.5, 100.0)], 3.0)
+    assert tight is not None and wide is not None
+    assert tight.mfe_pct == pytest.approx(wide.mfe_pct)
+    assert tight.mfe_r == pytest.approx(1.5)
+    assert wide.mfe_r == pytest.approx(0.5)
+    rungs = {r.threshold_r: r for r in ceiling_table([tight, wide])}
+    assert rungs[1.0].reached == 1 and rungs[1.0].total == 2
+
+
+@pytest.mark.parametrize("risk", [None, 0.0, -1.0])
+def test_rows_without_a_usable_risk_are_excluded_not_defaulted(risk):
+    """A missing stop must shrink the denominator, never be guessed at."""
+    e = compute_excursion("X", 100.0, 101.0, 1.0, [(103.0, 99.0)], risk)
+    assert e is not None and e.mfe_r is None
+    assert all(r.total == 0 for r in ceiling_table([e]))
+    assert "unavailable" in format_ceiling(ceiling_table([e]))
+
+
+def test_ceiling_table_rungs_are_inclusive_and_always_the_full_ladder():
+    exact = compute_excursion("X", 100.0, 100.0, 0.0, [(102.0, 100.0)], 2.0)  # exactly +1R
+    assert exact is not None and exact.mfe_r == pytest.approx(1.0)
+    rungs = ceiling_table([exact])
+    assert [r.threshold_r for r in rungs] == [0.5, 1.0, 1.5, 2.0]
+    assert [r.reached for r in rungs] == [1, 1, 0, 0]
+
+
+def test_format_ceiling_names_the_win_line_and_splits_the_gap():
+    """The ceiling indicts the entry; the gap below it is what exits could recover."""
+    rows = [
+        compute_excursion("A", 100.0, 100.0, 0.0, [(103.0, 100.0)], 2.0),  # +1.5R
+        compute_excursion("B", 100.0, 100.0, 0.0, [(100.5, 100.0)], 2.0),  # +0.25R
+        compute_excursion("C", 100.0, 100.0, 0.0, [(100.5, 100.0)], 2.0),  # +0.25R
+        compute_excursion("D", 100.0, 100.0, 0.0, [(100.5, 100.0)], 2.0),  # +0.25R
+    ]
+    text = format_ceiling(ceiling_table(rows), true_win_rate=0.0)
+    assert "doctrine WIN line" in text
+    assert "CEILING: 25.0% of entries ever print +1R" in text
+    # nothing realized, so the whole 25pp is exit-recoverable and 75pp is the signal
+    assert "25.0pp is exit-recoverable" in text
+    assert "75.0pp is the entry signal" in text
+
+
+def test_excursions_for_takes_1r_from_the_recorded_stop_not_the_config():
+    """The ladder and the WIN/SCRATCH/FAIL buckets must share one definition of R."""
+
+    @dataclass(frozen=True)
+    class _Stopped(_Trade):
+        stop_price: float = 0.0
+
+    t = _Stopped(
+        symbol="X", entry_price=100.0, exit_price=101.0, pnl=1.0,
+        entry_time_utc=datetime(2026, 9, 4, 14, 0, tzinfo=UTC),
+        exit_time_utc=datetime(2026, 9, 4, 15, 0, tzinfo=UTC),
+        stop_price=99.0,  # 1R = 1.00, far tighter than the 2% config fallback
+    )
+    rows, _ = excursions_for([t], lambda *_: [(102.0, 99.5)], stop_loss=0.02)
+    assert rows[0].risk_per_share == pytest.approx(1.0)
+    assert rows[0].mfe_r == pytest.approx(2.0)  # would read +1.0R off the config stop
+
+
+def test_excursions_for_without_stop_loss_leaves_the_percent_tables_alone():
+    rows, _ = excursions_for([_trade()], lambda *_: [(102.0, 99.0)])
+    assert rows[0].risk_per_share is None
+    assert rows[0].mfe_pct == pytest.approx(2.0)
+
+
+# --- regression: MU, the real 2026-09-04 trade ----------------------------
+#
+# The trade that motivated the ladder. Entry 997.565, original bracket stop 976.95
+# (1R = 20.615), flattened at 1008.67 for +$22.21. The percent table calls it a
+# "1.0-2.0%" trade with 91% capture and reads like a good day; in R it printed
+# +1.23% = +0.60R against a WIN line of +1.0R, so it was never a win available to
+# any exit rule. The two readings disagree, and the R one is the doctrine's.
+
+
+def test_2026_09_04_mu_never_reached_the_win_line():
+    mu = compute_excursion(
+        "MU", 997.565, 1008.67, 22.21, [(1009.685, 992.84)], 997.565 - 976.95
+    )
+    assert mu is not None
+    assert mu.mfe_pct == pytest.approx(1.21, abs=0.02)
+    assert mu.capture == pytest.approx(91, abs=2)  # the flattering percent reading
+    assert mu.mfe_r == pytest.approx(0.59, abs=0.02)  # the doctrine reading
+    rungs = {r.threshold_r: r for r in ceiling_table([mu])}
+    assert rungs[0.5].reached == 1
+    assert rungs[1.0].reached == 0  # 91% capture of a move that was never a win
