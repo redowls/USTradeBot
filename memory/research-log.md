@@ -5939,3 +5939,172 @@ discard a warm 19/19 ribbon set ~2h before the open.
   is not the constraint.**
 - **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
   `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
+
+---
+
+## 2026-09-07 — Pre-market Research
+
+**🇺🇸 US markets are CLOSED today — Labor Day. There is no session to prepare for.** Verified two
+independent ways (below). Book is CLEAN & FLAT (broker-confirmed **0 positions**, 0 open orders,
+equity **$9,192.70**, `last_equity` == `equity`) → **nothing locked**. **No changes; 19 enabled,
+unchanged; service not restarted.** META's dated Monday decision was re-screened as instructed and
+**deferred a second time — with a hard release condition this time, not an open-ended one** — because
+the add would mechanically contaminate the weekly's pre-registered friction test. Two findings worth
+more than the watchlist decision: the holiday means **the add screen cannot have changed since
+Friday**, and a 7¢ equity delta turned out to be **real regulatory fees the trade ledger does not
+record**.
+
+### Market context
+- **No session today. Labor Day.** Alpaca's calendar is the authority and it has **no row for
+  2026-09-07** — it jumps `09-04 → 09-08`. `/v2/clock` agrees: `is_open: false`, `next_open`
+  **2026-09-08T09:30:00-04:00**. Perplexity `sonar` independently confirmed the closure. Next session
+  is **Tue 09-08, 13:30 UTC open**, entries unlocked at **14:00 UTC** per IMP-017's blackout.
+- **⚠️ Methodological consequence, and it decides most of today's run: the latest daily bar is
+  2026-09-04.** I asserted this rather than assumed it — the fetch prints `LAST BAR DATE: 2026-09-04`.
+  **No new market data has existed since Friday**, so every technical number below is Friday's number
+  to the decimal. Re-running the add screen today is a *reproduction*, not a fresh test, and I have
+  not dressed it up as one.
+- **Perplexity (run six): correct on the one thing that mattered, empty on the rest.** It got the
+  holiday right and returned *"no catalyst found"* for **18 of 19** names. Its only ticker hit was
+  **AAPL** (a UK App-Tracking-Transparency suit + a Friday production-issue report) — low-grade,
+  unquantified, and not a park trigger for a name that has not traded in 42 days. Its futures figures
+  are **not verified and not used**: there is no session to have a direction into, and the 09-04 daily
+  caught `sonar` reporting +1.06% on a −0.38% day. Standing practice holds — verify index claims
+  against broker bars before reasoning from them.
+- **No earnings, no halts, no binary events for any enabled name** — trivially true on a closed
+  market, and Tuesday's run owns Tuesday's calendar.
+
+### Carried from daily review + the 09-04 weekly
+- **"The board is fine. Do not touch it. No adds, no parks, no threshold edits."** — 09-04 daily.
+  **The stated reason for that freeze has now expired**: it was scoped *"especially none tonight: the
+  weekly is running an entry replay and board churn would muddy it."* The weekly ran Friday 21:00 UTC.
+  I am not treating the instruction as still binding on its original grounds — **but I reached the
+  same conclusion on new grounds**, set out below.
+- **Weekly verdict (Week ending 09-04, Grade C): NO DEMONSTRATED EDGE, confirmed in both datasets.**
+  True WR 7.2% live / 5.6–11.7% replay; F+S ≥91% for eight consecutive weeks; **only 18.8% of entries
+  ever print +1R**, so 81.2pp of the shortfall is entry-side. **"The watchlist is not the constraint"**
+  is now the settled finding for the fifth consecutive run. Today's job is therefore custodial: keep a
+  clean board, do not churn, and protect the experiments that *can* move the verdict.
+- **BABA was flagged to the weekly** (09-04 daily: *"deadest name on the board by a distance"*). The
+  weekly did **not** rule on it. Its dated test **09-09** therefore stands untouched — I am not
+  substituting a pre-market park for a verdict the weekly declined to give.
+
+### Watchlist review
+**🎯 META — the dated decision due TODAY. Resolution: DEFER, with a release condition.** This is the
+one real call of the run, so the reasoning is stated in full.
+
+*The screen was re-run as instructed and META clears all eight floors again:* +6.91 / +3.57,
+**ATR 3.03%**, medRng **2.92%**, **100%** of 20 sessions ≥1.25%, **$9.05B/day**, **+12.16% 10d**,
+max gap **3.55%**, spread **3.34pp**. Alpaca re-verified `tradable: true`, `status: active`. It is
+again the **only** name in a ~110-symbol universe to clear all eight. **But per the note above, this
+is Friday's data — the holiday guarantees it. The instruction was "re-run the screen before adding;
+do not add on today's numbers alone," and today has no numbers of its own to add on.**
+
+**Why it is not added, in order of weight:**
+1. **It would mechanically corrupt the weekly's #2 pre-registered test.** `bot/replay.py:27`:
+   *"With no `--symbols` the universe is the enabled `dbo.watchlist`."* The weekly pre-registered a
+   falsifiable friction test with a **specific numeric prediction — "replay 90d net falls from
+   +$793.96 to under +$200."** That baseline was computed over **these 19 names**. Enabling META today
+   retroactively injects 90 days of META trades into every replay window, moving the baseline and
+   destroying the comparability of the one number the prediction turns on. The same applies to #1 (the
+   doctrine port, regression-tested on harness output) and #3 (the entry study, measured on the ceiling
+   metric). **This is not a judgement call about market conditions — it is a mechanical dependency I
+   checked in the source.**
+2. **Deferring costs exactly zero today, and that is the whole argument.** On any ordinary morning a
+   deferral costs a session of exposure. **Today there is no session.** The next pre-market run
+   (Tue 09-08, 11:30 UTC) precedes the next open. The asymmetry is total: **zero cost to wait, a real
+   and irreversible cost to act.** On 09-04 I wrote *"a candidate that is good today is still good
+   Monday"*; the holiday makes the same sentence true of Tuesday at no price at all.
+3. **It cannot move the measured constraint.** 18.8% +1R ceiling, 81.2pp entry-side. META is a fine
+   symbol and would not lift a signal-quality ceiling by a basis point.
+
+**⚠️ Honest counter, recorded because this is now the second deferral:** "protect the experiment" is
+exactly the reasoning that lets a good candidate drift indefinitely, and I am one more deferral from
+that being a real criticism. So it gets a **falsifiable release condition instead of another
+open-ended hold**:
+
+> **META releases at the first pre-market run after IMP #1 (doctrine port to `replay.py`) *and* #2
+> (friction modelling) are both recorded in `improvement-log.md`; failing that, it is re-screened and
+> added unconditionally on Fri 09-11** if it still clears all eight floors on that day's own bars.
+
+**➡️ Handoff to tonight's daily review (the actionable version):** if you want META added sooner, pin
+the harness — run replay with **`--symbols`** fixed to the 19-name baseline and record that baseline
+explicitly. Then the population change is free and the pre-registered prediction survives.
+
+**✅ All 19 incumbents kept. No dated test comes due today** (next: BABA 09-09). Technicals, all from
+09-04 bars: **MU** +7.77 / +8.35, ATR **4.59%**, **$25.45B/day**, +5.15% 10d — still the standout and
+the board's #1 all-time earner (**+$211.76**). **INTC** +1.97 / −4.78, ATR **4.44%**, medRng 4.09%,
+100% ≥2%, **+6.36% 10d**, #2 all-time (**+$150.78**) — the 09-03 KEEP continues to look right.
+**NVDA** +4.67 / +9.40, $24.96B/day, +7.28%. **TSLA** +1.62 / −1.08, ATR 4.33%, best recent earner
+(+$53.59 in 14d). **AAPL** +2.18 / +1.53 (09-10 test) · **MSFT** +0.81 / +12.50 · **TSM** +2.14 / +2.02
+· **AMD** +0.50 / −4.35 (09-12) · **PLTR** −1.46 / +16.31, ATR 4.73% · **ABNB** −1.63 / +11.65 ·
+**AMZN** −1.41 / +1.80 (test closed KEEP 09-04, not re-armed) · **UBER** −1.72 / +2.25 · **NFLX**
+−1.34 / +3.72 (09-15) · **DASH** −4.80 / +3.98, $vol **$0.86B**, now barely above the floor ·
+**AMGN** +1.34 / +10.12, **ATR 2.12% — a fourth session below its 2.3% admission floor**, accruing to
+09-16 · **BABA** −6.40 / −2.52, −5.11% 10d, 28d no trade (**09-09, still the most likely park**) ·
+**LLY** −4.43 / −3.54, **−8.45% 10d — now the deepest drawdown on the board, past BABA** — no trade
+yet at 18d, still too new to judge, watching.
+
+**🟡 SPOT — liquidity keeps sliding, and the dated test is doing its job.** Median $vol **$0.83B →
+$0.79B/day**, now **7% under** the $0.85B add-floor rather than 2%. Its **09-11** test (park if $vol
+still <$0.85B **AND** 14d without a trade) is **not due** — it last traded 08-28, which is **10d**, so
+the second leg cannot fire until 09-11 exactly. **No action, and the test is deliberately left as
+written.** Its volatility profile is still the board's best (ATR 3.72%, medRng 3.76%, 100% ≥2%).
+
+**🔒 QQQ — structurally exempt, re-confirmed at source this run** (`bot/config.py:332` defaults
+`MARKET_FILTER_SYMBOL` to QQQ; `_market_gate_open` fails **OPEN** when the symbol has no ready ribbon).
+Worst name on merit (**55d** no trade, ATR 1.15%, 0% of sessions ≥2%) and parking it would **silently
+disable the market filter**. Not a park candidate; it is infrastructure.
+
+**All 19 + META verified `tradable: true` / `status: active` on Alpaca this run (20/20).** No sub-$5
+names, no halts. Thinnest is SPOT at $0.79B/day.
+
+### 💡 Finding: the trade ledger is gross of regulatory fees (small, real, and it sharpens the weekly's #2)
+Friday's daily review reconciled equity to the cent at **$9,192.77**. The account returns **$9,192.70**
+today. I chased the 7¢ rather than rounding it away, and it is not a rounding artifact: **three FEE
+activities posted for 09-04 (−$0.01, −$0.01, −$0.05 = −$0.07 exactly)**, after the review had run.
+
+- **All-time: 109 FEE events totalling −$2.30**, against an all-time net of **+$90.83** — **2.5% of
+  the book's entire profit**, invisible in `dbo.trades.pnl`. This is the same failure shape recorded
+  for CryptoAutoBot on 09-02 (*a ledger reporting gross as net*), at much smaller scale.
+- **But it also RULES OUT a candidate explanation for the expectancy gap, which is the more useful
+  half.** The weekly put friction at **≈$4/trade** (0.2% per round trip). Regulatory fees are
+  **−$2.30 / 276 trades ≈ $0.008/trade — 0.2% of that gap.** ⛔ **Commissions and regulatory fees are
+  not the friction.** #2 should model **slippage and spread**, and should not waste a parameter on
+  fees. Pre-registration for that test is unaffected and now better targeted.
+- **Not a watchlist matter and not fixed here** (this routine may not touch code) — logged for tonight.
+
+### Changes applied to dbo.watchlist
+**NONE.** No adds, no parks, no re-enables. No dated test came due today; no enabled name is halted or
+carries an event; all 19 verified tradable and active. **META cleared the screen again and was
+deferred to a dated, falsifiable release condition** rather than added, to protect the pre-registered
+friction test whose baseline is defined by this exact 19-name population. The only name whose park
+legs both fire remains **QQQ**, which is structurally exempt.
+
+### Final watchlist
+**19 enabled** (≤30 ✅), unchanged: AAPL, ABNB, AMD, AMGN, AMZN, BABA, DASH, INTC, LLY, MSFT, MU,
+NFLX, NVDA, PLTR, QQQ, SPOT, TSLA, TSM, UBER. **Service restarted: NO — not needed, nothing changed,
+and the market is closed.** Left `active`, **NRestarts=0**, up since **2026-09-04 20:15:40 UTC**
+(IMP-042 deploy), 91 journald lines, **zero genuine errors** — the lone `grep -i error` hit is the
+literal `cancelErrors` field in the subscribe ack, not a fault. One benign **WARNING 09-06 05:12:05**:
+the IEX data websocket dropped over the weekend (*"no close frame received or sent"*) and
+**auto-reconnected in 0.7s, re-subscribing all 19** — the reconnect path working, not an incident.
+`.env` verified **`ustradebot:ustradebot` mode 600**.
+
+### Dates carried forward
+- **BABA 09-09** (most likely to fire; the weekly declined to rule, so the test stands) · **AAPL
+  09-10** · **SPOT 09-11** (park if $vol still <$0.85B AND 14d without a trade — now $0.79B, 10d) ·
+  **AMD 09-12** · **NFLX 09-15** · **AMGN 09-16** (ATR 2.12%, fourth session under its admission
+  floor) · **INTC 09-16** (30d-clock expiry; park only if still below both MAs).
+- **➕ META — DEFERRED with a release condition, not an open hold.** Releases at the first pre-market
+  run after IMP #1 (doctrine → `replay.py`) **and** #2 (friction modelling) are both recorded; else
+  **added unconditionally Fri 09-11** if it still clears all eight floors on that day's bars.
+  **This is the second deferral. A third without one of those conditions being met is churn-avoidance
+  masquerading as rigour — do not grant one.**
+- **For tonight's daily review** (there is no session to review, which makes it the ideal evening for
+  the weekly's code backlog): (1) **#1 and #2 are both non-strategy changes and are NOT frozen by the
+  escalation** — the weekly said so explicitly. (2) **Fees are ruled out as the friction; model
+  slippage/spread.** (3) If you touch the watchlist population for any reason, **pin replay with
+  `--symbols`** first. (4) The earnings blackout is now a **fourth** consecutive ask.
+- **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
+  `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
