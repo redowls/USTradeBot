@@ -3536,11 +3536,22 @@ trades, +$793.96, PF 2.43, avg +$10.31, same three exit-reason rows.
 Preflight: OK, 1 expected warning (market closed — Labor Day).
 
 ### Deployment
-**Deliberately no service restart.** `bot/replay.py` is an offline analysis tool that no
-service module imports; restarting would add a small startup risk to buy nothing. The
-running process (PID 2639553, up since Fri 09-04 20:15:40 UTC, NRestarts=0) continues on
-code that is byte-identical in every path it executes. Verified `systemctl is-active` =
-`active` after the commit. Files `chown ustradebot:ustradebot`; `.env` untouched.
+**Restarted, though this change cannot reach the service.** `bot/replay.py` is an offline
+analysis tool that no service module imports, so the restart deploys nothing — it was done
+anyway, on a closed market where it is free, to *prove the tree on disk boots*. That is a
+real guarantee to hold going into Tuesday's open, and it is the control the 2026-06-23
+DEPLOY-GAP incident exists to enforce (a fix recorded as "restarted clean" when the
+process was in fact still running the old code; the rule since is to verify the running
+PID against HEAD rather than assume).
+
+Result: **clean boot at 20:11:26 UTC**, new PID 2854869 (was 2639553, 71h uptime),
+`NRestarts=0`, `is-active` = **active**. Startup log green end to end — schema ensured
+(16 batches), Alpaca `PA34DFFLTHRT` ACTIVE equity 9192.7, **no open positions**,
+**warmup primed 19/19 symbols from history**, all 19 watchlist symbols subscribed on the
+IEX feed, config echoed as expected (entry ≥60, 10:00–16:00 ET window, QQQ gate on, stop
+−2.00%, trail 1.25%→1.00%). **Zero errors.** Files `chown ustradebot:ustradebot`
+(including `.git` after the root-owned commit); **`.env` never touched**, still
+`ustradebot:ustradebot` mode 600.
 
 ### Why this and not a strategy change
 The escalation has been active for six consecutive sessions (F+S 100% over the last three

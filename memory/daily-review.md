@@ -6987,7 +6987,10 @@ argument:**
   on the same summary. One test pins R to the **original** stop rather than the ratcheted
   one, because a trailed stop leaking into the denominator would turn a well-trailed
   scratch into a fake WIN — flattery in exactly the direction the doctrine forbids.
-- Preflight OK (1 expected warning: market closed).
+- Preflight OK (1 expected warning: market closed). **Deployed and restarted at 20:11:26
+  UTC** — not because the harness needs it (nothing in the service imports it) but to
+  prove the tree on disk boots before Tuesday's open: clean startup, new PID 2854869,
+  NRestarts=0, **warmup primed 19/19 symbols**, 19 subscribed, 0 errors.
 
 ### Lessons & improvement candidates
 1. **🔴 The weekly's #2 — model friction in `SimBroker` — is now unblocked and is the next
