@@ -13,7 +13,7 @@ import pytest
 from bot.candles import Candle
 from bot.config import Config
 from bot.executor import StopOrderGone
-from bot.replay import LONG, SHORT, SimBroker, build_stream, resolve_symbols
+from bot.replay import LONG, SHORT, SimBroker, build_stream, resolve_symbols, summarize
 
 _T0 = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
 _T1 = datetime(2026, 6, 2, 14, 1, tzinfo=UTC)
@@ -333,3 +333,93 @@ def test_multiple_symbols_stay_in_true_chronological_order():
     stamps = [ts for ts, _, _ in stream]
     assert stamps == sorted(stamps)
     assert len(stream) == 2 * (10 + 2)  # both symbols, 10 trigger + 2 gate bars each
+
+
+# --- doctrine scoring in the harness (IMP-043) ----------------------------
+#
+# Regression cohort for the 2026-09-04 weekly: `bot/replay.py` graded a win as
+# `t.pnl > 0` while `bot.report` had obeyed the stop-exit doctrine since IMP-039.
+# The harness was the court of appeal for every REFUTED verdict of the preceding
+# month, so it was deciding strategy questions on the one test the doctrine exists
+# to abolish — reporting a 62.3% win rate on the same 90d book the doctrine scores
+# at 11.7%. These pin the two numbers to the same summary so they can never drift
+# apart silently again.
+
+
+def _closed(broker, symbol, entry, exit_px, reason, *, conf=75.0):
+    """Open a trade through the real sizing model and close it at a chosen price."""
+    broker.now = _T0
+    broker.execute(symbol=symbol, entry_price=entry, confidence=conf)
+    broker.now = _T1
+    broker.book_exit(symbol, exit_px, reason)
+
+
+def test_summary_reports_the_doctrine_beside_the_headline(broker):
+    """A book of pure scratches: headline says 100% won, the doctrine says 0% did.
+
+    This is the 2026-09-04 live week reproduced in the harness — TSLA +0.68R on the
+    trail and MU +0.54R on the flatten, both green, neither paid for its risk.
+    """
+    _closed(broker, "NFLX", 100.0, 101.4, "trailing stop")          # +0.70R, green
+    _closed(broker, "MSFT", 100.0, 101.1, "end-of-day flatten")     # +0.55R, green
+
+    out = summarize(broker, 10_000.0, stop_loss=0.02)
+
+    assert "win%=100.0" in out          # the headline is preserved, not replaced
+    assert "true win rate: 0%" in out   # ...and corrected on the very next line
+    assert "(headline 100%)" in out
+    assert "SCRATCH 2" in out
+    assert "WIN 0" in out
+    assert "stop rate: 1/2 (50%)" in out  # only the trailing-stop exit is stop-driven
+    assert "FAIL+SCRATCH: 2/2 (100%)" in out
+
+
+def test_summary_counts_a_target_fill_as_a_real_win(broker):
+    """The doctrine must still be able to say yes — otherwise it measures nothing."""
+    _closed(broker, "NFLX", 100.0, 110.0, "take profit")  # +5R on a 2% stop
+
+    out = summarize(broker, 10_000.0, stop_loss=0.02)
+
+    assert "WIN 1" in out
+    assert "true win rate: 100%" in out
+    assert "FAIL+SCRATCH: 0/1 (0%)" in out
+
+
+def test_summary_r_is_measured_from_the_original_stop_not_the_trailed_one(broker):
+    """The ratchet moves the broker's order book; the trade row keeps the 1R anchor.
+
+    If the trailed stop leaked into the denominator, a well-trailed scratch would
+    divide by a tiny R and score as a WIN — flattery in exactly the direction the
+    doctrine forbids. Pins the R denominator the live/replay comparison rests on.
+    """
+    broker.now = _T0
+    r = broker.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+    broker.replace_stop_price(r.stop_order_id, 99.9)  # ratcheted to a 0.1% width
+    broker.now = _T1
+    broker.book_exit("NFLX", 100.5, "trailing stop")
+
+    assert broker.trades[0].stop_price == pytest.approx(98.0)  # untouched by the trail
+    out = summarize(broker, 10_000.0, stop_loss=0.02)
+    assert "WIN 0" in out          # +0.25R off the ORIGINAL stop, not +5R off the trail
+    assert "SCRATCH 0" in out      # ...and a stop-driven exit at <= +0.25R is a FAIL
+    assert "FAIL 1 (full 0 / BE-scratch 1)" in out
+
+
+def test_summary_stop_loss_defaults_to_the_brokers_config(broker):
+    """Callers holding a Config need not thread it through; the broker has one."""
+    _closed(broker, "NFLX", 100.0, 101.4, "trailing stop")
+
+    assert summarize(broker, 10_000.0) == summarize(broker, 10_000.0, stop_loss=0.02)
+
+
+def test_summary_money_figures_are_untouched_by_the_doctrine(broker):
+    """IMP-043 changes what we count, never what we do — net/PF/avg must not move."""
+    _closed(broker, "NFLX", 100.0, 104.0, "end-of-day flatten")
+    _closed(broker, "MSFT", 100.0, 98.0, "trailing stop")
+
+    net = sum(t.pnl for t in broker.trades)
+    out = summarize(broker, 10_000.0, stop_loss=0.02)
+
+    assert f"net={net:+.2f}" in out
+    assert "trades=2" in out
+    assert "exit reasons:" in out  # the per-reason table still follows the block

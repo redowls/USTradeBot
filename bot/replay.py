@@ -20,6 +20,15 @@ Fidelity limits (read these before trusting a number):
 * Alpaca's asynchronous order lifecycle (partial fills, rejects, the delayed-fill
   corrections behind IMP-009/IMP-010) is not simulated.
 
+Scoring (IMP-043): the summary reports the **stop-exit doctrine** — stop rate, the
+WIN/SCRATCH/FAIL split and the true win rate — beside the headline ``pnl > 0`` win
+rate, using the same :mod:`bot.doctrine` classifier the live report uses. Until
+2026-09-07 this harness graded a win as ``pnl > 0``, the exact test the doctrine
+exists to abolish, while acting as the court of appeal for live verdicts: the live
+book was scored honestly (IMP-039) and the backtest was not, so a config could look
+like a 62% winner here and a 12% winner there on identical trade quality. Reading
+both numbers off one summary is what stops that happening again.
+
 Usage::
 
     python -m bot.replay --days 30 [--symbols AAPL,MSFT,...] [--entry-start 09:30]
@@ -38,6 +47,9 @@ from datetime import UTC, datetime, timedelta
 
 from bot.candles import Candle
 from bot.config import Config
+from bot.doctrine import format_stop_exits
+from bot.doctrine import summarize as summarize_stop_exits
+from bot.doctrine import verdicts_for
 from bot.executor import ExecutionResult, StopOrderGone
 from bot.risk import RiskManager
 from bot.sizing import plan_model_a, plan_model_b
@@ -404,7 +416,16 @@ def run_replay(cfg: Config, symbols, start: datetime, end: datetime, *, equity: 
     return broker
 
 
-def summarize(broker: SimBroker, equity0: float) -> str:
+def summarize(broker: SimBroker, equity0: float, *, stop_loss: float | None = None) -> str:
+    """Format a replay run — money on the headline, trade quality underneath.
+
+    ``win%``/``PF``/``net`` stay exactly as they were: they are money, and money was
+    never the thing ``pnl > 0`` got wrong. What it got wrong was calling a scratch a
+    win, so the doctrine block sits directly beneath them (IMP-043). ``stop_loss``
+    is the fallback 1R width for rows whose bracket stop is missing; it defaults to
+    the config the simulated broker was built with, so callers that already have a
+    ``Config`` need not thread it through.
+    """
     T = broker.trades
     if not T:
         return "no trades"
@@ -422,8 +443,23 @@ def summarize(broker: SimBroker, equity0: float) -> str:
         f"PF={gross_win / gross_loss if gross_loss else float('inf'):.2f}  "
         f"avg={net / len(T):+.2f}",
         f"final equity={broker.equity:,.2f}",
-        "exit reasons:",
     ]
+    # SimTrade.stop_price/target_price are written once at entry and never mutated —
+    # the trail ratchets the broker's own order book, not the trade row — so they are
+    # the original 1R anchor, exactly like dbo.trades.stop_price live. That is what
+    # makes the live and replay R denominators the same measurement.
+    if stop_loss is None:
+        stop_loss = broker._cfg.stop_loss
+    stops = summarize_stop_exits(verdicts_for(T, stop_loss))
+    lines.append(format_stop_exits(stops))
+    # F+S is the escalation metric (>= 60% over three sessions indicts the entry). The
+    # live report shows it per-session; here the whole window is the population, so it
+    # belongs on the summary rather than being re-derived by hand from the split.
+    lines.append(
+        f"⚠️ FAIL+SCRATCH: {stops.fails + stops.scratches}/{stops.trades} "
+        f"({stops.fail_scratch_rate * 100:.0f}%)"
+    )
+    lines.append("exit reasons:")
     lines += [f"  {k:<52} n={c:>3} net={p:>+9.2f}"
               for k, (c, p) in sorted(by.items(), key=lambda kv: kv[1][1])]
     return "\n".join(lines)
@@ -507,7 +543,7 @@ def main(argv=None) -> int:
     print(f"window {start.date()} -> {end.date()}  symbols={len(symbols)} ({source})  "
           f"entry_start={cfg.entry_start:%H:%M} trail={cfg.trail_percent} "
           f"tp={cfg.take_profit} stop={cfg.stop_loss}")
-    print(summarize(broker, args.equity))
+    print(summarize(broker, args.equity, stop_loss=cfg.stop_loss))
     return 0
 
 

@@ -6829,3 +6829,213 @@ verdict, not a tuning one.** Fifth consecutive escalated session.
 - **⚠️ Operational: verify `.env` is `ustradebot:ustradebot` mode 600 and
   `systemctl is-active` before the open.** Service was restarted tonight for IMP-042
   (clean boot, 19/19 warmup primed, 19/19 subscribed).
+
+---
+
+## 2026-09-07 — Daily Review
+
+### Stats
+- **No session. US equity markets were CLOSED for Labor Day.** 0 trades, 0 orders,
+  0 fills, net P&L **$0.00**. This is not a flat day the strategy produced — there was
+  no tape to trade.
+- **Confirmed three independent ways**, because "no trades" is the one finding that must
+  never be assumed: (1) Alpaca's calendar has **no row for 2026-09-07** — it jumps
+  `09-04 → 09-08` (recorded by this morning's pre-market run, which also read
+  `/v2/clock: is_open false, next_open 2026-09-08T09:30-04:00`); (2) the broker account
+  reports **`balance_asof: 2026-09-04`** — Friday is still the last settled session;
+  (3) Perplexity `sonar` independently confirmed the closure (its only useful answer of
+  the run — see below).
+- **Account equity $9,192.70**, `last_equity` $9,192.70, `cash == portfolio_value ==
+  equity`, `sma` 9,170.56. Unchanged from Friday's close to the cent. Buying power
+  $36,770.80. **0 open positions, 0 orders of any status since 00:00 UTC** (queried via
+  the `alpaca-usbot` MCP, read-only).
+- **Broker/DB reconciliation: exact.** `dbo.trades` has **0 rows** with an entry or exit
+  timestamp today and **0 rows with `exit_time_utc IS NULL`** — the DB believes it is
+  flat, the broker holds nothing, and the two agree. No qty drift, no missed fill, no
+  position carried over a three-day weekend. The last closed row is Friday's MU.
+- **Service: active, healthy, NRestarts=0**, running continuously since Fri 2026-09-04
+  20:15:40 UTC (the IMP-042 deploy) — **a 71-hour uptime spanning the long weekend with
+  zero restarts and zero errors.**
+- **Journald: 0 lines today, 0 errors.** That is the correct behaviour, not a fault, and
+  I checked rather than assumed: candle logs are activity-driven off the trade stream, so
+  a closed market produces no candles and therefore no log lines. The only entries in the
+  whole weekend were **5 lines on Sun 09-06 05:12 UTC** — a routine
+  `data websocket error … no close frame received` followed immediately by a clean
+  reconnect and a **re-subscribe to all 19 watchlist symbols**. Self-healed in 0.6s. The
+  stream was proven alive on Sunday, so the silence today is the holiday and not a dead
+  feed.
+
+### Stop-exit accounting
+**No closed trades today → stop rate n/a, no WIN/SCRATCH/FAIL to split.** The doctrine
+still governs the trend, and the trend is what matters tonight:
+
+| Window | n | stop rate | WIN | SCRATCH | FAIL (full / BE) | **true WR** | headline WR | **F+S** |
+|---|---|---|---|---|---|---|---|---|
+| Today | **0** | n/a | — | — | — | n/a | n/a | n/a |
+| Last 3 sessions w/ trades (08-28, 09-03, 09-04) | 3 | 2/3 (67%) | 0 | 2 | 1 (0/1) | **0%** | 67% | **100%** |
+| Trailing 10 sessions w/ trades | 32 | 21/32 (66%) | 2 | 16 | 14 (0/14) | **6%** | 66% | **94%** |
+| All-time | 276 | 92/276 (33%) | 20 | 139 | 117 (24/93) | **7.2%** | 46.7% | **93%** |
+
+- **🚨 ESCALATION REMAINS ACTIVE — sixth consecutive session.** F+S is **100%** over the
+  last three sessions with trades, **94%** trailing 10, **93%** all-time, against a
+  threshold of 60% for three. Per the doctrine **no parameter or strategy change ships
+  tonight**, and none did: IMP-043 is a scoring fix in an offline harness and touches no
+  entry, exit, sizing or risk path.
+- **Dominant failure cause: unchanged and unmeasurable today — entry quality.** A holiday
+  produces no new evidence about it, and I am explicitly *not* re-deriving a verdict from
+  Friday's rows to look busy. The 09-04 weekly settled it on 276 live + 137 replay trades:
+  **only 18.8% of entries ever print +1R**, so 81.2 of the 93pp shortfall is entry-side
+  and **no exit change can lift the true win rate above 18.8%.**
+- One number *did* move tonight, and it is the reason the improvement exists: the F+S and
+  true-WR figures for the **replay** book are no longer a hand-computed aside in a weekly
+  review. They are printed by the harness itself. See IMP-043.
+
+### Trade-by-trade review
+**None — there were no trades to review.** Root-causing the absence, as the routine
+requires: **the cause is exogenous and complete.** Not a gate that never aligned, not a
+dead watchlist, not a threshold set too high — there was no market. The bot was correctly
+idle; a bot that had traded today would have been the bug.
+
+Two things follow, and both are worth recording:
+
+1. **This is the cheapest possible day to change the measuring instrument**, and the most
+   expensive possible day to change the strategy. No live evidence arrived, so any
+   strategy edit tonight would be fitted to Friday's single MU scratch — the definition of
+   overfitting to one day, under an active escalation that already forbids it.
+2. **The pre-market run made the right call on META and for a reason I verified in the
+   source.** It deferred the add because `bot/replay.py:27` resolves a bare invocation's
+   universe from the enabled `dbo.watchlist`, so enabling META retroactively injects 90
+   days of META trades into every replay window and moves the baseline the weekly's
+   pre-registered friction prediction (*"90d net falls from +$793.96 to under +$200"*) is
+   measured against. **I re-ran that baseline tonight and it reproduced to the cent —
+   77 trades, +$793.96, PF 2.43** — which is exactly the comparability the deferral was
+   protecting. The deferral was correct. Its release condition is now half-satisfied
+   (see the handoff below).
+
+### Market context
+- **Perplexity `sonar`: one hit, sixteen misses.** It confirmed the Labor Day closure
+  ("NYSE and Nasdaq both reopened Tuesday, 2026-09-08") — genuinely useful as an
+  independent check on the Alpaca calendar. It then returned *"no verified release day
+  was available"* for **CPI, PPI, jobless claims, Fed speakers and the FOMC date**, and
+  *"no verified earnings date"* for **all ten** tickers asked. **Zero forward-calendar
+  value for the second consecutive run.**
+- **Standing practice reaffirmed:** the 09-04 daily caught `sonar` reporting a **+1.06%**
+  S&P day on an actual **−0.38%**. Verify any index or price claim against broker bars
+  before reasoning from it. Tonight there were no bars to verify against and no claims
+  worth making — **the latest daily bar in existence is still 2026-09-04.**
+- **No new market data has existed since Friday.** Every technical number on the board is
+  Friday's number to the decimal. Tuesday's pre-market run owns Tuesday's calendar; do not
+  treat tonight's silence as a signal about the tape.
+
+### What worked / what didn't
+- **✅ Plumbing, across a three-day weekend.** 71 hours of uptime, NRestarts=0, zero
+  errors, one self-healed websocket reconnect that re-subscribed all 19 symbols, exact
+  broker/DB reconciliation, `.env` still `ustradebot:ustradebot` mode 600. Nothing was
+  carried, nothing drifted.
+- **✅ The holiday was verified, not assumed** — three independent sources. The failure
+  mode this guards against is writing "no trades, gate never opened" on a day the market
+  was shut, which would poison the entry-signal evidence base with a fake refusal day.
+- **✅ The measurement chain closed its biggest hole** (IMP-043, below). The harness that
+  decided every REFUTED verdict of the last month now scores trade quality the same way
+  the live book does.
+- **❌ Perplexity's forward calendar, again.** Two consecutive runs of nothing. The weekly
+  already logged its deep-research call truncating at 926 bytes. **It is now a reliable
+  source for exactly one thing — whether the market is open — and should be budgeted as
+  such rather than relied on for catalysts.**
+- **⚠️ `memory/weekly-review.md` is uncommitted in the working tree.** Friday's weekly
+  wrote the "Week ending 2026-09-04 — Grade C" entry to disk and **did not commit it**;
+  the newest weekly commit is `cb9754f` (week ending 08-28). The analysis is safe on disk
+  and I have read and acted on it, but it is one `git checkout` from being lost.
+  **I have deliberately left it unstaged** — it is a pre-existing change this run did not
+  make, and the routine forbids touching those. **Flagged for the operator / Friday's
+  weekly: commit it.** Not a trading fault; a durability one.
+
+### Improvement — IMP-043: the harness now scores by the doctrine
+**Chosen because it is the weekly's pre-registered 🔴 #1, it is the only class of change
+the escalation permits, and a no-data day is precisely when instrument work is free.**
+
+`bot/replay.py:412` read `wins = [t for t in T if t.pnl > 0]` — the exact test the
+doctrine exists to abolish. IMP-039 put the doctrine into `bot/report.py` on 09-01 and
+did not port it here, so for a week **the bot graded its live book honestly and its
+backtest dishonestly, and the dishonest one was the court of appeal.** Every REFUTED
+verdict of the last month was decided on this instrument.
+
+The fix routes the harness's own `SimTrade` rows through `bot.doctrine.verdicts_for` /
+`summarize` and prints the stop rate, the WIN/SCRATCH/FAIL split, the true win rate and
+the F+S escalation share **beside** the headline. **Validation — the numbers are the
+argument:**
+
+| window | trades | net | PF | headline WR | **true WR** | stop rate | W/S/F | **F+S** |
+|---|---|---|---|---|---|---|---|---|
+| 90d | 77 | +$793.96 | 2.43 | 62.3% | **12%** | 75% | 9/29/39 | **88%** |
+| 60d | 41 | +$472.18 | 2.87 | 65.9% | **10%** | 80% | 4/15/22 | **90%** |
+| 30d | 18 | +$169.82 | 2.84 | 72.2% | **6%** | 83% | 1/7/10 | **94%** |
+
+- **It reproduces the weekly's hand re-scoring exactly** (90d: 9/29/39, F+S 88.3%, true
+  11.7% — computed out-of-band on Friday, now computed in-band by the harness). An
+  independent implementation agreeing to the trade is the strongest validation available
+  without new data.
+- **The money is provably untouched.** I captured a 90d run *before* the edit and diffed
+  it against the *after* run with the new lines stripped: **byte-identical.** 77 trades,
+  +$793.96, PF 2.43, avg +$10.31, and the same three exit-reason rows. IMP-043 changes
+  what we count, never what we do.
+- **`bot.replay` is imported by nothing in the service path** (verified by grep across
+  `bot/`), so the live trading path carries no risk from this at all.
+- **518 tests pass** (+5 new). The new tests pin the failure that motivated the change:
+  a two-trade book of pure scratches — TSLA +0.68R on the trail, MU +0.54R on the flatten,
+  **the actual 2026-09-04 live week** — must print `win%=100.0` *and* `true win rate: 0%`
+  on the same summary. One test pins R to the **original** stop rather than the ratcheted
+  one, because a trailed stop leaking into the denominator would turn a well-trailed
+  scratch into a fake WIN — flattery in exactly the direction the doctrine forbids.
+- Preflight OK (1 expected warning: market closed).
+
+### Lessons & improvement candidates
+1. **🔴 The weekly's #2 — model friction in `SimBroker` — is now unblocked and is the next
+   change.** Its pre-registered prediction (*90d net falls from +$793.96 to under $200 at
+   0.2%/round trip*) is measured against a baseline I re-verified tonight to the cent.
+   With IMP-043 in place, that test can now be read on **both** axes — money *and* trade
+   quality — which the `pnl > 0` harness could not do. **Do not add watchlist symbols
+   before it runs** (see the handoff).
+2. **🟠 The entry signal remains the only target with headroom, and exits are closed.**
+   18.8% +1R ceiling; 81.2 of the 93pp shortfall is entry-side. Frame the study as *"does
+   an earlier or pullback-based trigger raise the +1R rate?"* and measure it on the
+   ceiling metric — now trustworthy in the harness. **Run it after friction, not before.**
+3. **🟠 The in-repo earnings blackout is unbuilt for a fourth week.** Not a strategy
+   change, not frozen by the escalation, touches no size or limit. The weekly recorded a
+   standing D-grade process threat if it is still missing on Fri 09-11. It is the
+   strongest candidate for a day when the harness work is done.
+4. **🟢 Gate-sample writes still lack IMP-028's retry.** The 09-04 `pyodbc 08S01` dropping
+   a QQQ gate sample is telemetry-only and has not recurred (0 errors since). Logged for
+   pattern-watching, not worth a change.
+5. **❌ Do not re-propose** (unchanged): holding past the EOD flatten (refuted n=167,
+   −0.007R/trade, t=−0.50); loosening the QQQ gate; `MIN_CROSSOVER`; `STOP_LOSS`;
+   `MARKET_FILTER_SYMBOL` removal; lowering `ENTRY_THRESHOLD`; a `ribbon_spread_pct`
+   floor; recalibrating the `conf_crossover` anchors.
+
+### Notes for pre-market research
+- **Nothing about today is evidence about any symbol.** No bars printed, no signals fired,
+  no name chopped or trended. **Do not carry a single technical observation out of this
+  entry** — the board's numbers are still Friday's, unchanged by construction, and this
+  morning's run already re-screened them and correctly called the reproduction what it was.
+- **Tuesday 09-08 is the next session**: open 13:30 UTC, **entries unlocked 14:00 UTC** per
+  IMP-017's opening blackout. First real bars in four calendar days — expect the ribbons to
+  warm from the historical fetch on any restart (19/19 last time) and treat the first
+  post-holiday hour as the low-confidence tape it usually is.
+- **🎯 META — the release condition is now half-met.** The pre-market run set: *"META
+  releases at the first pre-market run after IMP #1 (doctrine port) **and** #2 (friction
+  modelling) are both recorded in `improvement-log.md`; failing that, added unconditionally
+  on Fri 09-11."* **#1 is now recorded — that is IMP-043, tonight.** #2 is not. **META
+  therefore stays deferred on Tuesday**, and the 09-11 unconditional backstop stands. The
+  reason is still purely mechanical, not a judgement about META: enabling it moves the
+  90d replay baseline the friction prediction is measured against.
+- **The cheaper unblock, offered again from the 09-07 pre-market handoff:** run the
+  friction test with **`--symbols` pinned to the current 19 names** and record that pinned
+  baseline explicitly (it is **77 trades / +$793.96 / PF 2.43 / true WR 12% / F+S 88%**,
+  re-verified tonight). Once the baseline is pinned to an explicit symbol list, watchlist
+  changes stop contaminating it and META can be added without waiting.
+- **BABA's dated test comes due 09-09** and is untouched — the 09-04 daily flagged it as
+  "deadest name on the board"; the weekly declined to rule. That verdict is still owed.
+- **Perplexity budgeting:** use it to confirm session status, not to build the catalyst
+  list. Two consecutive runs returned no verified macro dates and no verified earnings
+  dates. Get the earnings calendar somewhere it can be verified — which is also exactly
+  what improvement candidate #3 (the in-repo earnings blackout) would fix permanently.

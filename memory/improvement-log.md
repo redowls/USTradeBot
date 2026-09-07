@@ -3443,3 +3443,125 @@ and touches no trading logic**, so the replay runs against unchanged strategy co
 `.venv/bin/python -m pytest -q` → **513 passed**. Ladder run live against the book
 (276 trades) and today (1 trade) — both render. Regression test pins MU 2026-09-04 at
 91% capture / +0.59R so the percent-vs-R divergence stays covered.
+
+---
+
+## IMP-043 — 2026-09-07 (daily) — the backtest harness now obeys the stop-exit doctrine
+
+**Status:** ✅ shipped & validated. `bot/replay.py`, `tests/test_replay.py`. 518 tests pass
+(+5). **No service restart required or performed** — see "Deployment" below.
+
+### The problem
+`bot/replay.py:412` read:
+
+```python
+wins = [t for t in T if t.pnl > 0]
+```
+
+That is the precise test the stop-exit doctrine exists to abolish. IMP-039 (09-01) put the
+doctrine into `bot/report.py` and **did not port it here**. The consequence is not
+cosmetic and the 09-04 weekly named it the week's decisive finding:
+
+> *"For the whole week the bot graded its live book honestly and its backtest dishonestly,
+> and the dishonest one was steering the decisions."*
+
+The harness is the **court of appeal**. Every REFUTED verdict of the last month —
+`MIN_CROSSOVER` (six refutations), the `conf_crossover` anchors, the gate-width floor,
+`MARKET_FILTER_SYMBOL` removal, lowering `ENTRY_THRESHOLD` — was decided on its output.
+The 08-31 review wrote *"the strategy's current edge — PF ~2.4 in replay — is intact"* on
+the strength of a **62.2% win rate that is 12% under the doctrine**. A backtest reporting
+62% where live reports 7% does not look like a measurement discrepancy; it looks like
+evidence the live book is being mismanaged, and it invites exactly the wrong fix (retune
+the exits) for the actual problem (the entry never prints +1R).
+
+### The change
+Route the harness's own trade rows through the existing classifier and print the result
+beside the headline, not instead of it.
+
+- `summarize()` gains `stop_loss: float | None = None` (defaults to the simulated
+  broker's own `Config`, so callers holding one need not thread it through) and appends
+  `bot.doctrine.format_stop_exits(...)` plus one **F+S** line — the escalation metric,
+  which the live report shows per-session but which here has the whole window as its
+  population.
+- `main()` passes `cfg.stop_loss` explicitly.
+- The module docstring gains a **Scoring** paragraph stating what changed and why, next
+  to the existing fidelity limits — anyone reading a replay number reads this first.
+- **`win%`, `PF`, `net`, `avg`, `final equity` and the exit-reason table are untouched.**
+  Money was never what `pnl > 0` got wrong; calling a scratch a win was.
+
+**Why `SimTrade` needs no new plumbing, verified in the source:** `stop_price` and
+`target_price` are written once in `SimBroker.execute()` from the sizing plan and never
+mutated — the trailing ratchet rewrites `SimBroker._stop_price[new_id]`, the broker's own
+order book, not the trade row. So `SimTrade.stop_price` is the **original 1R anchor**,
+exactly like `dbo.trades.stop_price` live. That identity is what makes the live and replay
+R denominators the same measurement rather than two similar-looking ones.
+
+### Validation
+**1 — it reproduces the weekly's independent hand re-scoring.** Friday's weekly re-scored
+the harness output out-of-band through `bot.doctrine.classify`. Tonight the harness scores
+itself, in-band:
+
+| window | trades | net | PF | headline WR | **true WR** | stop rate | W/S/F | **F+S** |
+|---|---|---|---|---|---|---|---|---|
+| 90d | 77 | +$793.96 | 2.43 | 62.3% | **12%** | 75% | 9/29/39 | **88%** |
+| 60d | 41 | +$472.18 | 2.87 | 65.9% | **10%** | 80% | 4/15/22 | **90%** |
+| 30d | 18 | +$169.82 | 2.84 | 72.2% | **6%** | 83% | 1/7/10 | **94%** |
+
+90d matches the weekly's `9/29/39, F+S 88.3%, true 11.7%` **exactly**; 30d matches
+`1/7/10, 94.4%, 5.6%` **exactly**. 60d differs by one trade (41 vs 42) solely because the
+window slid three calendar days over the long weekend. Two independent implementations
+agreeing trade-for-trade is the strongest validation available on a day with no new data.
+
+**2 — the money is provably unchanged.** A 90d run was captured *before* the edit; the
+*after* run with the three new lines stripped **diffs byte-identical** to it. Same 77
+trades, +$793.96, PF 2.43, avg +$10.31, same three exit-reason rows.
+
+**3 — zero live risk.** `grep -rn 'bot\.replay' bot/` returns nothing outside
+`bot/replay.py`. The harness is offline-only; the service does not import it.
+
+**4 — 518 tests pass** (513 → 518). New coverage, written against tonight's real evidence:
+- `test_summary_reports_the_doctrine_beside_the_headline` — **the pre-registered
+  regression test.** A two-trade book of pure scratches reproducing the actual 2026-09-04
+  live week (TSLA +0.68R trailing stop, MU +0.54R flatten): the summary must print
+  `win%=100.0` **and** `true win rate: 0%` **and** `stop rate: 1/2 (50%)` **and**
+  `FAIL+SCRATCH: 2/2 (100%)`. If the two rates ever silently converge again, this fails.
+- `test_summary_r_is_measured_from_the_original_stop_not_the_trailed_one` — ratchet the
+  stop to a 0.1% width, exit at +0.5%: must score **FAIL (BE-scratch)**, not WIN. Pins the
+  denominator against the one bug that could make this instrument flatter the strategy.
+- `test_summary_counts_a_target_fill_as_a_real_win` — the doctrine must still be able to
+  say yes, or it measures nothing.
+- `test_summary_stop_loss_defaults_to_the_brokers_config`, and
+  `test_summary_money_figures_are_untouched_by_the_doctrine`.
+
+Preflight: OK, 1 expected warning (market closed — Labor Day).
+
+### Deployment
+**Deliberately no service restart.** `bot/replay.py` is an offline analysis tool that no
+service module imports; restarting would add a small startup risk to buy nothing. The
+running process (PID 2639553, up since Fri 09-04 20:15:40 UTC, NRestarts=0) continues on
+code that is byte-identical in every path it executes. Verified `systemctl is-active` =
+`active` after the commit. Files `chown ustradebot:ustradebot`; `.env` untouched.
+
+### Why this and not a strategy change
+The escalation has been active for six consecutive sessions (F+S 100% over the last three
+sessions with trades, 94% trailing 10, 93% all-time) and the doctrine forbids parameter
+tweaks under it. **IMP-043 is not one** — it touches no entry, exit, sizing or risk path,
+and its entire effect is to make every number the harness prints *harsher*. It also lands
+on the one day of the year with zero live evidence, when any strategy edit would have been
+fitted to Friday's single MU scratch.
+
+### Expected effect
+**Zero change to trading behaviour, by design.** What it changes is the quality of every
+future decision: the weekly's pre-registered friction test (#2) can now be read on both
+axes — money *and* trade quality — and every future "replay says this config is better"
+claim carries a true win rate next to its PF. **It also removes the last standing
+objection to the no-edge verdict**, which had rested entirely on a `pnl > 0` win rate.
+
+### Follow-ups
+1. **The weekly's #2 (friction in `SimBroker`) is now unblocked and is next.** Its
+   baseline was re-verified tonight to the cent: **77 / +$793.96 / PF 2.43 / true WR 12% /
+   F+S 88%** over the 19 enabled names.
+2. **Pin that baseline with `--symbols`** so watchlist adds stop contaminating it — this
+   is what currently blocks the META add (deferred twice; unconditional backstop 09-11).
+3. The entry-signal study (#3) runs only after friction — measuring an entry change on a
+   frictionless harness is how this blind spot happened in the first place.
