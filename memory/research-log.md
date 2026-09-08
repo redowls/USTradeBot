@@ -6108,3 +6108,188 @@ the IEX data websocket dropped over the weekend (*"no close frame received or se
   `--symbols`** first. (4) The earnings blackout is now a **fourth** consecutive ask.
 - **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
   `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
+
+---
+
+## 2026-09-08 — Pre-market Research
+
+**No changes. 19 enabled, book flat & broker-confirmed (0 positions, equity $9,192.70) → nothing locked.
+No dated test comes due today. META is deferred a third and final time — and the reason is now a merits
+argument, not a memo: three sessions of one extra symbol at a 7% true win rate is worth less than the
+pre-registered friction test it would corrupt. Fri 09-11 is a hard, unconditional commit.**
+
+### Market context
+- **First session in four calendar days** (Labor Day, Mon 09-07). Open 13:30 UTC; **entries unlock 14:00 UTC**
+  per IMP-017's opening blackout. `/v2/clock`: `is_open false`, `next_open 2026-09-08T09:30-04:00`; account
+  `balance_asof` still **2026-09-04**. Every number on the board is Friday's — but Friday is now the
+  *immediately preceding session*, which is the ordinary basis for a pre-market read. **The specific data
+  objection that justified 09-07's deferral (a holiday means "today has no numbers of its own") has expired.**
+- **Futures modestly lower on an oil shock.** Fresh Middle East hostilities pushed **WTI through $90**; USO
+  +2.71% pre-market, XLE +1.11%, XOP +1.64%. SPY −0.21/−0.30%, DIA −0.68%, IWM −0.39%, VXX +0.42%, 7–10yr
+  Treasuries bid — a mild risk-off with an inflation tail, three days before CPI.
+- **Sector split that matters to this board: semis bid, pharma/biotech offered.** SMH +1.22%, **INTC ~+3.4%
+  pre-market** (last pre-market print **$98.60** vs a $95.80 close; Mizuho cut its PT to $92 from $109 but
+  kept the rating), **MU +1.7%**, **NVDA +0.6%**. Biotech/pharma under "significant downward pressure" —
+  the sector pain is company-specific elsewhere (RARE −46% on a Phase-3 miss, Novartis pausing a cell-therapy
+  programme), **not an LLY or AMGN event**.
+- **No enabled name reports earnings this week — verified, not assumed.** The week's calendar is **ORCL +
+  ADBE (Thu 09-10 AH)**, with CASY/UNFI/ServiceTitan today, AEO Wed, COPART/RH Thu, KR Fri. **None are on
+  this watchlist. Nothing reports during today's session.**
+- **Macro: today is empty.** Only the **CB Employment Trends Index (Aug)**. Then **PPI + jobless claims Thu
+  09-10 08:30 ET** and **August CPI Fri 09-11 08:30 ET** — both *pre-open*, so neither lands intraday. The
+  **Fed quiet period began 09-05 and runs to 09-17** (FOMC 09-15/16) → **no Fed speakers this week.**
+- **⚠️ Apple keynote Wed 09-09, 1:00 pm ET — DURING market hours.** "Surprise and shine", the first keynote
+  under new CEO **John Ternus** (succeeded Tim Cook 09-01); iPhone 18 Pro / foldable expected. **Not today's
+  problem** — flagged for tomorrow's run, where it collides with AAPL's 09-10 dated test.
+- **Perplexity `sonar`: third consecutive low-value run, with one genuine hit.** It correctly reported **no
+  earnings scheduled today** for any of the 20 tickers asked and named today's CB Employment Trends release;
+  its index reads (QQQ +0.01%, SPY −0.30%) matched WebSearch independently. Everything else was *"no specific
+  catalyst shown in the feed"* ×20. **Budget it as a session/earnings-presence check only**, exactly as the
+  09-07 daily instructed. WebSearch supplied the oil shock, the sector split, the week's calendar and the
+  Apple event — all four of today's actual findings.
+
+### Carried from daily review (09-07) + 09-07 research flags
+- **"META therefore stays deferred on Tuesday, and the 09-11 unconditional backstop stands"** → **honored.**
+- **"Do not add watchlist symbols before [the friction test] runs"** → honored, and worth stating precisely:
+  **this blocks *every* add, not just META.** No new candidate was screened for entry today because any add
+  moves the same baseline. That is the consistent reading, and it is why "no adds" is a decision rather than
+  an absence of one.
+- **"Nothing about 09-07 is evidence about any symbol"** → nothing carried. The whole board was re-pulled
+  from SIP daily bars this run.
+- **"BABA's dated test comes due 09-09"** → **not due today; deliberately not fired early.** (Last trade
+  08-10 = 29 days. The 30d leg matures tomorrow.)
+- **⚠️ `memory/weekly-review.md` (week ending 09-04, Grade C) is still uncommitted** in the working tree,
+  now four days on. **Deliberately left untouched** — a pre-existing change this run did not make. **Third
+  consecutive flag: commit it.**
+
+### Watchlist review
+**All 19 + META re-verified on Alpaca this run: `tradable: true`, `status: active` — 20/20.** No halts, no
+sub-$5 names, no enabled name carries an event today. Technicals from 09-04 SIP daily bars (close, %vs20MA,
+%vs50MA, ATR%, median 20d range%, share of 20 sessions ≥2%, median $vol/day, 10d return):
+
+| | close | 20MA | 50MA | ATR% | medRng | ≥2% | $vol/d | 10d |
+|---|---|---|---|---|---|---|---|---|
+| **MU** | 1016.59 | +7.77 | +8.35 | 4.59 | 4.15 | 100% | **$25.45B** | +5.15 |
+| **NVDA** | 230.36 | +4.67 | +9.40 | 3.31 | 2.27 | 70% | $24.96B | +7.28 |
+| **INTC** | 95.80 | +1.97 | −4.78 | 4.44 | 4.09 | 100% | $8.81B | +6.36 |
+| **TSLA** | 354.08 | +1.62 | −1.08 | 4.33 | 3.31 | 95% | $11.74B | −2.42 |
+| **PLTR** | 174.33 | −1.46 | +16.31 | 4.73 | 4.13 | 100% | $5.49B | −3.12 |
+| **AMD** | 477.57 | +0.50 | −4.35 | 3.87 | 3.11 | 100% | $8.22B | +0.91 |
+| **SPOT** | 542.43 | +2.47 | +7.93 | 3.72 | 3.76 | 100% | **$0.79B** | +1.63 |
+| **DASH** | 211.73 | −4.80 | +3.98 | 3.76 | 3.26 | 100% | **$0.86B** | −5.26 |
+| **BABA** | 113.24 | −6.40 | −2.52 | 3.47 | 2.12 | 55% | $1.20B | −5.11 |
+| **UBER** | 75.76 | −1.72 | +2.25 | 3.41 | 2.81 | 80% | $1.12B | −3.86 |
+| **LLY** | 1149.36 | −4.43 | −3.54 | 3.06 | 2.82 | 85% | $2.92B | **−8.45** |
+| **NFLX** | 78.25 | −1.34 | +3.72 | 2.98 | 3.03 | 65% | $2.13B | −1.68 |
+| **ABNB** | 181.94 | −1.63 | +11.65 | 2.67 | 2.56 | 65% | $0.90B | −2.86 |
+| **TSM** | 428.91 | +2.14 | +2.02 | 2.48 | 2.14 | 60% | $3.74B | +2.38 |
+| **AAPL** | 319.97 | +2.18 | +1.53 | 2.32 | 1.88 | 45% | $12.40B | +3.43 |
+| **AMZN** | 258.51 | −1.41 | +1.80 | 2.27 | 1.76 | 40% | $8.32B | −0.05 |
+| **AMGN** | 437.23 | +1.34 | +10.12 | **2.12** | 1.97 | 50% | $0.97B | −0.48 |
+| **MSFT** | 499.70 | +0.81 | +12.50 | 2.02 | 1.81 | 45% | $11.20B | +3.41 |
+| **QQQ** | 718.96 | +0.20 | +1.11 | 1.15 | 0.91 | 0% | $22.25B | +0.77 |
+| *(META)* | *616.77* | *+6.91* | *+3.57* | *3.03* | *2.92* | *75%* | *$9.05B* | *+12.16* |
+
+- **The two names the tape is moving today are the board's two best all-time earners.** **MU +$211.76** and
+  **INTC +$150.78** are #1 and #2 lifetime, and both are in the bid semi complex this morning (MU +1.7%,
+  INTC +3.4% pre-market). MU is also the single best technical on the board (ATR 4.59%, $25.45B/day, 100%
+  of sessions ≥2%). **No action needed — this is the list working as intended, and it is the argument for
+  leaving it alone.**
+- **INTC's 09-16 test looks increasingly likely to resolve KEEP.** It is −4.78% vs its 50MA (the park leg)
+  but **+1.97% vs its 20MA and +6.36% over 10d**, and it is up ~140% YTD with a fresh AI-capex bid. The test
+  requires it to be below **both** MAs; on today's data it fails that condition and would not park.
+- **🟡 LLY — the weakest name on the board and now the deepest drawdown**: −8.45% 10d, below both MAs,
+  **zero trades in the 12 sessions since it was added 08-20**. But it is **not** disqualified on strategy
+  fit — $2.92B/day, ATR 3.06%, 85% of sessions ≥2% — it is a liquid, volatile name in a drawdown, which the
+  long-only ribbon simply signals on less often. **Checked for a catalyst and found none**: guidance was
+  *raised* on 08-05 ($86B rev / $36 EPS midpoints), a tirzepatide T1D study was announced 09-04, JPMorgan
+  published a bullish note 09-03, and the early-September pharma weakness is other companies' bad news.
+  **No discretionary park. A dated test is armed instead** (below) — ad-hoc parks are precisely what the
+  dated-test discipline exists to prevent.
+- **🟡 DASH ($0.86B/day, 1.2% above the $0.85B add-floor, −5.26% 10d, no trade in 10 sessions)** and
+  **🟡 UBER (no trade in 12 sessions)** are the other two never-traded August adds. Both still clear every
+  admission floor; both now get the standard 30d dead-signal clock so the decision is mechanical when it
+  comes. **AMGN** (ATR **2.12%**, a **fifth** session under its 2.3% admission floor) and **SPOT** ($vol
+  **$0.79B**, 7% under the floor, 11 sessions since its last trade) already carry theirs (09-16 / 09-11).
+- **🔒 QQQ — structurally exempt, unchanged.** Worst name on merit (ATR 1.15%, 0% of sessions ≥2%, no trade
+  since 07-14) and `bot/config.py` defaults `MARKET_FILTER_SYMBOL` to it; parking it would silently disable
+  the market gate. Infrastructure, not a park candidate.
+- **The other 12 are kept without comment** — liquid large-caps, no negative catalyst, no test due.
+
+### 🎯 META — the third deferral, and why it is a merits call rather than a repeated excuse
+The 09-07 pre-market run wrote: *"This is the second deferral. A third without one of those conditions being
+met is churn-avoidance masquerading as rigour — do not grant one."* That warning is taken seriously, so the
+reasoning is given in full rather than by reference.
+
+**Where the release condition stands:** *"releases at the first pre-market run after IMP #1 (doctrine port to
+`replay.py`) **and** #2 (friction modelling) are both recorded; failing that, added unconditionally Fri
+09-11."* **#1 is recorded — IMP-043, 09-07. #2 is not** (`improvement-log.md` ends at IMP-043). The condition
+does not release today, mechanically.
+
+**The blocker was re-verified at source, not assumed.** `bot/replay.py:468 resolve_symbols()` — an explicit
+`--symbols` wins, otherwise **the enabled rows of `dbo.watchlist`**. So a bare invocation of the friction
+test would silently backtest a 20-name universe against a baseline computed on 19, and the pre-registered
+prediction (*"90d net falls from +$793.96 to under $200 at 0.2%/round trip"*) turns on that exact number.
+
+**But the honest argument for waiting is an expected-value one, and it is the one I am actually relying on:**
+META would buy **three sessions** of exposure to a strategy under an active escalation with a **7% all-time
+true win rate** and a measured **18.8% +1R ceiling** — realistically zero to one trade, expectancy ≈ 0.
+Against that, corrupting a falsifiable pre-registered test destroys the only clean read available on whether
+friction explains the live-vs-replay expectancy gap. **The asymmetry still favours waiting, and it does so on
+the merits, not because a memo said so.**
+
+**No new condition is invented, because inventing one is the failure mode being warned about.** The existing
+dated backstop stands unchanged and is now a **hard commit**:
+
+> **META is added on Fri 09-11 unconditionally** — regardless of whether #2 has shipped, regardless of the
+> screen — provided only that Alpaca still returns `tradable: true` / `active`. **No further deferral is
+> available on any grounds.** If #2 ships before then, it is added at the next run instead.
+
+**The one-command unblock, offered a third time, now with the exact list to paste.** Tonight's review can
+have both things by pinning the universe:
+```
+python -m bot.replay --days 90 --symbols AAPL,ABNB,AMD,AMGN,AMZN,BABA,DASH,INTC,LLY,MSFT,MU,NFLX,NVDA,PLTR,QQQ,SPOT,TSLA,TSM,UBER
+```
+Pinned baseline to match against: **77 trades / +$793.96 / PF 2.43 / true WR 12% / F+S 88%** (re-verified to
+the cent on 09-07). Once the friction run is recorded against a pinned list, watchlist population stops
+being able to contaminate anything, ever again.
+
+### Changes applied to dbo.watchlist
+**NONE.** No adds, no parks, no re-enables — and each leg of that was checked rather than defaulted to:
+no dated test comes due today (BABA is tomorrow); no enabled name has a negative catalyst, an earnings date
+this week, or a halt; 20/20 verified tradable and active; adds of every kind are blocked by the standing
+friction-test instruction; and the only names weak enough to park on discretion (LLY, DASH) get dated tests
+instead, because ad-hoc parks are the behaviour the dated-test convention replaced.
+
+### Final watchlist
+**19 enabled** (≤30 ✅), unchanged: AAPL, ABNB, AMD, AMGN, AMZN, BABA, DASH, INTC, LLY, MSFT, MU, NFLX,
+NVDA, PLTR, QQQ, SPOT, TSLA, TSM, UBER. Parked (14): AVGO, BIRD, C, COST, ENPH, GOOG, JPM, QCOM, SE, SPY,
+UNH, WMT, WPM, XOM. **Service restarted: NO — nothing changed, so a restart would be pure risk for zero
+benefit.** Verified healthy in place: `active`, **NRestarts=0**, up since 2026-09-07 20:11:26 UTC (the
+IMP-043 deploy), **warmup primed 19/19**, all 19 subscribed on the IEX feed, account ACTIVE, 0 positions,
+0 open orders, **zero errors**. `.env` confirmed `ustradebot:ustradebot` mode 600.
+
+### Dates carried forward
+- **BABA 09-09 — due tomorrow, the most likely park on the board.** 30d dead-signal (last trade 08-10) +
+  −6.40% vs 20MA / −2.52% vs 50MA / −5.11% 10d. Both legs are on track to fire.
+- **⚠️ AAPL 09-09 — the Apple keynote is 1:00 pm ET, inside the session.** Tomorrow's run must decide
+  whether an in-hours product event on the first keynote under a new CEO is a park-for-a-day, and it lands
+  one day before AAPL's existing **09-10** dated test. Do not let the two get conflated: the keynote is an
+  event call, the 09-10 test is a dead-signal call.
+- **SPOT 09-11** (park if $vol still <$0.85B **and** 14d without a trade — now $0.79B, 11 sessions) ·
+  **AMD 09-12** · **NFLX 09-15** · **AMGN 09-16** (ATR 2.12%, fifth session under its 2.3% floor) ·
+  **INTC 09-16** (30d clock; **park only if below *both* MAs — today it is above its 20MA and would not fire**).
+- **➕ NEW — the three never-traded August adds get the standard 30d dead-signal clock**, so their fate is
+  mechanical rather than discretionary: **LLY 09-21** · **UBER 09-21** · **DASH 09-23** — *park if the name
+  has still never traded by that date AND is below both its 20MA and 50MA* (for DASH, also park if median
+  $vol has fallen below the $0.85B admission floor). Added 08-20 / 08-21 / 08-24 respectively.
+- **➕ META 09-11 — HARD, UNCONDITIONAL.** Third deferral granted today on an expected-value argument; a
+  fourth is not available on any grounds. Add it Friday whatever the screen says.
+- **For tonight's daily review:** (1) **Run the friction test with `--symbols` pinned** (command above) —
+  it unblocks META and permanently decontaminates every future baseline. (2) **Fees are already ruled out
+  as the friction** (−$2.30 all-time ≈ $0.008/trade); model **slippage and spread**. (3) The in-repo
+  **earnings blackout is a fifth consecutive ask** — today's run again had to establish "no watchlist
+  earnings this week" by hand from WebSearch, because Perplexity cannot be trusted with a forward calendar.
+  (4) **Commit `memory/weekly-review.md`** — four days uncommitted now.
+- **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
+  `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
