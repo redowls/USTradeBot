@@ -7042,3 +7042,249 @@ argument:**
   list. Two consecutive runs returned no verified macro dates and no verified earnings
   dates. Get the earnings calendar somewhere it can be verified — which is also exactly
   what improvement candidate #3 (the in-repo earnings blackout) would fix permanently.
+
+---
+
+## 2026-09-08 — Daily Review
+
+### Stats
+- **0 closed trades, 0 entries, 0 orders of any status.** Net P&L **$0.00**. Account
+  **equity $9,192.70**, unchanged to the cent from Friday's close.
+- **This is NOT a "nothing qualified" day, and that distinction is the whole entry.**
+  **6 candidates cleared the ≥60 confidence bar** and **all 6 were refused** — 5 by the
+  QQQ market gate, 1 by the crossover-magnitude floor. The bot found what it was looking
+  for and then declined to buy it, six times, on a day two of those names ran **+9.05%**
+  and **+5.90%**.
+- **Broker/DB reconciliation: exact.** `alpaca-usbot` MCP (read-only): **0 orders since
+  00:00 UTC, 0 positions**, `cash == portfolio_value == equity == 9192.70`,
+  `balance_asof 2026-09-04`. `dbo.trades`: **0 rows** touching today, **0 rows with
+  `exit_time_utc IS NULL`**. Nothing carried, nothing drifted, no missed fill.
+- **Service: active, NRestarts=0**, `running` since 2026-09-07 20:11:26 UTC (the IMP-043
+  deploy). **9,197 journald lines today, ZERO errors** — `journalctl -p err` empty and no
+  traceback/exception/warning matches. Friday's isolated `08S01` gate-persistence drop
+  **did not recur**. `.env` verified `ustradebot:ustradebot` mode 600.
+- **Gate: 88 samples, 41 open (46.6%).** Restricted to the entry window (14:00–19:45 UTC):
+  **69 samples, 30 open (43.5%) — and 14 state flips across 15 runs, 5 of which were
+  single-5-minute-bar flickers.** Keep that number; it is the finding.
+- **Refusals: 26 across 8 names** (vs 16 on 09-04). 20 confidence · **5 gate** · 1
+  crossover-magnitude. **13 of 26 occurred while the gate was open** — so the gate was not
+  simply shut all day; it was shut *at the moments that mattered*.
+
+### Market context (verified against broker bars, per the 09-04 standing practice)
+Perplexity `sonar` called it **"risk-off, S&P ≈−0.4%, Nasdaq ≈−0.3%, choppy not trending"**
+— **directionally correct this time**, which is worth recording after 09-04's +1.06%-on-a
+−0.38%-day miss. It then returned *"no specific company catalyst identified"* for **all 8**
+tickers asked. **Fourth consecutive low-value run; budget it as a session/direction check
+only.** Alpaca SIP daily bars, 09-04 close → 09-08 close:
+
+| | 09-04 | 09-08 | move |
+|---|---|---|---|
+| SPY | 770.19 | 765.96 | **−0.55%** |
+| **QQQ** | 718.96 | 718.36 | **−0.08%** |
+| SMH | 567.01 | 573.73 | +1.19% |
+| **INTC** | 95.80 | 104.47 | **+9.05%** |
+| **AMD** | 477.57 | 505.74 | **+5.90%** |
+| TSLA | 354.08 | 368.04 | +3.94% |
+| TSM | 428.91 | 439.00 | +2.35% |
+| MU | 1016.59 | 1000.26 | **−1.61%** |
+
+**Second consecutive session of the same regime: a narrow semiconductor bid on a
+flat-to-down broad market.** QQQ moved **−0.08%** — eight hundredths of one percent —
+while INTC put on nine percent. **The gate is a QQQ proxy, and for two sessions running
+the money has not been in QQQ.**
+
+### Stop-exit accounting
+**No closed trades → stop rate n/a today.** The trend is what governs, and it is
+unchanged because nothing closed (recomputed from `dbo.trades` via `bot.doctrine`, not
+copied forward):
+
+| Window | n | stop rate | WIN | SCRATCH | FAIL (full / BE) | **true WR** | headline WR | **F+S** |
+|---|---|---|---|---|---|---|---|---|
+| Today | **0** | n/a | — | — | — | n/a | n/a | n/a |
+| Last 3 sessions w/ trades (08-28, 09-03, 09-04) | 3 | 2/3 (67%) | 0 | 2 | 1 (0/1) | **0%** | 66.7% | **100%** |
+| Trailing 10 sessions w/ trades | 32 | 21/32 (66%) | 2 | 16 | 14 (0/14) | **6.2%** | 65.6% | **94%** |
+| All-time | 276 | 92/276 (33%) | 20 | 139 | 117 (33/84) | **7.2%** | 46.7% | **93%** |
+
+- **🚨 ESCALATION REMAINS ACTIVE — seventh consecutive session.** F+S **100%** over the
+  last three sessions with trades, **94%** trailing 10, **93%** all-time, against a 60%
+  threshold. **No parameter or strategy change ships tonight**, and none did: IMP-044 is
+  an offline-harness measurement change touching no entry, exit, sizing or risk path.
+- **Dominant failure cause today: entry quality — but a different failure mode than the
+  one the escalation has been tracking.** For six sessions the charge has been *late
+  entry* (the ribbon confirms a move already spent). Today the charge is **non-entry**:
+  the signal fired early enough and on the right names, and a **second, independent
+  filter** vetoed it. Both are entry-side; they are not the same defect and must not be
+  conflated in the weekly.
+
+### Trade-by-trade review
+**No trades. Root-causing the absence, which is the reviewable evidence today.**
+
+Not a dead watchlist (INTC +9.05%, AMD +5.90%, TSLA +3.94%, TSM +2.35%). Not a threshold
+set too high (six candidates cleared 60). **The gate never aligned with the signal** — and
+"never aligned" is precise here rather than rhetorical:
+
+| time UTC | sym | conf | xo · trend · rsi · vol · vola | refusal | gate |
+|---|---|---|---|---|---|
+| 14:09 | **INTC** | **73.38** | 0.32 · 1.00 · 1.00 · 0.78 · 1.00 | market gate closed | ✗ |
+| 14:52 | **INTC** | **71.80** | 0.43 · 1.00 · 1.00 · 0.92 · 0.60 | market gate closed | ✗ |
+| 14:13 | **AMD** | **68.76** | 0.29 · 1.00 · 1.00 · 0.61 · 0.77 | market gate closed | ✗ |
+| 14:41 | **AMD** | **66.46** | 0.45 · 1.00 · 1.00 · 0.24 · 0.18 | market gate closed | ✗ |
+| 14:09 | AMD | 63.76 | 0.08 · 1.00 · 1.00 · 0.04 · 0.97 | crossover 0.08 < 0.25 | ✗ |
+| 17:01 | **INTC** | **60.46** | 0.37 · 1.00 · 1.00 · 0.03 · 0.00 | market gate closed | ✗ |
+
+**Every ≥60 candidate of the day arrived inside a gate-closed 5-minute bar.** The gate's
+first open run of the entry window did not begin until **15:10** — after the 14:09–14:52
+cluster had already fired and expired.
+
+**What it cost, measured (`bot.report --refusals`, counterfactual = enter at the refusal
+candle's close, flatten with the session):**
+
+| cohort | n | avgMFE | avgMAE | avgFwd | <0.5% MFE | hitTrail | stopped |
+|---|---|---|---|---|---|---|---|
+| **gate** | **5** | **+2.91%** | −0.40% | **+1.70%** | **0/5** | **4/5** | **0/5** |
+| crossover | 1 | +4.05% | −0.26% | +2.47% | 0/1 | 1/1 | 0/1 |
+| confidence | 20 | +0.50% | −0.68% | −0.32% | 12/20 | 3/20 | 1/20 |
+| ALL | 26 | +1.10% | −0.61% | +0.17% | 12/26 | 8/26 | 1/26 |
+
+Best declined: **INTC, MFE +4.65%, fwd +3.65%, conf 73.38, refused by the gate.**
+**4 of the 5 gate-refused candidates reached the 1.25% trail and none was stopped.**
+This is a materially different reading from 09-04, when the same cohort scored avgMFE
++0.76% / 0-of-2 reaching the trail and the review concluded — correctly, on that day's
+numbers — that the gate cost nothing.
+
+**✅ The confidence filter, by contrast, was excellent.** Its 20 refusals averaged
+**+0.50% MFE and −0.32% forward**, with **12 of 20 never clearing +0.5%**. It also kept the
+bot out of **MU**, which gapped to 1036.40, faded all day and closed **−1.61%**: MU's best
+score was **55.32** and it was declined five times. On a day the bot's headline complaint
+is a filter that refused winners, the other filter refused the day's one real loser.
+
+### The finding: the gate flickers, and the signal is instantaneous
+These two facts are individually known and were never put together:
+
+1. **Entry requires a *fresh* crossover.** It is an instant, not a state. Miss it and the
+   name does not re-arm just because it keeps trending.
+2. **The gate is evaluated on the last *closed* 5-minute QQQ bar**, and today that state
+   **flipped 14 times in the 5¾-hour entry window** — 5 of its 15 runs lasted a single
+   5-minute bar.
+
+So entry needs a coincidence: an instantaneous event landing inside a state that today
+was a coin flip refreshing every five minutes. **INTC's 60.46 at 17:01 was killed by the
+16:55 bar alone** — 17:00, 16:50 and 16:45 were all open. One contrary five-minute QQQ
+candle, on an index that finished the day **−0.08%**, vetoed the trade.
+
+⚠️ **This does NOT license removing the gate, and I am not proposing it.** The 08-31
+90-day A/B is unambiguous — gate ON **74 trades / +$753.36 / PF 2.43** vs gate OFF
+**156 / +$534.43 / PF 1.39** — and the 08-31 methodological warning applies directly to
+the table above: **a filter must never be judged by its own refusal cohort**, because a
+candidate must already pass confidence and a fresh cross to *reach* the gate, making the
+gate cohort the elite population by construction. Today is **one session of counter-
+evidence against ninety days of supporting evidence.** The honest proposal is not
+"remove" but **"smooth"**: nobody has ever tested gate *hysteresis* (require N consecutive
+bars to close it, or hold the last state through a single contrary bar). That is a
+structural change, it needs a replay A/B, and it is handed to Friday's weekly — **which is
+exactly the class of question IMP-044 exists to make answerable.**
+
+### Improvement: IMP-044 — the replay harness now pays a spread
+**Shipped tonight.** The 09-04 weekly's pre-registered **#2**, with a falsifiable
+prediction attached. `bot/replay.py` charged **zero** friction while the live book paid
+it, and every REFUTED verdict of the last month was decided on that harness.
+
+**Pre-registered prediction:** *"at 0.2%/round trip, replay 90d net falls from +$793.96 to
+**under +$200**."*
+
+| 90d window, 19 symbols, identical config | frictionless (0 bps) | **10 bps/side** |
+|---|---|---|
+| trades | 77 | 77 |
+| **net** | **+$793.96** | **+$472.29** |
+| PF | 2.43 | **1.68** |
+| avg/trade | +$10.31 | **+$6.13** |
+| headline win% | 62.3% | **53.2%** |
+| **true WR** | 12% | **10%** |
+| F+S | 88% | **90%** |
+| friction paid | — | **$346.40 ($4.50/trade, 42% of gross)** |
+
+**❌ THE PREDICTION FAILED, and the failure is informative.** Net fell to **+$472.29**,
+not under +$200. Per the weekly's own pre-registration: *"If it does not, the expectancy
+gap has another cause."* Three things follow:
+
+1. **The prediction was internally inconsistent with its own input.** It estimated ~$4 per
+   round trip and then predicted a >$594 drag on 77 trades — which requires **$7.7/trade**.
+   At its own stated $4, the arithmetic gives ~+$486. The measured answer is **+$472.29 at
+   $4.50/trade** — the *magnitude* was right and the *conclusion* drawn from it was wrong.
+   **A pre-registered number is only as good as the arithmetic behind it; check the
+   implied per-trade cost next time.**
+2. **The "replay proves an edge" claim survives, weakened.** +$472 / PF 1.68 / 90 days is
+   still positive. It is **not** dead, and every verdict decided on PF alone does **not**
+   have to be re-opened wholesale — but PF fell 31% and every margin is thinner than the
+   number it was decided on.
+3. **Friction explains 55% of the live-vs-replay expectancy gap, not all of it.** On the
+   config-matched 30d window replay avg/trade goes **+$9.43 → +$7.49** against live's
+   **+$5.17**: the $4.26 gap closes to **$2.32**. The residual is entry-at-signal-close
+   optimism and candle-boundary drift. **That residual is now the open question**, and it
+   is a smaller, better-posed one than the weekly had.
+
+**Validation:** `--slippage-bps 0` reproduces the pre-IMP-044 90d run **exactly** —
+77 trades, +$793.96, PF 2.43, to the cent — so the change is provably non-destructive.
+**527 tests pass** (10 new). Preflight OK (1 expected market-closed warning).
+
+### What worked / what didn't
+- **✅ Plumbing, again flawless.** 0 errors in 9,197 log lines, NRestarts=0, exact
+  broker/DB reconciliation, `.env` clean, Friday's `08S01` did not recur.
+- **✅ The confidence filter earned its keep.** 20 refusals at +0.50% MFE / −0.32% fwd, and
+  it declined MU five times on the day MU closed −1.61%.
+- **✅ Perplexity was directionally right on the tape** for the first time in three runs —
+  and still supplied zero single-name catalysts across 8 tickers.
+- **✅ Verifying against broker bars remains cheap and decisive.** One MCP call established
+  that QQQ moved −0.08% while INTC moved +9.05%, which is the entire story of the day.
+- **❌ Six qualifying candidates, zero fills, on a day the board's two best names ran +9%
+  and +6%.** The gate-refused cohort had 4/5 reaching the trail and 0/5 stopping.
+- **❌ The bot has no way to re-arm.** A name that trends all afternoon gets exactly as many
+  chances as its crossovers, and each one is judged against a gate state that flips every
+  few bars. There is no queue, no retry, no "the gate just opened, is anything still
+  valid?" pass. **This is the mechanism behind today's zero, and it is new.**
+
+### Lessons & improvement candidates
+1. **🔴 For Friday's weekly — gate hysteresis, measured by replay A/B.** Require the gate
+   to be closed for ≥2 consecutive 5-min bars before it vetoes (or hold the prior state
+   through a single contrary bar). Today: 14 flips, 5 single-bar runs, one of which alone
+   killed INTC 60.46. **Now testable honestly for the first time** — IMP-044 means the A/B
+   will not over-reward whichever arm simply trades more. ⚠️ Judge on expectancy and
+   payoff, and remember the gate is +$219/90d accretive as it stands.
+2. **🟠 Related and cheaper: a gate re-arm pass.** When the gate reopens, re-evaluate names
+   whose crossover fired within the last N bars and still satisfy trend/RSI, rather than
+   discarding them. Addresses the same defect from the signal side. **Do not ship both.**
+3. **🟢 The residual expectancy gap is now $2.32/trade, not $4.26.** Next question for the
+   harness: model entry-at-next-bar-open instead of signal-close and re-measure.
+4. ⛔ **Do not remove or loosen the QQQ gate on today's evidence.** One session vs a 90-day
+   A/B; the refusal cohort is a selected population. Stated explicitly so that tomorrow's
+   run does not read this entry as permission.
+5. **Open and unchanged:** the `exit_reason` close/fill race (half-fixed by IMP-038); the
+   IMP-036 mechanism test (needs ~15 fills, has ~3 — and today added none); the in-repo
+   earnings blackout (**fourth** consecutive ask, weekly threatened a D-grade process item
+   if unbuilt by Friday); `memory/weekly-review.md` still uncommitted in the working tree
+   (**fifth** flag — left untouched again as a pre-existing change).
+
+### Notes for pre-market research
+- **The board is working. Do not touch it.** INTC **+9.05%** and AMD **+5.90%** — the two
+  names that produced every qualifying signal — are #2 and a top earner lifetime. The
+  watchlist is not the constraint and no edit fixes today's failure.
+- **⚠️ Second consecutive narrow-semis session on a flat index.** SMH +1.19% / QQQ −0.08% /
+  SPY −0.55%, following 09-04's SMH +2.59% / QQQ +0.20% / SPY −0.38%. **If this persists,
+  expect another gate-throttled day** — that is now a prediction, not an excuse, and it is
+  the single most useful thing to check tomorrow morning.
+- **INTC is the most informative name on the board for the third session running.** It
+  generated the day's top three scores (73.38 / 71.80 / 60.46), all gate-refused, and its
+  refusals carried MFE up to +4.65%. Its **09-16 dated test looks headed for KEEP** — it
+  closed 104.47, now **above** its 50MA, so the park condition (below both MAs) fails.
+- **MU is the counter-example worth remembering: the bot was RIGHT to skip it.** It gapped
+  to 1036.40, faded, closed **−1.61%**. Best score 55.32, refused 5×. When tomorrow's
+  research is tempted to read "0 trades" as "filters too tight", this is the rebuttal.
+- **TSLA closed +3.94% and generated 8 refusals, all on confidence (best 57.40)** — it was
+  the day's most *active* name by refusal count and never came close. Worth a look at
+  whether TSLA's chop profile is systematically scoring just under the bar.
+- **AMZN (1 row, 40.05) and BABA (1 row, 41.07) again produced volume without approaching
+  the bar.** BABA's 30d dead-signal test comes due **09-09 — tomorrow.** Fire it.
+- **⚠️ Apple keynote Wed 09-09 1:00 pm ET lands DURING the session**, and collides with
+  AAPL's 09-10 dated test. Flagged by this morning's research; it is tomorrow's problem now.
+- **⚠️ Operational: verify `.env` is `ustradebot:ustradebot` mode 600 and
+  `systemctl is-active` before the open.** Service restarted tonight for IMP-044.

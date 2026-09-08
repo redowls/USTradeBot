@@ -15,10 +15,22 @@ Fidelity limits (read these before trusting a number):
 * Bracket legs are filled **intrabar** from the bar's high/low. When a bar's range
   covers both the stop and the target, the replay fills the **stop** — the
   pessimistic assumption, since intrabar sequence is unknowable from OHLC.
-* Fills are assumed at the exact stop/target price with **no slippage or gap-through
-  modelling** inside the session, and entries fill at the signal candle's close.
+* Gap-through is not modelled: a leg that the bar's range covers fills at the leg
+  price plus friction, never at the (worse) open of a gapping bar.
 * Alpaca's asynchronous order lifecycle (partial fills, rejects, the delayed-fill
   corrections behind IMP-009/IMP-010) is not simulated.
+
+Friction (IMP-044): every fill pays ``--slippage-bps`` per side, **10 bps (0.10%) by
+default** — buys fill above the price that triggered them, sells below it. Until
+2026-09-08 this harness was frictionless, and that single omission explains the
+expectancy gap the 09-04 weekly could not close: on the config-matched 30d window
+live booked **+$5.17/trade** against replay's **+$9.43**, ≈$4 on ~$2,000 of notional,
+≈0.2% per round trip — an entirely ordinary market-order cost. A frictionless harness
+does not merely inflate every net; it **systematically over-rewards high-frequency,
+scratch-heavy configs**, because friction is charged per trade while this strategy's
+edge is not. With 88–94% of trades scratching near break-even, friction is not a
+rounding error, it is the P&L. ``--slippage-bps 0`` reproduces the old numbers exactly
+when an old result has to be re-derived; nothing else should use it.
 
 Scoring (IMP-043): the summary reports the **stop-exit doctrine** — stop rate, the
 WIN/SCRATCH/FAIL split and the true win rate — beside the headline ``pnl > 0`` win
@@ -57,6 +69,13 @@ from bot.strategy import StrategyEngine
 
 log = logging.getLogger("ustradebot.replay")
 
+# Per-side spread/slippage charged on every simulated fill, in basis points.
+# 10 bps/side = 0.20% per round trip, which is what the 09-04 weekly measured as the
+# live-vs-replay expectancy gap (≈$4 on ~$2,000 notional, 30d config-matched window).
+# It is a default rather than a config key on purpose: friction is a property of the
+# *simulation*, not of the deployed strategy, so it must never reach `.env`.
+DEFAULT_SLIPPAGE_BPS = 10.0
+
 
 @dataclass
 class SimFill:
@@ -81,12 +100,35 @@ class SimTrade:
     exit_time: datetime | None = None
     exit_price: float | None = None
     exit_reason: str = ""
+    # Per-side friction rate this trade was filled under (IMP-044). Stored on the row
+    # so `gross_pnl` can invert it exactly instead of the broker keeping a parallel
+    # ledger of pre-slippage prices that a mis-ordered exit path could desynchronise.
+    slippage: float = 0.0
 
     @property
     def pnl(self) -> float:
+        """Realized P&L **net of friction** — the number every summary reports."""
         if self.exit_price is None:
             return 0.0
         return (self.exit_price - self.entry_price) * self.qty
+
+    @property
+    def gross_pnl(self) -> float:
+        """What the frictionless harness would have reported for this same trade.
+
+        Exact rather than approximate: friction is a fixed multiplicative markup on
+        every fill, so dividing it back out recovers the untouched price.
+        """
+        if self.exit_price is None:
+            return 0.0
+        entry_ideal = self.entry_price / (1.0 + self.slippage)
+        exit_ideal = self.exit_price / (1.0 - self.slippage)
+        return (exit_ideal - entry_ideal) * self.qty
+
+    @property
+    def friction(self) -> float:
+        """Dollars the round trip's spread/slippage cost. Never negative."""
+        return self.gross_pnl - self.pnl
 
     @property
     def pnl_pct(self) -> float:
@@ -103,11 +145,19 @@ class SimBroker:
     confidence ramp and the IMP-013 cap all behave exactly as they do live.
     """
 
-    def __init__(self, cfg: Config, *, equity: float, margin_multiple: float = 4.0):
+    def __init__(
+        self,
+        cfg: Config,
+        *,
+        equity: float,
+        margin_multiple: float = 4.0,
+        slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
+    ):
         self._cfg = cfg
         self.equity = equity
         self.last_equity = equity
         self._margin = margin_multiple
+        self.slippage = slippage_bps / 10_000.0
         self._seq = 0
         self.open_positions: dict[str, ExecutionResult] = {}
         # stop-leg order id (including ids minted by a trailing replace) -> live stop price
@@ -131,6 +181,17 @@ class SimBroker:
     def _next_id(self, kind: str) -> str:
         self._seq += 1
         return f"{kind}-{self._seq}"
+
+    # --- friction (IMP-044) -------------------------------------------------
+    # Applied to the *fill*, never to the trigger: a stop still triggers when the bar
+    # trades through it, and then fills worse — which is what a stop order does. The
+    # bracket legs and the sized quantity stay anchored to the signal-candle price
+    # because that is what the live bot submits before it knows its own fill price.
+    def _buy_fill(self, price: float) -> float:
+        return price * (1.0 + self.slippage)
+
+    def _sell_fill(self, price: float) -> float:
+        return price * (1.0 - self.slippage)
 
     # --- executor contract -------------------------------------------------
     def execute(self, *, symbol: str, entry_price: float, confidence: float):
@@ -160,7 +221,8 @@ class SimBroker:
 
         oid = self._next_id("entry")
         stop_oid = self._next_id("stop")
-        self._entry_fill[oid] = plan.entry_price
+        fill = self._buy_fill(plan.entry_price)
+        self._entry_fill[oid] = fill
         self._entry_filled_at[oid] = self.now  # simulated clock: entries fill at the bar
         self._stop_price[stop_oid] = plan.stop_price
         self._stop_owner[stop_oid] = symbol
@@ -169,7 +231,7 @@ class SimBroker:
             order_id=oid,
             qty=plan.qty,
             notional=plan.notional,
-            entry_price=plan.entry_price,
+            entry_price=fill,
             stop_price=plan.stop_price,
             take_profit_price=plan.take_profit_price,
             confidence=confidence,
@@ -181,12 +243,13 @@ class SimBroker:
         self._live[symbol] = SimTrade(
             symbol=symbol,
             entry_time=self.now,
-            entry_price=plan.entry_price,
+            entry_price=fill,
             qty=plan.qty,
             notional=plan.notional,
             stop_price=plan.stop_price,
             target_price=plan.take_profit_price,
             confidence=confidence,
+            slippage=self.slippage,
         )
         return result
 
@@ -209,7 +272,7 @@ class SimBroker:
         if pos is None:
             return None
         oid = self._next_id("close")
-        self._close_fill[oid] = self._mark.get(symbol, pos.entry_price)
+        self._close_fill[oid] = self._sell_fill(self._mark.get(symbol, pos.entry_price))
         return oid
 
     def reconcile_exit(self, symbol: str, *, after: datetime | None = None):
@@ -253,11 +316,14 @@ class SimBroker:
             # collapse into the IMP-038 catch-all and replay could not answer the very
             # question the trail-retune study runs it for (trail hit vs -2% stop-out).
             self._filled[candle.symbol] = SimFill(
-                stop_oid or pos.stop_order_id, stop, "stop", candle.start
+                stop_oid or pos.stop_order_id, self._sell_fill(stop), "stop", candle.start
             )
         elif candle.high >= pos.take_profit_price:
             self._filled[candle.symbol] = SimFill(
-                self._next_id("fill"), pos.take_profit_price, "target", candle.start
+                self._next_id("fill"),
+                self._sell_fill(pos.take_profit_price),
+                "target",
+                candle.start,
             )
 
     def book_exit(self, symbol: str, exit_price: float, reason: str) -> None:
@@ -374,7 +440,8 @@ def build_stream(symbols, short_bars, long_bars, start: datetime, end: datetime,
 
 
 def run_replay(cfg: Config, symbols, start: datetime, end: datetime, *, equity: float,
-               warmup_days: int = 5, bars=None):
+               warmup_days: int = 5, bars=None,
+               slippage_bps: float = DEFAULT_SLIPPAGE_BPS):
     """Replay ``symbols`` over ``[start, end)`` and return the simulated broker.
 
     ``bars`` optionally supplies a pre-fetched ``(short, long)`` pair so a parameter
@@ -385,7 +452,7 @@ def run_replay(cfg: Config, symbols, start: datetime, end: datetime, *, equity: 
         bars = fetch_bars(cfg, symbols, fetch_start, end)
     short_bars, long_bars = bars
 
-    broker = SimBroker(cfg, equity=equity)
+    broker = SimBroker(cfg, equity=equity, slippage_bps=slippage_bps)
     risk = RiskManager(cfg, executor=broker,
                        on_exit=lambda r: broker.book_exit(r.symbol, r.exit_price, r.reason))
     strat = StrategyEngine(cfg, executor=broker, risk=risk)
@@ -444,6 +511,17 @@ def summarize(broker: SimBroker, equity0: float, *, stop_loss: float | None = No
         f"avg={net / len(T):+.2f}",
         f"final equity={broker.equity:,.2f}",
     ]
+    # Friction sits directly under the money line because it is the difference between
+    # this result and every result this harness produced before 2026-09-08 (IMP-044).
+    # Showing gross beside net makes an old frictionless figure directly comparable
+    # instead of silently incommensurable.
+    friction = sum(t.friction for t in T)
+    gross = sum(t.gross_pnl for t in T)
+    lines.append(
+        f"friction={friction:,.2f} ({broker.slippage * 10_000:.0f} bps/side, "
+        f"{friction / len(T):.2f}/trade)  gross={gross:+.2f} -> net={net:+.2f}"
+        + (f"  [{friction / abs(gross) * 100:.0f}% of gross]" if gross else "")
+    )
     # SimTrade.stop_price/target_price are written once at entry and never mutated —
     # the trail ratchets the broker's own order book, not the trade row — so they are
     # the original 1R anchor, exactly like dbo.trades.stop_price live. That is what
@@ -519,6 +597,9 @@ def main(argv=None) -> int:
     ap.add_argument("--trail-percent", default=None, help="override TRAIL_PERCENT, e.g. 0.01")
     ap.add_argument("--take-profit", default=None, help="override TAKE_PROFIT, e.g. 0.03")
     ap.add_argument("--stop-loss", default=None, help="override STOP_LOSS, e.g. 0.02")
+    ap.add_argument("--slippage-bps", type=float, default=DEFAULT_SLIPPAGE_BPS,
+                    help="per-side spread/slippage on every fill (default 10 = 0.20%% "
+                         "round trip); 0 reproduces the pre-IMP-044 frictionless runs")
     ap.add_argument("--quiet", action="store_true", help="silence the strategy's own logging")
     args = ap.parse_args(argv)
 
@@ -539,10 +620,11 @@ def main(argv=None) -> int:
     symbols, source = resolve_symbols(cfg, args.symbols)
     end = datetime.now(UTC)
     start = end - timedelta(days=args.days)
-    broker = run_replay(cfg, symbols, start, end, equity=args.equity)
+    broker = run_replay(cfg, symbols, start, end, equity=args.equity,
+                        slippage_bps=args.slippage_bps)
     print(f"window {start.date()} -> {end.date()}  symbols={len(symbols)} ({source})  "
           f"entry_start={cfg.entry_start:%H:%M} trail={cfg.trail_percent} "
-          f"tp={cfg.take_profit} stop={cfg.stop_loss}")
+          f"tp={cfg.take_profit} stop={cfg.stop_loss} slippage={args.slippage_bps:g}bps/side")
     print(summarize(broker, args.equity, stop_loss=cfg.stop_loss))
     return 0
 

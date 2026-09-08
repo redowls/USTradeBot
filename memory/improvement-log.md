@@ -3576,3 +3576,117 @@ objection to the no-edge verdict**, which had rested entirely on a `pnl > 0` win
    is what currently blocks the META add (deferred twice; unconditional backstop 09-11).
 3. The entry-signal study (#3) runs only after friction — measuring an entry change on a
    frictionless harness is how this blind spot happened in the first place.
+
+---
+
+## IMP-044 — 2026-09-08 (daily) — the replay harness now pays a spread
+
+### The problem
+`bot/replay.py` was **frictionless**. Its own docstring said so — *"Fills are assumed at
+the exact stop/target price with no slippage or gap-through modelling, and entries fill at
+the signal candle's close"* — and that harness has been the court of appeal for every
+REFUTED verdict of the last month: the IMP-022 gate A/B, the `conf_crossover`
+recalibration, the trail retune, the VWAP gate.
+
+The 09-04 weekly found live and replay agreeing about trade *quality* and disagreeing
+badly about *money*. On the only config-matched window (30d) live booked **+$5.17/trade**
+against replay's **+$9.43** — ≈$4 on ~$2,000 of notional, ≈0.2% per round trip, an
+entirely ordinary market-order cost in liquid large-caps.
+
+The bias is not merely "every net is inflated". Friction is charged **per trade** while
+this strategy's edge is not, so a frictionless harness **systematically over-rewards
+high-frequency, scratch-heavy configs**. With 88–94% of trades scratching near
+break-even, friction is not a rounding error — it is the P&L. This is the same failure
+shape found in CryptoAutoBot on 09-02: a ledger reporting gross as net.
+
+### The change
+Per-side spread/slippage on every simulated fill, **10 bps (0.10%) by default**, i.e.
+0.20% per round trip.
+
+- `SimBroker(..., slippage_bps=DEFAULT_SLIPPAGE_BPS)`; `--slippage-bps` on the CLI, echoed
+  in the header line so a result is self-documenting.
+- Buys fill **above** the price that fired them, sells **below** it — applied at the
+  **fill**, never at the **trigger**. A stop still triggers when the bar trades through it
+  and then fills worse, which is what a stop order does.
+- Bracket legs and the sized quantity stay anchored to the signal-candle price, exactly as
+  live: the bot submits stop/target before the broker tells it where the entry filled.
+- Covers all four fill paths: entry, stop leg, target leg, market close (which is the EOD
+  flatten, the reversal exit and the window-end settle — all route through
+  `close_position`).
+- `SimTrade` gains `slippage`, `gross_pnl` and `friction`. `gross_pnl` **inverts** the
+  markup arithmetically rather than keeping a parallel ledger of pre-slippage prices that
+  a mis-ordered exit path could desynchronise.
+- `summarize()` prints `friction=… gross=… -> net=…  [% of gross]` under the money line,
+  so an old frictionless figure stays directly comparable instead of silently
+  incommensurable.
+- **Not a config key.** Friction is a property of the *simulation*, not of the deployed
+  strategy, so it must never reach `.env`. Nothing in the live trading path is touched —
+  `bot/replay.py` is offline and not imported by the service.
+
+### The result — a pre-registered prediction, scored, and FAILED
+The weekly pre-registered: *"at 0.2%/round trip, replay 90d net falls from +$793.96 to
+**under +$200**."*
+
+| 90d, 19 symbols, identical config | 0 bps | **10 bps/side** |
+|---|---|---|
+| trades | 77 | 77 |
+| **net** | **+$793.96** | **+$472.29** |
+| PF | 2.43 | **1.68** |
+| avg/trade | +$10.31 | **+$6.13** |
+| headline win% | 62.3% | **53.2%** |
+| true WR | 12% | **10%** |
+| F+S | 88% | **90%** |
+| friction | — | **$346.40 = $4.50/trade = 42% of gross** |
+
+**❌ The prediction failed.** Net landed at **+$472.29**, more than double the predicted
+ceiling. Three conclusions, recorded because the weekly bound itself to them in advance:
+
+1. **The prediction contradicted its own input.** It estimated ~$4/round trip, then
+   predicted a >$594 drag over 77 trades — which needs **$7.7/trade**. At its own $4 the
+   arithmetic gives ~+$486; measured is **+$472.29 at $4.50/trade**. The *magnitude* was
+   right, the *conclusion* drawn from it was not. **Check the implied per-trade cost
+   before pre-registering a total.**
+2. **"Replay proves an edge" survives, weakened.** +$472 / PF 1.68 over 90 days is still
+   positive, so verdicts decided on PF do **not** all need re-opening — but PF fell 31%
+   and every margin is thinner than the number that decided it.
+3. **Friction explains 55% of the live-vs-replay gap, not all of it.** On 30d, replay
+   avg/trade goes **+$9.43 → +$7.49** against live **+$5.17**: the $4.26 gap closes to
+   **$2.32**. The residual is entry-at-signal-close optimism plus candle-boundary drift —
+   now the open question, and a better-posed one than the weekly had.
+
+### Validation
+- **`--slippage-bps 0` reproduces the pre-IMP-044 90d run exactly** — 77 trades,
+  +$793.96, PF 2.43, to the cent. Provably non-destructive.
+- **527 tests pass** (10 new, was 517). `bot.preflight` OK with the expected
+  market-closed warning.
+- New tests pin: entry fills above the signal close; a stop triggers at the stop and fills
+  below it; a bar stopping one cent short still does not fill (friction may not drag the
+  trigger); a slipped target fill is still classified **WIN** by `bot.doctrine` (at 10 bps
+  the fill is 0.1% light against a 0.5% tolerance — otherwise IMP-044 would have silently
+  converted every harness WIN into a FAIL); the market close pays the same spread;
+  friction equals `gross_pnl - pnl` exactly; friction scales with **trade count, not
+  edge** (the over-rewarding-churn mechanism, pinned); and 0 bps is bit-identical to the
+  old harness.
+- The friction test is anchored to a **real recorded row** — Friday's MU fill, 2 sh @
+  997.565, $1,995.13 notional — and asserts the toll on that notional is **≈$4.00**, the
+  exact per-trade gap the weekly measured between live and replay.
+
+### Why this and not a strategy change
+The escalation is active for the **seventh** consecutive session (F+S 100% over the last
+three sessions with trades, 94% trailing 10). Today produced **zero closed trades**, so
+there was no trade-level evidence that could justify a strategy edit — any such edit would
+have been fitted to Friday's single MU scratch. IMP-044 touches no entry, exit, sizing or
+risk path, and it is the prerequisite the weekly explicitly attached to the entry study:
+*"measuring an entry change on a frictionless, `pnl > 0`-scored harness is how this week's
+blind spot happened."* With IMP-043 (doctrine) and IMP-044 (friction) both landed, the
+harness is now honest on both axes.
+
+**Also unblocked:** the META watchlist add. Its release condition was *"the first
+pre-market run after IMP #1 and #2 are both recorded"* — both now are, ahead of the
+unconditional 09-11 backstop.
+
+### Follow-ups
+- Model **entry-at-next-bar-open** and re-measure the residual $2.32/trade.
+- Re-run the gate A/B **with friction** before Friday's weekly rules on gate hysteresis
+  (see the 09-08 daily review): the old A/B compared 74 vs 156 trades, and friction is
+  charged per trade, so the gate is likely *more* accretive than +$219, not less.

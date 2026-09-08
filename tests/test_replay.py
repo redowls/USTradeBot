@@ -35,6 +35,21 @@ def cfg(monkeypatch):
 
 @pytest.fixture
 def broker(cfg):
+    """Frictionless broker — the fill-*mechanics* tests below assert exact prices.
+
+    Pinning `slippage_bps=0` here keeps "which leg filled, at what trigger, under
+    whose order id" separable from "what the fill cost" (IMP-044), and doubles as the
+    standing guarantee that 0 bps reproduces every pre-IMP-044 number exactly. The
+    default 10 bps path has its own fixture and tests further down.
+    """
+    b = SimBroker(cfg, equity=10_000.0, slippage_bps=0.0)
+    b.now = _T0
+    return b
+
+
+@pytest.fixture
+def friction_broker(cfg):
+    """The shipped default: 10 bps per side, 0.20% per round trip."""
     b = SimBroker(cfg, equity=10_000.0)
     b.now = _T0
     return b
@@ -423,3 +438,149 @@ def test_summary_money_figures_are_untouched_by_the_doctrine(broker):
     assert f"net={net:+.2f}" in out
     assert "trades=2" in out
     assert "exit reasons:" in out  # the per-reason table still follows the block
+
+
+# --- friction: the harness pays a spread (IMP-044) -------------------------
+#
+# Pre-registered by the 2026-09-04 weekly as its #2, with a falsifiable prediction
+# attached. The harness was frictionless while the live book was not, and the two
+# disagreed about money by 1.8x on the only config-matched window (30d: live
+# +$5.17/trade vs replay +$9.43/trade). That gap is ~$4 on ~$2,000 of notional —
+# 0.2% per round trip, an ordinary market-order cost — and it was being counted as
+# edge. These pin the correction: friction hits the *fill*, never the *trigger*,
+# and `--slippage-bps 0` still reproduces every number computed before today.
+
+
+def test_entry_fills_above_the_signal_close(friction_broker):
+    """A market buy crosses the spread: the fill is worse than the price that fired it."""
+    r = friction_broker.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+
+    assert r.entry_price == pytest.approx(100.1)  # 10 bps = 0.10% up
+    assert friction_broker.entry_fill_price(r.order_id) == pytest.approx(100.1)
+    assert friction_broker.trades == []  # still open
+    # The bracket legs stay anchored to the signal price, exactly as live: the bot
+    # submits stop/target before the broker tells it where the entry actually filled.
+    assert r.stop_price == pytest.approx(98.0)
+    assert r.take_profit_price == pytest.approx(104.0)
+
+
+def test_stop_triggers_at_the_stop_and_fills_below_it(friction_broker):
+    """Friction must not move the trigger — only what the trigger costs."""
+    friction_broker.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+    friction_broker.now = _T1
+    friction_broker.on_bar(_bar(99.0, low=98.0))  # touches 98.0 exactly
+
+    filled = friction_broker.reconcile_exit("NFLX")
+    assert filled is not None
+    assert filled[1] == pytest.approx(97.902)  # 98.0 - 10 bps, not 98.0
+
+
+def test_a_bar_that_stops_just_short_still_does_not_fill(friction_broker):
+    """The trigger is the stop price itself; slippage may not drag it into range."""
+    friction_broker.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+    friction_broker.now = _T1
+    friction_broker.on_bar(_bar(99.0, low=98.01))  # one cent above the stop
+
+    assert friction_broker.reconcile_exit("NFLX") is None
+
+
+def test_target_fill_is_still_recognised_as_a_win_after_slippage(friction_broker):
+    """A slipped target fill must not be misread as a stop by the doctrine classifier.
+
+    `bot.doctrine` names the take-profit leg by price (within 0.5% of target). At
+    10 bps the target fills 0.1% light, which must stay inside that tolerance —
+    otherwise IMP-044 would silently convert every WIN in the harness into a FAIL.
+    """
+    friction_broker.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+    friction_broker.now = _T1
+    friction_broker.on_bar(_bar(104.5, high=105.0))
+    filled = friction_broker.reconcile_exit("NFLX")
+    assert filled is not None
+    assert filled[1] == pytest.approx(103.896)  # 104.0 - 10 bps
+
+    friction_broker.book_exit("NFLX", filled[1], "take profit")
+    assert "WIN 1" in summarize(friction_broker, 10_000.0, stop_loss=0.02)
+
+
+def test_market_close_fills_below_the_last_mark(friction_broker):
+    """The EOD flatten is a market sell too — it pays the same spread."""
+    friction_broker.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+    friction_broker.now = _T1
+    friction_broker.on_bar(_bar(103.0))  # no leg touched; sets the mark
+    oid = friction_broker.close_position("NFLX")
+
+    assert friction_broker.close_fill_price(oid) == pytest.approx(102.897)
+
+
+def test_friction_is_the_exact_gap_between_gross_and_net(friction_broker):
+    """The round trip on Friday's real MU fill: 2 sh @ ~997.57, $1,995 notional.
+
+    The 09-04 weekly measured the live/replay gap at ~$4 per ~$2,000 round trip and
+    pre-registered 10 bps/side as the explanation. This asserts the model actually
+    charges that: ~$3.99 on the exact notional of the last trade the bot took.
+    """
+    friction_broker.execute(symbol="MU", entry_price=997.565, confidence=72.08)
+    friction_broker.now = _T1
+    friction_broker.book_exit("MU", friction_broker._sell_fill(1008.67), "end-of-day flatten")
+
+    t = friction_broker.trades[0]
+    assert t.friction == pytest.approx(t.gross_pnl - t.pnl)
+    # The toll is 0.2% of the round trip, whatever the fixture happens to size.
+    assert t.friction == pytest.approx(0.002 * t.qty * 997.565, rel=0.01)
+    # Scaled to the 2 shares / $1,995.13 the bot actually held on 09-04: ~$4 —
+    # the exact per-trade gap the weekly measured between live and replay.
+    assert t.friction / t.qty * 2 == pytest.approx(4.0, abs=0.15)
+    # ...on a trade whose frictionless P&L was the +$22.21 the live book recorded.
+    assert t.gross_pnl / t.qty * 2 == pytest.approx(22.21, abs=0.01)
+    assert t.pnl < t.gross_pnl
+
+
+def test_summary_reports_friction_beside_the_money_line(friction_broker):
+    friction_broker.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+    friction_broker.now = _T1
+    friction_broker.book_exit("NFLX", friction_broker._sell_fill(104.0), "end-of-day flatten")
+
+    out = summarize(friction_broker, 10_000.0, stop_loss=0.02)
+    t = friction_broker.trades[0]
+    assert "10 bps/side" in out
+    assert f"gross={t.gross_pnl:+.2f}" in out
+    assert f"net={t.pnl:+.2f}" in out
+    assert t.friction > 0
+
+
+def test_zero_slippage_reproduces_the_frictionless_harness(cfg):
+    """`--slippage-bps 0` must be bit-identical to every pre-IMP-044 replay run."""
+    b = SimBroker(cfg, equity=10_000.0, slippage_bps=0.0)
+    b.now = _T0
+    r = b.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+    b.now = _T1
+    b.on_bar(_bar(99.0, low=98.0))
+
+    assert r.entry_price == pytest.approx(100.0)
+    assert b.reconcile_exit("NFLX")[1] == pytest.approx(98.0)
+    b.book_exit("NFLX", 98.0, "stop loss")
+    t = b.trades[0]
+    assert t.friction == pytest.approx(0.0)
+    assert t.gross_pnl == pytest.approx(t.pnl)
+
+
+def test_friction_scales_with_trade_count_not_with_edge(friction_broker):
+    """Why a frictionless harness over-rewards churn — the mechanism, pinned.
+
+    Two books with the same gross P&L but different trade counts must not net the
+    same. This is the systematic bias the 09-04 weekly predicted: friction is a
+    per-trade toll, so a scratch-heavy config pays it far more often than its edge
+    can refund, and the old harness charged neither.
+    """
+    for i in range(4):
+        sym = f"S{i}"
+        friction_broker.now = _T0
+        friction_broker.execute(symbol=sym, entry_price=100.0, confidence=75.0)
+        friction_broker.now = _T1
+        friction_broker.book_exit(sym, friction_broker._sell_fill(100.5), "trailing stop")
+
+    many = sum(t.friction for t in friction_broker.trades)
+    assert many == pytest.approx(4 * friction_broker.trades[0].friction)
+    assert sum(t.gross_pnl for t in friction_broker.trades) > sum(
+        t.pnl for t in friction_broker.trades
+    )
