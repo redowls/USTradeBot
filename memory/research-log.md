@@ -6293,3 +6293,221 @@ IMP-043 deploy), **warmup primed 19/19**, all 19 subscribed on the IEX feed, acc
   (4) **Commit `memory/weekly-review.md`** — four days uncommitted now.
 - **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
   `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
+
+---
+
+## 2026-09-09 — Pre-market Research
+
+**Three rules fired at once, and every one of them was pre-registered rather than discretionary:
+BABA's 30d dated test matured, META's hard-commit release condition unlocked, and the Apple keynote
+lands *inside* today's session.** One genuinely discretionary call was made on top — **AMGN**, on a
+confirmed catalyst. Four changes; **19 → 17 enabled**; service restarted clean (warmup 17/17).
+Book is **CLEAN & FLAT** (broker-confirmed **0 positions, 0 open orders**, equity **$9,192.70**,
+`last_equity == equity`) → **nothing locked, nothing constrained the decision.**
+
+### Market context
+- **⚠️ Regime change overnight, and it is not a tech story.** The US struck **five Iranian oil tankers**;
+  **Brent ~$99 / WTI ~$94**, oil's first approach to triple digits in over a month. The Dow lost **>600
+  points** Tuesday. Futures modestly lower into the open: **Dow −0.3%, S&P −0.2%, Nasdaq-100 −0.4%**.
+- **The tail risk is the rates path, not the oil price.** Strait-of-Hormuz supply fear has flipped the
+  September Fed expectation toward a **hike** at the **09-15/16 FOMC**. The Fed quiet period runs
+  **09-05 → 09-17**, so there are no speakers to soften it — **PPI Thu 09-10 08:30 ET** and **CPI Fri
+  09-11 08:30 ET** are the only two things that can move that expectation, and both are pre-open.
+- **✅ No noteworthy US economic release today, and no watchlist earnings this week.** Verified: mid-September
+  sits between reporting seasons; **MU reports 09-30**, comfortably outside. The one in-hours event is
+  Apple's (below). ECB decides 09-10, not a US-session event.
+- **09-08 tape, verified against SIP daily bars rather than taken on trust: SMH +1.19% / QQQ −0.08% /
+  SPY −0.55%**, with **INTC +9.05%, AMD +5.90%, TSLA +3.98%**. This is the **third consecutive
+  narrow-semis session on a flat-to-down index** — exactly the persistence the 09-08 daily review
+  predicted, and the reason to expect another gate-throttled day.
+- **🟡 Perplexity was actively misleading this run and must be discounted accordingly.** It reported
+  "pre-market gainers INTC **+8.75%**, AMD **+5.88%**, META **+3.52%**" — those are **yesterday's closing
+  moves**, not this morning's pre-market, and INTC/AMD match the 09-08 bars to within rounding. It also
+  could not resolve the day's economic calendar or earnings slate. **Every actionable finding today came
+  from WebSearch** (the oil shock, the rate-hike repricing, the PPI/CPI schedule, the Apple keynote time,
+  the AMGN catalyst). Budget it as a session/earnings-presence check only — **and treat any "pre-market
+  mover" figure it returns as suspect until a bar confirms it.** This is now the fourth run in five with
+  zero single-name catalysts from it.
+
+### Carried from daily review (09-08) + 09-07 research flags
+- **"The board is working. Do not touch it… the watchlist is not the constraint and no edit fixes today's
+  failure."** → **honored in substance.** Zero of today's four changes is an attempt to fix the gate
+  problem. INTC and AMD — the two names that generated every qualifying signal on 09-08 — were **not
+  touched and were never considered for touching.**
+- **"BABA's 30d dead-signal test comes due 09-09 — tomorrow. Fire it."** → **fired. It parks.**
+- **"⚠️ Apple keynote Wed 09-09 1:00 pm ET lands DURING the session… tomorrow's run must decide whether an
+  in-hours product event is a park-for-a-day."** → **decided: yes, park for the day.** Reasoning below.
+- **"INTC's 09-16 dated test looks headed for KEEP."** → **confirmed and strengthened.** INTC closed
+  **104.47, +10.79% vs its 20MA and +4.33% vs its 50MA** — it is now above **both**, so the park condition
+  (below both) fails outright. On today's data that test resolves **KEEP** and it is no longer close.
+- **"MU is the counter-example: the bot was RIGHT to skip it."** → carried, no action. MU closed −1.61%.
+- **"Do not remove or loosen the QQQ gate on today's evidence."** → **honored; not even raised.** QQQ stays
+  enabled and structurally exempt (`MARKET_FILTER_SYMBOL`); parking it would silently disable the gate.
+- **"Do not add watchlist symbols before [the friction test] runs."** → **the block is now LIFTED, and this
+  was verified rather than assumed.** IMP-044 ran on a **pinned 19-symbol universe** (77 trades, +$472.29
+  at 10bps), so the baseline can no longer be contaminated by watchlist population. This is what makes
+  today's META add legitimate rather than a violation.
+- **⚠️ `memory/weekly-review.md` still uncommitted** in the working tree, five days on. **Left untouched
+  again** — a pre-existing change this run did not make; this routine commits only what it writes.
+  **Sixth consecutive flag.**
+
+### Watchlist review
+All 19 enabled + META re-verified on Alpaca: **`tradable: true`, `status: active` — 20/20.** No halts,
+no sub-$5 names. Technicals from **09-08** SIP daily bars:
+
+| | close | 20MA | 50MA | ATR% | medRng | ≥2% | $vol/d | 10d | 1d |
+|---|---|---|---|---|---|---|---|---|---|
+| **INTC** | 104.47 | **+10.79** | +4.33 | 4.21 | 4.17 | 100% | $8.81B | **+19.72** | **+9.05** |
+| **MU** | 1000.26 | +5.26 | +6.91 | 4.37 | 4.15 | 100% | **$25.79B** | +9.87 | −1.61 |
+| **AMD** | 505.74 | +6.02 | +1.36 | 3.71 | 3.24 | 100% | $8.22B | +10.73 | **+5.90** |
+| **TSLA** | 368.16 | +5.10 | +2.92 | 4.29 | 3.70 | 100% | $12.05B | +5.51 | +3.98 |
+| **NVDA** | 225.73 | +2.38 | +6.86 | 3.46 | 2.27 | 70% | $25.39B | +8.27 | −2.01 |
+| **TSM** | 439.00 | +4.28 | +4.39 | 2.34 | 2.14 | 60% | $3.74B | +7.04 | +2.35 |
+| ***META*** | *613.48* | *+6.17* | *+2.80* | *2.92* | *2.92* | *75%* | *$9.23B* | *+9.74* | *−0.53* |
+| **PLTR** | 170.30 | −3.61 | +12.75 | 4.90 | 3.99 | 100% | $4.92B | −3.18 | −2.31 |
+| **SPOT** | 528.64 | −0.30 | +4.90 | 3.58 | 3.65 | 100% | **$0.78B** | −1.71 | −2.54 |
+| **MSFT** | 493.95 | −0.23 | +10.60 | 2.08 | 1.74 | 40% | $10.75B | +1.36 | −1.15 |
+| **AMZN** | 256.97 | −1.60 | +1.00 | 2.26 | 1.69 | 35% | $8.05B | −1.95 | −0.60 |
+| **QQQ** | 718.36 | +0.14 | +0.99 | 1.07 | 0.91 | 0% | $22.25B | +1.70 | −0.08 |
+| **NFLX** | 76.77 | −3.23 | +1.68 | 2.96 | 2.66 | 65% | $2.17B | −4.05 | −1.89 |
+| **UBER** | 73.13 | −4.83 | −1.21 | 3.58 | 2.81 | 80% | $1.12B | −7.77 | −3.47 |
+| **ABNB** | 174.54 | −5.37 | +6.72 | 2.90 | 2.56 | 65% | $0.90B | **−8.24** | −4.07 |
+| **LLY** | 1123.91 | −6.12 | −5.54 | 3.07 | 2.76 | 80% | $2.88B | −9.87 | −2.21 |
+| **DASH** | 200.44 | **−9.69** | −1.73 | 4.04 | 3.26 | 100% | $0.86B | **−12.49** | −5.33 |
+| *AAPL* | *316.22* | *+0.86* | *+0.13* | *2.35* | *1.88* | *45%* | *$12.33B* | *+1.89* | *−1.17* |
+| *BABA* | *112.66* | *−6.12* | *−3.32* | *3.35* | *2.01* | *50%* | *$1.15B* | *−4.90* | *−0.51* |
+| *AMGN* | *393.17* | *−8.62* | *−1.15* | *3.05* | *1.97* | *50%* | *$1.01B* | *−11.42* | ***−10.08*** |
+
+**Reference: SMH 573.73 (+1.43% vs 20MA) · SPY 765.96 (−0.36%).**
+
+- **The top of the board is in excellent shape and was left alone.** INTC, MU, AMD, TSLA all print
+  **ATR >3.7%, 100% of sessions ≥2%, and are above both MAs** — and INTC/MU are the **#2 and #1 all-time
+  earners** (+$150.78 / +$211.76). Nothing here needed a decision.
+- **🔴 AMGN — parked, and this is the run's one discretionary call, so the evidence is given in full.**
+  It fell **−10.08% in a single session**. Cause verified at source: **Novartis/Ionis' Lp(a)Horizon Phase 3
+  of pelacarsen missed** its combined cardiovascular endpoint, which **re-rates the whole Lp(a) class** and
+  therefore Amgen's Phase III **olpasiran** (OCEAN(a)-Outcomes) — compounded by a **BMO Capital downgrade**.
+  The add thesis from 08-20 was *"+6.8% vs 20MA / +15.6% vs 50MA"*; it is now **−8.62% / −1.15%, below both**,
+  **−11.42% over 10d**, and it has **never traded in the 20 sessions since it was added.** This follows the
+  **WMT precedent** (08-20: confirmed catalyst + gap through both MAs → park), not the LLY/DASH pattern
+  (weakness alone → dated test). ⚠️ **It also exposes a real defect worth recording: AMGN's 09-16 dated test
+  was an ATR-floor test, and the crash pushed ATR 2.12% → 3.05%, so that test would have resolved KEEP
+  *because the stock collapsed*.** A volatility floor is not a fitness test when the volatility is a
+  one-day repricing. **Future dated tests on a volatility floor should require the ATR to be trend-driven
+  (e.g. median 20d range, which is still 1.97% here) rather than ATR alone.**
+- **🟡 DASH is now the weakest name on the board** (−9.69% vs 20MA, −12.49% 10d, never traded in 12
+  sessions) and **ABNB is close behind** (−8.24% 10d, −4.07% yesterday). **Neither is parked today, and that
+  is deliberate**: DASH's dated test is **09-23** and both still clear every admission floor. Parking them
+  now on drawdown alone is precisely the ad-hoc behaviour the dated-test convention replaced. ABNB has no
+  test armed; **one is armed below.**
+- **🟡 LLY, UBER, SPOT** unchanged and weak; all carry live dated tests (09-21 / 09-21 / 09-11). No action.
+- **🔒 QQQ — structurally exempt, unchanged.** Worst name on merit (ATR 1.07%, 0% of sessions ≥2%, no trade
+  since 07-14) and it *is* the market gate. Infrastructure, not a park candidate.
+
+### 🎯 The three pre-registered decisions
+
+**1. BABA — 09-09 dated test fired. PARKED.** Both legs verified independently, neither assumed:
+- *30d dead-signal:* last closed trade **2026-08-10 19:45 UTC** → **30 calendar days** today, matching the
+  convention the 09-08 run used when it wrote *"29 days, the 30d leg matures tomorrow."*
+- *Below both MAs:* **−6.12% vs 20MA, −3.32% vs 50MA.** ✅
+- **Recorded honestly: BABA is all-time profitable (+$52.80 on 12 trades).** That is exactly why it was
+  pre-registered — a dated test is worthless if it only fires on names you already wanted gone. Its profile
+  has genuinely decayed (50% of sessions ≥2%, −4.90% 10d, below both MAs) and the long-only ribbon has no
+  business in a downtrend. **Re-enable is one `UPDATE` away if it reclaims both MAs.**
+
+**2. META — the hard commitment is HONOURED, one run early, exactly as written. ADDED.**
+The release condition was *"the first pre-market run after IMP #1 (doctrine port) and #2 (friction
+modelling) are both recorded… If #2 ships before then, it is added at the next run instead."*
+**#1 = IMP-043 (09-07). #2 = IMP-044 (09-08).** Both are in `improvement-log.md`; today is the next
+pre-market run. **The condition released on its own terms and the unconditional 09-11 backstop was never
+needed.** Verified `tradable: true / active / NASDAQ` this run. It clears every admission floor and then
+some: **ATR 2.92%** (floor 2.3%), **$9.23B/day** (floor $0.85B), **75% of sessions ≥2%**, **+6.17% vs 20MA
+/ +2.80% vs 50MA, +9.74% over 10d**, next earnings late October. **After three deferrals the honest note is
+that the deferrals cost nothing measurable and the discipline held; the commitment was kept without a
+fourth excuse being invented.**
+
+**3. AAPL — in-hours event. PARKED FOR THE DAY ONLY.**
+Verified at source: Apple's **"Surprise and shine"** keynote is **today, 10:00 PT / 1:00 pm ET**, at Apple
+Park — **the first keynote hosted by new CEO John Ternus** rather than Tim Cook. That is squarely inside the
+10:00–16:00 ET entry window. A long-only 1-min ribbon with a **1.25% trail** is structurally exposed to
+headline-driven reversals, and a first-keynote-under-a-new-CEO is a higher-variance version of an event that
+already tends to produce a "sell the news" fade. AAPL is also a **marginal fit at the best of times** —
+ATR 2.35%, median range 1.88%, only **45% of sessions ≥2%** — and it has **not traded in 43 days**, so the
+expected cost of parking is ≈ 0 while the tail it removes is real. The restart it requires is free today
+because BABA and META force one anyway.
+
+> **⚠️ TOMORROW'S RUN — DO NOT CONFLATE THESE TWO. RE-ENABLE AAPL on 09-10.** Today's park is an **event
+> park with a one-day life**, nothing more. AAPL separately carries a **09-10 dead-signal dated test**, and
+> **on today's data that test resolves KEEP**: the park condition requires it to be below **both** MAs and it
+> is **above both** (+0.86% / +0.13%). Two independent instruments, two independent answers — re-enable it,
+> then judge the 09-10 test on its own terms.
+
+### ❌ Negative result worth recording: the oil shock has no expressible trade here
+Brent at $99 is the day's biggest macro move, so the energy complex was screened properly rather than
+dismissed — **XOM (a parked row, so a re-enable rather than an insert), CVX, COP, SLB, OXY, XLE:**
+
+| | close | 20MA | ATR% | ≥2% | $vol/d | 1d |
+|---|---|---|---|---|---|---|
+| XOM | 160.66 | −0.50 | **2.08** | 30% | $2.21B | +0.75 |
+| CVX | 209.80 | +2.85 | **1.78** | 15% | $1.58B | +0.58 |
+| COP | 135.04 | +2.74 | **2.17** | 45% | **$0.81B** | +0.58 |
+| SLB | 57.10 | +3.74 | 3.40 | 70% | **$0.48B** | −0.71 |
+| OXY | 60.65 | +1.58 | **2.26** | 25% | **$0.41B** | +1.02 |
+| XLE | 64.77 | +2.65 | **1.75** | 10% | $1.59B | +1.11 |
+
+**Every one fails an admission floor.** The liquid majors are too quiet for the ribbon (**XOM ATR 2.08%**,
+CVX 1.78%, XLE 1.75%, all below the 2.3% floor), and the only name with real volatility — **SLB, ATR 3.40%,
+70% of sessions ≥2%** — trades **$0.48B/day, 44% under the $0.85B liquidity floor.** The tell is that on a
+day Brent went to $99, **XLE moved +1.11% and XOM +0.75%**: the move is in the *futures*, not in the
+US large-cap equities this strategy can trade. **No energy add. Recorded so future runs do not re-screen
+this complex every time oil moves** — the floors, not the narrative, decide, and they say no.
+
+### Changes applied to dbo.watchlist
+Four, all parameterized, `watchlist` table only:
+1. **PARK BABA** — 30d dated test fired (both legs), below both MAs.
+2. **PARK AMGN** — Novartis Lp(a) Phase 3 failure de-rates olpasiran + BMO downgrade; −10.08% gap through
+   both MAs; 0 trades in 20 sessions.
+3. **PARK AAPL** — **event only**, Apple keynote 1:00 pm ET in-hours. **RE-ENABLE 09-10.**
+4. **ADD META** — release condition met (IMP-043 + IMP-044 both recorded); verified tradable/active.
+
+No DELETEs. No source-code changes. Assertions run post-commit: **enabled ≤ 30 ✅** and **QQQ still
+enabled ✅** (guarding `MARKET_FILTER_SYMBOL` against a silent gate disable).
+
+### Final watchlist
+**17 enabled** (≤30 ✅): ABNB, AMD, AMZN, DASH, INTC, LLY, META, MSFT, MU, NFLX, NVDA, PLTR, QQQ, SPOT,
+TSLA, TSM, UBER. **Parked (17):** AAPL, AMGN, AVGO, BABA, BIRD, C, COST, ENPH, GOOG, JPM, QCOM, SE, SPY,
+UNH, WMT, WPM, XOM.
+**Service restarted: YES** — required, the watchlist is read only at startup. Verified healthy:
+`active`, **NRestarts=0**, up 2026-09-09 11:36:14 UTC, **warmup primed 17/17**, all 17 subscribed on the
+IEX feed, META present in both the startup list and the subscription, account **ACTIVE** ($9,192.70),
+**0 positions / 0 open orders**, zero errors in the startup sequence. **`.env` confirmed
+`ustradebot:ustradebot` mode 600, untouched.**
+
+### Dates carried forward
+- **🔴 AAPL 09-10 — TWO separate things, in this order.** (a) **Re-enable it** — today's park was
+  event-only and expires with the keynote. (b) **Then** run its 09-10 dead-signal test independently; on
+  09-08 data it resolves **KEEP** (above both MAs). Do not let (a) be swallowed by (b).
+- **SPOT 09-11** (park if $vol <$0.85B **and** 14d without a trade — now **$0.78B**, 12 sessions: **on track
+  to fire**) · **AMD 09-12** (will not fire — +6.02%/+1.36%, above both MAs, traded 08-13) ·
+  **NFLX 09-15** · **INTC 09-16** (**resolves KEEP** — above both MAs by +10.79%/+4.33%) ·
+  **LLY 09-21** · **UBER 09-21** · **DASH 09-23** (weakest on the board; below both MAs and never traded —
+  **on track to fire** unless it recovers).
+- **➖ AMGN 09-16 test is retired** along with the symbol — parked today on catalyst, so the ATR-floor test
+  is moot. **Its lesson is not moot** (see above): a volatility floor must not be satisfiable by a crash.
+- **➕ NEW — ABNB 09-23 dated test.** −8.24% 10d, −5.37% vs 20MA, $0.90B/day (only 6% over the floor), last
+  trade **08-10** (29 days). It is the one weak name carrying no clock. *Park if it has not traded by
+  09-23 **and** is below both its 20MA and 50MA **or** median $vol has fallen below $0.85B.*
+- **⚠️ Thu 09-10 PPI 08:30 ET and Fri 09-11 CPI 08:30 ET, into the 09-15/16 FOMC, with the Fed in a quiet
+  period.** Both are **pre-open**, so neither is an in-hours event — but with the market now pricing a
+  possible **hike** on an oil supply shock, either print can set a violent open. **No park is warranted for
+  a pre-open macro release** (the bot's 10:00 ET blackout already covers the first 30 minutes); flagging it
+  so tomorrow's run reads a gap correctly rather than as a single-name catalyst.
+- **For tonight's daily review:** (1) **Perplexity returned yesterday's closes as "pre-market movers"** —
+  if that recurs, it is worth pinning a one-line bar-check before its output is quoted anywhere.
+  (2) **The in-repo earnings blackout is a SIXTH consecutive ask** — today again required WebSearch by hand
+  to establish "no watchlist earnings this week", and the weekly has already threatened a D-grade process
+  item. (3) **Commit `memory/weekly-review.md`** — five days uncommitted, sixth flag.
+  (4) The 09-08 daily's **gate-hysteresis A/B** is Friday's item; re-run it **with IMP-044 friction on**,
+  since the gate arm trades less and friction is charged per trade.
+- **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
+  `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
