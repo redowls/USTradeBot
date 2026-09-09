@@ -35,6 +35,20 @@ clears it bounds the share that could ever have won. Where the ladder first
 collapses names the binding constraint, and the three gaps map one-to-one onto the
 stop-exit doctrine's three causes — entry quality, stop geometry, profit capture.
 
+**One gap in that reading is a trap, and IMP-046 closed it.** Rungs 1 and 2 are
+*not* independent: both are bounded by the session high, and for a trade that ran
+after entry that high is the same number. So the 1->2 drop shrinks whenever the
+forward return is large and widens whenever it is small — mechanically, whatever
+the entry did. The original ``entry_percentile`` inherited the same flaw (it
+divides by the whole session's range, most of which had not printed yet), and
+reading it as "we bought the high, therefore we were late" is how six consecutive
+reviews reached a late-entry verdict from a statistic that peeks at the answer.
+Over 246 trades it correlates **−0.66** with rung 2; the lookahead-free version,
+:attr:`EntryTiming.causal_entry_percentile`, correlates **+0.01**. Entry timing
+measured honestly predicts **nothing** on this book — the median fill is at the
+87th percentile of the range so far and its forward runway is flat across every
+cohort. Diagnose late entry from the causal number or not at all.
+
     python -m bot.report --days 30 --timing
 
 Same shape as its siblings: the arithmetic is **pure** and unit-tested, the only
@@ -83,6 +97,10 @@ class EntryTiming:
     available_pct: float
     mfe_pct: float
     realized_pct: float
+    # The session's extremes as at the fill — the entry bar closes at our fill price,
+    # so its own high/low are known and included, and nothing after it is (IMP-046).
+    high_at_entry: float = 0.0
+    low_at_entry: float = 0.0
 
     @property
     def session_range_pct(self) -> float:
@@ -90,16 +108,51 @@ class EntryTiming:
 
     @property
     def entry_percentile(self) -> float | None:
-        """Where in the session's range we entered: 0.0 at the low, 1.0 at the high.
+        """Where the fill sits in the **whole session's** range, lows 0.0 to high 1.0.
 
-        ``None`` on a zero-range session (a halted or untraded name), where the
-        question has no answer. High values are the signature of a late entry —
-        the move happened, then we bought it.
+        ⚠️ **Descriptive only — never read this as entry timing (IMP-046).** The
+        denominator spans the entire session, so it contains bars that had not
+        happened when we committed. A trade that runs after entry pushes
+        ``session_high`` up and its own percentile down, which makes this quantity
+        largely a monotone transform of the forward return rather than a property
+        of the entry. Measured over 246 trades it correlates **−0.66** with
+        ``available_pct`` — an artifact, not a finding, and the reason six reviews
+        running diagnosed "late entry" from it. Use
+        :attr:`causal_entry_percentile`, whose correlation is **+0.01**.
         """
         span = self.session_high - self.session_low
         if span <= 0:
             return None
         return (self.entry_price - self.session_low) / span
+
+    @property
+    def causal_entry_percentile(self) -> float | None:
+        """Where the fill sat in the range **that had already happened** (IMP-046).
+
+        The same 0.0-at-the-low / 1.0-at-the-high scale as
+        :attr:`entry_percentile`, but bounded by the session extremes as at the
+        fill, so it is computable at signal time and a filter could actually act on
+        it. ``None`` before the range opens (a first-bar entry, or a halted name).
+
+        This is the honest test of the late-entry charge, and it **refutes it**: a
+        median fill lands at the **87th** percentile of the range so far — a
+        crossover strategy buys strength by construction — yet the cohorts from the
+        25th to the 100th percentile show flat forward runway (median
+        ``available_pct`` 1.08% / 0.76% / 0.83% / 0.81%). Entering "late" in the
+        move that has already happened predicts nothing about the move still to
+        come, so no filter on this quantity can help.
+
+        Deliberately **not** clamped to ``[0, 1]``: a fill above every price printed
+        so far is a breakout buy, and a value >1.0 is the only way to say so.
+        Clamping would fold the book's best setups in with an ordinary
+        buy-the-high — SE on 2026-07-09 filled at **122%** and ran 2.91%, the single
+        row that most cleanly exposes the lookahead metric (which called that same
+        fill the 30th percentile, i.e. "a nicely-timed early entry").
+        """
+        span = self.high_at_entry - self.low_at_entry
+        if span <= 0:
+            return None
+        return (self.entry_price - self.low_at_entry) / span
 
     @property
     def unspent_share(self) -> float | None:
@@ -144,6 +197,15 @@ def compute_timing(
     after = [(h, low) for t, h, low in session_bars if t >= entry_time]
     high_after = max((h for h, _ in after), default=entry_price)
 
+    # Bars up to and including the entry bar: everything the tape had printed by
+    # the time we filled. "<=" for the mirror-image reason — we fill at the entry
+    # bar's close, so that bar is complete and its extremes are known, while no
+    # later bar is. Keeping this strictly separate from the full-session extremes
+    # is what makes causal_entry_percentile free of lookahead (IMP-046).
+    upto = [(h, low) for t, h, low in session_bars if t <= entry_time]
+    high_at_entry = max((h for h, _ in upto), default=entry_price)
+    low_at_entry = min((low for _, low in upto), default=entry_price)
+
     # The holding window ends at the exit bar, inclusive for the same reason.
     holding = [(h, low) for t, h, low in session_bars if entry_time <= t <= exit_time]
     high_holding = max((h for h, _ in holding), default=entry_price)
@@ -156,6 +218,8 @@ def compute_timing(
         available_pct=max(0.0, (high_after - entry_price) / entry_price * 100.0),
         mfe_pct=max(0.0, (high_holding - entry_price) / entry_price * 100.0),
         realized_pct=(exit_price - entry_price) / entry_price * 100.0,
+        high_at_entry=high_at_entry,
+        low_at_entry=low_at_entry,
     )
 
 
@@ -173,6 +237,7 @@ class TimingSummary:
     mfe_reaching_trail: int
     median_unspent_share: float | None
     median_entry_percentile: float | None
+    median_causal_entry_percentile: float | None
 
 
 def _median(values: Sequence[float]) -> float:
@@ -197,6 +262,11 @@ def summarize(rows: Sequence[EntryTiming], trail_percent: float) -> TimingSummar
     trail_pct = trail_percent * 100.0
     unspent = [r.unspent_share for r in rows if r.unspent_share is not None]
     percentiles = [r.entry_percentile for r in rows if r.entry_percentile is not None]
+    causal = [
+        r.causal_entry_percentile
+        for r in rows
+        if r.causal_entry_percentile is not None
+    ]
     return TimingSummary(
         trades=len(rows),
         median_session_range=_median([r.session_range_pct for r in rows]),
@@ -208,6 +278,7 @@ def summarize(rows: Sequence[EntryTiming], trail_percent: float) -> TimingSummar
         mfe_reaching_trail=sum(1 for r in rows if r.mfe_pct >= trail_pct),
         median_unspent_share=_median(unspent) if unspent else None,
         median_entry_percentile=_median(percentiles) if percentiles else None,
+        median_causal_entry_percentile=_median(causal) if causal else None,
     )
 
 
@@ -240,15 +311,26 @@ def format_timing(
             f"  median unspent share (rung2/rung1): "
             f"{summary.median_unspent_share * 100:.0f}% of the day's range was still ahead"
         )
-    if summary.median_entry_percentile is not None:
+    if summary.median_causal_entry_percentile is not None:
         lines.append(
-            f"  median entry percentile: "
-            f"{summary.median_entry_percentile * 100:.0f}% of the session range "
+            f"  median entry percentile (causal, range so far): "
+            f"{summary.median_causal_entry_percentile * 100:.0f}% "
             f"(0% = bought the low, 100% = bought the high)"
         )
+    if summary.median_entry_percentile is not None:
+        lines.append(
+            f"  median entry percentile (whole session, LOOKAHEAD — descriptive only): "
+            f"{summary.median_entry_percentile * 100:.0f}%"
+        )
     lines.append(
-        "  READ: rung 1 short of the trail = wrong universe; a big 1->2 drop = late entry; "
-        "2->3 = exited early; 3->4 = profit capture."
+        "  READ: rung 1 short of the trail = wrong universe; 2->3 = exited early; "
+        "3->4 = profit capture."
+    )
+    lines.append(
+        "  ⚠️ A big 1->2 drop is NOT evidence of late entry (IMP-046): rung 1 and the "
+        "whole-session percentile both read the post-entry high, so both move with the "
+        "forward return. Judge entry timing on the causal percentile only — measured "
+        "over 246 trades it correlates +0.01 with rung 2, i.e. not at all."
     )
     if skipped:
         lines.append(f"  ({skipped} trade(s) skipped — no session bars)")

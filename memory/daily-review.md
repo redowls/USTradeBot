@@ -7288,3 +7288,240 @@ gap has another cause."* Three things follow:
   AAPL's 09-10 dated test. Flagged by this morning's research; it is tomorrow's problem now.
 - **⚠️ Operational: verify `.env` is `ustradebot:ustradebot` mode 600 and
   `systemctl is-active` before the open.** Service restarted tonight for IMP-044.
+
+---
+
+## 2026-09-09 — Daily Review
+
+### Stats
+- **Zero closed trades. Second consecutive session with no fills**, and the seventh
+  session since 09-04 in which the book has not turned over. Net realized P&L **$0.00**.
+- **Account equity $9,192.70**, unchanged from the 09-08 close (`last_equity` = `equity`
+  = 9192.7). Flat cash, 0 open positions, 0 orders — the day cost nothing and made nothing.
+- **Broker reconciliation exact.** `alpaca-usbot` MCP (read-only): 0 orders since
+  00:00Z, 0 positions, equity $9,192.70 — matches `dbo.trades` (0 rows today) with no
+  drift, no missed fill, nothing carried overnight.
+- Service **active**, `NRestarts=0`, up since **11:36:14 UTC** (the pre-market routine's
+  watchlist restart, expected), **0 errors in 8,096 log lines**, warmup primed 17/17,
+  all 17 symbols subscribed on IEX. `.env` verified `ustradebot:ustradebot` mode 600.
+
+### Stop-exit accounting
+**No closed trades → stop rate n/a today.** Nothing closed since 09-04, so the trailing
+windows are unchanged; recomputed from `dbo.trades` via `bot.doctrine` rather than copied
+forward:
+
+| Window | n | stop rate | WIN | SCRATCH | FAIL (full / BE) | **true WR** | headline WR | **F+S** |
+|---|---|---|---|---|---|---|---|---|
+| Today | **0** | n/a | — | — | — | n/a | n/a | n/a |
+| Last 3 sessions w/ trades (08-28, 09-03, 09-04) | 3 | 2/3 (67%) | 0 | 2 | 1 (0/1) | **0%** | 66.7% | **100%** |
+| Trailing 10 sessions w/ trades | 32 | 21/32 (66%) | 2 | 16 | 14 (0/14) | **6.2%** | 65.6% | **94%** |
+| All-time | 276 | 92/276 (33%) | 20 | 139 | 117 (33/84) | **7.2%** | 46.7% | **93%** |
+
+- **🚨 ESCALATION REMAINS ACTIVE — eighth consecutive session.** F+S **100%** over the last
+  three sessions with trades, **94%** trailing 10, against a 60% threshold. **No parameter
+  or strategy change shipped tonight**, and none did: IMP-046 is a read-only reporting fix
+  touching no entry, exit, sizing or risk path.
+- **Dominant failure cause today: entry quality — specifically non-entry, for the second
+  session running.** But see below: tonight's work materially changes *what* the entry
+  charge can honestly be said to be.
+
+### Trade-by-trade review
+**No trades. Root-causing the absence.**
+
+**The market gate was closed for the entire session — `dbo.market_gate` shows 0 of 88
+recorded QQQ bars open, all day.** Not a flicker, not a near-miss: it never opened once.
+That is a different mechanism from 09-08, when the gate flipped 14 times and 5 of its 15
+open runs lasted a single bar. Two zero-trade days in a row, two different causes.
+
+18 candidates were scored and refused — 3 by the gate, 15 by the confidence floor:
+
+| time UTC | sym | conf | xo · trend · rsi · vol · vola | ATR% | refusal |
+|---|---|---|---|---|---|
+| 15:17 | **META** | **81.06** | 0.73 · 1.00 · 1.00 · 0.89 · 0.43 | 0.24% | market gate closed |
+| 14:55 | **INTC** | **73.81** | 0.61 · 1.00 · 1.00 · 0.46 · 0.27 | 0.23% | market gate closed |
+| 14:46 | **TSLA** | **64.82** | 0.48 · 1.00 · 1.00 · 0.05 · 0.00 | 0.18% | market gate closed |
+| 14:39 | MU | 59.79 | 0.25 · 1.00 · 1.00 · 0.16 · 0.27 | 0.23% | confidence < 60 |
+| … | 14 more | ≤58.36 | — | 0.06–0.24% | confidence < 60 |
+
+**✅ Unlike 09-08, the gate was RIGHT today, and measurably so** (`bot.report --refusals`,
+counterfactual = enter at the refusal candle's close, flatten with the session):
+
+| cohort | n | avgMFE | avgMAE | avgFwd | <0.5% MFE | hitTrail | stopped |
+|---|---|---|---|---|---|---|---|
+| **gate** | **3** | **+0.23%** | **−1.50%** | **−0.65%** | 2/3 | **0/3** | 0/3 |
+| confidence | 15 | +0.38% | −0.75% | −0.20% | 11/15 | 0/15 | 0/15 |
+| ALL | 18 | +0.36% | −0.88% | **−0.27%** | 13/18 | **0/18** | 0/18 |
+
+Best declined all day: **AMD, MFE +0.88%, fwd −0.27%, conf 49.55.** **Not one of the 18
+refusals would have reached the 1.25% trail.** On 09-08 the gate cohort ran +2.91% MFE
+with 4 of 5 reaching the trail; today it ran +0.23% with 0 of 3. **The same filter, two
+consecutive sessions, opposite verdicts — which is the strongest argument yet that a
+filter cannot be judged on one day's refusal cohort.**
+
+Why the gate was right: **all three of its refusals fired within a hair of the day's
+high.** META signalled at 657.40 when the regular session's high to that point was
+657.495 and the eventual high was 657.83 — **0.07% of runway left** — and META closed
+653.69. TSLA signalled 373.13, printed 375.44, closed **367.81**. The names had already
+moved; the crossover confirmed it at the top.
+
+**Tape (verified against broker bars, not narrative):** QQQ **−0.28%**, SPY **−0.46%**,
+SMH **+0.10%** — against META **+6.55%**, AMD **+3.04%**, MU **+2.75%**, INTC **+1.69%**,
+TSLA −0.10%, NVDA −0.91%. **Third consecutive session of narrow single-name strength on a
+flat-to-down index**, exactly the regime 09-08 predicted would throttle the gate again.
+It did, and this time the throttling saved money.
+
+⚠️ **Perplexity was factually wrong on the tape for the second run running.** It reported
+"S&P 500 finished 7,406, up 0.30%" and "Nasdaq finished 25,930, up 0.86%", both
+**trending-up** — the actual QQQ and SPY bars are −0.28% and −0.46%. The 09-09 research
+log had pre-registered exactly this risk ("Perplexity returned yesterday's closes as
+pre-market movers — if that recurs, it is worth pinning a one-line bar-check"). It
+recurred, in the opposite direction. **The bar-check caught it; nothing downstream used
+the bad numbers.** Treat sonar's index levels as unusable without a bar cross-check.
+
+### 🔴 The finding: the "late entry" verdict of the last six sessions rests on a statistic that peeks at the future
+
+This is the substantive result of tonight's run, and it overturns prior entries in this
+file rather than extending them.
+
+`bot/timing.py` (IMP-040) reports `entry_percentile` — where the fill sat in the session's
+range — and its docstring asserted *"high values are the signature of a late entry."* The
+`--timing` READ key asserted *"a big 1->2 drop = late entry."* Six consecutive reviews
+have leaned on that reading. **Nobody ever tested it.**
+
+It is computed as `(entry − session_low) / (session_high − session_low)` over the **whole
+session — including every bar after the entry.** So a trade that runs after we buy lifts
+`session_high` and pushes its own percentile *down*. The statistic is largely a monotone
+transform of the forward return, not a property of the entry. Rung 2 (`available_pct`)
+reads that same future high, so the two are anti-correlated **by construction**.
+
+Measured both ways over 246 closed trades with session bars:
+
+| metric | corr with `available_pct` (rung 2) | median |
+|---|---|---|
+| `entry_percentile` (whole session, **lookahead**) | **−0.664** | 71% |
+| `causal_entry_percentile` (range known at the fill) | **+0.008** | **87%** |
+
+| cohort | LOOKAHEAD: n / med avail / ≥trail / med realized | CAUSAL: n / med avail / ≥trail / med realized |
+|---|---|---|
+| 25–50% | 43 · 2.22% · 34/43 · +0.86% | 12 · 1.08% · 6/12 · +0.09% |
+| 50–75% | 94 · 1.05% · 40/94 · +0.18% | 49 · 0.76% · 14/49 · −0.42% |
+| 75–90% | 79 · 0.51% · 7/79 · **−0.42%** | 94 · 0.83% · 34/94 · +0.02% |
+| 90–100% | 27 · 0.10% · **0/27** · **−1.19%** | 91 · 0.81% · 30/91 · −0.05% |
+
+**The lookahead cohorts collapse beautifully and mean nothing. The causal cohorts are
+flat.** The cleanest single row is **SE, 2026-07-09** — one of the book's best trades,
++2.78% realized on 2.91% of available runway. The lookahead metric scores that fill at the
+**30th percentile** ("a nicely-timed early entry"). In fact it filled at **122%** of the
+range that had printed — *above every price of the day so far*, a breakout buy. The metric
+called the latest possible entry the earliest one, purely because it worked.
+
+**What this means, stated plainly:**
+1. **The late-entry charge is unproven, and the honest measure gives it no support.** The
+   bot's median fill lands at the **87th percentile of the range so far** — a crossover
+   strategy buys strength by construction, that is not a defect — and forward runway is
+   **flat** across every cohort from the 25th percentile up. Entering "late" in the move
+   that already happened predicts **nothing** about the move still to come.
+2. **No entry filter built on this quantity can work**, and one would have looked
+   spectacular in-sample. This is the third lookahead/measurement-honesty defect this
+   project has found in a month (IMP-024 gate lookahead, IMP-044 frictionless harness,
+   now this) — the pattern is real and worth naming.
+3. **It does not exonerate the entry signal.** The ceiling is unchanged and damning:
+   **18.1% of entries ever print +1R**, realized true win rate **6.0%**, so 12.0pp is
+   exit-recoverable and **81.9pp is the entry signal**. 171 of 249 trades peaked below the
+   1.25% trail give-back and could not have finished green under any ratchet. The entry is
+   still the problem — **but "we buy too late in the move" is not the reason, and the next
+   structural proposal must not be built on it.**
+
+### What worked / what didn't
+- **✅ Plumbing flawless again.** 0 errors in 8,096 lines, NRestarts=0, exact broker/DB
+  reconciliation, `.env` clean, warmup 17/17.
+- **✅ The gate earned its keep today** — 3 refusals, 0/3 reaching the trail, avg forward
+  −0.65%, on a day the index fell and the crossovers fired at the highs.
+- **✅ The confidence floor was again the better filter**: 15 refusals, 11 never cleared
+  +0.5% MFE, avg forward −0.20%.
+- **✅ Cross-checking Perplexity against broker bars caught a second consecutive factual
+  error** before it reached any conclusion.
+- **❌ Two consecutive zero-trade sessions from two different mechanisms** (14 gate flips
+  on 09-08; a gate that never opened at all today). The bot has no fills to learn from and
+  the escalation cannot resolve without them.
+- **❌ A six-session diagnosis was resting on a lookahead artifact** and no test guarded
+  it. The module *computed* the number and *asserted* its meaning in the same docstring.
+
+### Improvement: IMP-046 — strip the lookahead out of the entry-timing diagnosis
+**Shipped tonight.** Adds `high_at_entry` / `low_at_entry` to `EntryTiming` (extremes as at
+the fill — the entry bar closes at our fill price so it is included, nothing after it is)
+and a `causal_entry_percentile` property; `--timing` now prints the causal median beside
+the old one, the old one is relabelled **"whole session, LOOKAHEAD — descriptive only"**,
+and the READ key's "a big 1->2 drop = late entry" claim is **removed** and replaced with an
+explicit warning. Docstrings corrected where they asserted the refuted reading.
+
+Deliberately **not** clamped to [0,1] — a fill above everything printed so far is a
+breakout, and >1.0 is the only way to say so (SE's 122%).
+
+**Validation: 534 tests pass** (7 new, was 527). Preflight OK with the expected
+market-closed warning. The new tests pin the mechanism (identical entries, different
+post-entry highs → causal unchanged at 1.0, lookahead swinging 1.0 → 0.2), both real rows
+(**SE 07-09** 30.4% vs 122.5%; **today's META 15:17 @ 657.40** where the two converge to
+98%/99% *because* nothing ran — the artifact needs a forward move to open up, which is
+precisely why a single flat session can never reveal it), the `None` cases, and backward
+compatibility for rows built the pre-IMP-046 way.
+
+**Why this and not a strategy change:** zero closed trades today, so no trade-level
+evidence could justify an entry/exit edit; the escalation is active for the eighth session
+and bars parameter tweaks. IMP-046 touches no trading path. It is also the prerequisite for
+the entry work the weekly is about to commission — the same argument IMP-044 made about
+friction: *measuring an entry change against a lookahead-contaminated timing metric is how
+six reviews reached the same unverified verdict.*
+
+### Lessons & improvement candidates
+1. **🔴 For Friday's weekly — the gate-hysteresis A/B needs a re-scoped question.** 09-08
+   ranked it #1 on a session with 14 gate flips. **Today had zero flips and the gate was
+   closed all day, so hysteresis would have changed nothing**, and on today's cohort it
+   would have *cost* money (0/3 reaching the trail). Hysteresis addresses flicker days
+   only. The A/B must report **which sessions it changed**, not just a net number, and be
+   run with IMP-044 friction on. ⚠️ Gate ON remains +$219/90d accretive; do not remove it.
+2. **🔴 Retire the late-entry narrative from the improvement queue.** Any future proposal
+   of the form "enter earlier in the move" now needs to clear `causal_entry_percentile`
+   first, where the effect is +0.01. Six reviews' worth of ranked candidates were built on
+   the lookahead reading and should be re-derived, not inherited.
+3. **🟠 The real entry question, restated with numbers attached:** 81.9pp of the gap to the
+   ceiling is the entry signal, and 171/249 trades never peaked past the trail width. The
+   open structural question is **why the ribbon fires on moves that do not continue** — not
+   *when* it fires within them. Candidate axes not yet tested causally: ATR/volatility at
+   signal time (today's refusals ran **0.06–0.24% ATR** against a **2.0%** stop — +1R was
+   arithmetically unreachable), and the inverted confidence band (90–100: 3 trades, 0% win,
+   −$144.42).
+4. **🟢 Perplexity index levels need a standing bar cross-check** — wrong twice running,
+   in both directions. Cheap to guard, and it already paid off today.
+5. **Open and unchanged:** the `exit_reason` close/fill race (half-fixed by IMP-038); the
+   IMP-036 mechanism test (needs ~15 fills, has ~3 — today added none, second day running);
+   the in-repo earnings blackout (**seventh** consecutive ask, weekly threatened a D-grade
+   process item); `memory/weekly-review.md` still uncommitted in the working tree
+   (**sixth** flag — left untouched again as a pre-existing change, per the ground rules).
+
+### Notes for pre-market research
+- **The board is not the constraint — do not edit it on today's evidence.** META **+6.55%**,
+  AMD **+3.04%**, MU **+2.75%**, INTC **+1.69%**. The names moved; the gate was shut.
+  Today's watchlist changes (park BABA/AMGN/AAPL, add META) all look sound.
+- **✅ META justified its add on day one** — biggest mover on the board and the day's
+  highest-confidence signal (**81.06**, the best score in weeks). Keep it.
+- **⚠️ Third consecutive narrow-strength session on a flat index** (QQQ −0.28% / SPY −0.46%
+  / SMH +0.10%). 09-08 predicted this would throttle the gate again and it did — **but
+  today that was the right outcome**, so do not read a third such day as a reason to
+  loosen anything.
+- **🔴 AAPL: re-enable today (09-10).** Yesterday's park was **event-only** for the keynote
+  and expires with it. **Then** run its 09-10 dead-signal test separately — on 09-08 data
+  it resolves KEEP. Do not let the re-enable be swallowed by the test.
+- **SPOT 09-11 dated test** (was on track to fire: $0.78B vs $0.85B floor, 12 sessions
+  without a trade) · **AMD 09-12** (will not fire) · **NFLX 09-15** · **INTC 09-16**
+  (resolves KEEP — closed 106.24, above both MAs) · **LLY/UBER 09-21** · **DASH 09-23** ·
+  **ABNB 09-23**.
+- **⚠️ Thu 09-10 PPI and Fri 09-11 CPI, both 08:30 ET pre-open**, into the 09-15/16 FOMC.
+  Pre-open, so no park is warranted — the 10:00 ET blackout covers the first 30 minutes —
+  but either can set a violent open, and a violent open is the one condition that reliably
+  opens the QQQ gate. **After three throttled sessions, tomorrow is the likeliest day this
+  week to actually trade.**
+- **TSLA generated a 64.82 and closed −0.10% after printing 375.44** — its signals keep
+  arriving at local highs. Worth watching, not worth acting on yet.
+- **⚠️ Operational: verify `.env` is `ustradebot:ustradebot` mode 600 and
+  `systemctl is-active` before the open.** Service restarted tonight for IMP-046.

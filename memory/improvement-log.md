@@ -3690,3 +3690,74 @@ unconditional 09-11 backstop.
 - Re-run the gate A/B **with friction** before Friday's weekly rules on gate hysteresis
   (see the 09-08 daily review): the old A/B compared 74 vs 156 trades, and friction is
   charged per trade, so the gate is likely *more* accretive than +$219, not less.
+
+---
+
+## IMP-046 — strip the lookahead out of the entry-timing diagnosis
+**2026-09-09 (daily review).** `bot/timing.py`, `tests/test_timing.py`. Read-only
+reporting fix — touches no entry, exit, sizing or risk path.
+
+### The defect
+`EntryTiming.entry_percentile` (IMP-040) is
+`(entry − session_low) / (session_high − session_low)` over the **whole session**,
+including every bar *after* the entry. A trade that runs after we buy lifts
+`session_high` and pushes its own percentile down, so the statistic is largely a
+monotone transform of the forward return rather than a property of the entry. Rung 2
+(`available_pct`) reads that same future high, so the two are anti-correlated **by
+construction**.
+
+The module's own docstring asserted the causal reading — *"high values are the
+signature of a late entry"* — and the `--timing` READ key asserted *"a big 1->2 drop =
+late entry"*. **Six consecutive daily reviews reached a late-entry verdict from it and
+none tested it.**
+
+### The measurement (246 closed trades with session bars)
+| metric | corr with `available_pct` | median |
+|---|---|---|
+| `entry_percentile` (whole session, lookahead) | **−0.664** | 71% |
+| `causal_entry_percentile` (range known at the fill) | **+0.008** | **87%** |
+
+Lookahead cohorts collapse monotonically (median realized +0.86% → −1.19%, ≥trail
+34/43 → 0/27); causal cohorts are flat (median available 1.08 / 0.76 / 0.83 / 0.81%).
+Cleanest row: **SE 2026-07-09**, +2.78% realized — lookahead scores the fill at the
+**30th percentile** ("early entry"); it actually filled at **122%** of the range
+printed so far, *above every price of the day*, a breakout buy.
+
+### The change
+- `EntryTiming` gains `high_at_entry` / `low_at_entry` — session extremes **as at the
+  fill**. `<=` on the entry bar for the mirror image of the existing `>=` rule: we fill
+  at that bar's close, so it is complete and known, and nothing later is.
+- New `causal_entry_percentile` property. **Not clamped to [0,1]** — a fill above
+  everything printed so far is a breakout and >1.0 is the only way to say so.
+- `TimingSummary.median_causal_entry_percentile`; `--timing` prints it, relabels the old
+  one **"whole session, LOOKAHEAD — descriptive only"**, drops the "1->2 drop = late
+  entry" claim and warns explicitly instead.
+- Module and property docstrings corrected where they asserted the refuted reading.
+- Defaults to `0.0` so pre-IMP-046 rows degrade to `None`, never a divide-by-zero.
+
+### Validation
+- **534 tests pass** (7 new, was 527). Preflight OK (1 expected market-closed warning).
+- Tests pin: the mechanism (identical entries, different post-entry highs → causal fixed
+  at 1.0 while lookahead swings 1.0 → 0.2); **SE 07-09** (30.4% vs 122.5%); **today's
+  META 15:17 @ 657.40**, where the two converge to 98%/99% *because* nothing ran — the
+  artifact needs a forward move to open up, which is why a flat session can never reveal
+  it; the `None` cases; and backward compatibility.
+
+### What it does and does not settle
+- ✅ **The late-entry charge has no support on the honest measure.** The median fill sits
+  at the 87th percentile of the range so far — a crossover strategy buys strength by
+  construction — and forward runway is flat across every cohort above the 25th.
+- ✅ **Prevents an in-sample-brilliant, live-worthless entry filter** on this quantity.
+- ❌ **Does not exonerate the entry signal.** Ceiling unchanged: **18.1%** of entries ever
+  print +1R vs a **6.0%** realized true win rate → 12.0pp exit-recoverable, **81.9pp is
+  the entry**. 171/249 trades never peaked past the 1.25% trail.
+- Third lookahead/measurement-honesty defect found in a month (IMP-024 gate lookahead,
+  IMP-044 frictionless harness, now this).
+
+### Follow-ups
+- Friday's gate-hysteresis A/B needs re-scoping: today had **zero** gate flips (0/88 bars
+  open), so hysteresis would have changed nothing and on today's cohort would have cost
+  money. Report **which sessions it changes**, with IMP-044 friction on.
+- Re-derive, don't inherit, the ranked entry candidates built on the lookahead reading.
+- Untested causal axes: ATR at signal time (today's refusals ran 0.06–0.24% ATR against a
+  2.0% stop — +1R arithmetically unreachable) and the inverted 90–100 confidence band.

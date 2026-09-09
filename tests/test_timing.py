@@ -263,3 +263,107 @@ def test_format_timing_renders_the_ladder_and_the_reading_key():
     assert "available at entry" in text
     assert "MFE while held" in text
     assert "wrong universe" in text  # the reading key travels with the table
+
+
+# --- IMP-046: the lookahead in entry_percentile ----------------------------
+#
+# ``entry_percentile`` divides by the WHOLE session's range, most of which had
+# not printed when we filled. A trade that runs after entry lifts session_high
+# and so pushes its own percentile down — the statistic moves with the forward
+# return rather than with the entry. Six reviews read it as "we bought the high,
+# therefore we were late". ``causal_entry_percentile`` bounds the range at the
+# fill instead; over 246 trades its correlation with rung 2 is +0.01, not -0.66.
+
+
+def test_causal_percentile_reads_only_the_range_that_had_already_printed():
+    # Range so far is 100-102 and we fill at 102 — the top of everything printed.
+    # The session then runs to 120, which the causal metric must not see.
+    bars = _bars((0, 102.0, 100.0), (1, 120.0, 101.0))
+    r = compute_timing("X", 102.0, 110.0, _t(0), _t(1), bars)
+    assert r is not None
+    assert r.high_at_entry == 102.0
+    assert r.low_at_entry == 100.0
+    assert r.causal_entry_percentile == pytest.approx(1.0)  # bought the high so far
+    # The lookahead metric calls the very same fill a near-low entry, purely
+    # because of what happened afterwards. That is the artifact, pinned.
+    assert r.entry_percentile == pytest.approx(0.1)
+
+
+def test_lookahead_percentile_tracks_the_forward_return_not_the_entry():
+    # Identical entries; only the post-entry high differs. The causal metric is
+    # unchanged (the entry was the same), the lookahead metric swings 1.0 -> 0.2.
+    flat = compute_timing("X", 102.0, 102.0, _t(0), _t(1), _bars((0, 102.0, 100.0), (1, 102.0, 101.0)))
+    ran = compute_timing("X", 102.0, 102.0, _t(0), _t(1), _bars((0, 102.0, 100.0), (1, 110.0, 101.0)))
+    assert flat is not None and ran is not None
+    assert flat.causal_entry_percentile == ran.causal_entry_percentile == pytest.approx(1.0)
+    assert flat.entry_percentile == pytest.approx(1.0)
+    assert ran.entry_percentile == pytest.approx(0.2)
+
+
+def test_se_2026_07_09_the_row_that_exposed_the_artifact():
+    """Real recorded trade: SE, entry 106.473889, one of the book's best.
+
+    Session 105.12-109.575; only 105.12-106.225 had printed when we filled. The
+    lookahead metric scores it the 30th percentile ("early entry"); in fact the
+    fill was ABOVE every price of the day so far — a breakout buy at 122%.
+    """
+    bars = _bars((0, 106.225, 105.12), (1, 109.575, 106.0))
+    r = compute_timing("SE", 106.473889, 109.435, _t(0), _t(1), bars)
+    assert r is not None
+    assert r.available_pct == pytest.approx(2.91, abs=0.01)
+    assert r.entry_percentile == pytest.approx(0.304, abs=0.005)
+    assert r.causal_entry_percentile == pytest.approx(1.225, abs=0.005)
+    # Unclamped on purpose: >1.0 is how a breakout fill says so.
+    assert r.causal_entry_percentile > 1.0
+
+
+def test_meta_2026_09_09_the_two_metrics_agree_when_nothing_runs():
+    """Today's real refused candidate: META 15:17 UTC @ 657.40, conf 81.06.
+
+    Regular session 638.71-657.83, of which 638.71-657.495 had printed by the
+    fill. With only 0.07% of runway left the two percentiles converge — the
+    artifact needs a forward move to open up, which is exactly why a single
+    flat session can never reveal it.
+    """
+    bars = _bars((0, 657.495, 638.71), (1, 657.83, 650.0))
+    r = compute_timing("META", 657.40, 653.69, _t(0), _t(1), bars)
+    assert r is not None
+    assert r.available_pct == pytest.approx(0.065, abs=0.005)
+    assert r.entry_percentile == pytest.approx(0.978, abs=0.005)
+    assert r.causal_entry_percentile == pytest.approx(0.995, abs=0.005)
+
+
+def test_first_bar_entry_has_no_causal_percentile():
+    # Nothing had printed but the entry bar itself, and it was flat: no range,
+    # so the question has no answer. None, never a silent 0.0 or 0.5.
+    r = compute_timing("X", 100.0, 105.0, _t(0), _t(1), _bars((0, 100.0, 100.0), (1, 110.0, 100.0)))
+    assert r is not None
+    assert r.causal_entry_percentile is None
+    assert r.entry_percentile is not None  # the lookahead one still resolves
+
+
+def test_summarize_and_format_carry_the_causal_median_and_the_warning():
+    rows = [
+        compute_timing("X", 102.0, 103.0, _t(0), _t(1), _bars((0, 102.0, 100.0), (1, 120.0, 101.0))),
+        compute_timing("Y", 101.0, 102.0, _t(0), _t(1), _bars((0, 102.0, 100.0), (1, 110.0, 101.0))),
+    ]
+    s = summarize([r for r in rows if r is not None], 0.0125)
+    assert s is not None
+    assert s.median_causal_entry_percentile == pytest.approx(0.75)
+    assert s.median_entry_percentile is not None
+    text = format_timing(s, 0.0125)
+    assert "causal, range so far" in text
+    assert "LOOKAHEAD" in text
+    # The old reading key claimed a 1->2 drop proved late entry; it must not.
+    assert "1->2 drop = late entry" not in text
+    assert "IMP-046" in text
+
+
+def test_rows_built_without_at_entry_extremes_have_no_causal_percentile():
+    # Backward compatibility: EntryTiming rows constructed the pre-IMP-046 way
+    # (no at-entry extremes) degrade to None rather than dividing by zero.
+    r = _row(session_range=4.0, available=3.0, mfe=2.0)
+    assert r.causal_entry_percentile is None
+    s = summarize([r], 0.0125)
+    assert s is not None
+    assert s.median_causal_entry_percentile is None
