@@ -6511,3 +6511,234 @@ IEX feed, META present in both the startup list and the subscription, account **
   since the gate arm trades less and friction is charged per trade.
 - **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
   `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
+
+---
+
+## 2026-09-10 — Pre-market Research
+
+**The mandated AAPL re-enable, executed and then tested separately exactly as instructed; plus a
+parked-row recovery (QCOM) whose park thesis is refuted on every ground it was written on, and one
+fitness park (AMZN).** Book is **CLEAN & FLAT** — broker-confirmed **0 positions, 0 open orders**,
+equity **$9,192.70** with `last_equity == equity` (no overnight marks) → **nothing locked**, every
+symbol free to act on. Three changes; **17 → 18 enabled**.
+
+### Market context
+- **Futures soft, not broken:** S&P 500 futures ≈ **−0.45%**, Nasdaq futures ≈ **−0.27/−0.36%**.
+- **Macro is the day's story.** **PPI 08:30 ET** and **initial jobless claims 08:30 ET** — both
+  **pre-open**, so no park is warranted (the 10:00 ET blackout covers the first 30 minutes anyway).
+  **Existing home sales + wholesale inventories 10:00 ET** are in-hours but index-level and minor.
+  All of it feeds the **09-15/16 FOMC** with the Fed in its quiet period.
+- **Today's earnings are ORCL (Q1 FY2027), ADBE and M — none is on the board.** Perplexity was asked
+  the earnings question directly and per-ticker and returned **NONE** for all 18 watchlist names for
+  both **09-10 and 09-11**. ORCL is worth knowing anyway: it is an AI-capex bellwether and a big
+  print can move the semis complex that dominates this board.
+- **⚠️ The standing Perplexity bar-check was run and this time sonar passed.** It gave futures as
+  *changes* rather than the invented index *levels* that were wrong on 09-08 and 09-09, and it
+  answered UNKNOWN four times rather than confabulating. **Keep the check; it is cheap and it has
+  now caught two errors and cleared one run.**
+- **⚠️ WebSearch was unavailable this run** (tool error, both queries). The earnings and catalyst
+  work was done instead on the **Alpaca news API** (36h window, per-symbol) plus a second targeted
+  Perplexity call. Recorded because it is the **eighth** consecutive run that has had to establish
+  "no watchlist earnings today" by hand — see the standing ask below.
+
+### Carried from daily review (09-09) — every item discharged
+- **🔴 "AAPL: re-enable today (09-10)… then run its dead-signal test separately. Do not let the
+  re-enable be swallowed by the test."** → **honored, in that order, as two independent acts.**
+  (a) The park was **event-only** for the 09-09 keynote. The keynote happened and is resolved —
+  Apple launched the **$1,999 foldable iPhone Duo**, iPhone 18 Pro (A20 Pro, C2 modem), AirPods 5,
+  Watch Series 12 / Ultra 4, under new CEO **John Ternus**. AAPL closed **−0.28%**: no gap, no
+  binary left. **Re-enabled.** (b) **Then** the 09-10 dead-signal test, judged on its own terms:
+  it requires **30d+ without a trade AND below BOTH MAs.** Leg 1 fires (last trade **07-27**,
+  **45 days**). **Leg 2 does not — AAPL is +0.41% vs its 20MA and −0.36% vs its 50MA, so it is not
+  below both.** **Test resolves KEEP**, as the 09-09 run predicted on 09-08 data. **Re-armed 09-24.**
+- **"The board is not the constraint — do not edit it on today's evidence."** → **honored.** Nothing
+  today is a reaction to the two zero-trade sessions or to the gate. The AMZN park is a **dead-signal
+  and volatility-floor** decision on 45 days of its own data; the QCOM re-enable is a **catalyst +
+  floors** decision. Neither is a drawdown park and neither touches the gate.
+- **"Do not read a third narrow-strength session as a reason to loosen anything."** → **honored;
+  not raised.** No threshold, gate or config was touched. **QQQ stays enabled** and structurally
+  exempt (`MARKET_FILTER_SYMBOL` — parking it would silently disable the gate).
+- **"META justified its add on day one — keep it."** → **kept, and it is now the strongest name on
+  the board**: **+12.60% vs 20MA / +9.21% vs 50MA, +14.67% over 10d**, ATR 3.04%, $9.31B/day.
+- **⚠️ `memory/weekly-review.md` still uncommitted** in the working tree, six days on. **Left
+  untouched again** — a pre-existing change this run did not make; this routine commits only what it
+  writes. **Seventh consecutive flag.**
+
+### Watchlist review
+All 18 enabled + QCOM + the two screened candidates re-verified on Alpaca: **`tradable: true`,
+`status: active` — 21/21.** No halts, no sub-$5 names. Technicals from **09-09** SIP daily bars:
+
+| | close | 20MA | 50MA | ATR% | medRng | ≥2% | $vol/d | 10d | 1d |
+|---|---|---|---|---|---|---|---|---|---|
+| **META** | 653.69 | **+12.60** | **+9.21** | 3.04 | 2.86 | 75% | $9.31B | **+14.67** | **+6.55** |
+| **INTC** | 106.24 | **+12.16** | +6.65 | 3.94 | 4.17 | 100% | $8.80B | **+21.44** | +1.69 |
+| **AMD** | 521.10 | +8.71 | +4.51 | 3.55 | 3.34 | 100% | $8.45B | +8.75 | +3.04 |
+| **MU** | 1027.77 | +7.26 | +10.12 | 4.29 | 4.31 | 100% | **$25.73B** | +10.16 | +2.75 |
+| ***QCOM*** | *176.40* | *+6.71* | *+4.53* | *3.30* | *3.05* | *95%* | *$1.45B* | *+9.87* | *+1.33* |
+| **TSLA** | 367.81 | +4.48 | +3.08 | 4.17 | 3.70 | 100% | $12.15B | +5.01 | −0.10 |
+| **TSM** | 435.36 | +3.26 | +3.62 | 2.29 | 2.14 | 60% | $3.65B | +4.30 | −0.83 |
+| **NVDA** | 223.67 | +1.30 | +5.60 | 3.38 | 2.21 | 65% | $25.31B | +4.98 | −0.91 |
+| ***AAPL*** | *315.34* | *+0.41* | *−0.36* | *2.34* | *1.88* | *45%* | *$12.37B* | *+1.76* | *−0.28* |
+| **QQQ** | 716.31 | −0.13 | +0.72 | 1.04 | 0.89 | 0% | $22.18B | +0.79 | −0.29 |
+| **MSFT** | 491.65 | −0.58 | +9.49 | **2.01** | **1.74** | 40% | $10.44B | −0.01 | −0.47 |
+| **SPOT** | 523.00 | −1.56 | +3.53 | 3.44 | 3.39 | 100% | **$0.77B** | −5.35 | −1.07 |
+| **AMZN** | 252.40 | −2.98 | −0.90 | **2.26** | **1.65** | **30%** | $8.07B | −3.32 | −1.78 |
+| **PLTR** | 169.53 | −3.90 | +11.45 | 4.76 | 3.99 | 95% | $4.87B | −1.85 | −0.45 |
+| **NFLX** | 76.03 | −4.24 | +0.64 | 2.76 | 2.37 | 60% | $2.18B | −7.54 | −0.96 |
+| **LLY** | 1124.21 | −5.74 | −5.35 | 2.77 | 2.76 | 75% | $2.89B | −8.87 | +0.03 |
+| **UBER** | 71.08 | −7.05 | −3.87 | 3.36 | 2.92 | 85% | $1.12B | −11.54 | −2.80 |
+| **ABNB** | 169.63 | −7.65 | +3.44 | 2.97 | 2.56 | 65% | $0.87B | −10.96 | −2.81 |
+| **DASH** | 197.25 | **−10.83** | −3.42 | 4.12 | 3.16 | 100% | $0.86B | **−15.53** | −1.59 |
+
+**Reference: SMH 574.29 (+1.52% vs 20MA) · SPY 762.40 (−0.77%) · QQQ (−0.13%).**
+
+- **The top of the board is in the best shape it has been in for weeks and was left entirely alone.**
+  META, INTC, AMD, MU all sit **above both MAs with ATR ≥3.0% and 75–100% of sessions ≥2%**, and
+  INTC/MU are the **#2 and #1 all-time earners** (+$150.78 / +$211.76). No decision was needed here.
+- **🟡 The weak tail is unchanged and, with one exception, still under clock rather than judgement.**
+  DASH (−10.83% vs 20MA, −15.53% 10d, **never traded in 13 sessions**) is the weakest name on the
+  board and **is not parked today** — its test is **09-23** and it still clears every admission floor
+  (ATR 4.12%, 100% of sessions ≥2%, $0.86B/day). Same for **UBER** (09-21), **LLY** (09-21),
+  **ABNB** (09-23), **NFLX** (09-15). **Parking these on drawdown alone is exactly the ad-hoc
+  behaviour the dated-test convention replaced.** No catalyst was found for DASH's decline in a 36h
+  news sweep — it is drift, not an event, which is precisely what a clock is for.
+- **🔒 QQQ — structurally exempt, unchanged.** Worst name on merit (ATR 1.04%, **0%** of sessions
+  ≥2%, no trade since 07-14) and it *is* the market gate. Infrastructure, not a park candidate.
+
+### 🎯 The three decisions
+
+**1. AAPL — RE-ENABLED, then tested. Both acts recorded above.** Test resolves **KEEP**; re-armed
+**09-24**. The honest note: AAPL remains a **marginal fit** (ATR 2.34%, medRng 1.88%, only 45% of
+sessions ≥2%, 45 days without a signal) and is now **below its 50MA** where on 09-08 it was above
+both. It survives on the rule as written, not on conviction — and that is the point of writing the
+rule down first. **If it is still dead and below both MAs on 09-24, it parks.**
+
+**2. QCOM — RE-ENABLED. A parked row recovered, refuted on every ground the park was written on.**
+The 07-06 park note reads: *"−14% vs 20/50MA & falling, lone semi laggard, thin $vol 136M, no real
+trades."* Each clause, re-measured today:
+- *"−14% vs 20/50MA & falling"* → **+6.71% vs 20MA, +4.53% vs 50MA, +9.87% over 10 days.** Above
+  both, rising.
+- *"lone semi laggard"* → it is now **the best 10-day performer on the board outside INTC and MU**,
+  and ahead of SMH (+3.32%).
+- *"thin $vol 136M"* → **$1.45B/day**, **10.6× the park-time figure** and **71% above the $0.85B
+  admission floor.**
+- Volatility, which the park did not test: **ATR 3.30%, median range 3.05%, 95% of the last 20
+  sessions ≥2%** — comfortably clear of the 2.3% floor and better than eleven currently-enabled names.
+
+**The catalyst was verified at source rather than inferred from the chart:** **Amazon's ~$60B custom
+AI-chip deal with Qualcomm** (09-09), plus **RBC Capital raising its price target to $180** the same
+day. Next earnings are **fiscal Q4, early-to-mid November** — no binary inside any horizon this
+strategy trades. **Re-enabled the existing row (`UPDATE enabled=1`), not re-inserted.**
+
+> **⚠️ Recorded against the re-enable, not hidden from it:** a same-morning headline — *"iPhone 18 Pro
+> Debuts C2 Modem As Apple Keeps Weaning Off Qualcomm"* (09-10 07:29 UTC) — is QCOM-negative. It is
+> judged **not disqualifying**: the Apple modem transition is long-telegraphed and multi-year, the
+> same story notes the **Pro Max still ships Qualcomm**, and the $60B Amazon award is the far larger
+> and opposite-signed development — it is literally the diversification-away-from-Apple that the bear
+> case demanded. **What could not be verified: the pre-market reaction.** The account's IEX feed
+> returns no pre-market prints (latest trades are all 09-09 closes) and the SIP snapshot endpoint
+> **403s on this plan**, so the floors above are measured on **completed 09-09 bars** and the gap is
+> unknown. Stated rather than glossed.
+
+**3. AMZN — PARKED. A fitness park under the standing condition, not a drawdown park.**
+This is the run's one discretionary call, so the full case is given:
+- **Dead signal: last closed trade 2026-08-03 → 38 days.** Threshold is 30.
+- **Below both MAs: −2.98% vs 20MA, −0.90% vs 50MA.** ✅
+- **Fails the volatility floor independently:** **ATR 2.26%, under the 2.3% admission floor**;
+  median range **1.65%**; only **30% of the last 20 sessions ≥2%** — the second-quietest name on
+  the board after QQQ. A 1-min ribbon with a 2.0% stop has almost no room to reach +1R here.
+- **Worst record on the board: 14 trades, 2 wins (14%), −$108.51 all-time** — the second-worst
+  P&L of any symbol ever enabled, behind only AVGO (−$121.37, already parked).
+- **No catalyst.** A 36h news sweep found nothing of substance (an NTSB report on a cargo-plane
+  crash; AMZN is otherwise in the news as the *buyer* in the QCOM deal). This is fitness, not an event.
+
+**The one procedural irregularity, stated plainly: AMZN carried no pre-registered date.** It is
+parked on the **standing condition** — *30d+ dead **and** below both MAs* — which is the identical
+test that parked **GOOG (08-31), JPM (08-27) and UNH (08-17)**; AMZN simply slipped through without
+ever being armed with a clock. Arming a *future* date for a condition that is **already satisfied by
+a margin** would be stalling dressed as discipline, not discipline. **The lesson is the gap, not the
+park: names should be armed when they first weaken, not when they are already 8 days past the
+threshold.** Every currently-enabled name now carries a clock — see below.
+
+### ❌ Negative result worth recording: the momentum screen produced one add candidate and it was not taken
+25 names were screened against the board's published floors (ATR ≥2.3%, $vol ≥$0.85B, above both
+MAs, ≥60% of sessions ≥2%, price ≥$5). **Five passed: QCOM, ORCL, MRVL, COIN, HOOD.**
+- **ORCL — disqualified outright: it reports Q1 FY2027 today.** A binary print inside the entry
+  window is the exact profile this routine parks names for; adding one would be incoherent.
+- **COIN — rejected on character, despite passing.** ATR **7.27%** with **10d −6.65%**: high
+  volatility going nowhere is the ENPH failure mode (parked 06-13 at 10.9% ATR, *"too choppy for the
+  ribbon"*), not a trend.
+- **MRVL — rejected as marginal.** Passes the floors (ATR 6.06%, $4.86B/day, above both MAs) but
+  **10d is −2.23%** against a **+4.26%** single session — a one-day pop on a chopping base.
+- **🟢 HOOD — the one genuine candidate, and it is PRE-REGISTERED rather than added today.** It is
+  the strongest name on the screen: **+9.29% vs 20MA, +11.82% vs 50MA**, ATR 6.51%, median range
+  4.89%, **100% of sessions ≥2%**, **$1.98B/day**, next earnings early November, verified
+  `tradable: true / active / NASDAQ`. **The open question that blocks it is volatility ceiling, and
+  this board has never answered it:** at **ATR 6.51%** it would be the most volatile name ever
+  enabled — **37% above PLTR (4.76%)**, the current maximum — and the strategy's stop is a **flat
+  2.0%**, well inside a single ATR. The board has a published volatility *floor* and **no ceiling**,
+  so there is no rule to appeal to and I decline to invent one at the moment it would license an add.
+  **Pre-registered for the next run**, with the decision stated in advance so it cannot be
+  rationalised later: *add HOOD if it is still above both MAs and clearing every floor, **and** the
+  daily/weekly review has taken a position on whether a flat 2.0% stop is coherent above ~5% ATR.
+  If that question is still open at the 09-11 run, add it anyway at reduced conviction and let the
+  trade record answer it* — three names on this board (PLTR 4.76%, MU 4.29%, TSLA 4.17%) already sit
+  near that line, so the question is owed regardless of HOOD.
+
+### Changes applied to dbo.watchlist
+Three, all parameterized, `watchlist` table only, **no DELETEs, no INSERTs** (both adds were
+existing parked rows re-enabled, per the standing rule):
+1. **RE-ENABLE AAPL** — event park expired with the keynote; 09-10 dead-signal test resolves KEEP.
+2. **RE-ENABLE QCOM** — 07-06 park thesis refuted on every clause; Amazon $60B chip deal + RBC PT raise.
+3. **PARK AMZN** — 38d dead + below both MAs + ATR 2.26% under the 2.3% floor; 2W/14, −$108.51.
+
+Assertions run post-commit: **enabled = 18 ≤ 30 ✅**, **QQQ still enabled ✅** (guarding
+`MARKET_FILTER_SYMBOL` against a silent gate disable), **34 rows total, unchanged ✅** (no DELETEs).
+**No source-code changes** — code belongs to the post-close routine.
+
+### Final watchlist
+**18 enabled** (≤30 ✅): AAPL, ABNB, AMD, DASH, INTC, LLY, META, MSFT, MU, NFLX, NVDA, PLTR, QCOM,
+QQQ, SPOT, TSLA, TSM, UBER. **Parked (16):** AMGN, AMZN, AVGO, BABA, BIRD, C, COST, ENPH, GOOG, JPM,
+SE, SPY, UNH, WMT, WPM, XOM.
+**Service restarted: YES** — required, the watchlist is read only at startup. Verified healthy:
+`active`, **NRestarts=0**, up **2026-09-10 11:37:07 UTC**, **warmup primed 18/18**, all 18 subscribed
+on the IEX feed, **AAPL and QCOM present in both the startup list and the subscription, AMZN absent
+from both**, account **ACTIVE** ($9,192.70), **0 positions / 0 open orders**, **zero errors** in the
+startup sequence. **`.env` confirmed `ustradebot:ustradebot` mode 600, untouched.**
+
+### Dates carried forward
+- **SPOT 09-11 — fires tomorrow on today's data.** Park if median $vol <$0.85B **and** 14 sessions
+  without a trade: it is **$0.77B** (9% under the floor) and **13 sessions** since its last trade
+  (08-28, its only trade ever, −$11.82). **The 14th session is tomorrow. Expect to park it** unless
+  volume recovers.
+- **AMD 09-12** (**will not fire** — +8.71%/+4.51%, above both MAs) · **NFLX 09-15** ·
+  **INTC 09-16** (**resolves KEEP** — +12.16%/+6.65%) · **LLY 09-21** · **UBER 09-21** ·
+  **DASH 09-23** (**on track to fire** — below both MAs, never traded in 13 sessions) · **ABNB 09-23**.
+- **➕ NEW — AAPL 09-24 dated test (re-armed after today's KEEP).** *Park if it has not traded by
+  09-24 **and** is below both its 20MA and 50MA.* It is already below the 50MA and 45 days dead;
+  one leg is effectively standing.
+- **➕ NEW — MSFT 09-24 dated test.** The other name that had no clock: **37 days without a trade**
+  (last 08-04), **ATR 2.01% under the 2.3% floor**, median range **1.74%**, only **40% of sessions
+  ≥2%**. It is **not** parked today because it is **not below both MAs** (+9.49% vs its 50MA), so
+  per the ABNB precedent it gets a clock rather than a park. *Park if it has not traded by 09-24
+  **and** median 20d range is still <1.8% **or** it is below both MAs.* **Deliberately written on
+  median range, not ATR** — the AMGN lesson (09-09) is that a volatility test keyed to ATR alone can
+  be satisfied by a crash; median range cannot.
+- **Every enabled name now carries a clock or is exempt.** After today: AAPL 09-24, ABNB 09-23,
+  AMD 09-12, DASH 09-23, INTC 09-16, LLY 09-21, MSFT 09-24, NFLX 09-15, SPOT 09-11, UBER 09-21;
+  META/QCOM are fresh entries; MU/TSLA/TSM/NVDA/PLTR are actively trading; QQQ is the exempt gate.
+  **The AMZN gap that this run had to close ad-hoc cannot recur.**
+- **⚠️ FOMC 09-15/16 next week**, into today's PPI and tomorrow's CPI. Both releases are **pre-open**
+  and need no park, but either can set a violent open — and per the 09-09 review, **a violent open is
+  the one condition that reliably opens the QQQ gate.** After three throttled sessions, today and
+  tomorrow are the likeliest days this week to actually trade.
+- **For tonight's daily review:** (1) **HOOD is pre-registered above and the volatility-ceiling
+  question is owed** — a flat 2.0% stop against 4–6.5% ATR names is either coherent or it is not, and
+  three enabled names already sit at that line. (2) **The in-repo earnings blackout is an EIGHTH
+  consecutive ask** — WebSearch was **down** this run, so "no watchlist earnings today" rested on a
+  single Perplexity call and the Alpaca news feed; the weekly has already threatened a D-grade
+  process item and this run is the argument for it. (3) **Commit `memory/weekly-review.md`** — six
+  days uncommitted, **seventh flag**. (4) The **gate-hysteresis A/B** remains Friday's item, to be
+  run **with IMP-044 friction on**.
+- **Ops item, unchanged: `.env` must never be left root-owned** — any root edit needs
+  `chown ustradebot:ustradebot` after it, or the bot silently misses the session.
