@@ -506,11 +506,21 @@ def test_tape_context_survives_the_imp028_retry():
 class _Signal:
     """Minimal stand-in for strategy.TradeSignal (only the fields the recorder reads)."""
 
-    def __init__(self, symbol, confidence, atr_pct=None, ribbon_spread_pct=None):
+    def __init__(
+        self,
+        symbol,
+        confidence,
+        atr_pct=None,
+        ribbon_spread_pct=None,
+        rsi_raw=None,
+        scorer_version=None,
+    ):
         self.symbol = symbol
         self.confidence = confidence
         self.atr_pct = atr_pct
         self.ribbon_spread_pct = ribbon_spread_pct
+        self.rsi_raw = rsi_raw
+        self.scorer_version = scorer_version
 
 
 # --- open_store ------------------------------------------------------------
@@ -748,7 +758,7 @@ def test_refusals_maps_rows_and_windows_by_days():
     # Real row: dbo.entry_refusals id 62, 2026-08-21.
     t0 = datetime(2026, 8, 21, 16, 21)
     conn = _ClosedTradesConn(
-        [(" pltr ", t0, "crossover 0.20 < 0.25", 181.07, 75.99, True, 0.19813, 0.00944)]
+        [(" pltr ", t0, "crossover 0.20 < 0.25", 181.07, 75.99, True, 0.19813, 0.00944, 61.2, 3)]
     )
     rows = TradeStore(lambda: conn).refusals(days=7)
     assert len(rows) == 1
@@ -757,19 +767,29 @@ def test_refusals_maps_rows_and_windows_by_days():
     assert (r.candle_start_utc, r.close_price, r.confidence) == (t0, 181.07, 75.99)
     assert r.market_gate_open is True
     assert (r.atr_pct, r.ribbon_spread_pct) == (0.19813, 0.00944)
+    assert (r.rsi_raw, r.scorer_version) == (61.2, 3)  # IMP-047 provenance
     assert conn.params == (7,)
     assert "dbo.entry_refusals" in conn.sql
 
 
 def test_refusals_keeps_unmeasured_columns_none_across_schema_generations():
-    """Pre-IMP-029/031 rows have NULL tape and gate — that is not 0.0 and not False."""
+    """Pre-IMP-029/031/047 rows have NULL tape, gate and provenance — that is not 0.0,
+    not False, and not scorer v0. A NULL ``scorer_version`` specifically means the row's
+    ``conf_volatility`` may have been written by the pre-v3 reversed ramp, so a study
+    must exclude it rather than read it at face value."""
     conn = _ClosedTradesConn(
-        [("GOOG", datetime(2026, 8, 18, 15, 0), "confidence 50 < 60", 339.4, None, None, None, None)]
+        [
+            (
+                "GOOG", datetime(2026, 8, 18, 15, 0), "confidence 50 < 60", 339.4,
+                None, None, None, None, None, None,
+            )
+        ]
     )
     r = TradeStore(lambda: conn).refusals()[0]
     assert r.confidence is None
     assert r.market_gate_open is None
     assert r.atr_pct is None and r.ribbon_spread_pct is None
+    assert r.rsi_raw is None and r.scorer_version is None
 
 
 def test_refusals_returns_empty_on_error():
@@ -934,6 +954,8 @@ def _refusal(**over):
         ),
         atr_pct=0.204,
         ribbon_spread_pct=0.061,
+        rsi_raw=58.4,
+        scorer_version=3,
     )
     fields.update(over)
     return RefusedEntry(**fields)
@@ -1132,3 +1154,75 @@ def test_recorder_forwards_gate_samples_to_the_store():
     conn = _FakeConn()
     TradeRecorder(_store(conn)).on_gate_sample(_gate_sample())
     assert any("INSERT INTO dbo.market_gate" in c[0] for c in conn.calls)
+
+
+# --- IMP-047: scorer provenance on every scored row -------------------------
+
+_REF_PROVENANCE = slice(13, 15)  # rsi_raw, scorer_version
+
+
+def test_record_refusal_writes_the_scorer_provenance():
+    """A refusal must say which scorer judged it, and what the raw RSI was (IMP-047).
+
+    ``conf_rsi`` saturates at 1.0 over the whole 45-65 plateau, so 58.4 and 49.9 are
+    indistinguishable once stored as a sub-score; and a ``conf_volatility`` written by a
+    pre-v3 scorer means the opposite of a v3 one. The refusal population is where an
+    entry threshold is actually priced, so it needs both.
+    """
+    conn = _FakeConn()
+    _store(conn).record_refusal(_refusal())
+    sql, params = conn.calls[0]
+    assert "rsi_raw" in sql and "scorer_version" in sql
+    assert params[_REF_PROVENANCE] == (58.4, 3)
+
+
+def test_record_refusal_provenance_nulls_are_not_zeros():
+    """An unstamped row must stay distinguishable: scorer_version 0 is not 'unknown',
+    and rsi_raw 0.0 is a real (deeply oversold) reading."""
+    conn = _FakeConn()
+    _store(conn).record_refusal(_refusal(rsi_raw=None, scorer_version=None))
+    _, params = conn.calls[0]
+    assert params[_REF_PROVENANCE] == (None, None)
+
+
+_TRADE_PROVENANCE = slice(16, 18)  # rsi_raw, scorer_version — after the IMP-029 tape pair
+
+
+def test_entry_write_carries_the_scorer_provenance():
+    """The same pair on the accepted-entry side, so the two populations stay comparable."""
+    conn = _FakeConn()
+    tape = TapeContext(atr_pct=0.204, ribbon_spread_pct=0.061, rsi_raw=58.4, scorer_version=3)
+    _store(conn).record_entry(_exec_result(), _breakdown(), tape=tape)
+
+    sql, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
+    assert "rsi_raw" in sql and "scorer_version" in sql
+    # The tape pair must not have been shifted by the new columns.
+    assert params[_TAPE] == (0.204, 0.061)
+    assert params[_TRADE_PROVENANCE] == (58.4, 3)
+    # `status` travels as the literal 'OPEN', so there is one fewer placeholder
+    # than column; everything else must line up or values land in the wrong columns.
+    columns = sql.split("(", 1)[1].split(")", 1)[0].split(",")
+    assert sql.count("?") == len(params) == len(columns) - 1
+
+
+def test_entry_write_without_a_tape_context_writes_provenance_nulls():
+    conn = _FakeConn()
+    _store(conn).record_entry(_exec_result(), _breakdown(), tape=None)
+    _, params = next(c for c in conn.calls if "INSERT INTO dbo.trades" in c[0])
+    assert params[_TRADE_PROVENANCE] == (None, None)
+
+
+def test_strategy_stamps_the_live_scorer_version_on_a_refusal():
+    """End to end: the version the strategy stamps is the one the scorer reports, so the
+    stamp can never drift from the code that produced the sub-scores."""
+    from bot.signals import SCORER_VERSION
+    from bot.strategy import RefusedEntry
+
+    r = RefusedEntry(
+        symbol="QCOM",
+        candle_start=datetime(2026, 9, 10, 16, 40),
+        reason="confidence 59.3 < 60",
+        rsi_raw=55.0,
+        scorer_version=SCORER_VERSION,
+    )
+    assert r.scorer_version == 3

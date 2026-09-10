@@ -113,14 +113,23 @@ class PerfBand:
 class TapeContext:
     """Pre-entry tape context recorded with an entry (IMP-029).
 
-    Both fields are percentages of price and either may be ``None`` when the trigger
-    ribbon had not seeded that indicator yet. Observational only — no trading code
-    reads them back; they exist so the ``<0.5%``-MFE study can be run against
-    ``dbo.trades`` rather than by re-fetching bars for every historical trade.
+    ``atr_pct``/``ribbon_spread_pct`` are percentages of price and either may be
+    ``None`` when the trigger ribbon had not seeded that indicator yet. Observational
+    only — no trading code reads them back; they exist so the ``<0.5%``-MFE study can
+    be run against ``dbo.trades`` rather than by re-fetching bars for every historical
+    trade.
+
+    ``rsi_raw``/``scorer_version`` are the IMP-047 provenance pair. A stored sub-score
+    is only interpretable alongside the scorer generation that wrote it — ``conf_rsi``
+    saturates at 1.0 across the whole 45–65 plateau (93.8% of trades), and
+    ``conf_volatility`` inverted its meaning at v3 — so studies need both the raw input
+    and the version. Also observational.
     """
 
     atr_pct: float | None = None
     ribbon_spread_pct: float | None = None
+    rsi_raw: float | None = None
+    scorer_version: int | None = None
 
 
 @dataclass(frozen=True)
@@ -165,6 +174,8 @@ class RefusedCandidate:
     market_gate_open: bool | None = None
     atr_pct: float | None = None
     ribbon_spread_pct: float | None = None
+    rsi_raw: float | None = None
+    scorer_version: int | None = None
 
 
 @dataclass(frozen=True)
@@ -306,9 +317,10 @@ class TradeStore:
             "INSERT INTO dbo.trades "
             "(symbol, model, status, entry_order_id, entry_price, qty, notional, "
             " stop_price, target_price, confidence, conf_crossover, conf_trend, "
-            " conf_rsi, conf_volume, conf_volatility, atr_pct, ribbon_spread_pct) "
+            " conf_rsi, conf_volume, conf_volatility, atr_pct, ribbon_spread_pct, "
+            " rsi_raw, scorer_version) "
             "OUTPUT INSERTED.id "
-            "VALUES (?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, 'OPEN', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 result.symbol,
                 result.model,
@@ -326,6 +338,8 @@ class TradeStore:
                 _sub(breakdown, "volatility"),
                 tape.atr_pct if tape else None,
                 tape.ribbon_spread_pct if tape else None,
+                tape.rsi_raw if tape else None,
+                tape.scorer_version if tape else None,
             ),
         )
         row = cur.fetchone()
@@ -387,8 +401,8 @@ class TradeStore:
                 "INSERT INTO dbo.entry_refusals "
                 "(symbol, candle_start_utc, reason, market_gate_open, close_price, "
                 " confidence, conf_crossover, conf_trend, conf_rsi, conf_volume, "
-                " conf_volatility, atr_pct, ribbon_spread_pct) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " conf_volatility, atr_pct, ribbon_spread_pct, rsi_raw, scorer_version) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     refusal.symbol,
                     refusal.candle_start,
@@ -403,6 +417,8 @@ class TradeStore:
                     _sub(refusal.breakdown, "volatility"),
                     refusal.atr_pct,
                     refusal.ribbon_spread_pct,
+                    refusal.rsi_raw,
+                    refusal.scorer_version,
                 ),
             )
             conn.commit()
@@ -700,7 +716,7 @@ class TradeStore:
             cur = conn.cursor()
             cur.execute(
                 "SELECT symbol, candle_start_utc, reason, close_price, confidence, "
-                "market_gate_open, atr_pct, ribbon_spread_pct "
+                "market_gate_open, atr_pct, ribbon_spread_pct, rsi_raw, scorer_version "
                 "FROM dbo.entry_refusals "
                 "WHERE candle_start_utc IS NOT NULL AND close_price IS NOT NULL "
                 f"AND candle_start_utc >= {_WINDOW_START_SQL} "
@@ -717,6 +733,8 @@ class TradeStore:
                     market_gate_open=None if r[5] is None else bool(r[5]),
                     atr_pct=None if r[6] is None else float(r[6]),
                     ribbon_spread_pct=None if r[7] is None else float(r[7]),
+                    rsi_raw=None if r[8] is None else float(r[8]),
+                    scorer_version=None if r[9] is None else int(r[9]),
                 )
                 for r in (cur.fetchall() or [])
             ]
@@ -746,6 +764,8 @@ class TradeRecorder:
             TapeContext(
                 atr_pct=signal.atr_pct,
                 ribbon_spread_pct=signal.ribbon_spread_pct,
+                rsi_raw=signal.rsi_raw,
+                scorer_version=signal.scorer_version,
             ),
         )
 

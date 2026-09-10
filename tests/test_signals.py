@@ -9,6 +9,7 @@ import pytest
 from bot.config import EASTERN
 from bot.indicators import RibbonSnapshot
 from bot.signals import (
+    SCORER_VERSION,
     ScoreWeights,
     confidence,
     evaluate_entry,
@@ -526,3 +527,97 @@ def test_entry_candidate_below_threshold_does_not_enter():
     d = evaluate_entry(weak, _open_gate(), threshold=60.0)
     assert d.candidate and not d.enter
     assert d.confidence is not None and d.confidence.total < 60.0
+
+
+# --- IMP-047: scorer provenance, and why the rsi weight stayed ---------------
+
+
+def test_scorer_version_is_stamped_and_current():
+    """Rows must carry which scorer wrote them (IMP-047).
+
+    Two sub-scores have already changed meaning under the stored history — volume
+    stopped being weighted at v2 (IMP-034) and volatility REVERSED its anchors at v3
+    (IMP-036). Without the stamp, a study cannot tell a v1 ``conf_volatility`` of 1.00
+    ("tight tape, good" under the old ramp) from a v3 1.00 ("travelling tape, good"),
+    which is the error that invalidated the 2026-09-10 entry-score study.
+    """
+    assert SCORER_VERSION == 3
+    # The stamp must move with the weights, so pin what v3 means.
+    w = ScoreWeights()
+    assert (w.crossover, w.trend, w.rsi, w.volume, w.volatility) == (39.0, 26.0, 20.0, 0.0, 15.0)
+    # v3's defining property: a dead tape scores 0.0, not the old ramp's 1.0.
+    assert score_volatility(_snap(atr=0.090, close=100.0)) == 0.0
+
+
+def test_rsi_subscore_is_a_near_constant_over_the_plateau():
+    """``conf_rsi`` saturates at 1.0 across 45-65, so it carries almost no ranking
+    information — measured at 93.8% of 276 closed trades and 97.5% of 441 refusals.
+
+    This is why ``rsi_raw`` has to be persisted separately: every RSI in the plateau
+    collapses to the same stored sub-score, so the band edges cannot be re-swept from
+    ``dbo.trades`` afterwards.
+    """
+    plateau = [46.0, 50.0, 55.0, 60.0, 64.9]
+    assert {score_rsi(_snap(rsi=r)) for r in plateau} == {1.0}
+    # ... and the overbought branch that justifies the 20 points fired on 2 of 276
+    # live trades. It still works; it just almost never binds.
+    assert score_rsi(_snap(rsi=75.0)) == 0.0
+
+
+def test_dropping_the_rsi_weight_is_a_threshold_tightening_not_a_reweighting():
+    """Why IMP-047 did NOT redistribute rsi's 20 points (the rejected candidate).
+
+    With ``conf_rsi`` pinned at 1.0, redistributing its weight proportionally over the
+    three discriminating terms and renormalising to 100 leaves the *ranking* among those
+    candidates identical and only moves the cut: from 40/80 to 48/80 points of real
+    signal. Replay (friction on) priced that as better per trade but worse in dollars —
+    60d PF 2.43 -> 2.91 and true win 8% -> 12%, yet net +$364 -> +$279 on 37% fewer
+    trades — so the weights stayed put. This test pins the arithmetic that made it a
+    threshold move, so the next attempt re-derives it instead of rediscovering it.
+    """
+    w = ScoreWeights()
+    informative = w.crossover + w.trend + w.volatility
+    assert informative == 80.0
+    assert w.rsi == 20.0
+
+    # Two candidates that differ only in crossover, both on the rsi plateau.
+    def total(xo: float, tr: float, vl: float) -> float:
+        return xo * w.crossover + tr * w.trend + 1.0 * w.rsi + vl * w.volatility
+
+    # Incumbent: clearing 60 needs 40 of the 80 informative points.
+    assert total(0.3399, 1.0, 0.0) == pytest.approx(59.26, abs=0.01)  # today's best refusal
+    # Renormalised without rsi: the same vector scores lower, not higher.
+    renormed = (0.3399 * w.crossover + 1.0 * w.trend + 0.0 * w.volatility) * 100.0 / 80.0
+    assert renormed == pytest.approx(49.08, abs=0.01)
+    assert renormed < 60.0  # still refused, by a wider margin
+    # The cut moves from 40/80 to 48/80 — a tightening, which is the whole effect.
+    assert 60.0 - w.rsi == 40.0
+    assert 60.0 * 80.0 / 100.0 == pytest.approx(48.0)
+
+
+def test_qcom_2026_09_10_the_days_best_refusal_stays_refused():
+    """Regression on the real recorded vector from the session that motivated IMP-047.
+
+    QCOM 2026-09-10 16:40 UTC @ 179.56 was the strongest candidate of a zero-trade day:
+    crossover 0.3399, trend 1.0000, rsi 1.0000, volume 1.0000, volatility 0.0000 ->
+    59.26 against ENTRY_THRESHOLD 60. It is the clean illustration of the scorer's shape
+    in a dead tape: trend and rsi alone hand over 46 of the 100 points, so the decision
+    rests entirely on a crossover that reached 0.34 while the 1-min ATR was 0.157% of
+    price — against a 2% stop, i.e. +1R was ~13 ATRs away and unreachable.
+
+    (The day's zero trades were over-determined: the IMP-022 market gate was open on
+    0 of 89 QQQ candles, so nothing could have opened a long regardless of this score.)
+    """
+    w = ScoreWeights()
+    recorded = dict(crossover=0.3399, trend=1.0000, rsi=1.0000, volume=1.0000, volatility=0.0000)
+    total = (
+        recorded["crossover"] * w.crossover
+        + recorded["trend"] * w.trend
+        + recorded["rsi"] * w.rsi
+        + recorded["volume"] * w.volume
+        + recorded["volatility"] * w.volatility
+    )
+    assert total == pytest.approx(59.26, abs=0.01)
+    assert total < 60.0  # refused, as it was live
+    # trend + rsi are 46 points of the total and neither is about this setup's strength.
+    assert w.trend + w.rsi == 46.0

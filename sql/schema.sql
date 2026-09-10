@@ -34,6 +34,8 @@ CREATE TABLE dbo.trades (
     conf_volatility   DECIMAL(5, 4)  NULL,
     atr_pct           DECIMAL(9, 5)  NULL,                     -- pre-entry tape context (IMP-029)
     ribbon_spread_pct DECIMAL(9, 5)  NULL,                     -- fast-slow EMA spread, % of price
+    rsi_raw           DECIMAL(9, 4)  NULL,                     -- raw RSI behind conf_rsi (IMP-047)
+    scorer_version    INT            NULL,                     -- which scorer wrote the sub-scores
     exit_order_id     VARCHAR(64)    NULL,
     exit_time_utc     DATETIME2(0)   NULL,
     exit_price        DECIMAL(18, 6) NULL,
@@ -69,6 +71,26 @@ GO
 
 IF COL_LENGTH('dbo.trades', 'mae_pct') IS NULL
 ALTER TABLE dbo.trades ADD mae_pct DECIMAL(9, 4) NULL;
+GO
+
+-- Scorer provenance (IMP-047). A stored sub-score is only interpretable next to the
+-- scorer generation that produced it, and two sub-scores have already changed meaning
+-- under the stored history: conf_volume stopped being weighted at v2 (IMP-034) and
+-- conf_volatility REVERSED its anchors at v3 (IMP-036) — a dead tape scored 1.00 before
+-- and 0.00 after, in the same column. A 2026-09-10 study of the entry score read all 276
+-- closed trades at face value and had to be discarded because 268 predated v3.
+-- rsi_raw exists because conf_rsi saturates at 1.0 across the whole 45-65 RSI plateau
+-- (93.8% of trades), so the sub-score cannot be re-scaled after the fact and the raw
+-- input was being discarded. Both observational: nothing in the trading path reads them
+-- back, and they are NULL for every row written before 2026-09-10 — studies must
+-- EXCLUDE those rows, not zero-fill them (scorer_version IS NULL means "unknown", and
+-- for conf_volatility specifically it means "probably the opposite of what you think").
+IF COL_LENGTH('dbo.trades', 'rsi_raw') IS NULL
+ALTER TABLE dbo.trades ADD rsi_raw DECIMAL(9, 4) NULL;
+GO
+
+IF COL_LENGTH('dbo.trades', 'scorer_version') IS NULL
+ALTER TABLE dbo.trades ADD scorer_version INT NULL;
 GO
 
 -- Fast lookup of the single open trade per symbol (the exit-update predicate).
@@ -171,8 +193,22 @@ CREATE TABLE dbo.entry_refusals (
     conf_volatility   DECIMAL(6, 4)  NULL,
     atr_pct           DECIMAL(9, 5)  NULL,                     -- pre-entry tape (IMP-029 fields)
     ribbon_spread_pct DECIMAL(9, 5)  NULL,
+    rsi_raw           DECIMAL(9, 4)  NULL,                     -- scorer provenance (IMP-047)
+    scorer_version    INT            NULL,
     created_at_utc    DATETIME2(0)   NOT NULL DEFAULT SYSUTCDATETIME()
 );
+GO
+
+-- Scorer provenance on pre-existing installs (IMP-047) — same reasoning as on dbo.trades.
+-- The refusal population is where an entry threshold is actually priced, so it needs the
+-- version stamp at least as much: 97.5% of refusals carry conf_rsi == 1.00, and the
+-- pre-v3 ones carry a conf_volatility that means the opposite of today's.
+IF COL_LENGTH('dbo.entry_refusals', 'rsi_raw') IS NULL
+ALTER TABLE dbo.entry_refusals ADD rsi_raw DECIMAL(9, 4) NULL;
+GO
+
+IF COL_LENGTH('dbo.entry_refusals', 'scorer_version') IS NULL
+ALTER TABLE dbo.entry_refusals ADD scorer_version INT NULL;
 GO
 
 -- Studies scan this table by day and by symbol; it grows by ~30 rows a session.

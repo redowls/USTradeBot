@@ -106,6 +106,34 @@ class ConfidenceBreakdown:
 DEFAULT_WEIGHTS = ScoreWeights()
 
 
+# Which generation of this scorer produced a given persisted row (IMP-047).
+#
+# A sub-score column is only interpretable if you know which scorer wrote it, and
+# twice now the *meaning* of one has changed underneath the stored history:
+#
+# ===  ==========  ==========================================================
+# ver  from        what changed
+# ===  ==========  ==========================================================
+#   1  (origin)    volume weighted 15; ``score_volatility`` was a **spread**
+#                  proxy — a tight tape scored 1.0 ("tight is good").
+#   2  2026-08-24  IMP-034: volume weight 15 -> 0, redistributed to crossover
+#                  (30->39) and trend (20->26). Sub-score still recorded.
+#   3  2026-08-26  IMP-036: ``score_volatility`` anchors **reversed** — a dead
+#                  tape now scores 0.0 and a travelling tape 1.0. Same column,
+#                  opposite meaning.
+# ===  ==========  ==========================================================
+#
+# Version 3 rows are the only ones whose ``conf_volatility`` is comparable with
+# today's, and nothing in the schema said so. On 2026-09-10 a study of the entry
+# score read all 276 closed trades' ``conf_volatility`` at face value and had to be
+# discarded: 268 were written by v1/v2, where the reversed ramp scored the dead tape
+# 1.00, so the cohort the study flagged as "weak signal" was an artifact of the old
+# anchors rather than a property of those trades. Stamping the row is what makes that
+# class of error detectable instead of silent. Bump this whenever a sub-score's
+# scale, anchors or meaning change — not when a threshold outside the scorer moves.
+SCORER_VERSION = 3
+
+
 def _clamp01(x: float) -> float:
     return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
 
@@ -144,7 +172,27 @@ def score_trend(gate: RibbonSnapshot | None) -> float:
 
 def score_rsi(trigger: RibbonSnapshot) -> float:
     """Momentum: healthy 45–65 zone or turning up from oversold scores high;
-    overbought (>70) scores low."""
+    overbought (>70) scores low.
+
+    **This sub-score is very nearly a constant, and that is measured, not suspected**
+    (2026-09-10): ``conf_rsi == 1.00`` on **259/276 closed trades (93.8%)** and
+    **430/441 refusals (97.5%)**, because a fresh bullish 1-min ribbon cross almost
+    always prints RSI inside the flat 45–65 plateau. Its 20 points are therefore a
+    near-uniform subsidy rather than a ranking term, and the overbought branch that
+    justifies them fired on **2 of 276 trades** (net +$8.90) and **0 of 441 refusals**.
+
+    Deleting the weight was the obvious conclusion and it was tested and **rejected**
+    — see IMP-047 in ``memory/improvement-log.md``. Redistributing the 20 points over
+    crossover/trend/volatility raises per-trade quality (replay 60d: PF 2.43 -> 2.91,
+    true win 8% -> 12%, avg/trade +$9.58 -> +$11.64) but costs net dollars on two of
+    three windows (60d +$364 -> +$279) because, with ``conf_rsi`` flat, renormalising
+    is arithmetically a **threshold tightening** on the informative terms (40/80 ->
+    48/80 points) and it drops 37% of trades. The plateau is the thing to fix, not the
+    weight — but re-scaling this function cannot be back-tested from ``dbo.trades``,
+    because only the saturated sub-score was ever stored and the raw RSI that produced
+    it was discarded. ``rsi_raw`` (IMP-047) closes that, so the next attempt can sweep
+    the band edges on recorded history instead of re-fetching bars.
+    """
     rsi = trigger.rsi
     if rsi is None:
         return 0.0

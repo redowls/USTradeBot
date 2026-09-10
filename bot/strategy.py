@@ -42,6 +42,7 @@ from bot.executor import ExecutionResult, OrderExecutor
 from bot.indicators import RibbonEngine, RibbonSnapshot
 from bot.risk import RiskManager, TrailResult
 from bot.signals import (
+    SCORER_VERSION,
     ConfidenceBreakdown,
     EntryDecision,
     ScoreWeights,
@@ -92,6 +93,11 @@ class TradeSignal:
     from ``dbo.trades`` instead of by re-fetching bars. Purely observational — nothing
     reads them back, so no entry, exit or sizing behaviour depends on them. ``None``
     when the trigger snapshot has not seeded ATR yet.
+
+    ``rsi_raw`` / ``scorer_version`` are the IMP-047 provenance pair: the raw indicator
+    value behind ``conf_rsi`` (which saturates at 1.0 across the whole 45–65 plateau, so
+    the sub-score alone cannot be re-scaled after the fact) and which generation of the
+    scorer produced this row. Also observational.
     """
 
     symbol: str
@@ -101,6 +107,8 @@ class TradeSignal:
     decision: EntryDecision
     atr_pct: float | None = None
     ribbon_spread_pct: float | None = None
+    rsi_raw: float | None = None
+    scorer_version: int | None = None
 
 
 @dataclass(frozen=True)
@@ -123,6 +131,11 @@ class RefusedEntry:
     reads a near-miss without the gate state overstates the recoverable population.
     ``None`` means genuinely not measured (pre-IMP-031 rows), never "open".
 
+    ``rsi_raw`` / ``scorer_version`` are the IMP-047 provenance pair, recorded here for
+    the same reason they are recorded on an entry: a refusal study that reads a
+    sub-score cannot tell which scorer generation wrote it, and ``conf_rsi`` saturates
+    across the whole 45–65 plateau so the raw value cannot be recovered from it.
+
     Purely observational — nothing reads it back, and no entry, exit or sizing behaviour
     depends on it.
     """
@@ -136,6 +149,8 @@ class RefusedEntry:
     breakdown: ConfidenceBreakdown | None = None
     atr_pct: float | None = None
     ribbon_spread_pct: float | None = None
+    rsi_raw: float | None = None
+    scorer_version: int | None = None
 
 
 @dataclass(frozen=True)
@@ -499,6 +514,8 @@ class StrategyEngine:
             decision=decision,
             atr_pct=atr_pct_of(trigger),
             ribbon_spread_pct=ribbon_spread_pct_of(trigger),
+            rsi_raw=trigger.rsi,
+            scorer_version=SCORER_VERSION,
         )
         log.info(
             "ENTRY %s @ %.4f confidence=%.1f (xo=%.2f trend=%.2f rsi=%.2f vol=%.2f vlt=%.2f)"
@@ -608,6 +625,8 @@ class StrategyEngine:
                     breakdown=decision.confidence,
                     atr_pct=atr_pct_of(trigger),
                     ribbon_spread_pct=ribbon_spread_pct_of(trigger),
+                    rsi_raw=trigger.rsi,
+                    scorer_version=SCORER_VERSION,
                 )
             )
         except Exception:  # a downstream recording bug must not kill the strategy

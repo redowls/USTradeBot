@@ -7525,3 +7525,170 @@ six reviews reached the same unverified verdict.*
   arriving at local highs. Worth watching, not worth acting on yet.
 - **⚠️ Operational: verify `.env` is `ustradebot:ustradebot` mode 600 and
   `systemctl is-active` before the open.** Service restarted tonight for IMP-046.
+
+---
+
+## 2026-09-10 — Daily Review
+
+### Stats
+- **No trades.** 0 entries, 0 exits, 0 orders at the broker, 0 open positions. Net P&L
+  **+$0.00**. Account **equity $9,192.70** — `equity == last_equity == cash`, so not a
+  cent moved today.
+- **Broker reconciliation: clean.** `alpaca-usbot` MCP (read-only) reports account
+  PA34DFFLTHRT ACTIVE, `GET /orders?status=all&after=2026-09-10T00:00Z` → **empty**,
+  `/positions` → **empty**. `dbo.trades` has 0 rows touching today and 0 open rows.
+  Broker and DB agree exactly; no missed fill, no qty drift, nothing carried overnight.
+- **Third consecutive zero-trade session** (09-08, 09-09, 09-10). Last closed trade was
+  **09-04** (MU, +$22.21). Service **active** since the 11:37 UTC restart, 8,613 journal
+  lines, **zero warnings or errors**, warmup primed 18/18 symbols.
+
+### Stop-exit accounting
+No trades closed today, so today contributes no buckets. The trailing window is what
+governs the verdict:
+
+- **Trailing 10 sessions with trades (2026-08-04 → 2026-09-04), n=32:**
+  **stop rate 21/32 (66%)** — **FAIL 14 (full-stop 0 / BE-scratch 14) · SCRATCH 16 · WIN 2**.
+  **True win rate 6% vs headline 66%** — a 60-point gap. Net +$240.81.
+- **Escalation test — MET.** Last 3 sessions that had trades (09-04 MU SCRATCH +0.54R,
+  09-03 TSLA SCRATCH +0.68R, 08-28 SPOT FAIL −0.35R) are **100% FAIL+SCRATCH**, well
+  over the 60% bar, and the all-time figure is **92.8%** over 276 trades. Per the
+  doctrine this forbids shipping another parameter tweak, and the structural verdict is
+  written below.
+- **Dominant failure cause: profit capture, and underneath it stop geometry.**
+  **Zero full stops in the last 32 trades** — all 14 FAILs are BE-scratches. The 2% stop
+  is not being touched on price at all; it only sets the R denominator.
+
+### Trade-by-trade review
+None to review. The reviewable evidence is **why nothing traded**, and it is
+over-determined — two independent sufficient causes:
+
+1. **The IMP-022 market gate was shut all session.** `dbo.market_gate` says the QQQ 5m
+   ribbon was bullish on **0 of 89 candles (0.0%)**. Yesterday: **0 of 93**. No long
+   could be opened today at any confidence. Context (Perplexity `sonar`): S&P 500
+   **−0.5/−0.6%**, Nasdaq **−0.4/−0.9%**, "**risk-off, not a clean trend day**", no
+   per-name catalyst on any symbol traded-or-scored. The gate did exactly its job.
+2. **Independently, nothing cleared confidence.** 21 scored candidates, every one refused
+   on `confidence < 60`; **best of the day QCOM 16:40 @ 59.26**. Gate-open fraction by
+   session: 09-02 38.7%, 09-03 76.0%, 09-04 21.4%, 09-08 43.6%, 09-09 **0%**, 09-10 **0%**.
+   The check order is crossover → confidence → gate, so "market gate closed" only appears
+   in the log when confidence passed first; that is why today's log shows 21 confidence
+   refusals and 0 gate refusals despite the gate being shut the whole time.
+
+Today's refusal sub-scores expose the scorer's shape in a dead tape. `conf_volatility`
+was **0.0000 on 20 of 21** candidates (1-min ATR 0.05–0.21% of price), `conf_rsi` was
+**1.0000 on 21 of 21**, `conf_trend` 1.0000 on 13, and `conf_crossover` never exceeded
+**0.34**. QCOM 16:40 is the clean illustration: trend 1.0 and rsi 1.0 handed over **46 of
+100 points**, so with volatility at zero the whole decision rested on a crossover of
+0.34 — and the arithmetic ceiling with volatility dead is `39×0.36 + 46 = 60`, i.e. in a
+dead tape the gate is really "crossover ≥ 0.36" wearing a confidence threshold's clothes.
+
+### What worked / what didn't
+- ✅ **Capital protection worked.** A risk-off tape produced zero longs and zero losses.
+  Three flat sessions in a row cost $0.00 against an August that ran 92.8% FAIL+SCRATCH.
+  This is the system declining to pay for the privilege of participating.
+- ✅ **Reconciliation, logging and warmup were all clean.** No errors, no restarts.
+- ❌ **The morning research asked the right question and the answer is now measured.**
+  The research log's carried note said not to loosen anything on narrow-strength
+  evidence. Honored — and today shows *why* loosening would have been pointless: the gate,
+  not the threshold, was binding.
+- ❌ **The confidence scorer carries a 20-point dead constant** (below). Found, measured,
+  fix attempted, fix rejected on the evidence.
+
+### Lessons & improvement candidates
+
+**1. `conf_rsi` is a near-constant — measured, fix tested, REJECTED.** `conf_rsi == 1.00`
+on **259/276 closed trades (93.8%)** and **430/441 refusals (97.5%)**: a fresh bullish
+1-min cross almost always prints RSI inside the flat 45–65 plateau. Its **20 of 100
+points** are a near-uniform subsidy, not a ranking term, and the overbought branch that
+justifies them fired on **2 of 276 trades** (net +$8.90) and **0 of 441 refusals**.
+Redistributing those 20 points proportionally over crossover/trend/volatility and
+renormalising to 100 (the IMP-034 operation) was implemented and A/B'd on the replay
+harness with IMP-044 friction on:
+
+| window | baseline | reweighted | verdict |
+|---|---|---|---|
+| 30d | n=16, +$124.15, PF 2.09, true 6% | n=10, +$137.87, PF 3.71, true 10% | better |
+| 45d | n=31, +$305.99, PF 2.36, true 10% | n=23, **+$274.19**, PF 2.88, true 13% | **net worse** |
+| 60d | n=38, +$363.92, PF 2.43, true 8% | n=24, **+$279.29**, PF 2.91, true 12% | **net worse** |
+
+Per-trade quality improves on every axis (60d PF 2.43→2.91, true win 8%→12%, avg/trade
++$9.58→+$11.64) but **net dollars fall on two of three windows** because it drops 37% of
+trades. **Rejected and reverted.** The reason is arithmetic and worth keeping: with
+`conf_rsi` pinned at 1.0, renormalising is not a reweighting at all — for 94% of
+candidates the ranking is *identical* and only the cut moves, from **40/80 to 48/80**
+points of real signal. It is a threshold tightening in disguise, and this bot does not
+have the expectancy to pay for a 37% cut in participation.
+
+**2. ⚠️ A measurement-integrity defect nearly shipped that change on contaminated data
+— the fourth in a month.** The DB counterfactual that motivated the reweighting looked
+overwhelming (all-time net +$90.84 → +$442.64, refused cohort −$351.81 over n=95 with a
+1.1% true win rate, and trimming the best+worst made it *worse*, so not one outlier).
+It was **invalid**. `conf_volatility` **reversed its meaning at IMP-036 (2026-08-26)** —
+the old ramp scored a *dead* tape 1.00, the new one scores it 0.00 — and **268 of the 276
+rows predate that flip**, so the "weak signal" cohort the study flagged was substantially
+an artifact of the old anchors. Worse, only **8 of 276 closed trades (3%)** carry a usable
+`atr_pct`, so the honest version of the test has n=8/n=3 and decides nothing. Nothing in
+the schema recorded which scorer wrote a row. The uncontaminated part (crossover+trend
+only, whose meanings never changed) does still separate cleanly — admits n=103 +$369.88 /
++0.139R / true 12.6% vs refuses n=173 −$279.04 / −0.063R / true 4.0% — which is why the
+replay harness, not the DB, had to be the judge. **IMP-047 closes the provenance gap.**
+
+**3. 🔴 STRUCTURAL VERDICT — R is mis-scaled to the tape, so the doctrine's buckets are
+measuring the geometry, not the edge.** The 1-min ATR at signal time has median
+**0.082%** of price (p90 0.168%, max 0.404%, n=441). The stop is a flat **2.0%**.
+**1R is therefore ~24× the median 1-min ATR.** Consequences, all confirmed in the data:
+- **+1R is near-unreachable intraday**, so WIN (profit_R ≥ 1.0) is rare by construction:
+  true win rate 6% over the last 32 trades, 7.2% all-time.
+- **The stop is never touched.** **0 full stops in the last 32 trades**; 1 in 16 over the
+  30d replay. A 2% stop on a tape that moves 0.08%/min is not protecting anything — it is
+  defining an unreachable denominator.
+- **The 1.25% trail caps the upside below 1R.** A trail exit only clears entry once the
+  peak exceeds **+1.27%**, and +2% is 1R, so virtually every genuinely profitable trade
+  must land in **SCRATCH (0.25–1.0R)**. That is exactly what the buckets show: 16 SCRATCH
+  and 14 BE-scratch FAILs against 2 WINs.
+- So the **92.8% FAIL+SCRATCH is substantially a statement about exit geometry**, not
+  purely about entry quality. The doctrine is still right that those scratches are not
+  wins — the bot really is handing back its moves — but the fix is **not** a wider stop
+  (forbidden, and pointless since it is never hit). It is to make **R track the tape**.
+- **Honest bottom line: no demonstrated edge.** All-time expectancy **+0.013R** over 276
+  trades — statistically nothing. The post-IMP-018 window (+0.082R, n=57) and the replay
+  windows (PF 2.1–2.4) are mildly positive and too small to call. The bot is not losing
+  money; it has not demonstrated that it makes any.
+
+**4. Next candidate, pre-registered, NOT shipped tonight: an ATR-scaled stop.** Replace
+the flat 2% with a multiple of the signal-time ATR so that 1R is a distance the tape
+actually travels, which would make the stop protective, make +1R reachable, and make the
+doctrine's buckets informative instead of geometric. This is the structural change the
+escalation clause asks for. It is a **risk-path change** and must not be shipped on a
+zero-trade day as the second change of an evening: it needs its own sweep across every
+replay window with friction on, and it needs the per-trade ATR that IMP-047 only started
+recording today. Handed to the weekly review with the numbers above. Also left in
+`todo.md`: sizing must be re-derived with it, since a tighter stop at constant risk-per-
+trade implies a larger share count — that is a sizing change and needs human sign-off.
+
+**5. Deferred: re-scale `score_rsi` rather than delete its weight.** The 45–65 plateau is
+the actual defect. Could not be tested at all today — only the saturated sub-score was
+ever stored, so the raw RSI that produced it was gone. `rsi_raw` (IMP-047) now records it,
+so the band edges become sweepable from recorded history in a few weeks.
+
+### Notes for pre-market research
+- **The board is not the constraint and today says so with a number.** The QQQ 5m gate was
+  open **0/89 candles today and 0/93 yesterday**. No watchlist edit could have produced a
+  trade. **Do not park or add names in reaction to three flat sessions** — the symbols did
+  not fail, the market filter declined the whole tape. Gate duty cycle is the number to
+  watch: 09-02 38.7%, 09-03 76.0%, 09-04 21.4%, 09-08 43.6%, 09-09 0%, 09-10 0%.
+- **QQQ stays enabled and exempt** — it is `MARKET_FILTER_SYMBOL`; parking it silently
+  disables the gate.
+- **Symbols that actually signaled today** (reached scoring, so the ribbon is alive on
+  them): **AAPL ×8, QCOM ×5, UBER ×2, DASH ×2, SPOT, MSFT, META, LLY**. AAPL was the most
+  active scorer on the board and **QCOM was the strongest** (59.26, a hair under the bar) —
+  the 09-10 QCOM re-enable is already earning its place. Neither needs action.
+- **Dead-tape warning for sizing expectations, not for parking:** 1-min ATR today ran
+  **0.05–0.21%** of price against a 2% stop. On a tape like this no entry can reach +1R
+  before the flatten whatever the watchlist looks like. If tomorrow is similarly dead,
+  expect and accept another flat session.
+- **Never signaled today:** AMD, INTC, MU, META (once), NFLX, NVDA, PLTR, TSLA, TSM, ABNB.
+  That is the gate suppressing scoring, not a defect in those names — the same names were
+  the most active scorers on 09-08/09-09. No action.
+- **AAPL's dead-signal test is re-armed 09-24** (last trade 07-27). Still not below both
+  MAs, so it remains KEEP. Nothing to do until then.

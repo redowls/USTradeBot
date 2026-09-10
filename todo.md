@@ -505,3 +505,29 @@ Keep it on the paper account throughout — iterate freely.
       714.92). A width floor is a **no-op up to 0.03%** (0–1 trades changed across 30/60/90d)
       and negative beyond it (90d @0.08%: +$605.60 / PF 2.29 vs +$753.36 / PF 2.43). The
       existing `stacked AND fast_rising` conjunction already does this work.
+- [ ] **🔴 NEEDS HUMAN SIGN-OFF (raised 2026-09-10, daily review) — ATR-scaled stop, and the
+      sizing change it implies.** The structural answer to the doctrine's escalation clause
+      (FAIL+SCRATCH **92.8%** all-time, **100%** over the last 3 sessions with trades, true
+      win rate **6%** vs headline **66%** over the last 32 trades).
+      **Evidence that R is mis-scaled to the tape:** the 1-min ATR at signal time has median
+      **0.082%** of price (p90 0.168%, max 0.404%, n=441 recorded candidates) against a flat
+      **2.0%** stop — **1R is ~24× the median 1-min ATR**. Consequences, all measured:
+      **0 of the last 32 trades touched a full stop** (1 of 16 in the 30d replay), so the stop
+      is not protecting capital, it is defining an unreachable denominator; the 1.25% trail
+      only clears entry above a **+1.27%** peak while 1R is +2%, so essentially every
+      genuinely profitable trade is forced into the **SCRATCH** bucket (last 32 trades:
+      16 SCRATCH + 14 BE-scratch FAIL vs **2 WIN**).
+      **Proposal:** set the stop to a multiple of signal-time ATR so 1R is a distance the tape
+      actually travels — making the stop protective, +1R reachable, and the doctrine's buckets
+      informative rather than geometric.
+      **Why it is not shipped unilaterally:** (a) it is a **risk-path** change; (b) at constant
+      risk-per-trade a tighter stop implies a **larger share count**, and position sizing is
+      explicitly off-limits without human approval — the review will not widen or re-scale
+      exposure on its own authority; (c) it needs a full sweep of the ATR multiple across every
+      replay window with IMP-044 friction on, plus the per-trade signal-time ATR that IMP-047
+      only began recording on 2026-09-10.
+      **Note the direction of risk:** this *narrows* typical stop distance (tightens per-share
+      risk) and will *raise* the stop rate. That is not the doctrine's forbidden
+      stop-rate-lowering trade; it must still be judged on expectancy and payoff first.
+      Decision needed: approve the sizing re-derivation, or cap notional so the stop change
+      can be tested at unchanged exposure.

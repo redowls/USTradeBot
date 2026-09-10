@@ -3761,3 +3761,115 @@ printed so far, *above every price of the day*, a breakout buy.
 - Re-derive, don't inherit, the ranked entry candidates built on the lookahead reading.
 - Untested causal axes: ATR at signal time (today's refusals ran 0.06–0.24% ATR against a
   2.0% stop — +1R arithmetically unreachable) and the inverted 90–100 confidence band.
+
+---
+
+## IMP-047 — 2026-09-10 (daily) — stamp the scorer that wrote every row, and keep the raw RSI
+**`bot/signals.py`, `bot/strategy.py`, `bot/persistence.py`, `sql/schema.sql`,
+`tests/test_signals.py`, `tests/test_persistence.py`.** Observational only — touches no
+entry, exit, sizing or risk path. **The weights were NOT changed** (see below).
+
+### Why this, on a day with no trades
+Zero trades (QQQ 5m gate open **0/89 candles**; risk-off tape), so the reviewable
+question was the entry score itself. Working that question surfaced a real defect and
+then ran straight into the reason it could not be answered from the database.
+
+### The defect that was found, fixed, and then rejected
+`conf_rsi == 1.00` on **259/276 closed trades (93.8%)** and **430/441 refusals (97.5%)** —
+`score_rsi` returns a flat 1.0 for any RSI in 45–65 and a fresh bullish 1-min cross
+almost always lands there. **20 of 100 confidence points are a constant subsidy**, and the
+overbought branch that justifies them fired on **2 of 276 trades** (net +$8.90) and **0 of
+441 refusals**.
+
+The IMP-034 operation — redistribute the 20 points proportionally over the three
+discriminating terms (39:26:15 → 48.75/32.50/18.75), renormalise to 100, leave
+`ENTRY_THRESHOLD` at 60 — was implemented and A/B'd on the replay harness, friction on:
+
+| window | baseline | reweighted | Δnet |
+|---|---|---|---|
+| 30d | n=16, +$124.15, PF 2.09, true 6% | n=10, +$137.87, PF 3.71, true 10% | **+$13.72** |
+| 45d | n=31, +$305.99, PF 2.36, true 10% | n=23, +$274.19, PF 2.88, true 13% | **−$31.80** |
+| 60d | n=38, +$363.92, PF 2.43, true 8% | n=24, +$279.29, PF 2.91, true 12% | **−$84.63** |
+
+A variant redistributing over crossover+trend only (51.0/34.0, volatility left at 15) was
+also run and is within $3 of the above in every window — the choice between them does not
+matter, the cut does. **Rejected and reverted**: per-trade quality rises on every axis
+(60d PF 2.43→2.91, true win 8%→12%, avg/trade +$9.58→+$11.64) but net dollars fall on two
+of three windows on **37% fewer trades**. With `conf_rsi` pinned at 1.0 the operation is
+**not a reweighting** — for 94% of candidates the ranking is byte-identical and only the
+bar moves, **40/80 → 48/80** points of real signal. It is a threshold tightening wearing
+a reweighting's clothes, and the doctrine's escalation clause (FAIL+SCRATCH 92.8%
+all-time, 100% over the last 3 sessions with trades) forbids exactly that.
+
+### The measurement defect this exposed — the real reason for the change
+The DB counterfactual that motivated the reweighting looked decisive: all-time net
++$90.84 → +$442.64, the refused cohort **−$351.81 over n=95** with a **1.1%** true win
+rate and 98.9% FAIL+SCRATCH, and trimming the best and worst row made it *worse*
+(−$355.81), so not one outlier. **It was invalid.** `conf_volatility` **reversed its
+meaning at IMP-036 (2026-08-26)**: the old ramp scored a *dead* tape 1.00, the current one
+scores it 0.00. **268 of those 276 rows predate the flip**, so the cohort the study called
+"weak signal" was largely an artifact of the old anchors — and because the proposed change
+redistributes weight *into* volatility, the contamination pointed the same way as the
+hypothesis. Only **8 of 276 closed trades (3%)** carry a usable `atr_pct`, so the honest
+version of the test has n=8 and decides nothing. **Nothing in the schema said which scorer
+wrote a row.** That is what this IMP fixes. (The uncontaminated slice — crossover+trend,
+whose meanings never changed — does still separate: admits n=103 +$369.88 / +0.139R / true
+12.6% vs refuses n=173 −$279.04 / −0.063R / true 4.0%. That is what justified taking the
+question to the replay harness, which recomputes everything from bars and has no stale
+sub-scores.)
+
+Fourth measurement-honesty defect in a month: IMP-024 gate lookahead, IMP-044 frictionless
+harness, IMP-046 timing lookahead, now scorer provenance.
+
+### The change
+- **`SCORER_VERSION = 3`** in `bot/signals.py`, with the generation table in a comment:
+  v1 origin (volume weighted 15, volatility a *spread* proxy — tight tape scored 1.0),
+  v2 2026-08-24 IMP-034 (volume 15 → 0), v3 2026-08-26 IMP-036 (volatility anchors
+  reversed). Bump when a sub-score's scale, anchors or meaning change.
+- **`rsi_raw`** — the raw RSI behind `conf_rsi`. The sub-score saturates across the whole
+  45–65 plateau, so re-scaling the band edges cannot be back-tested from stored rows; the
+  raw input was being computed and thrown away.
+- Both carried on `TradeSignal` / `RefusedEntry` → `TapeContext` / `RefusedCandidate` and
+  written to **`dbo.trades`** and **`dbo.entry_refusals`**, the refusal side included
+  because that is where an entry threshold is actually priced.
+- `sql/schema.sql`: idempotent `IF COL_LENGTH(...) IS NULL ALTER TABLE` pairs in the
+  IMP-029 style, plus the columns inline in both `CREATE TABLE`s. Documented in the schema
+  that NULL means **exclude the row**, not zero-fill — and that for `conf_volatility`
+  specifically, NULL provenance means "possibly the opposite of what you think".
+- `score_rsi`'s docstring now records the 93.8%/97.5% measurement and why deleting its
+  weight was rejected, so the next attempt re-derives rather than rediscovers it.
+
+### Validation
+- **543 tests pass** (was 534; +9). Preflight **all-PASS** (1 expected market-closed warning);
+  it ran the migration through the bot's own `ensure_schema` path — 20 batches, clean.
+- Migration applied to the live `USBot` DB; all four columns confirmed present.
+- Live `INSERT` probe against the real schema with today's QCOM vector round-tripped
+  `(rsi_raw 55.0000, scorer_version 3)` and was **rolled back** — 0 rows left behind.
+- A pre-existing test caught a genuine bug in my first version of the trades `INSERT`
+  assertion (19 columns vs 18 placeholders — `status` travels as the literal `'OPEN'`).
+  The placeholder-vs-column invariant is now asserted on the trades write too, not just
+  on refusals, since that write has now grown twice.
+- Tests pin: the v3 stamp and the weights it describes; the rsi plateau collapsing to a
+  single stored value; the **arithmetic that made the rejected change a threshold move**
+  (40/80 → 48/80); and **today's real QCOM 16:40 @ 59.26 vector**, which must stay refused.
+
+### What it does and does not do
+- ✅ Makes every future scored row self-describing, so a sub-score study can exclude rows
+  written by a different scorer instead of silently averaging across a sign flip.
+- ✅ Unblocks two specific pre-registered studies: re-scaling the `score_rsi` band edges,
+  and the **ATR-scaled stop** (which needs per-trade signal-time ATR on every row).
+- ❌ Changes nothing about what the bot trades. No expectancy claim is made for it.
+- ❌ Does not backfill. The 268 pre-v3 rows stay NULL and must be **excluded**; there is no
+  way to recover which scorer wrote them beyond the IMP dates, which is why the comment
+  carries the date table.
+
+### Follow-ups
+- **ATR-scaled stop is the next structural candidate** and the escalation clause's answer:
+  1R is currently **~24× the median 1-min ATR** (median 0.082% of price vs a 2.0% stop), so
+  **0 of the last 32 trades touched a full stop** and +1R is near-unreachable — the stop
+  defines an unreachable denominator rather than protecting capital. Needs its own sweep,
+  every window, friction on. Risk-path change; sizing must be re-derived with it and that
+  part needs human sign-off (noted in `todo.md`).
+- Re-sweep the `score_rsi` 45–65 band edges once `rsi_raw` has a few weeks of rows.
+- Do **not** re-run the entry-score counterfactual against `conf_volatility` on pre-v3
+  rows. It will look compelling again and it will again be wrong.
