@@ -7692,3 +7692,143 @@ so the band edges become sweepable from recorded history in a few weeks.
   the most active scorers on 09-08/09-09. No action.
 - **AAPL's dead-signal test is re-armed 09-24** (last trade 07-27). Still not below both
   MAs, so it remains KEEP. Nothing to do until then.
+
+---
+
+## 2026-09-11 — Daily Review
+
+### Stats
+- Closed trades: **1** — 0W / 1L. Net realized **−$16.52** (−0.94%). Headline win rate **0%**.
+- Equity **$9,176.18** (broker), from `last_equity` $9,192.70 → **−$16.52 on the day**.
+  Broker reconciles to the cent: 0 positions, 0 open orders, `cash == equity ==
+  portfolio_value`, nothing carried overnight. DB and broker agree exactly.
+- Tape: **risk-on**. August CPI landed in line (+0.4% m/m headline, core +0.3% m/m /
+  2.4% y/y) and the market took it as relief — S&P 500 and Nasdaq both closed **~+1.0%**
+  after four straight down days. No watchlist name had an earnings catalyst. **This was a
+  trending-up day, not a chop excuse**: the bot found one marginal entry and gave it back.
+- 88 refusals logged, all on `confidence < 60` except one `crossover < 0.25` (AMD 14:17).
+  The refused distribution sat at 36–55 confidence all session — nothing near the bar.
+
+### Stop-exit accounting
+- **Stop rate: 1/1 (100%)**. Split: **FAIL 1** (full-stop 0 / **BE-scratch 1**) · SCRATCH 0 · WIN 0.
+- **True win rate 0%** (headline 0%) — no divergence today, the single trade failed on both readings.
+- **Trailing 10 sessions with trades (08-05 → 09-11): n=26 — WIN 1 · SCRATCH 10 · FAIL 15.
+  Stop rate 16/26 = 61.5%. True win rate 3.8%** (headline 57.7%). **FAIL+SCRATCH = 96.2%.**
+- **Last 3 sessions with trades (09-03, 09-04, 09-11): FAIL+SCRATCH = 100% (3/3).**
+  🔴 **The doctrine's escalation clause is active and has been for three sessions.** All-time:
+  277 closed, WIN 20, **true win rate 7.2%**, stop rate 28.9%.
+- **Dominant failure cause today: profit capture — specifically, the trail firing on an
+  unproven trade.** See below; but the day's larger finding is that fixing that does *not*
+  fix the book, which moves the verdict to **entry quality**.
+
+### Trade-by-trade review
+
+**INTC · model A · 15:23:02 → 16:30:09 UTC · 103.3959 → 102.4241 · trailing stop · −$16.52 (−0.94%) · −0.48R · FAIL**
+
+- Confidence **60.1 — 0.1 above the 60 threshold**, the most marginal entry possible.
+  Sub-scores: `xo=0.36 trend=1.00 rsi=1.00 vol=0.35 vlt=0.00`. Note the shape: **trend and
+  rsi are both pinned at the saturated 1.00** (the IMP-047 finding — `conf_rsi` reads 1.00
+  on 93.8% of trades), so 40 of the 60.1 points carry no discriminating information. The
+  two terms that *do* discriminate were weak (0.36, 0.35) and volatility scored **0.00**.
+  On the sub-scores that mean anything, this trade was near the bottom of the distribution.
+- Tape at signal: **ATR 0.182%**, spread 0.038%. Against a 2.00% stop, **+1R required an
+  11× ATR move**. The trade was arithmetically near-incapable of reaching +1R from the
+  moment it was placed.
+- Excursion: **MFE +0.39%, MAE −1.02%.** It never ran. The peak was a fifth of the way to
+  the trail width and a fifth of 1R.
+- **Exit mechanics — the part worth reading.** The bracket stop was 101.38 (−1.95%). The
+  trail then moved it **six times in the first 21 minutes**: 101.38 → 102.10 (at 15:24,
+  *sixty seconds after entry*) → 102.33 → 102.42 → 102.45 → 102.47 → **102.50 (−0.87%)**.
+  The fill came at 102.4241. **MAE was only −1.02%, so the original 2% stop was never
+  threatened — the trail alone ended this trade**, and it ended it at a loss, having
+  consumed **55.6% of the sized 1R risk budget** before the trade resolved.
+- Root cause, honestly: **entry quality first, exit mechanics second.** A 60.1-confidence
+  signal on a 0.182% ATR tape with volatility scoring 0.00 should not have been taken; the
+  trail geometry then guaranteed the small adverse drift resolved as a loss rather than as
+  a hold. Market regime is *not* a defence — the tape closed +1.0%.
+
+### What worked / what didn't
+- **Worked:** capital protection and plumbing. Exposure was one position, 19% of equity,
+  for 67 minutes; the loss was 0.18% of the account. Broker-side attribution correctly
+  labelled the exit `trailing stop` rather than the old `stop/target filled broker-side`
+  catch-all (IMP-038 earning its keep — that catch-all still carries **−$455 over 51 rows**
+  in the trailing 60 days). Service clean all session: one 11:36 UTC restart, warmup 19/19,
+  zero warnings or errors in 9,209 journal lines.
+- **Didn't:** the entry bar. 60.1 vs 60 is not a signal, it is a rounding error, and two of
+  the five sub-scores that produced it are constants.
+
+### Lessons & improvement candidates
+
+**The day's main result is a negative one, and it is worth more than the trade.**
+
+I tested the structural hypothesis today's trade suggests — *the trail should not ratchet
+until it has a profit to protect* — on the replay harness, friction on, three windows.
+Mechanism first: the ratchet is seeded from the original stop and IMP-018 *requires* the
+trail to be tighter than the stop, so `close × (1 − 1.25%)` clears the seed on the **first
+managed candle**. The stop is cut from −2.00% to −1.25% before the trade has proven
+anything — i.e. the risk budget the position was **sized** against is silently reduced
+within one minute of entry. Gating the ratchet until it clears the entry price fixes that
+without moving any stop down and without touching protection at or above breakeven.
+
+| window | baseline net | gated net | Δ | PF | stop rate | true win | FAIL+SCRATCH |
+|---|---|---|---|---|---|---|---|
+| 30d (n=19) | +$151.77 | **+$164.77** | +$13.00 | 2.00 → **2.09** | 74% → **58%** | 11% → 11% | 89% → 89% |
+| 45d (n=37) | +$290.54 | **+$276.49** | **−$14.05** | 1.95 → **1.73** | 81% → **68%** | 11% → 11% | 89% → 89% |
+| 60d (n=46) | +$331.51 | **+$344.65** | +$13.14 | 1.92 → **1.83** | 80% → **67%** | 9% → 9% | 91% → 91% |
+
+**Rejected and reverted.** Trade counts are identical in every window (19/37/46), so this
+is a clean exit-only A/B with no entry drift — and it still fails on its own terms:
+
+1. **Net signs disagree** (+$13 / −$14 / +$13, ≈4% of the book each way). The standing
+   rule from IMP-021 — *no replay-derived change ships on fewer than 3 windows agreeing in
+   sign* — is not met.
+2. **PF degrades in 2 of 3, including both longer windows** (1.95→1.73, 1.92→1.83).
+3. The stop rate falls **13–16 points in every window**, which is exactly the trap the
+   doctrine's anti-gaming rule names: *"if a change cuts the stop rate but flattens
+   expectancy, reject it and say why."* And the mechanism is largely **relabelling** —
+   full stops rise (1→3, 1→6, 1→6) while BE-scratches fall (7→3, 19→10, 24→15) and
+   **FAIL+SCRATCH is unchanged to the trade in all three windows**. It makes the report
+   look better without making the book better.
+
+**The finding that matters: the WIN count did not move by a single trade in any window
+(2/19, 4/37, 4/46 before and after).** Exit structure cannot manufacture a +1R trade. That
+removes *profit capture* and *stop geometry* from suspicion with a trade-matched A/B and
+points the queue hard at **entry quality and the unreachable-1R denominator**.
+
+Ranked candidates going forward:
+1. **🔴 ATR-scaled stop (structural, needs human sign-off).** Today is the cleanest
+   evidence yet: 1R = 2.00% against a **0.182% ATR** tape, an 11× multiple. Across the
+   book 1R is ~24× the median 1-min ATR, **0 of the last 32 trades touched a full stop**,
+   and the replay's WIN count is insensitive to every exit change tried. The 2% stop is
+   not protecting capital, it is defining a denominator the strategy cannot reach — which
+   is why true win rate reads 7% while headline reads 50%+. Risk-path change; **sizing must
+   be re-derived with it**, so it is in `todo.md` for approval, not shipped.
+2. **Raise/re-shape the entry bar.** 60.1 with two saturated sub-scores is not an edge.
+   IMP-047 established that a straight reweighting is a *threshold tightening in disguise*
+   and rejected it on net dollars; the honest version needs `scorer_version >= 3` rows,
+   which now number 1. Not actionable yet — it accrues.
+3. Re-sweep `score_rsi` band edges once `rsi_raw` accumulates. 1 row so far.
+
+### Notes for pre-market research
+- **INTC** — today's only trade and a **FAIL at −0.48R**. Not a parking candidate on this
+  evidence: it was the most *active* name on the board (opened 102, ran to **104.65 by
+  09:46 ET** before the bot's 10:00 blackout let it trade, then faded all afternoon to
+  ~102.4). The blackout did its job on the open; the trade it eventually took was the bad
+  one. Worth noting the shape — **INTC's real move was in the first 16 minutes and the
+  bot is structurally barred from it.** That tension is IMP-017's known cost, not a bug.
+- **The board is still not the constraint — but today it produced a signal, so the
+  three-session "gate never opened" drought is over.** The QQQ gate was open enough to
+  admit a trade at 15:23. No name should be parked in reaction to a single loss.
+- **Symbols that signalled but were refused all session** (all on confidence, none close
+  to the bar): NFLX ×6 (43.6–47.2), DASH ×4 (48.4–54.4), AMD ×4 (45.5–48.5), SPOT ×4
+  (39.8–43.1), MSFT ×3 (36.1–39.3), PLTR ×3 (38.8–40.7), QQQ ×3 (37.1–42.6), TSM ×3
+  (37.2–48.2), ABNB ×2 (39.1–40.4), AAPL, NVDA, QCOM ×1 each. **QCOM at 54.7 and DASH at
+  54.4 were the closest any name came.** No action implied — this is a healthy refusal
+  distribution, not a dead board.
+- **SPOT and NFLX are chopping** — 4 and 6 refusals respectively, none above 47.2, on a
+  +1% tape. Neither has signalled a tradeable score in the trailing window. Flagging for
+  observation, **not** proposing a park.
+- ⚠️ **`memory/weekly-review.md` is still uncommitted in the working tree — day 8, and
+  the ninth consecutive flag.** Left exactly as found again; this routine commits only
+  what it writes. It now holds 287 uncommitted lines. **Someone needs to decide whether
+  that content ships or is discarded** — it is one `git checkout` away from being lost.

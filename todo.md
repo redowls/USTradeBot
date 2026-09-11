@@ -531,3 +531,16 @@ Keep it on the paper account throughout — iterate freely.
       stop-rate-lowering trade; it must still be judged on expectancy and payoff first.
       Decision needed: approve the sizing re-derivation, or cap notional so the stop change
       can be tested at unchanged exposure.
+      **↑ Corroborated 2026-09-11 (daily review).** Today's only trade, INTC, signalled on a
+      **0.182% ATR** tape against the 2.00% stop — **+1R required an 11× ATR move**, so the
+      trade was arithmetically near-incapable of reaching +1R when it was placed. It exited
+      −0.48R (FAIL). More decisively, IMP-048 A/B'd an exit-side structural fix (gate the
+      trail until it clears entry) across 30/45/60d with friction on: trade counts identical,
+      and **the WIN count moved by zero trades in every window** (2/19, 4/37, 4/46 before and
+      after). Two independent attacks on the exit side — IMP-047's reweighting and IMP-048's
+      trail gate — have now both been rejected for moving labels rather than dollars. The
+      exit side is not the binding constraint; the unreachable 1R denominator and entry
+      quality are. IMP-048 also shipped `trail_stop_final` / `trail_moves`, which is the
+      attribution this proposal needs (it can now be asked, per trade, whether the stop that
+      fired was the sized one or a ratcheted one). **This is the queue's #1 item and it is
+      blocked on the sizing decision below.**

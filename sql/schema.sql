@@ -36,6 +36,8 @@ CREATE TABLE dbo.trades (
     ribbon_spread_pct DECIMAL(9, 5)  NULL,                     -- fast-slow EMA spread, % of price
     rsi_raw           DECIMAL(9, 4)  NULL,                     -- raw RSI behind conf_rsi (IMP-047)
     scorer_version    INT            NULL,                     -- which scorer wrote the sub-scores
+    trail_stop_final  DECIMAL(18, 6) NULL,                     -- highest stop the trail rested at (IMP-048)
+    trail_moves       INT            NULL,                     -- how many times the ratchet fired
     exit_order_id     VARCHAR(64)    NULL,
     exit_time_utc     DATETIME2(0)   NULL,
     exit_price        DECIMAL(18, 6) NULL,
@@ -91,6 +93,37 @@ GO
 
 IF COL_LENGTH('dbo.trades', 'scorer_version') IS NULL
 ALTER TABLE dbo.trades ADD scorer_version INT NULL;
+GO
+
+-- The trail's path (IMP-048). `stop_price` is the ORIGINAL 1R bracket anchor and never
+-- moves — the ratchet replaces the broker's order, not this row — so until now the DB
+-- held no record of where the stop actually ended up, and "did the trail end this trade,
+-- or did the original stop?" was unanswerable in SQL. It had to be reconstructed by
+-- grepping journald, which rotates. That is the exact question the 2026-09-11 review
+-- turned on (INTC: entry 103.40, original stop 101.38, trail at 102.50 within 5 minutes,
+-- exit 102.42 — MAE was only -1.02%, so the original stop was never threatened and the
+-- trail alone ended it) and the exact question the pre-registered ATR-stop proposal needs
+-- answered across many trades before it can be judged.
+--
+-- `trail_stop_final` = the highest stop actually resting at the broker when the trade
+-- ended (the original when the ratchet never fired). `trail_moves` = how many replaces
+-- the broker accepted. Together with stop_price, exit_price and entry_price they give,
+-- in SQL: trail-kill vs stop-kill vs flatten; how much of the sized risk budget the trail
+-- consumed before the trade resolved, as (trail_stop_final - stop_price) / R; and whether
+-- the final stop was above or below entry, i.e. whether it locked a profit or just a
+-- smaller loss.
+--
+-- Observational: nothing in the trading path reads them back. NULL for every trade closed
+-- before 2026-09-11 and for any holding that never had a movable stop leg (a startup
+-- reconcile) — studies must EXCLUDE those rows. Note the distinction NULL carries here:
+-- NULL means "no measurement", whereas (trail_stop_final = stop_price, trail_moves = 0)
+-- is the meaningful and different statement "the trail was armed and never fired".
+IF COL_LENGTH('dbo.trades', 'trail_stop_final') IS NULL
+ALTER TABLE dbo.trades ADD trail_stop_final DECIMAL(18, 6) NULL;
+GO
+
+IF COL_LENGTH('dbo.trades', 'trail_moves') IS NULL
+ALTER TABLE dbo.trades ADD trail_moves INT NULL;
 GO
 
 -- Fast lookup of the single open trade per symbol (the exit-update predicate).

@@ -926,3 +926,88 @@ def test_excursion_never_reports_a_negative_mfe_when_the_fill_slipped_up(cfg):
 
     assert result.mfe_pct == pytest.approx(0.0)
     assert result.mae_pct == pytest.approx((99.0 / 101.0 - 1.0) * 100.0)
+
+
+# --- the trail's path, recorded at exit (IMP-048) -------------------------
+
+
+def test_exit_records_the_final_trail_stop_and_move_count(cfg):
+    """The highest stop the trail actually rested at, and how many replaces it took.
+
+    `stop_price` on the trade row is the original 1R anchor and never moves, so without
+    this the DB cannot say whether the trail or the original stop ended a trade.
+    """
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+    entry = _entry()
+    rm.update_trailing_stop(_rising(110.0), entry)  # -> 108.90
+    rm.update_trailing_stop(_rising(115.0), entry)  # -> 113.85
+
+    result = rm.exit_position("NFLX", 113.85, "trailing stop", entry)
+
+    assert result.trail_stop_final == pytest.approx(113.85)
+    assert result.trail_moves == 2
+
+
+def test_exit_records_the_original_stop_and_zero_moves_when_the_trail_never_fired(cfg):
+    """(stop_price, 0) is a measurement — "armed, never fired" — and not the same as None."""
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+    entry = _entry()
+    rm.update_trailing_stop(_rising(95.0), entry)  # 95*0.9875 = 93.81 < 98.0 stop: no move
+
+    result = rm.exit_position("NFLX", 98.0, "stop loss", entry)
+
+    assert result.trail_stop_final == pytest.approx(98.0)  # the original bracket stop
+    assert result.trail_moves == 0
+
+
+def test_trail_path_is_none_without_a_movable_stop_leg(cfg):
+    """Absence of measurement is None (a startup-reconciled holding has no stop leg)."""
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+
+    result = rm.exit_position("NFLX", 100.0, "test", _entry(stop_order_id=""))
+
+    assert result.trail_stop_final is None
+    assert result.trail_moves is None
+
+
+def test_trail_path_state_is_dropped_on_exit_and_never_leaks_to_a_re_entry(cfg):
+    """Move counts are per-trade; a second trade on the same symbol starts at zero."""
+    rm = RiskManager(cfg, executor=_FakeExecutor())
+    entry = _entry()
+    rm.update_trailing_stop(_rising(110.0), entry)
+    rm.exit_position("NFLX", 108.90, "trailing stop", entry)
+
+    assert rm._trail_moves == {}
+
+    again = _entry(stop_order_id="stop-2")
+    result = rm.exit_position("NFLX", 99.0, "stop loss", again)
+
+    assert result.trail_moves == 0
+
+
+def test_trail_path_reproduces_the_2026_09_11_intc_trade(cfg):
+    """Today's real trade: the trail alone ended it, and the row must now say so.
+
+    Entered 103.395882 with the original stop at 101.38 (-1.95%). The ratchet moved the
+    stop six times in the first 21 minutes, ending at 102.50 (-0.87%) while MFE was only
+    +0.39%. MAE was -1.02%, so the ORIGINAL stop was never threatened — the trail, not the
+    stop, ended the trade. Before IMP-048 that verdict existed only in journald.
+    """
+    ex = _FakeExecutor()
+    rm = RiskManager(cfg, executor=ex)
+    entry = ExecutionResult(
+        symbol="INTC", order_id="o-intc", qty=17, notional=1758.65,
+        entry_price=103.395882, stop_price=101.38, take_profit_price=113.80,
+        confidence=60.1, status="accepted", model="A", stop_order_id="stop-intc",
+    )
+    # The six closes that drove the live ratchet 101.38 -> 102.50.
+    for close in (103.39, 103.62, 103.71, 103.74, 103.76, 103.797):
+        rm.update_trailing_stop(_rising(close), entry)
+
+    result = rm.exit_position("INTC", 102.424118, "trailing stop", entry)
+
+    assert result.trail_moves == 6
+    assert result.trail_stop_final == pytest.approx(102.50, abs=0.01)
+    # The decisive comparison the column exists to make possible, in one line:
+    assert result.trail_stop_final > entry.stop_price      # the trail ended it...
+    assert result.trail_stop_final < entry.entry_price     # ...locking in a LOSS, not a profit

@@ -82,6 +82,13 @@ class ExitResult:
     # exit before its first managed candle) — absence of measurement, not a zero excursion.
     mfe_pct: float | None = None
     mae_pct: float | None = None
+    # The trail's path (IMP-048). ``trail_stop_final`` is the highest stop actually
+    # resting at the broker when the trade ended; ``trail_moves`` is how many times the
+    # ratchet replaced the leg. ``None``/``None`` when the trade had no movable stop leg
+    # (a startup-reconciled holding) — absence of measurement, not "the trail never moved",
+    # which is the distinct and meaningful ``(stop_price, 0)``.
+    trail_stop_final: float | None = None
+    trail_moves: int | None = None
 
 
 OnExit = Callable[[ExitResult], None]
@@ -111,6 +118,9 @@ class RiskManager:
         # drifts away from the original key and must be tracked separately.
         self._trail_stops: dict[str, float] = {}
         self._live_stop_oid: dict[str, str] = {}
+        # How many times the ratchet has replaced this trade's stop leg (IMP-048). Same
+        # key as `_trail_stops`; counts only moves the broker accepted.
+        self._trail_moves: dict[str, int] = {}
         # In-trade excursion (IMP-037): symbol -> (high-water close, low-water close).
         # Keyed by SYMBOL, not by stop-leg id, so a position whose stop leg can't be
         # moved (a startup-reconciled holding) is still measured. Cleared on exit, so it
@@ -311,6 +321,7 @@ class RiskManager:
             return TrailResult.HELD  # move failed; keep the old stop and retry next candle
         self._live_stop_oid[key] = new_id or live_id  # track the replacement id for next move
         self._trail_stops[key] = new_stop
+        self._trail_moves[key] = self._trail_moves.get(key, 0) + 1
         log.info("trailing stop %s: %.4f -> %.4f", entry.symbol, current, new_stop)
         return TrailResult.MOVED
 
@@ -553,9 +564,19 @@ class RiskManager:
         entry_oid = getattr(entry, "order_id", "") if entry is not None else ""
         entry_fill = self._executor.entry_fill_price(entry_oid) if entry_oid else None
         key = getattr(entry, "stop_order_id", "") if entry is not None else ""
+        # Read the trail's path BEFORE dropping the state below (IMP-048), for the same
+        # reason `_broker_fill_reason` must run first: this is the only place that knows
+        # it. A trade with a stop leg always has a final stop — the original when the
+        # ratchet never fired — so the pair is (stop_price, 0) rather than NULL there.
+        trail_final: float | None = None
+        trail_moves: int | None = None
+        if key and entry is not None:
+            trail_final = self._trail_stops.get(key, entry.stop_price)
+            trail_moves = self._trail_moves.get(key, 0)
         if key:  # trade is done — drop its trailing-stop state
             self._trail_stops.pop(key, None)
             self._live_stop_oid.pop(key, None)
+            self._trail_moves.pop(key, None)
         mfe_pct, mae_pct = self._excursion_pct(symbol, entry, entry_fill)
         result = ExitResult(
             symbol=symbol,
@@ -566,6 +587,8 @@ class RiskManager:
             entry_fill_price=entry_fill,
             mfe_pct=mfe_pct,
             mae_pct=mae_pct,
+            trail_stop_final=trail_final,
+            trail_moves=trail_moves,
         )
         log.info(
             "EXIT %s @ %.4f (%s)%s%s",

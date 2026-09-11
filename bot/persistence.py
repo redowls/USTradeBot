@@ -494,6 +494,10 @@ class TradeStore:
                 # when the risk manager has none to offer, so a re-recorded exit can
                 # never blank a measurement it simply didn't observe.
                 "mfe_pct = COALESCE(?, mfe_pct), mae_pct = COALESCE(?, mae_pct), "
+                # The trail's path (IMP-048), COALESCE'd for the same reason: a
+                # re-recorded exit must never blank a path it didn't observe.
+                "trail_stop_final = COALESCE(?, trail_stop_final), "
+                "trail_moves = COALESCE(?, trail_moves), "
                 "updated_at_utc = SYSUTCDATETIME() "
                 "OUTPUT INSERTED.id, INSERTED.qty "
                 "WHERE symbol = ? AND status = 'OPEN'",
@@ -508,6 +512,8 @@ class TradeStore:
                     entry_fill,
                     getattr(result, "mfe_pct", None),
                     getattr(result, "mae_pct", None),
+                    getattr(result, "trail_stop_final", None),
+                    getattr(result, "trail_moves", None),
                     result.symbol,
                 ),
             )

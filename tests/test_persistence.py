@@ -257,10 +257,11 @@ def test_record_exit_closes_trade_with_pnl_and_drops_position():
     assert "pnl = (? - COALESCE(?, entry_price)) * qty" in update_sql
     assert "status = 'CLOSED'" in update_sql
     # entry_fill_price defaults to None → COALESCE keeps the stored entry_price (common case).
-    # Trailing None, None are the IMP-037 excursion columns, unmeasured on this exit.
+    # The four trailing Nones are the IMP-037 excursion and IMP-048 trail-path columns,
+    # all unmeasured on this exit.
     assert params == (
         "close-1", None, 101.5, "bearish 1-min ribbon cross", 101.5, None, 101.5, None,
-        None, None, "NFLX",
+        None, None, None, None, "NFLX",
     )
     assert any("INSERT INTO dbo.orders" in s and "'EXIT'" in s for s in _sql(conn.calls))
     assert any("DELETE FROM dbo.positions" in s for s in _sql(conn.calls))
@@ -286,7 +287,7 @@ def test_record_exit_corrects_entry_price_from_delayed_fill():
     # the corrected fill (547.873) is threaded into entry_price + both P/L formulas
     assert params == (
         "close-1", 547.873, 538.88, "end-of-day flatten",
-        538.88, 547.873, 538.88, 547.873, None, None, "AMD",
+        538.88, 547.873, 538.88, 547.873, None, None, None, None, "AMD",
     )
 
 
@@ -307,7 +308,49 @@ def test_record_exit_persists_the_in_trade_excursion():
 
     update_sql, params = next(c for c in conn.calls if "UPDATE dbo.trades" in c[0])
     assert "mfe_pct = COALESCE(?, mfe_pct), mae_pct = COALESCE(?, mae_pct)" in update_sql
-    assert params[-3:] == (1.15, -0.32, "NVDA")
+    assert params[-5:] == (1.15, -0.32, None, None, "NVDA")
+
+
+def test_record_exit_persists_the_trail_path():
+    """IMP-048: the final ratcheted stop and the move count reach the row.
+
+    `stop_price` is the original 1R anchor and never moves, so these two are the only
+    record of whether the trail or the original stop ended the trade.
+    """
+    conn = _FakeConn(next_id=7, open_qty=17)
+    exit_res = ExitResult(
+        symbol="INTC",
+        reason="trailing stop",
+        exit_price=102.424118,
+        qty=17,
+        order_id="close-1",
+        trail_stop_final=102.50,
+        trail_moves=6,
+    )
+    _store(conn).record_exit(exit_res)
+
+    update_sql, params = next(c for c in conn.calls if "UPDATE dbo.trades" in c[0])
+    assert "trail_stop_final = COALESCE(?, trail_stop_final)" in update_sql
+    assert "trail_moves = COALESCE(?, trail_moves)" in update_sql
+    assert params[-3:] == (102.50, 6, "INTC")
+
+
+def test_exit_update_binds_one_placeholder_per_assignment():
+    """The UPDATE has now grown twice (IMP-037, IMP-048); pin the invariant.
+
+    The INSERT already asserts this. Positional drift on the UPDATE silently writes each
+    value into the neighbouring column, which no other assertion here would catch.
+    """
+    conn = _FakeConn(next_id=7, open_qty=17)
+    _store(conn).record_exit(
+        ExitResult(symbol="INTC", reason="trailing stop", exit_price=102.42,
+                   qty=17, order_id="c", trail_stop_final=102.50, trail_moves=6)
+    )
+
+    update_sql, params = next(c for c in conn.calls if "UPDATE dbo.trades" in c[0])
+    set_clause = update_sql.split("SET", 1)[1].split("OUTPUT", 1)[0]
+    # every ? in SET, plus the one in the WHERE symbol = ? that closes the tuple
+    assert set_clause.count("?") + 1 == len(params)
 
 
 def test_record_exit_uses_open_trade_qty_for_audit_order():

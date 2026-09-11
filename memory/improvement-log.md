@@ -3873,3 +3873,122 @@ harness, IMP-046 timing lookahead, now scorer provenance.
 - Re-sweep the `score_rsi` 45–65 band edges once `rsi_raw` has a few weeks of rows.
 - Do **not** re-run the entry-score counterfactual against `conf_volatility` on pre-v3
   rows. It will look compelling again and it will again be wrong.
+
+---
+
+## IMP-048 — 2026-09-11 (daily) — record the trail's path, so "trail or stop?" is answerable in SQL
+**`bot/risk.py`, `bot/persistence.py`, `sql/schema.sql`, `tests/test_risk.py`,
+`tests/test_persistence.py`.** Observational only — touches no entry, exit, sizing or
+risk decision. Nothing about what the bot trades changes.
+
+### The change that was tested first, and rejected
+Today's trade (INTC, −0.48R, FAIL) was ended **by the trail, not by the stop**: entry
+103.3959, bracket stop 101.38 (−1.95%), and the ratchet moved the stop six times in 21
+minutes — 101.38 → 102.10 **sixty seconds after entry** → … → 102.50 (−0.87%) — while MFE
+was only **+0.39%**. MAE was −1.02%, so the original stop was never threatened.
+
+The mechanism is structural, not a tuning accident: the ratchet is seeded from the
+original stop, and IMP-018 *requires* `trail_percent < stop_loss`, so `close × (1 − 1.25%)`
+clears that seed on the **first managed candle**. The stop is cut from −2.00% to −1.25%
+before the trade has proven anything — **the risk budget the position was sized against is
+silently reduced within a minute of entry**, and to −0.87% within five. A stop below entry
+protects no profit; it only books a smaller loss sooner, which was never the documented
+intent of the trail ("a winner now runs until it gives back trail_percent from its peak").
+
+So I implemented the gate — suppress the ratchet until it would place the stop at or above
+the **entry price** — and A/B'd it on the replay harness, friction on, three windows. It
+introduces no tunable constant (the arming line is the trail's own geometry), never moves a
+stop down, and leaves every ratchet at or above breakeven byte-identical.
+
+| window | baseline | gated | Δnet | PF | stop rate | true win | FAIL+SCRATCH | WIN n |
+|---|---|---|---|---|---|---|---|---|
+| 30d (n=19) | +$151.77 | +$164.77 | **+$13.00** | 2.00 → 2.09 | 74% → 58% | 11% → 11% | 89% → 89% | 2 → 2 |
+| 45d (n=37) | +$290.54 | +$276.49 | **−$14.05** | 1.95 → 1.73 | 81% → 68% | 11% → 11% | 89% → 89% | 4 → 4 |
+| 60d (n=46) | +$331.51 | +$344.65 | **+$13.14** | 1.92 → 1.83 | 80% → 67% | 9% → 9% | 91% → 91% | 4 → 4 |
+
+**Rejected and reverted.** Trade counts are identical in every window, so this is a clean
+exit-only A/B — and it fails on its own terms: net signs disagree (IMP-021's ≥3-windows
+rule), PF degrades in 2 of 3 including both longer windows, and the 13–16pp stop-rate drop
+is the precise pattern the doctrine's anti-gaming rule says to reject ("cuts the stop rate
+but flattens expectancy"). The drop is largely **relabelling**: full stops rise (1→3, 1→6,
+1→6), BE-scratches fall (7→3, 19→10, 24→15), and **FAIL+SCRATCH is unchanged to the trade
+in all three windows**.
+
+**The negative result is the valuable part: the WIN count moved by zero trades in every
+window.** Exit structure cannot manufacture a +1R trade. That eliminates *profit capture*
+and *stop geometry* as the binding constraint with a trade-matched A/B and points at
+**entry quality and the unreachable-1R denominator**.
+
+### What shipped instead, and why it is the right thing to ship
+Running that study exposed a measurement gap that made it needlessly hard: **`stop_price`
+on the trade row is the ORIGINAL 1R anchor and never moves** — the ratchet replaces the
+broker's order, not the row. So the database held **no record of where the stop actually
+ended up**, and the question the whole analysis turned on — *did the trail end this trade,
+or did the original stop?* — was unanswerable in SQL for every row ever written. I had to
+reconstruct it by grepping journald, **which rotates**. Six weeks from now today's trade
+would be unexplainable.
+
+- **`trail_stop_final`** — the highest stop actually resting at the broker when the trade
+  ended (the original when the ratchet never fired).
+- **`trail_moves`** — how many replaces the broker accepted.
+- Carried on `ExitResult`, read in `_record_exit` **before** the trail state is dropped
+  (the same ordering constraint `_broker_fill_reason` already depends on), written to
+  `dbo.trades` under `COALESCE` so a re-recorded exit can never blank a stored path.
+- `sql/schema.sql`: idempotent `IF COL_LENGTH(...) IS NULL ALTER TABLE` pairs in the
+  IMP-029/IMP-047 style, plus the columns inline in `CREATE TABLE`.
+- **NULL semantics documented**: NULL = no measurement (pre-2026-09-11, or a
+  startup-reconciled holding with no movable stop leg) and must be **excluded**, not
+  zero-filled. That is deliberately distinct from `(trail_stop_final = stop_price,
+  trail_moves = 0)`, which is the meaningful statement "the trail was armed and never fired".
+
+With `entry_price`, `stop_price` and `exit_price` these give, in one query: trail-kill vs
+stop-kill vs flatten; whether the final stop locked a **profit or a smaller loss**; and how
+much of the sized 1R the trail consumed before the trade resolved. On today's INTC row that
+reads: trail ended it **True**, locked a profit **False**, **55.6% of 1R consumed**.
+
+**This is what unblocks the pre-registered ATR-stop decision** — that proposal cannot be
+judged without knowing, across many trades, whether the stop that actually fired was the
+sized one or a ratcheted one. Fifth measurement-honesty fix in a month: IMP-024 gate
+lookahead, IMP-044 frictionless harness, IMP-046 timing lookahead, IMP-047 scorer
+provenance, now trail provenance.
+
+### Validation
+- **550 tests pass** (was 543; +7). Preflight **all-PASS** with the expected
+  market-closed warning; it ran the migration through the bot's own `ensure_schema`
+  path — **22 batches** (was 20), clean.
+- Migration applied to the live `USBot` DB; both columns confirmed present and nullable.
+- Live `UPDATE` probe against the real schema on today's INTC row (id=301) round-tripped
+  `(102.500000, 6)`, computed the three derived verdicts above, and was **rolled back** —
+  re-read confirms `(None, None)`, 0 rows left behind.
+- Three pre-existing tests asserted the exit UPDATE's params **positionally** and broke,
+  correctly, on the two added binds. Fixed, and **added the placeholder-vs-assignment
+  invariant to the UPDATE** — the INSERT already had one (IMP-047), the UPDATE did not,
+  and it has now grown twice. Positional drift there would silently write each value into
+  its neighbouring column with no other assertion catching it.
+- Tests pin today's real INTC trade end-to-end: six ratchets → `trail_moves == 6`,
+  `trail_stop_final ≈ 102.50`, and the two comparisons that carry the verdict
+  (`> stop_price` = the trail ended it; `< entry_price` = it locked a loss). Plus the
+  armed-never-fired `(stop_price, 0)` case, the None-without-a-stop-leg case, and
+  non-leakage of the move count across a re-entry.
+
+### What it does and does not do
+- ✅ Makes the trail's effect on every future trade measurable in SQL instead of in journald.
+- ✅ Unblocks the ATR-stop study, which needs exactly this attribution across many trades.
+- ❌ Changes nothing about what the bot trades. No expectancy claim is made for it.
+- ❌ Does not backfill. All 277 existing rows stay NULL and must be excluded; journald has
+  already rotated past most of them.
+
+### Follow-ups
+- **🔴 The escalation clause has been active for three consecutive sessions with trades
+  (FAIL+SCRATCH 100% over the last 3, 96.2% over the last 10, 92.8% all-time).** Today's
+  A/B is the second consecutive run (after IMP-047) in which a well-motivated change was
+  implemented, measured honestly, and **rejected because it moved labels rather than
+  dollars**. That pattern is itself evidence: two independent attacks on the exit side
+  have now failed to move the WIN count by one trade.
+- **ATR-scaled stop is the remaining structural candidate and needs human sign-off**
+  (risk path; sizing must be re-derived with it). Today: 1R = 2.00% against a **0.182%**
+  ATR tape = 11×. In `todo.md`.
+- Hand to the weekly review with the numbers attached, per the escalation clause.
+- Do **not** re-test the trail-arming gate on a single window; it will look good on 30d
+  and 60d and it is noise. If it is ever revisited, it needs ≥3 windows and a PF that does
+  not degrade on the longest one.
