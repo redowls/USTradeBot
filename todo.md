@@ -544,3 +544,46 @@ Keep it on the paper account throughout — iterate freely.
       attribution this proposal needs (it can now be asked, per trade, whether the stop that
       fired was the sized one or a ratcheted one). **This is the queue's #1 item and it is
       blocked on the sizing decision below.**
+
+---
+
+## 🔴 OPERATOR DECISION — retire or rebuild: the bot can no longer generate evidence about itself
+**Raised by the weekly review, week ending 2026-09-11 (grade D). This now sits above the
+ATR-stop item, because it governs whether that item is worth doing at all.**
+
+**The fact.** Trades per ISO week over the last nine weeks:
+**45 → 21 → 26 → 22 → 13 → 12 → 2 → 6 → 2 → 1.** A ~97% decline, near-monotonic. This week
+the bot took **one** trade in four sessions, and it cleared the entry bar by 0.1 points
+(confidence 60.1 vs a 60 threshold). It lost −0.48R.
+
+**Why it matters more than the P&L.** The all-time true win rate is **7.2%** over 277
+trades with an expectancy of **+0.0107R/trade** — statistically indistinguishable from
+zero. FAIL+SCRATCH has been **≥91% for nine consecutive weeks**. At the current fill rate
+of roughly one trade per week, **live trading can no longer accumulate enough observations
+to confirm or refute any change within a useful horizon.** A strategy that cannot be
+falsified by its own operation cannot be improved — only maintained.
+
+**What is NOT being asked.** No change to position size, loss limits, the stand-down/kill
+switch, or paper-only status. Nothing here is a step toward live capital, and "no
+demonstrated edge" is never an argument for sizing up to chase it.
+
+**The decision requested — one of three:**
+1. **Rebuild the opportunity set.** Authorise the weekly to loosen the filter stack on
+   replay evidence (leave-one-out sweep, friction on, doctrine scoring on). Four filters —
+   `ENTRY_START=10:00`, the QQQ market gate, the 60 confidence threshold, the 0.25
+   crossover floor — were each justified individually as "removes losers"; **none has ever
+   been evaluated jointly, and every prior verdict on them was decided on a harness that
+   was frictionless and scored `pnl > 0`.** Both of those defects were only fixed this week
+   (IMP-043, IMP-044).
+2. **Rebuild the signal.** Accept that the EMA-ribbon entry is the problem — only **18.8%**
+   of entries ever print +1R, and two independent attacks on the exit side have now been
+   rejected for moving labels rather than dollars — and authorise work on a different entry
+   trigger (earlier or pullback-based) judged on the +1R rate.
+3. **Retire it.** Stop the strategy and free the routine budget. This is a legitimate
+   outcome and is stated here so it is a real option rather than an implied one.
+
+**Recommendation: (1) first, then (2).** Option 1 is cheap, fully reversible, decided
+entirely on the now-trustworthy harness, and it directly tests the possibility that the bot
+was filtered into silence by changes that each looked correct in isolation. It should be
+run before any further work on the signal or the stop, because its result changes the
+population every other study would be measured on.

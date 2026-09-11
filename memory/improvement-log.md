@@ -3579,6 +3579,8 @@ objection to the no-edge verdict**, which had rested entirely on a `pnl > 0` win
 
 ---
 
+- **Observed effect (weekly 09-11):** ✅ **VALIDATED — the week's most important fix.** The harness had scored `pnl > 0` while the live book scored by doctrine, so *the bot graded its backtest dishonestly and the dishonest one was the court of appeal for every REFUTED verdict of the last month.* It reproduces the 09-04 weekly's hand re-scoring **exactly** (90d 9/29/39, F+S 88%) — an independent implementation agreeing to the trade — and a before/after diff with the new lines stripped was **byte-identical**. F+S unmoved by design; it changed what we count, never what we do.
+
 ## IMP-044 — 2026-09-08 (daily) — the replay harness now pays a spread
 
 ### The problem
@@ -3693,6 +3695,8 @@ unconditional 09-11 backstop.
 
 ---
 
+- **Observed effect (weekly 09-11):** ✅ **VALIDATED — and the pre-registered prediction FAILED, which is recorded rather than re-framed.** I predicted 90d net under +$200; it came in at **+$472.29** (from +$793.96; PF 2.43 → 1.68). The prediction was too pessimistic, the finding survived: **friction is $4.50/trade = 42% of gross profit**, and it is charged per trade while this strategy's edge is not — so the old harness **systematically over-rewarded scratch-heavy, high-frequency configs**. Replay F+S **88% → 90%**: the measured failure share got *worse* once the instrument got honest, which is the correct direction. **Every net/PF figure in this repo predating this IMP is gross and must be re-read or re-run.**
+
 ## IMP-046 — strip the lookahead out of the entry-timing diagnosis
 **2026-09-09 (daily review).** `bot/timing.py`, `tests/test_timing.py`. Read-only
 reporting fix — touches no entry, exit, sizing or risk path.
@@ -3763,6 +3767,8 @@ printed so far, *above every price of the day*, a breakout buy.
   2.0% stop — +1R arithmetically unreachable) and the inverted 90–100 confidence band.
 
 ---
+
+- **Observed effect (weekly 09-11):** ✅ **VALIDATED, observational.** Third lookahead found and removed in a month (after IMP-024 and IMP-045) — the class of bug is systemic to how these diagnostics are written, not three coincidences. F+S unmoved by design; no expectancy claim made or implied.
 
 ## IMP-047 — 2026-09-10 (daily) — stamp the scorer that wrote every row, and keep the raw RSI
 **`bot/signals.py`, `bot/strategy.py`, `bot/persistence.py`, `sql/schema.sql`,
@@ -3875,6 +3881,8 @@ harness, IMP-046 timing lookahead, now scorer provenance.
   rows. It will look compelling again and it will again be wrong.
 
 ---
+
+- **Observed effect (weekly 09-11):** ✅ **VALIDATED, observational, correctly scoped.** Lets sub-score studies exclude rows written across a scorer sign-flip instead of silently averaging through one. The no-backfill decision is right: the 268 pre-v3 rows stay NULL and must be **excluded**, not zero-filled. F+S unmoved by design.
 
 ## IMP-048 — 2026-09-11 (daily) — record the trail's path, so "trail or stop?" is answerable in SQL
 **`bot/risk.py`, `bot/persistence.py`, `sql/schema.sql`, `tests/test_risk.py`,
@@ -3992,3 +4000,5 @@ provenance, now trail provenance.
 - Do **not** re-test the trail-arming gate on a single window; it will look good on 30d
   and 60d and it is noise. If it is ever revisited, it needs ≥3 windows and a PF that does
   not degrade on the longest one.
+
+- **Observed effect (weekly 09-11):** ✅ **VALIDATED — and the rejected experiment is worth more than the shipped code.** The trail-arming gate was implemented, A/B'd on three windows and **reverted**: net signs disagreed, PF degraded on both longer windows, and the 13–16pp stop-rate drop was pure relabelling with **F+S unchanged to the trade in all three windows** — a textbook anti-gaming rejection, correctly called. **The decisive number is that the WIN count moved by ZERO trades in every window.** Together with the 09-04 weekly's 18.8% +1R ceiling, this **closes the exit side as an explanation** for the 93pp shortfall and moves the whole burden to entry quality. What shipped instead removed a real blind spot (`stop_price` never moves, so "trail or stop?" lived only in rotating journald). F+S unmoved by design.
