@@ -158,6 +158,31 @@ class Config:
     # chop entries away. 0.0 disables the floor (pre-IMP-011 behavior). Tightens
     # entry selectivity only; never widens risk.
     min_crossover: float
+    # Minimum volatility (range-availability) sub-score (0–1) a scored candidate must
+    # clear to enter, on top of ``entry_threshold`` — the same hard-floor pattern as
+    # ``min_crossover``, applied to the term that says whether the tape can *travel*
+    # far enough to pay (IMP-049).
+    #
+    # ``score_volatility`` reads 1-min ATR/close and already encodes the answer: it
+    # returns exactly 0.0 at or below ``_ATR_DEAD`` (0.20%), the breakpoint IMP-036
+    # calibrated as "cannot reach the 1.25% trail before the flatten". But it is only
+    # a *weighted* term worth 15 points, so a dead tape is admissible whenever
+    # crossover + trend + rsi carry the total over the bar. That is not hypothetical:
+    # the 09-11 INTC trade entered at confidence 60.1 with ``conf_volatility == 0.00``
+    # on a 0.182% ATR tape, where +1R (a 2.00% stop) required an **11x ATR** move. It
+    # exited −0.48R as a FAIL, having peaked at +0.39%.
+    #
+    # Under the stop-exit doctrine a WIN requires +1R, so a candidate whose tape cannot
+    # plausibly travel 1R is not a low-quality trade — it is an *unwinnable* one, and
+    # the book shows it: across the 45d unrestricted replay, 0 of 56 trades below the
+    # top confidence quintile reached +1R. This floor turns the arithmetically
+    # unreachable cohort away.
+    #
+    # Any value in (0, 1] rejects exactly the ``_ATR_DEAD`` cohort at the low end; the
+    # default deliberately reuses that already-calibrated breakpoint rather than
+    # fitting a fresh constant to this book. 0.0 disables the floor (pre-IMP-049
+    # behavior). Tightens entry selectivity only; never widens risk.
+    min_volatility: float
     # Market-regime gate (IMP-022): ticker whose *own* 5-min gate ribbon must be open
     # before ANY new long is allowed. The per-symbol 5-min gate only asks whether that
     # one name is trending; it says nothing about the tape the name has to swim in, and
@@ -329,6 +354,7 @@ class Config:
             atr_period=_int("ATR_PERIOD", 14),
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
             min_crossover=_float("MIN_CROSSOVER", 0.25),
+            min_volatility=_float("MIN_VOLATILITY", 0.01),
             market_filter_symbol=_str("MARKET_FILTER_SYMBOL", "QQQ").strip().upper(),
             warmup_lookback_days=_int("WARMUP_LOOKBACK_DAYS", 5),
             sizing_model=_str("SIZING_MODEL", "A").upper(),
@@ -388,6 +414,8 @@ class Config:
             raise ConfigError("ENTRY_THRESHOLD must be in [0, 100].")
         if not 0 <= self.min_crossover <= 1:
             raise ConfigError("MIN_CROSSOVER must be in [0, 1].")
+        if not 0 <= self.min_volatility <= 1:
+            raise ConfigError("MIN_VOLATILITY must be in [0, 1].")
         if self.market_filter_symbol and not self.market_filter_symbol.isalpha():
             raise ConfigError(
                 "MARKET_FILTER_SYMBOL must be a plain ticker (letters only) or empty to disable, "

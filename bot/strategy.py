@@ -462,6 +462,7 @@ class StrategyEngine:
             self._gate_snap.get(symbol),
             threshold=self._cfg.entry_threshold,
             min_crossover=self._cfg.min_crossover,
+            min_volatility=self._cfg.min_volatility,
             weights=self._weights,
         )
         if not decision.enter:

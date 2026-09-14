@@ -587,3 +587,48 @@ entirely on the now-trustworthy harness, and it directly tests the possibility t
 was filtered into silence by changes that each looked correct in isolation. It should be
 run before any further work on the signal or the stop, because its result changes the
 population every other study would be measured on.
+
+---
+
+## 🔴 OPERATOR / WEEKLY DECISION — `ENTRY_THRESHOLD` was never renormalised after IMP-036 changed the volatility scale
+**Raised by the daily review, 2026-09-14.** This is a **named, dated mechanism** for a
+large part of the "filtered into silence" hypothesis in the item above — it is evidence
+for option 1, not a separate theory.
+
+**The fact.** `dbo.entry_refusals` grouped by session shows a step change on one date:
+
+| session | refusals | avg ATR% | `conf_volatility == 0` | avg confidence |
+|---|---|---|---|---|
+| 08-19 → 08-26 (6 sessions) | 191 | 0.065–0.133 | **0 / 191** | **59.4 – 65.3** |
+| 08-27 → 09-14 (12 sessions) | 344 | 0.078–0.149 | **~all** | **45.2 – 53.9** |
+
+- **The tape did not change; the scoring of it did.** Mean refused-candidate ATR was
+  **0.093%** before and **0.098%** after — the same board. Mean refused confidence stepped
+  **62.1 → 49.1 (−13.0 points)** on the session after **IMP-036 (2026-08-26)** reversed the
+  `score_volatility` anchors (v2→v3: *"Same column, opposite meaning"*).
+- **Entry frequency: 2.13/session (49 entries / 23 sessions) → 0.67/session (8 / 12). −69%.**
+- This watchlist's 1-min ATR is below the `_ATR_DEAD` breakpoint (0.20% of price) on almost
+  every candidate, so the volatility term now contributes ~0 points to nearly everything.
+  **The bot is clearing 60 out of an available ~85 — a ~70.6-equivalent bar on the old
+  scale. Nobody decided to raise the bar by 10+ points; it moved as a side effect.**
+
+**IMP-036 itself was correct and should stand.** Rewarding range availability over
+quietness is right, and 2026-09-14 (chip complex −5.7%, average candidate needing a 21×
+ATR move to reach +1R) is a good illustration. The defect is narrow: **a sub-score's scale
+changed without re-deriving the threshold that consumes it.**
+
+**Why the daily did not ship it.** Renormalising *loosens* entry and increases exposure —
+a risk-affecting change, and the exact opposite direction from IMP-049, which shipped the
+same evening. Two strategy changes in one evening, in opposite directions, untested against
+each other, is the thrash the routine forbids.
+
+**The decision requested.** Either restore the intended 60 bar in v3 terms, **or** adopt
+the ~10-point tightening *deliberately* on replay evidence. Both are defensible; leaving it
+as an unexamined side effect is not. Concretely, this should be the **first axis** of the
+leave-one-out filter sweep authorised under option 1 above — it is the one filter change
+whose effect is already measured and dated.
+
+**Note for whoever runs that sweep:** IMP-049 (shipped 2026-09-14) now applies a hard
+`MIN_VOLATILITY = 0.01` floor. It and the threshold interact — the floor removes the
+dead-tape cohort outright, so lowering the threshold afterwards admits only *live*-tape
+setups. Sweep them **jointly**, not one at a time.

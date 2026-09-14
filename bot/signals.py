@@ -405,16 +405,23 @@ def evaluate_entry(
     *,
     threshold: float,
     min_crossover: float = 0.0,
+    min_volatility: float = 0.0,
     weights: ScoreWeights = DEFAULT_WEIGHTS,
 ) -> EntryDecision:
     """Apply the gate+trigger candidacy rule, then score qualifying candidates.
 
     A candidate enters only if its weighted ``confidence.total >= threshold`` **and**
-    its 1-min ``confidence.crossover >= min_crossover``. The crossover floor rejects
+    its 1-min ``confidence.crossover >= min_crossover`` **and** its
+    ``confidence.volatility >= min_volatility``. The crossover floor rejects
     setups that clear the total bar on trend/rsi/volume weight while riding a weak,
     non-accelerating cross — the chop-prone cohort that underperformed across the
     clean-book sessions (see ``Config.min_crossover``). ``min_crossover == 0.0``
     disables the floor (the threshold-only behavior prior to IMP-011).
+
+    The volatility floor turns away the mirror-image failure: a candidate whose *tape*
+    cannot travel far enough to reach +1R before the flatten, which likewise clears the
+    total bar on the other terms (see ``Config.min_volatility``). ``min_volatility ==
+    0.0`` disables it (the behavior prior to IMP-049). Both floors only ever reject.
 
     Does **not** apply the market-hours gate — the caller (state machine) owns the
     clock and checks it before evaluating.
@@ -443,12 +450,17 @@ def evaluate_entry(
 
     conf = confidence(trigger, gate, weights)
     weak_cross = conf.crossover < min_crossover
-    enter = conf.total >= threshold and not weak_cross
+    dead_tape = conf.volatility < min_volatility
+    enter = conf.total >= threshold and not weak_cross and not dead_tape
     if enter:
         reason = f"confidence {conf.total:.1f} >= {threshold:.0f}"
     elif weak_cross and conf.total >= threshold:
         # Cleared the total bar but the cross is too weak — the IMP-011 chop filter.
         reason = f"crossover {conf.crossover:.2f} < {min_crossover:.2f}"
+    elif dead_tape and conf.total >= threshold:
+        # Cleared the total bar on the other terms, but the tape cannot travel far
+        # enough to reach +1R before the flatten — the IMP-049 range floor.
+        reason = f"volatility {conf.volatility:.2f} < {min_volatility:.2f}"
     else:
         reason = f"confidence {conf.total:.1f} < {threshold:.0f}"
     return EntryDecision(

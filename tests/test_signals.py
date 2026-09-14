@@ -468,6 +468,153 @@ def test_min_crossover_floor_allows_strong_cross_entry():
     assert d.confidence is not None and d.confidence.crossover >= 0.20
 
 
+# --- IMP-049: the range-availability (volatility) floor --------------------
+
+
+def _dead_tape_trigger() -> RibbonSnapshot:
+    """A strong, confident cross on a tape that cannot travel — the 09-11 INTC setup.
+
+    ATR is 0.182% of close, which is the real 1-min ATR recorded on the INTC trade of
+    2026-09-11 (entry 103.3959, stop 101.38). Against a 2.00% stop, +1R needed an **11x
+    ATR** move; the trade peaked at +0.39% and exited −0.48R as a FAIL. Every other
+    sub-score is strong here, so the weighted total clears the bar comfortably (85.0) —
+    which is precisely why a 15-point weighted volatility term could not stop it.
+    """
+    return _snap(
+        ribbon=(101.0, 100.4, 100.0),
+        prev_ribbon=(99.9, 100.4, 100.0),
+        close=100.0,
+        rsi=55.0,
+        volume=200.0,
+        avg_volume=100.0,
+        atr=0.182,  # 0.182% of close -> at/below _ATR_DEAD -> score_volatility == 0.0
+    )
+
+
+def test_dead_tape_clears_the_total_bar_without_the_floor():
+    # The premise of IMP-049: the weighted volatility term is far too small to stop an
+    # unreachable-1R setup on its own. Guards the regression this floor exists to fix.
+    d = evaluate_entry(
+        _dead_tape_trigger(), _open_gate(), threshold=60.0, min_crossover=0.20
+    )
+    assert d.candidate and d.enter
+    assert d.confidence is not None
+    assert d.confidence.volatility == 0.0
+    assert d.confidence.total >= 60.0
+
+
+def test_min_volatility_floor_blocks_dead_tape_entry():
+    # IMP-049: with the floor active the same setup is refused, and the reason names
+    # the floor that bit rather than the (comfortably cleared) confidence total.
+    d = evaluate_entry(
+        _dead_tape_trigger(),
+        _open_gate(),
+        threshold=60.0,
+        min_crossover=0.20,
+        min_volatility=0.01,
+    )
+    assert d.candidate and not d.enter
+    assert d.confidence is not None and d.confidence.total >= 60.0
+    assert "volatility" in d.reason
+
+
+def test_min_volatility_floor_disabled_lets_dead_tape_enter():
+    # min_volatility=0.0 preserves pre-IMP-049 behavior exactly.
+    d = evaluate_entry(
+        _dead_tape_trigger(),
+        _open_gate(),
+        threshold=60.0,
+        min_crossover=0.20,
+        min_volatility=0.0,
+    )
+    assert d.candidate and d.enter
+    assert "confidence" in d.reason
+
+
+def test_min_volatility_floor_allows_live_tape_entry():
+    # A tape with room to run (ATR 0.35% -> score 1.0) is untouched by the floor.
+    d = evaluate_entry(
+        _fresh_trigger(),
+        _open_gate(),
+        threshold=60.0,
+        min_crossover=0.20,
+        min_volatility=0.01,
+    )
+    assert d.candidate and d.enter
+    assert d.confidence is not None and d.confidence.volatility >= 0.01
+
+
+def test_min_volatility_floor_reports_crossover_first_when_both_fail():
+    # Reason precedence: the crossover floor is the older, narrower filter and keeps
+    # its message when a candidate trips both, so existing log/refusal analytics that
+    # key on "crossover" do not silently change meaning.
+    #
+    # Note a dead tape (volatility 0.0) can never reach this state: with crossover
+    # below its own floor the total cannot clear 60 (see the arithmetic in
+    # ``Config.min_volatility``), so this needs a *mid*-range tape and a raised floor.
+    weak_xo_mid_tape = _snap(
+        ribbon=(100.02, 100.01, 100.0),
+        prev_ribbon=(99.995, 100.01, 100.0),
+        close=100.0,
+        rsi=55.0,
+        volume=200.0,
+        avg_volume=100.0,
+        atr=0.28,  # -> volatility 0.80, total 64.2, crossover 0.16
+    )
+    d = evaluate_entry(
+        weak_xo_mid_tape,
+        _open_gate(),
+        threshold=60.0,
+        min_crossover=0.25,
+        min_volatility=0.99,
+    )
+    assert d.candidate and not d.enter
+    assert d.confidence is not None and d.confidence.total >= 60.0
+    assert "crossover" in d.reason
+
+
+def test_sub_threshold_total_still_reports_confidence_not_the_floor():
+    # A candidate that fails the *total* bar reports the total, even when it would also
+    # trip a floor — the floors are reported only as the reason a qualifying setup was
+    # turned away, which is what makes the refusal log's reason counts meaningful.
+    d = evaluate_entry(
+        _snap(
+            ribbon=(100.02, 100.01, 100.0),
+            prev_ribbon=(99.995, 100.01, 100.0),
+            close=100.0,
+            rsi=55.0,
+            volume=200.0,
+            avg_volume=100.0,
+            atr=0.182,
+        ),
+        _open_gate(),
+        threshold=60.0,
+        min_crossover=0.20,
+        min_volatility=0.01,
+    )
+    assert d.candidate and not d.enter
+    assert d.confidence is not None and d.confidence.total < 60.0
+    assert "confidence" in d.reason
+
+
+def test_min_volatility_floor_never_admits_a_trade_the_baseline_refused():
+    # Structural guarantee of both floors: they can only ever reject. Any candidate the
+    # floor lets through must also have entered with the floor disabled.
+    for atr in (0.05, 0.182, 0.21, 0.28, 0.35, 0.60):
+        trig = _snap(
+            ribbon=(101.0, 100.4, 100.0),
+            prev_ribbon=(99.9, 100.4, 100.0),
+            close=100.0,
+            rsi=55.0,
+            volume=200.0,
+            avg_volume=100.0,
+            atr=atr,
+        )
+        base = evaluate_entry(trig, _open_gate(), threshold=60.0, min_volatility=0.0)
+        floored = evaluate_entry(trig, _open_gate(), threshold=60.0, min_volatility=0.01)
+        assert not (floored.enter and not base.enter)
+
+
 def _midweak_xo_trigger() -> RibbonSnapshot:
     # A confident candidate whose crossover lands in the 0.20-0.25 band: a fresh cross
     # that is genuine but narrow/slow (width_score 0.30, slope_score 0.10 ->

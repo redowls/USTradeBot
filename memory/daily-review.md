@@ -7832,3 +7832,182 @@ Ranked candidates going forward:
   the ninth consecutive flag.** Left exactly as found again; this routine commits only
   what it writes. It now holds 287 uncommitted lines. **Someone needs to decide whether
   that content ships or is discarded** — it is one `git checkout` away from being lost.
+
+---
+
+## 2026-09-14 — Daily Review
+
+### Stats
+- **0 closed trades, 0 entries, 0 orders of any status.** Net P&L **$0.00**. Account
+  **equity $9,176.12**, unchanged to the cent from Friday's close.
+- **Broker reconciliation: exact.** `alpaca-usbot` MCP (read-only): account PA34DFFLTHRT
+  ACTIVE, `/orders?status=all&after=2026-09-14T00:00Z` → **empty**, `/positions` →
+  **empty**, `cash == portfolio_value == equity == 9176.12`, `last_equity == equity`
+  (nothing moved today), `balance_asof 2026-09-11`. `dbo.trades`: **0 rows** touching
+  today, **0 rows with `exit_time_utc IS NULL`**. No missed fill, no qty drift, nothing
+  carried overnight.
+- **Service: active, healthy.** Up since the 11:37 UTC pre-market watchlist restart.
+  **9,212 journald lines, ZERO warnings and ZERO errors** (`journalctl -p warning`
+  returns "No entries"). `.env` untouched, `ustradebot:ustradebot` mode 600.
+- **Refusals: 56 across 14 names.** 54 on `confidence < 60`, **1 on the QQQ market gate**
+  (PLTR, conf 67.8), 1 on the crossover floor (0.19 < 0.25). Refused-confidence
+  distribution: min 38.0, median 49.9, **p90 55.0**, max 67.8.
+- **QQQ market gate: 94 samples, 25 open (26.6%)**; restricted to the entry window
+  (14:00–19:45 UTC), **70 samples, 25 open (35.7%)**.
+
+### Market context (WebSearch; Perplexity unavailable)
+**The `sonar` call returned HTTP 401 `insufficient_quota` again** — the same billing
+exhaustion this morning's research log recorded. Fell back to WebSearch per the routine's
+own rule; did not block the run. **This is now the second consecutive routine to hit it.**
+
+- **Risk-off, and concentrated exactly where this board is concentrated.** S&P 500
+  **−0.48%**, Nasdaq Composite **−0.56%**, Dow **−152 pts (−0.29%)**. At the lows the S&P
+  was −0.8% and the Nasdaq **−1.3%**; the Nasdaq pared to −0.5% as Big Tech offset the
+  chip selloff.
+- **The driver was a sector event on 8 of our 19 names.** Anthropic's CEO published a
+  Saturday essay calling for a slowdown in frontier AI development; other major tech
+  figures backed it. **A key semiconductor gauge sank 5.7%**, with NVDA and AVGO both
+  slumping. This is the "Pace the Frontier" theme the pre-market research flagged at
+  11:40 UTC and correctly judged a **beta event with no per-name binary** — the QQQ gate
+  was the right instrument and it did its job.
+- **Macro piled on:** the 10-year Treasury yield **briefly breached 5%** for the first
+  time since 2023 (30-yr 5.33%) ahead of Wednesday's FOMC, and Brent jumped **>3% toward
+  $106** after Strait of Hormuz shipping attacks and a drone strike forced a temporary
+  Saudi shutdown.
+- **Verdict on the tape: the stand-down was correct behaviour, not a malfunction.** A
+  long-only intraday trend bot on a chip-heavy board, on a day the chip complex fell
+  5.7% and yields broke 5%, should not be buying. The gate was shut for 64% of the entry
+  window and the one candidate that cleared confidence was refused by it.
+
+### Stop-exit accounting
+No trades closed today, so today contributes no buckets. The trailing window governs:
+
+| Window | n | stop rate | WIN | SCRATCH | FAIL (full / BE) | **true WR** | headline WR | **F+S** | net |
+|---|---|---|---|---|---|---|---|---|---|
+| Today | **0** | n/a | — | — | — | n/a | n/a | n/a | $0.00 |
+| Last 3 sessions w/ trades (09-03, 09-04, 09-11) | 3 | 2/3 (67%) | 0 | 2 | 1 (0/1) | **0%** | 67% | **100%** | +$42.68 |
+| Trailing 10 sessions w/ trades (08-05 → 09-11) | 26 | 20/26 (77%) | 1 | 10 | 15 (0/15) | **3.8%** | 53.8% | **96.2%** | +$84.91 |
+| All-time | 277 | 93/277 (34%) | 20 | 139 | 118 (33/85) | **7.2%** | 46.9% | **92.8%** | +$74.32 |
+
+- 🔴 **ESCALATION ACTIVE — and this is the fourth consecutive session it has been.**
+  F+S is **100%** over the last three sessions with trades and **96.2%** trailing 10,
+  against a 60% threshold. **All 15 FAILs in the trailing 10 sessions are BE-scratches;
+  zero are full stops.** The 2% stop is not being touched on price at all — it only sets
+  the R denominator.
+- **Dominant failure cause: entry quality**, and today produced the mechanism behind it.
+
+### Trade-by-trade review
+None. Per the routine, the zero-trade day is itself the reviewable evidence, and today it
+paid better than a trade would have.
+
+**Why nothing traded — the proximate answer.** 54 of 56 refusals never came near the bar
+(p90 = 55.0). Exactly **one** candidate cleared confidence all session — **PLTR at 15:33,
+conf 67.8** — and the QQQ gate refused it. Given the tape above, that refusal was correct.
+
+**Why nothing traded — the real answer, and today's finding.**
+**55 of today's 56 refused candidates scored `conf_volatility == 0.00`.** Today's refused
+ATR ran **avg 0.095%, min 0.031%, max 0.258%** of price. Against a 2.00% stop, the average
+candidate needed a **21× ATR move** to reach +1R. The scorer looked at the tape, judged it
+incapable of travelling far enough to pay, and withheld the volatility term's 15 points
+from essentially every name on the board. **That is the system working as designed.**
+
+### 🔴 The finding: a 69% collapse in entry frequency traces to a dated scorer change
+
+The weekly (grade D) named trade frequency down sharply over nine weeks as *"the single
+most important fact about this bot"* and asked why. Pulling `atr_pct` and `conf_volatility`
+out of `dbo.entry_refusals` by session answers it, and the answer is a **discrete step on
+one date**, not a drift:
+
+| session | refusals | avg ATR% | `conf_volatility == 0` | **avg confidence** |
+|---|---|---|---|---|
+| 08-19 | 26 | 0.106 | **0 / 26** | **63.8** |
+| 08-20 | 27 | 0.133 | **0 / 27** | **65.3** |
+| 08-21 | 23 | 0.089 | **0 / 23** | **62.6** |
+| 08-24 | 32 | 0.085 | **0 / 32** | **62.3** |
+| 08-25 | 36 | 0.100 | **0 / 36** | **61.7** |
+| 08-26 | 47 | 0.065 | **0 / 47** | **59.4** |
+| **08-27** | 9 | 0.088 | **9 / 9** | **48.6** |
+| 08-28 | 46 | 0.099 | 45 / 46 | 50.7 |
+| … | … | … | … | … |
+| 09-11 | 38 | 0.078 | 37 / 38 | 45.2 |
+| 09-14 | 56 | 0.095 | **55 / 56** | 49.8 |
+
+- **The tape did not change. The scoring of it did.** Mean refused-candidate ATR before
+  08-27 was **0.093%**; after, **0.098%** — statistically the same board. Mean refused
+  confidence went **62.1 → 49.1, a −13.0 point step**, on the session after **IMP-036
+  (2026-08-26) reversed the `score_volatility` anchors** so a quiet tape scores 0.0
+  instead of 1.0. The scorer's own version table records this as the v2→v3 boundary:
+  *"Same column, opposite meaning."*
+- **Entry frequency: 49 entries over the 23 sessions before (2.13/session) → 8 entries
+  over the 12 sessions after (0.67/session). A 69% drop.**
+- **`ENTRY_THRESHOLD` was never renormalised.** This watchlist's 1-min ATR sits below the
+  `_ATR_DEAD` breakpoint (0.20%) on almost every candidate, so the volatility term now
+  pays ~0 points to nearly everything. The bot is effectively clearing **60 out of an
+  available 85**, i.e. a ~**70.6-equivalent bar** on the old scale. **Nobody decided to
+  raise the bar by 10+ points; it moved as a side effect.**
+- **IMP-036 was right and should stand.** Rewarding range availability over quietness is
+  correct — a tape that cannot travel cannot pay, and today is a perfect illustration.
+  The defect is that a sub-score's *scale* changed without the threshold that consumes it
+  being re-derived.
+- **This is NOT tonight's change.** Renormalising the threshold *loosens* entry and
+  increases exposure. That is a risk-affecting decision, it is the exact opposite
+  direction from tonight's validated tightening, and shipping both in one evening is the
+  thrash the routine forbids. **Handed to the weekly with the numbers above, and written
+  into `todo.md`.**
+
+### What worked / what didn't
+- **Worked:** everything operational. Zero errors in 9,212 lines, exact broker/DB
+  reconciliation, `.env` intact, gate and scorer both behaving exactly as specified on a
+  genuinely hostile tape. Capital preserved on a −0.5% Nasdaq day with the chip complex
+  down 5.7%. **The pre-market research call was right**: it named the AI-slowdown theme a
+  beta event, declined to park any name, and said the QQQ gate was the correct instrument
+  — which is precisely how the day played out.
+- **Didn't:** nothing broke today. The open problem is structural and is named above.
+- **Perplexity is down for the second consecutive routine.** The prompt still leads with a
+  call that cannot succeed. Operator item, unchanged from this morning.
+
+### Lessons & improvement candidates
+1. ✅ **SHIPPED — IMP-049: make range availability a hard entry precondition** (see
+   `improvement-log.md`). Validated on four replay windows, all agreeing in sign.
+2. 🔴 **Renormalise `ENTRY_THRESHOLD` for the v3 volatility scale — weekly / human call.**
+   Numbers above. The honest framing: the bot has been running a ~70-equivalent bar since
+   2026-08-27 by accident. Either the 60 bar should be restored in v3 terms, or the
+   10-point tightening should be *adopted deliberately* on evidence. It should not remain
+   an unexamined side effect. **In `todo.md`.**
+3. 🔴 **ATR-scaled stop (carried from 09-11, still pending human sign-off).** Today
+   strengthens it: the average refused candidate needed a **21× ATR** move to reach +1R.
+   A 1R that the tape cannot reach is why true win rate reads 7% while headline reads 47%.
+   Unchanged in `todo.md`; risk-path change, not shipped.
+4. **Confidence is a weak ranker even unrestricted.** Over the 45d replay with the
+   threshold dropped to 25 (n=70, full 36–95 range), `corr(confidence, profit_R) = +0.215`
+   (t=1.82 — not significant at 5%), and the shape is a **U**: quintile means
+   +0.106 / −0.073 / −0.219 / −0.057 / **+0.337 R**. **All 3 of the window's +1R winners
+   sat in the top quintile; Q1–Q4 produced zero between them (n=56).** On live rows the
+   range-restricted correlation is **+0.054 (n=277)** — indistinguishable from noise.
+   Not actionable tonight (the live rows are 276/277 unstamped pre-v3, so they cannot be
+   pooled), but it is the strongest argument yet that the score needs rebuilding rather
+   than retuning. **Hand to the weekly.**
+
+### Notes for pre-market research
+- **NO watchlist action is implied by today.** Nothing was parked, nothing signalled
+  badly, nothing chopped in a way that reflects on the name rather than the tape. A
+  −5.7% semiconductor day is not evidence about individual symbols.
+- **Expect a shut or flickering QQQ gate again tomorrow and do not read it as
+  over-filtering.** FOMC decides **Wednesday 09-16** with CME FedWatch implying ~90% odds
+  of a **25bp hike**; 10-yr yields just touched 5% and Brent is near $106. The weekly's
+  standing note applies: a hike-decision Wednesday is the worst intraday environment this
+  strategy has.
+- **From tonight IMP-049 is live: a candidate on a dead tape (1-min ATR ≤ 0.20% of price)
+  can no longer enter even if its total clears 60.** On today's board that would have
+  changed nothing (all 55 dead-tape candidates were already refused on confidence), but
+  expect a new refusal reason string — `volatility 0.00 < 0.01` — to start appearing in
+  the logs and in `dbo.entry_refusals` whenever a dead-tape setup scores ≥60. **Seeing it
+  is the filter working, not a fault.**
+- **Names that signalled most today** (all refused, none near the bar): NFLX ×9
+  (47.0–51.5), META ×8 (48.5–55.8), PLTR ×6 (47.6–67.8), HOOD ×6 (44.1–57.6), MSFT ×4
+  (47.3–58.4), SPOT ×4 (49.0–52.4), UBER ×3, AAPL ×2 (40.8–41.5), ABNB ×2 (39.6–40.5),
+  QQQ ×2 (38.0–39.6), LLY ×2, DASH, INTC. **PLTR at 67.8 was the day's only score above
+  the bar** — gate-refused, correctly.
+- **AAPL, ABNB and QQQ scored below 42 on every appearance.** Third session running for
+  ABNB. Flagging for observation only; the tape explains enough of it that a park would
+  be premature.

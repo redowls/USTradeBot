@@ -4002,3 +4002,115 @@ provenance, now trail provenance.
   not degrade on the longest one.
 
 - **Observed effect (weekly 09-11):** ✅ **VALIDATED — and the rejected experiment is worth more than the shipped code.** The trail-arming gate was implemented, A/B'd on three windows and **reverted**: net signs disagreed, PF degraded on both longer windows, and the 13–16pp stop-rate drop was pure relabelling with **F+S unchanged to the trade in all three windows** — a textbook anti-gaming rejection, correctly called. **The decisive number is that the WIN count moved by ZERO trades in every window.** Together with the 09-04 weekly's 18.8% +1R ceiling, this **closes the exit side as an explanation** for the 93pp shortfall and moves the whole burden to entry quality. What shipped instead removed a real blind spot (`stop_price` never moves, so "trail or stop?" lived only in rotating journald). F+S unmoved by design.
+
+---
+
+## IMP-049 — 2026-09-14 (daily) — range availability becomes a hard entry precondition, not a 15-point suggestion
+**`bot/config.py`, `bot/signals.py`, `bot/strategy.py`, `tests/test_signals.py`,
+`tests/test_config.py`.** **Entry-path change** — the first strategy-logic change shipped
+since the escalation clause went active. Tightens entry selectivity only; never widens
+risk, touches no stop, sizing or exit path.
+
+### The problem
+Under the stop-exit doctrine a WIN requires **+1R**. `score_volatility` already measures
+whether the tape can travel that far — IMP-036 re-anchored it so a dead tape (1-min ATR
+≤ `_ATR_DEAD` = 0.20% of price) scores exactly **0.0**. But it is only a **weighted term
+worth 15 of 100 points**, so a dead-tape setup is still admissible whenever crossover +
+trend + rsi carry the total over 60.
+
+That is not hypothetical. **The 09-11 INTC trade entered at confidence 60.1 with
+`conf_volatility == 0.00`** on a 0.182% ATR tape, where +1R required an **11× ATR** move.
+It peaked at +0.39%, never threatened its stop, and the trail ended it at **−0.48R, a
+FAIL**. The 09-11 review called it *"arithmetically near-incapable of reaching +1R from
+the moment it was placed."* A trade the book cannot win is not a low-quality trade — it is
+an **unwinnable** one, and the scorer already knew it and was outvoted.
+
+The architecture already had the right pattern for this: `min_crossover` (IMP-011) is a
+hard sub-score floor applied in `evaluate_entry` independently of the weighted total.
+IMP-049 applies the same pattern to the sub-score that answers "can this tape pay?".
+
+### The change
+`Config.min_volatility` (env `MIN_VOLATILITY`, **default 0.01**, 0.0 disables) — a
+candidate must clear `confidence.volatility >= min_volatility` on top of
+`entry_threshold` and `min_crossover`.
+
+**No new fitted constant.** `score_volatility` returns exactly 0.0 at or below
+`_ATR_DEAD`, a breakpoint IMP-036 calibrated independently. Any value in (0, 0.05]
+rejects that cohort and nothing else; 0.01 is simply inside it. This is deliberate — the
+alternative was fitting a fresh threshold to this book.
+
+### Validation — replay, friction ON, four windows
+| window | variant | n | net | PF | exp R | **WIN (+1R)** | stop% | F+S% |
+|---|---|---|---|---|---|---|---|---|
+| 30d | baseline | 15 | +$75.75 | 1.60 | +0.051 | 1 | 73% | 93% |
+| 30d | **floor** | 10 | **+$133.00** | **2.93** | **+0.222** | **1** | 70% | 90% |
+| 45d | baseline | 32 | +$204.08 | 1.80 | +0.107 | 3 | 78% | 91% |
+| 45d | **floor** | 23 | **+$280.44** | **2.82** | **+0.224** | **3** | 78% | 87% |
+| 60d | baseline | 43 | +$332.53 | 1.99 | +0.124 | 4 | 79% | 91% |
+| 60d | **floor** | 32 | **+$442.09** | **3.15** | **+0.244** | **4** | 81% | 88% |
+| 90d | baseline | 76 | +$330.14 | 1.46 | +0.083 | 8 | 76% | 89% |
+| 90d | **floor** | 60 | **+$461.50** | **1.84** | **+0.157** | **8** | 80% | 87% |
+
+1. **All four windows agree in sign** on net (+$57 / +$76 / +$110 / +$131), PF (+1.33 /
+   +1.02 / +1.15 / +0.38) and expectancy (+0.171 / +0.117 / +0.119 / +0.074 R). The
+   IMP-021 three-window rule is met with one to spare.
+2. **The WIN count is identical in every single window** (1, 3, 4, 8 before and after).
+   The floor removes 5 / 9 / 11 / 16 trades and **not one of them was a +1R winner.** It
+   strictly subtracts unwinnable trades — which is the whole claim, tested directly.
+3. **The stop rate is NOT what improved** — it is flat-to-*worse* (73→70, 78→78, 79→81,
+   76→80). The doctrine's anti-gaming rule asks whether a change bought a nicer stop rate
+   at the cost of expectancy; this one did the reverse, and that is the honest direction.
+   Payoff is flat (2.49→2.21, 3.56→3.71, 3.40→3.41, 3.46→3.29).
+
+**Anti-overfit check — floor sweep, 90d:** `0.0` → n=76 / +$330 / 8 WIN · **`0.01` →
+n=60 / +$462 / 8 WIN** · `0.05` → n=59 / +$434 / 8 WIN · `0.20` → n=54 / +$265 / 6 WIN ·
+`0.50` → n=42 / +$167 / 5 WIN · `0.99` → n=27 / +$190 / 3 WIN. **0.01 and 0.05 are the
+same result** — confirming this is a genuine cohort edge at the `_ATR_DEAD` breakpoint,
+not a knife-edge optimum — and pushing harder **destroys winners** (8→6→5→3), which is
+the expected shape if the breakpoint is real.
+
+**Live-book corroboration (the strongest evidence here).** The v3 scorer has written 8
+closed trades since 2026-08-27; they are the only live rows whose `conf_volatility` is
+comparable with today's. The floor blocks **exactly 2 of the 8**:
+
+| symbol | date | conf | conf_vlt | profit_R | P&L | blocked? |
+|---|---|---|---|---|---|---|
+| NVDA | 08-27 | 82.4 | 1.00 | +0.07 | +$3.78 | no |
+| TSM | 08-27 | 62.5 | 0.02 | +0.15 | +$5.08 | no |
+| PLTR | 08-27 | 88.4 | 1.00 | +0.52 | +$25.93 | no |
+| TSLA | 08-27 | 71.8 | 0.39 | +0.48 | +$16.60 | no |
+| **SPOT** | **08-28** | **63.9** | **0.00** | **−0.35** | **−$11.82** | **BLOCKED** |
+| TSLA | 09-03 | 78.7 | 1.00 | +0.68 | +$36.99 | no |
+| MU | 09-04 | 72.1 | 1.00 | +0.54 | +$22.21 | no |
+| **INTC** | **09-11** | **60.1** | **0.00** | **−0.48** | **−$16.52** | **BLOCKED** |
+
+**Both blocked trades are FAILs, together −$28.34, and they are the two worst trades in
+the window.** Every positive-R trade survives untouched. `TSM` at `conf_vlt = 0.02`
+survives by 0.01 — the floor sits exactly where the dead-tape cohort ends.
+
+### Honest limitations
+- **It would have changed nothing today.** All 55 of today's dead-tape candidates were
+  already refused on confidence. This is a fix for the *residual leak* — setups that clear
+  60 despite a dead tape — not for today's zero-trade outcome.
+- **It cuts trade frequency a further ~25%** (90d: 76→60) on a book whose frequency is
+  already the standing concern. That is defensible only because the removed trades have
+  negative expectancy and contain zero winners, and it is recorded here as a cost, not
+  hidden. The frequency question itself is escalated separately — see `todo.md` and
+  today's daily entry on the `ENTRY_THRESHOLD` renormalisation.
+- n is small in absolute terms (10–60 trades/window). The four windows overlap heavily and
+  are **not** independent samples.
+
+### Tests
+**558 pass (+8).** `test_dead_tape_clears_the_total_bar_without_the_floor` pins the
+premise (the 09-11 INTC tape scores 85.0 total with `conf_volatility` 0.00 and enters
+without the floor — the regression this exists to prevent);
+`test_min_volatility_floor_blocks_dead_tape_entry` pins the fix on that same recorded
+scenario; plus floor-disabled, live-tape-unaffected, reason-precedence, sub-threshold
+reporting, and `test_min_volatility_floor_never_admits_a_trade_the_baseline_refused`,
+which asserts across an ATR sweep that the floor can only ever **reject** — never admit a
+trade the baseline refused.
+
+### Deployment
+`chown ustradebot:ustradebot` on all five files, `systemctl restart ustradebot.service`,
+verified `active (running)` with a clean startup and warmup. Preflight all-PASS (the one
+WARN is "market closed", expected post-close). `.env` untouched.

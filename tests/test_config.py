@@ -23,6 +23,7 @@ def _set_env(monkeypatch, **overrides):
         "LONG_CANDLE_INTERVAL",
         "ENTRY_THRESHOLD",
         "MIN_CROSSOVER",
+        "MIN_VOLATILITY",
         "MIN_ALLOC",
         "MAX_ALLOC",
         "SIZE_CONFIDENCE_CAP",
@@ -71,6 +72,20 @@ def test_min_crossover_default_and_override(monkeypatch):
     _set_env(monkeypatch, MIN_CROSSOVER="0")  # 0 disables the floor
     assert Config.load(dotenv=False).min_crossover == 0.0
     _set_env(monkeypatch, MIN_CROSSOVER="1.5")  # > 1 is invalid
+    with pytest.raises(ConfigError):
+        Config.load(dotenv=False)
+
+
+def test_min_volatility_default_and_override(monkeypatch):
+    # IMP-049: range-availability floor. The default is any value inside the dead-tape
+    # cohort's edge — score_volatility returns exactly 0.0 at/below _ATR_DEAD (0.20%),
+    # so 0.01 rejects that cohort and nothing else. 0 disables it (pre-IMP-049
+    # behavior); out-of-range values are rejected by validate().
+    _set_env(monkeypatch)
+    assert Config.load(dotenv=False).min_volatility == 0.01
+    _set_env(monkeypatch, MIN_VOLATILITY="0")  # 0 disables the floor
+    assert Config.load(dotenv=False).min_volatility == 0.0
+    _set_env(monkeypatch, MIN_VOLATILITY="1.5")  # > 1 is invalid
     with pytest.raises(ConfigError):
         Config.load(dotenv=False)
 
