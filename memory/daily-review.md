@@ -8011,3 +8011,138 @@ one date**, not a drift:
 - **AAPL, ABNB and QQQ scored below 42 on every appearance.** Third session running for
   ABNB. Flagging for observation only; the tape explains enough of it that a park would
   be premature.
+
+---
+
+## 2026-09-15 — Daily Review
+
+### Stats
+- **No trades today.** 0 entries, 0 exits, 0 open positions. Net P&L **$0.00**.
+- Account **equity $9,176.12** (cash $9,176.12, `last_equity` identical — flat day,
+  consistent with a zero-trade session). Broker reconciliation vs `dbo.trades`: **clean**,
+  zero positions at Alpaca, zero open in the DB, no missed fill, no qty drift.
+- Service **active** since 2026-09-14 20:21:12 UTC — i.e. today ran **on IMP-049 code**,
+  its first full session with the `MIN_VOLATILITY` range floor live.
+
+### Stop-exit accounting
+- **Today: no closed trades**, so no stop rate and no bucket split is definable for the
+  session. Reported so the zero is not read as a clean sheet.
+- **Trailing 10 sessions that had trades (2026-08-05 → 2026-09-11), 26 closed trades:**
+  - **stop rate 16/26 = 62%**
+  - **WIN 1 · SCRATCH 10 · FAIL 15** (full-stop **0** / break-even-or-scratched-trail **15**)
+  - **true win rate 3.8%** vs **headline win rate 53.8%** — a 14x overstatement. The
+    headline is carried entirely by break-even stops booking rounding-error greens.
+  - **FAIL+SCRATCH = 96.2%**
+- **Escalation is ACTIVE and has been for weeks.** The doctrine's trigger is FAIL+SCRATCH
+  ≥60% across the last 3 sessions with trades; the actual figure is **3 of 3 (100%)** —
+  09-11 FAIL, 09-04 SCRATCH, 09-03 SCRATCH — on top of 96.2% over ten sessions and the
+  weekly's "≥91% for nine consecutive weeks". **No parameter tweak was shipped tonight**
+  because the doctrine forbids it under escalation.
+- **Dominant failure cause: entry quality** — but see below, today sharpens *which* part
+  of the entry stack, and the answer is not the one currently escalated.
+
+### Trade-by-trade review
+No trades to review. Root-causing the **absence** instead, which is the reviewable
+evidence today produced.
+
+**The funnel.** 16 candidates reached scoring (`dbo.entry_refusals`, all `scorer_version=3`).
+All 16 were refused. Reasons as recorded: 15 × `confidence < 60`, 1 × `market gate closed`.
+
+**That reason column is misleading, and the misleading part is the finding.** The market
+gate is applied *after* scoring (`bot/strategy.py:492`, deliberately — IMP-022 wanted the
+journal to price what the filter turned away), so a candidate only gets the "market gate
+closed" reason if it *first* cleared the confidence bar. Every other refusal is labelled
+`confidence < 60` regardless of the gate. Reading the `market_gate_open` column that
+IMP-031 added for exactly this purpose:
+
+> **`market_gate_open` was `False` on all 16 of today's refusals.**
+
+Corroborated independently by `dbo.market_gate`: the QQQ 5-min gate was open on
+**0 of 84 sampled candles — 0.0% of the session**. `stacked` 0.0%, `fast_rising` 8.3%.
+
+**So no trade was possible today at any confidence threshold.** The one candidate that
+did clear the bar — MU at 14:17, confidence 62.64 — was vetoed by the gate. Today was a
+**regime stand-down, not a threshold problem.**
+
+**Was the stand-down correct?** Partly, and the part where it wasn't is important.
+Daily bars (SIP):
+
+| | chg% | range% |
+|---|---|---|
+| QQQ | **−0.60%** | 0.83% |
+| SPY | −0.35% | 0.55% |
+| QCOM | **+4.02%** | 5.28% |
+| SPOT | +1.69% | 2.43% |
+| META | +1.66% | 3.44% |
+| PLTR | +1.21% | 4.19% |
+| AMD | +0.50% | 3.22% |
+| MU | −1.06% | 2.65% |
+| LLY | −1.77% | 2.54% |
+
+The **index** went nowhere and closed soft on a 0.83% range — the gate read that correctly.
+But the **single names did not**: this was a high-dispersion rotation day. QCOM closed
+**+4.02%**, and its 17:47 refusal row carries `conf_trend 1.0000, conf_rsi 1.0000,
+conf_volume 1.0000` — a maximal single-name trend reading — scored 55.45, and sat behind a
+gate that was shut all day regardless. **The IMP-022 market gate conditions single-name
+longs on the index ribbon, so on a rotation day it vetoes precisely the single-name trends
+that worked.** That is a structural property of the design, not a tuning error, and today
+is a clean instance of it.
+
+### What worked / what didn't
+- **Worked:** capital protection. A flat day on a tape whose index ribbon never stacked is
+  the correct outcome, and the bot took no low-quality trade to manufacture activity.
+  Broker/DB reconciled exactly. No errors, no restarts, no naked overnight exposure.
+- **Worked:** IMP-049 is **not** the accidental kill switch I suspected mid-review. On the
+  30d replay with friction, the floor OFF scores **+$75.75, PF 1.60, 15 trades**; ON it
+  scores **+$133.00, PF 2.93, 10 trades**. It still admits trades and it still improves
+  expectancy. **IMP-049 stands.**
+- **Didn't work:** the bot has now traded **23 times in 40 calendar days**, and **once in
+  the last eight sessions**. The weekly's D-grade finding — "the bot can no longer generate
+  evidence about itself" — got worse, not better.
+- **Didn't work (design):** the index gate cost the session its only high-conviction
+  single-name setups on a day when single names were the only thing moving.
+
+### Lessons & improvement candidates
+1. **The escalated `ENTRY_THRESHOLD` renormalisation would admit almost nothing while the
+   floors are on — measured tonight, not assumed.** Of the 110 v3-era scored refusals since
+   08-27, **71 (64.5%) were refused into a *closed* gate** and are unrecoverable by any
+   threshold change. Sweeping the threshold down over the 39 gate-open refusals, with the
+   IMP-011 and IMP-049 floors left on:
+
+   | ENTRY_THRESHOLD | gate-open passes | of which clear both floors |
+   |---|---|---|
+   | 60 | 1 | **0** |
+   | 55 | 3 | **0** |
+   | 50 | 15 | **0** |
+   | 45 | 28 | **0** |
+
+   **Lowering the threshold from 60 to 45 admits zero additional live trades.** The todo
+   note that said "sweep them jointly, not one at a time" was right, and this is the
+   number. A gate-blind study of the same rows would have wrongly claimed 2 admits.
+2. **The binding constraint is the market gate, not the threshold.** This reorders the
+   operator decision's option 1: the gate should be its **first** axis, not the threshold.
+3. **`atr_pct` on 1-min bars may under-read range availability on smoothly trending names.**
+   QCOM scored `conf_volatility 0.0000` at `atr_pct 0.111%` — below the 0.20% `_ATR_DEAD`
+   breakpoint — on a day it traveled **+4.02%**, roughly 2R against a 2% stop. Low bar-to-bar
+   noise and high daily travel are not the same thing, and IMP-049's premise ("ATR ≤ 0.20%
+   ⇒ cannot reach +1R") conflates them. **One counterexample is not grounds to reverse a
+   change validated on four windows** — it is grounds to test it. Handed to the weekly.
+4. Shipped tonight: **IMP-050**, the harness capability all three of the above need.
+
+### Notes for pre-market research
+- **The watchlist's problem tomorrow is dispersion, not direction.** QQQ closed −0.60% on a
+  0.83% range while QCOM ran +4.02% and PLTR/META/AMD all held 3%+ ranges. On days like this
+  the index gate shuts the bot off entirely — worth knowing before judging tomorrow's silence.
+- **QCOM** — the standout miss. Maximal trend/RSI/volume sub-scores at 17:47, +4.02% close,
+  5.28% range. It never signaled into a trade only because the gate was shut. **Keep it on
+  the board.**
+- **SPOT** — six refusals today, the most of any name, all at 42–47 confidence with
+  `conf_volatility 0.0000` and `atr_pct` around 0.05–0.07%. It is generating triggers
+  constantly and clearing nothing. Chronic near-miss noise; candidate for review.
+- **LLY** — two refusals at 36–39 confidence, `atr_pct` 0.058–0.061%, closed −1.77%. Weakest
+  scores on the board and the wrong direction. Low value for a long-only bot right now.
+- **MU** — the only name to clear 60 today (62.64). Chip complex was soft (MU −1.06%) but MU
+  is still the most reliable *scorer* on this watchlist.
+- **Names that never produced a single scored candidate all session:** AAPL, MSFT, NVDA,
+  TSLA, NFLX, UBER, TSM, HOOD, ABNB, DASH, INTC. Eleven of nineteen symbols contributed
+  nothing to the funnel. That is a watchlist-composition observation, not a bot bug.
