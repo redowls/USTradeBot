@@ -632,3 +632,39 @@ whose effect is already measured and dated.
 `MIN_VOLATILITY = 0.01` floor. It and the threshold interact — the floor removes the
 dead-tape cohort outright, so lowering the threshold afterwards admits only *live*-tape
 setups. Sweep them **jointly**, not one at a time.
+
+---
+
+### 📌 Update 2026-09-15 (daily review) — the sweep is now runnable, and its first axis changed
+**IMP-050** added `--entry-threshold`, `--min-crossover`, `--min-volatility` and
+`--market-filter-symbol` to `bot.replay`. The leave-one-out sweep requested under option 1
+above is now expressible as a command line; it previously was not, which is why it had never
+been run.
+
+**Two measurements that reorder option 1:**
+
+1. **The threshold axis is nearly a no-op.** Of 110 v3-era scored refusals since 08-27,
+   **71 (64.5%) were refused into a closed market gate** and are unrecoverable by any
+   threshold change. Over the 39 gate-open refusals, dropping `ENTRY_THRESHOLD` 60 → 45
+   admits **0** additional trades, because every one fails the IMP-011 / IMP-049 floors.
+   *Renormalising `ENTRY_THRESHOLD` would not have restored the lost trade frequency.*
+2. **The market gate is the binding constraint.** 30d replay, friction on: gate off gives
+   **24 trades (+$112.56, PF 1.41, 3 WINs)** vs control **10 trades (+$133.00, PF 2.93,
+   1 WIN)**. True win rate 12% vs 10%. So the gate costs **sample**, not **edge** — removing
+   it buys the observations the D-grade verdict says the bot can no longer generate, and pays
+   for them in profit factor.
+
+**Recommendation to the weekly:** run option 1's sweep with the **market gate as axis 1** and
+the threshold demoted, and treat "loosen the gate to regain sample" as an explicit, costed
+trade-off rather than an efficiency gain. **This still requires operator authorisation — it
+loosens entry and increases exposure, and the daily did not ship it.**
+
+**Also unresolved — a falsifier for IMP-049's premise, logged for the weekly, not acted on.**
+IMP-049 assumes 1-min `atr_pct <= 0.20%` ⇒ the tape cannot travel +1R. On 2026-09-15 **QCOM
+scored `conf_volatility 0.0000` at `atr_pct 0.111%` and closed +4.02%** (~2R on a 2% stop),
+with maximal trend/RSI/volume sub-scores. A smooth trend has low bar-to-bar noise *and* high
+daily travel; the current measure cannot distinguish that from a dead tape. IMP-049 is
+**not** being reversed on one counterexample — its 30d replay is still clearly positive
+(floor off: +$75.75/PF 1.60 vs on: +$133.00/PF 2.93). But the right long-run measure of
+"range availability" is plausibly *daily* range or a travel/noise ratio rather than 1-min ATR,
+and that is a signal-side question for option 2.

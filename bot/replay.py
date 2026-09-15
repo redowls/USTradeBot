@@ -597,6 +597,19 @@ def main(argv=None) -> int:
     ap.add_argument("--trail-percent", default=None, help="override TRAIL_PERCENT, e.g. 0.01")
     ap.add_argument("--take-profit", default=None, help="override TAKE_PROFIT, e.g. 0.03")
     ap.add_argument("--stop-loss", default=None, help="override STOP_LOSS, e.g. 0.02")
+    # Entry-filter overrides (IMP-050). The exit side has been sweepable since the
+    # harness was built; the entry side was not, so the four filters that decide
+    # *whether a trade exists at all* could only be studied by editing .env and
+    # restarting — which is why no leave-one-out sweep of them has ever been run.
+    # Each disables at the documented sentinel: threshold 0, floors 0.0, gate "".
+    ap.add_argument("--entry-threshold", default=None,
+                    help="override ENTRY_THRESHOLD, e.g. 50 (0 admits every scored candidate)")
+    ap.add_argument("--min-crossover", default=None,
+                    help="override MIN_CROSSOVER, e.g. 0 to lift the IMP-011 floor")
+    ap.add_argument("--min-volatility", default=None,
+                    help="override MIN_VOLATILITY, e.g. 0 to lift the IMP-049 range floor")
+    ap.add_argument("--market-filter-symbol", default=None,
+                    help='override MARKET_FILTER_SYMBOL; "" disables the IMP-022 market gate')
     ap.add_argument("--slippage-bps", type=float, default=DEFAULT_SLIPPAGE_BPS,
                     help="per-side spread/slippage on every fill (default 10 = 0.20%% "
                          "round trip); 0 reproduces the pre-IMP-044 frictionless runs")
@@ -610,6 +623,10 @@ def main(argv=None) -> int:
         (args.trail_percent, "TRAIL_PERCENT"),
         (args.take_profit, "TAKE_PROFIT"),
         (args.stop_loss, "STOP_LOSS"),
+        (args.entry_threshold, "ENTRY_THRESHOLD"),
+        (args.min_crossover, "MIN_CROSSOVER"),
+        (args.min_volatility, "MIN_VOLATILITY"),
+        (args.market_filter_symbol, "MARKET_FILTER_SYMBOL"),
     ):
         if flag is not None:
             os.environ[key] = flag
@@ -625,6 +642,12 @@ def main(argv=None) -> int:
     print(f"window {start.date()} -> {end.date()}  symbols={len(symbols)} ({source})  "
           f"entry_start={cfg.entry_start:%H:%M} trail={cfg.trail_percent} "
           f"tp={cfg.take_profit} stop={cfg.stop_loss} slippage={args.slippage_bps:g}bps/side")
+    # Echo the entry stack too (IMP-050): a leave-one-out sweep is a pile of runs whose
+    # only difference is on this line, so a run that does not name its own filters is
+    # unattributable once it scrolls past.
+    print(f"entry filters: threshold={cfg.entry_threshold:g} "
+          f"min_crossover={cfg.min_crossover:g} min_volatility={cfg.min_volatility:g} "
+          f"market_gate={cfg.market_filter_symbol or 'OFF'}")
     print(summarize(broker, args.equity, stop_loss=cfg.stop_loss))
     return 0
 

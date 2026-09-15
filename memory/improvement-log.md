@@ -4114,3 +4114,76 @@ trade the baseline refused.
 `chown ustradebot:ustradebot` on all five files, `systemctl restart ustradebot.service`,
 verified `active (running)` with a clean startup and warmup. Preflight all-PASS (the one
 WARN is "market closed", expected post-close). `.env` untouched.
+
+---
+
+## IMP-050 — the entry-filter stack becomes sweepable in the replay harness
+**Date:** 2026-09-15 · **Commit:** (see below) · **Files:** `bot/replay.py`, `tests/test_replay.py`
+
+### Why
+The 09-11 weekly (grade D) escalated an operator decision whose recommended first step is a
+**leave-one-out sweep of the entry filter stack** — `ENTRY_START`, the QQQ market gate, the
+60 confidence threshold, the 0.25 crossover floor — noting that "none has ever been evaluated
+jointly". The 09-14 daily added `MIN_VOLATILITY` (IMP-049) to that list with an explicit
+instruction: "Sweep them **jointly**, not one at a time."
+
+**That sweep could not be run.** `bot/replay.py` exposed the whole *exit* side
+(`--trail-percent`, `--take-profit`, `--stop-loss`, `--slippage-bps`) and `--entry-start`,
+but nothing for the four filters that decide whether a trade exists at all. Studying them
+meant editing `.env` on the live host and restarting the service — which is why, across
+seven weeks of asking, no such sweep exists.
+
+Today made the gap concrete. The QQQ 5-min gate was open on **0 of 84** sampled candles and
+`market_gate_open` was `False` on all 16 scored refusals, so the obvious question — "what
+would this session have done without the gate?" — was unanswerable with the tooling on hand.
+
+### What changed
+Four override flags on `bot.replay`, following the exact env-var pattern the exit-side
+overrides already use, each disabling at its documented sentinel:
+
+- `--entry-threshold` → `ENTRY_THRESHOLD`
+- `--min-crossover` → `MIN_CROSSOVER` (0 lifts the IMP-011 floor)
+- `--min-volatility` → `MIN_VOLATILITY` (0 lifts the IMP-049 range floor)
+- `--market-filter-symbol` → `MARKET_FILTER_SYMBOL` (`""` disables the IMP-022 gate, which
+  then fails open per `StrategyEngine._market_gate_open`)
+
+Plus a second header line echoing the resolved entry stack, because a leave-one-out sweep is
+a pile of runs differing only in those four values and an un-self-describing run is
+unattributable once it scrolls.
+
+### Risk
+**None to live trading.** Replay-only CLI plumbing: no strategy, sizing, risk or exit logic
+was touched, no default changed, and a bare run reproduces the shipped config exactly (pinned
+by `test_omitting_the_entry_flags_leaves_the_shipped_defaults`). This is deliberately a
+*capability*, not a parameter tweak — the stop-exit doctrine's escalation trigger is active
+(FAIL+SCRATCH 96.2% over 10 sessions, 3/3 over the last 3), which forbids shipping parameter
+tweaks and asks for structural work and evidence instead.
+
+### Validation
+- **561 tests pass** (+3), preflight all-PASS.
+- A test-isolation defect was caught and fixed during validation: `main()` applies overrides
+  with a bare `os.environ[key] = value`, which pytest's monkeypatch does not revert unless it
+  already owns the key. The first draft left `MARKET_FILTER_SYMBOL=""` set for the rest of the
+  session and broke 12 unrelated strategy/warmup tests. `_claim_entry_env()` now hands those
+  keys to monkeypatch first. Worth remembering: **env-var overrides in `main()` leak across
+  tests unless claimed.**
+- **First real sweep, 30d, friction on, doctrine scoring on:**
+
+  | arm | trades | net | PF | WIN | true win% |
+  |---|---|---|---|---|---|
+  | control (as shipped) | 10 | **+$133.00** | **2.93** | 1 | 10% |
+  | `--market-filter-symbol ""` | **24** | +$112.56 | 1.41 | **3** | 12% |
+  | `--min-volatility 0` | 15 | +$75.75 | 1.60 | 1 | 7% |
+
+### What this says (handed to the weekly, not acted on)
+- **IMP-049 stands.** Floor off is worse on every axis that matters (+$75.75/PF 1.60 vs
+  +$133.00/PF 2.93). Yesterday's change was correct.
+- **The market gate is the volume constraint, and removing it is a real trade-off, not a
+  free win:** 2.4x the trades and 3x the WINs — the evidence-generation the weekly says the
+  bot can no longer produce — but PF collapses 2.93 → 1.41 and net falls. True win rate is
+  ~flat (10% → 12%), which is the honest read: **the gate is not what is stopping this
+  strategy from having an edge. It is what is stopping it from having a sample.**
+- Complementary live finding (see today's daily review): of 110 v3-era scored refusals since
+  08-27, **64.5% were refused into a closed gate**, and lowering `ENTRY_THRESHOLD` from 60 to
+  45 admits **zero** additional trades while the floors are on. **The escalated threshold
+  renormalisation is close to a no-op; the gate is the first axis that matters.**

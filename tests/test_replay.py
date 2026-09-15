@@ -584,3 +584,115 @@ def test_friction_scales_with_trade_count_not_with_edge(friction_broker):
     assert sum(t.gross_pnl for t in friction_broker.trades) > sum(
         t.pnl for t in friction_broker.trades
     )
+
+
+# --- entry-filter overrides (IMP-050) -----------------------------------------
+#
+# The exit side of the harness has been sweepable since it was built, but the four
+# filters that decide whether a trade exists at all — ENTRY_START, the market gate,
+# the confidence threshold and the crossover floor, now five with IMP-049's range
+# floor — were not. That gap is why the leave-one-out sweep the 09-11 weekly asked
+# for had never been run: it could not be expressed. These pin that each axis
+# reaches Config, and that each disables at its documented sentinel.
+
+_ENTRY_ENV = ("ENTRY_THRESHOLD", "MIN_CROSSOVER", "MIN_VOLATILITY", "MARKET_FILTER_SYMBOL")
+
+
+def _claim_entry_env(monkeypatch):
+    """Hand the entry-filter env keys to monkeypatch, then clear them.
+
+    ``main()`` applies its overrides with a bare ``os.environ[key] = value``. pytest's
+    monkeypatch only restores keys it has recorded, so without this a test that passes
+    ``--market-filter-symbol ""`` leaves the gate disabled for the rest of the session
+    and silently breaks unrelated strategy tests. Recording the key first makes the
+    teardown authoritative no matter who writes it afterwards.
+    """
+    for key in _ENTRY_ENV:
+        monkeypatch.setenv(key, "")
+        monkeypatch.delenv(key, raising=False)
+
+
+def test_entry_filter_flags_reach_the_config(monkeypatch):
+    """Each entry-filter flag must actually move the knob the strategy reads."""
+    from bot import replay
+
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    # main() writes these straight into os.environ, which monkeypatch only reverts for
+    # keys it already owns — so claim them here or the override leaks into every test
+    # that runs after this one.
+    _claim_entry_env(monkeypatch)
+
+    captured = {}
+
+    def _fake_run(cfg, symbols, start, end, **kw):
+        captured["cfg"] = cfg
+        return SimBroker(cfg, equity=10_000.0)
+
+    monkeypatch.setattr(replay, "run_replay", _fake_run)
+    monkeypatch.setattr(replay, "resolve_symbols", lambda cfg, explicit="": (["NFLX"], "test"))
+
+    replay.main([
+        "--days", "1", "--quiet",
+        "--entry-threshold", "50",
+        "--min-crossover", "0",
+        "--min-volatility", "0",
+        "--market-filter-symbol", "",
+    ])
+
+    cfg = captured["cfg"]
+    assert cfg.entry_threshold == pytest.approx(50.0)
+    assert cfg.min_crossover == pytest.approx(0.0)
+    assert cfg.min_volatility == pytest.approx(0.0)
+    # "" is the documented disable sentinel — the gate then fails open.
+    assert cfg.market_filter_symbol == ""
+
+
+def test_omitting_the_entry_flags_leaves_the_shipped_defaults(monkeypatch):
+    """A bare run must reproduce live config — the sweep's control arm."""
+    from bot import replay
+
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    _claim_entry_env(monkeypatch)
+
+    captured = {}
+    monkeypatch.setattr(
+        replay, "run_replay",
+        lambda cfg, symbols, start, end, **kw: (
+            captured.setdefault("cfg", cfg), SimBroker(cfg, equity=10_000.0)
+        )[1],
+    )
+    monkeypatch.setattr(replay, "resolve_symbols", lambda cfg, explicit="": (["NFLX"], "test"))
+
+    replay.main(["--days", "1", "--quiet"])
+
+    cfg = captured["cfg"]
+    assert cfg.entry_threshold == pytest.approx(60.0)
+    assert cfg.min_crossover == pytest.approx(0.25)
+    assert cfg.min_volatility == pytest.approx(0.01)
+    assert cfg.market_filter_symbol == "QQQ"
+
+
+def test_disabling_the_market_gate_is_expressible(monkeypatch):
+    """The 2026-09-15 scenario, pinned as the reason this flag exists.
+
+    On 09-15 the QQQ 5-min gate was open on 0 of 84 sampled candles, so every one
+    of the 16 scored candidates was vetoed regardless of score — including QCOM,
+    which closed +4.02%. "What would this session have done without the gate?" was
+    unanswerable because the harness had no way to turn the gate off.
+    """
+    from bot.strategy import StrategyEngine
+
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("MARKET_FILTER_SYMBOL", "")
+    cfg = Config.load(dotenv=False)
+    assert cfg.market_filter_symbol == ""
+
+    engine = StrategyEngine.__new__(StrategyEngine)
+    engine._cfg = cfg
+    engine._gate_snap = {}
+    engine._market_gate_warned = False
+    # No filter symbol -> gate fails open, with no ribbon and no warning needed.
+    assert engine._market_gate_open() is True
