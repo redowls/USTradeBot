@@ -588,9 +588,86 @@ was filtered into silence by changes that each looked correct in isolation. It s
 run before any further work on the signal or the stop, because its result changes the
 population every other study would be measured on.
 
+### ✅ RESOLVED 2026-09-16 by the daily review — **option 1 is refuted; the decision is now between (2) and (3)**
+
+The leave-one-out sweep option 1 asked for **has now been run** (IMP-050 made it a command
+line). 90 days, friction 10bps/side, doctrine scoring, one window, one symbol set —
+replicated on 45 days:
+
+| arm | trades | net | PF | true WR | F+S | **WIN** |
+|---|---|---|---|---|---|---|
+| **control (as shipped)** | 58 | **+$461.87** | **1.87** | **14%** | 86% | **8** |
+| `ENTRY_START 09:30` | 87 | +$202.61 | 1.19 | 10% | 90% | 9 |
+| market gate OFF | 109 | +$249.27 | 1.20 | 11% | 89% | 12 |
+| `ENTRY_THRESHOLD 55` | 61 | +$469.09 | 1.75 | 13% | 87% | 8 |
+| `MIN_CROSSOVER 0` | 59 | +$461.55 | 1.87 | 14% | 86% | 8 |
+| `MIN_VOLATILITY 0` | 74 | +$331.25 | 1.47 | 11% | 89% | 8 |
+| **ALL FIVE OFF** | **320** | **−$1,162.07** | **0.67** | 5% | 95% | 15 |
+
+**Do not loosen the filter stack.** Every filter that moves anything moves net and PF in
+the right direction; the two released from the do-not-relitigate list for this test
+(`MARKET_FILTER_SYMBOL`, `ENTRY_THRESHOLD`) respectively **survive it** and **turn out not
+to be a lever at all** (±3 trades, ±$8). The "filtered into silence" hypothesis is refuted:
+the stack is the only thing holding the equity curve up.
+
+**Three numbers now govern the decision:**
+
+1. **Unfiltered, the signal has no gross edge — before any filter or cost.** ALL-OFF gross:
+   **90d +$72.02 over 320 trades (+$0.23/trade)**; **45d +$1.68 over 165 trades
+   (+$0.01/trade)**. The filters are not suppressing an edge; they select the thin subset
+   where gross happens to exceed a $4–5/trade friction bill.
+2. **The shipped config's best 90-day result is not significant.** n=58, mean **+$7.96**,
+   sd $32.41 → **t = 1.87** (needs 1.96). Gross t=2.94, so **whatever edge the ribbon has
+   is smaller than the cost of trading it.** Concentration: **top 5 of 58 trades = 80% of
+   net**, top 3 = 51%.
+3. **Weekly #3 answered — the falsifiability horizon is years.** 64 trades are needed for
+   95% two-sided significance at this effect size. At the observed live fill rate (~1
+   trade/week) that is **64 weeks ≈ 1.2 years**; at the current rate (1 trade in 9
+   sessions) **127 weeks ≈ 2.4 years.**
+
+**Also resolved tonight: the exit side is closed on a second axis.** Trail width sweep (90d)
+— 0.0100 / 0.0125 (live) / 0.0150 / 0.0175 → net +$122 / +$462 / +$522 / +$585, PF 1.21 /
+1.87 / 1.98 / 2.19, and **WIN = 8 and F+S = 86% at every width.** Widening to 0.0175 would
+book +27% net; it was **rejected** — it is a parameter tweak under active escalation, it
+weakens trail protection (forbidden by name in the doctrine), and it is pure relabelling
+(stop rate 79%→75% while full stops rise 2→5, F+S unmoved). Together with IMP-048's
+rejected arming gate, **two independent exit axes now move zero WINs.**
+
+**Therefore: the +1R rate (~14%) is invariant to six entry-filter arms and four exit-trail
+widths. It is a property of the 3-EMA ribbon crossover itself.** Option 1 cannot help,
+option 1's sub-item (the `ENTRY_THRESHOLD` renormalisation below) is a measured no-op, and
+the choice is **(2) rebuild the signal** or **(3) retire**.
+
+**Recommendation, revised: (2) with a hard pre-registered stopping rule, or (3).** If (2),
+the only hypothesis with no refutation against it is **entry timing** — IMP-040 found MU
+bought +2.7% off the open at the 58th percentile of the session range, i.e. the ribbon
+*confirms moves that have already run*. Test a pullback-based or earlier trigger **judged
+on the +1R rate, not on net**, on replay only. **Pre-register the stopping rule before
+starting:** if the +1R rate does not clear ~25% on two windows, take (3). Without that rule
+this becomes another month of instruments. ⚠️ Note (2) is a rebuild of the strategy's core,
+not a tuning pass, and it should not be attempted by an unattended nightly routine without
+explicit authorisation and a fixed budget.
+
+**Unchanged and non-negotiable:** nothing here touches position size, loss limits, the
+stand-down/kill switch, or paper-only status. "No demonstrated edge" is an argument for
+changing or stopping the signal — never for sizing up to chase it.
+
+**Minor, unrelated, logged not fixed:** the entry-refusal log line prints sub-scores with
+`%.2f`, so a correct refusal at `conf_crossover 0.2454` renders as the self-contradictory
+`crossover 0.25 < 0.25` (seen today, INTC 18:40). Cosmetic; misleads anyone reading
+journald. Fix with the next change that touches `bot/strategy.py`.
+
 ---
 
-## 🔴 OPERATOR / WEEKLY DECISION — `ENTRY_THRESHOLD` was never renormalised after IMP-036 changed the volatility scale
+## ✅ CLOSED — `ENTRY_THRESHOLD` was never renormalised after IMP-036 changed the volatility scale
+> **RESOLVED 2026-09-16 (daily review): measured, and it is a no-op — no action needed.**
+> The 90d leave-one-out sweep puts `ENTRY_THRESHOLD 55` at **61 trades / +$469.09 / PF 1.75
+> / 14%→13% true WR / 8 WINs** against control's **58 / +$461.87 / PF 1.87 / 14% / 8 WINs**:
+> +3 trades, +$7.22, **zero additional WINs**, and PF *down*. This confirms on replay what
+> the 09-15 live study found (60→45 admits 0 trades while the floors are on). The
+> renormalisation is neither the cause of the silence nor a lever worth pulling in either
+> direction. **Kept below for the mechanism, which is still correctly described.**
+
 **Raised by the daily review, 2026-09-14.** This is a **named, dated mechanism** for a
 large part of the "filtered into silence" hypothesis in the item above — it is evidence
 for option 1, not a separate theory.

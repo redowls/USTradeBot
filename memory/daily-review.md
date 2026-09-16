@@ -8146,3 +8146,235 @@ is a clean instance of it.
 - **Names that never produced a single scored candidate all session:** AAPL, MSFT, NVDA,
   TSLA, NFLX, UBER, TSM, HOOD, ABNB, DASH, INTC. Eleven of nineteen symbols contributed
   nothing to the funnel. That is a watchlist-composition observation, not a bot bug.
+
+---
+
+## 2026-09-16 — Daily Review
+
+### Stats
+- **No trades today.** 0 entries, 0 exits, 0 open positions. Net P&L **$0.00**. Second
+  consecutive zero-trade session; **one trade in the last nine sessions.**
+- Account **equity $9,176.12** (cash $9,176.12, `last_equity` $9,176.12 — flat, as a
+  zero-trade day must be). Broker reconciliation: Alpaca returned **0 orders** since
+  00:00Z and **0 positions**; `dbo.trades` has 0 rows touching today and 0 open. **Clean
+  — no missed fill, no qty drift, no naked overnight.**
+- Service **active** since 2026-09-15 20:11:44 UTC. Today therefore ran on IMP-050 code,
+  which is replay-only CLI plumbing, so the *behavioural* config is still IMP-049's.
+- 51 candidates reached scoring (`dbo.entry_refusals`, all `scorer_version=3`); all 51
+  refused. **Max confidence of the session 64.63.**
+
+### Stop-exit accounting
+- **Today: no closed trades**, so no stop rate or bucket split is definable. Stated so the
+  zero is not read as a clean sheet.
+- **Trailing 10 sessions that had trades (2026-08-05 → 2026-09-11), 26 closed trades**
+  — computed with `bot.doctrine` itself rather than by hand:
+  - **stop rate 20/26 = 77%**
+  - **WIN 1 · SCRATCH 10 · FAIL 15** (full-stop **0** / break-even-or-scratched-trail **15**)
+  - **true win rate 4%** vs **headline 54%** — a 13x overstatement, carried entirely by
+    break-even stops booking rounding-error greens.
+  - **FAIL+SCRATCH = 25/26 = 96%**
+  - ⚠️ *Correction to the 09-15 entry*, which reported this window's stop rate as 16/26
+    (62%) from a hand count. The module says **20/26 (77%)**; four broker-side catch-all
+    rows were under-attributed by hand. The module is canonical.
+- **Last 3 sessions with trades (09-03, 09-04, 09-11): 3 trades, WIN 0 · SCRATCH 2 ·
+  FAIL 1, true win rate 0%, F+S 3/3 = 100%.**
+- **Escalation remains ACTIVE** (trigger: F+S ≥60% over the last 3 sessions with trades;
+  actual 100%). **No parameter tweak was shipped tonight, and tonight the sweep explains
+  why that is the right call rather than merely the compliant one.**
+- **Dominant failure cause: entry signal quality — and tonight it is finally isolated to
+  the *signal itself* rather than to the filters around it or the exits after it.**
+
+### Trade-by-trade review
+No trades. Root-causing the absence, then the chartered sweep that the absence made room for.
+
+**The funnel.** 51 scored candidates, all refused: **49 × `confidence < 60`**, **1 ×
+`volatility 0.00 < 0.01`** (AMD, conf 64.32), **1 × `crossover 0.25 < 0.25`** (INTC,
+conf 64.63).
+
+**The market gate was OPEN today — the opposite of yesterday.** `dbo.market_gate`: **46 of
+89 sampled QQQ candles open (52%)**, and `market_gate_open` was `True` on **36 of the 51**
+refusals. By hour (UTC): 13h **12/12**, 14h **12/12**, 15h **12/12**, then 16h 4/12,
+17h 1/12, 18h 3/12, 19h **0/12**. Last open candle **18:15 UTC**. So the bot had a fully
+open two-hour entry window (14:00–16:00 UTC = 10:00–12:00 ET) and did not trade in it.
+
+**Only one of today's 51 decisions was recoverable.**
+- **INTC 18:40, conf 64.63** — refused on the crossover floor at `conf_crossover 0.2454`.
+  The gate was **closed** at 18:40 anyway, so it could not have traded at any floor. (The
+  log line reads `crossover 0.25 < 0.25` because it prints `%.2f` of 0.2454 — a
+  self-contradictory-looking message for a correct refusal. Cosmetic; noted in `todo.md`.)
+- **AMD 15:24, conf 64.32, gate OPEN, `atr_pct` 0.129%** — refused by IMP-049's range
+  floor. **This is the session's only real decision, and IMP-049's own evidence says it
+  was correct:** the 0.10–0.20% ATR band reaches the trail on 6 of 51 refused candidates
+  (12%) with mean MFE +0.680%, against a +1R requirement of 2.00%.
+
+**Market context (Perplexity `sonar` returned `PPLX_EMPTY` — sixth consecutive low-value
+run; WebSearch answered in one call, as the 09-11 weekly recommended).** The Fed **hiked
+25bp to 3.75–4.00%**, its first hike in three years, unanimously, with the SEP showing one
+more this year and Warsh flagging persistent inflation. **All three indices were green
+going in** (S&P +0.2%, Nasdaq +0.4%) and reversed after 14:00 ET: **Dow −751 (−1.5%),
+S&P −0.5%, Nasdaq −0.4%**; 10-year above 5%, oil back over $100, BTC under $76k after the
+Clarity Act vote failed. QQQ closed 705.09 against 708.97 at our first sample (−0.55%).
+
+**The 09-11 weekly pre-registered this session exactly:** "A hike-decision Wednesday
+afternoon is the single worst intraday environment for a long-only trend bot — expect
+violent two-way reversals into and after 14:00 ET. The QQQ gate will likely do the right
+thing by staying shut; **that is fine, and it must not be read next Friday as further
+evidence of over-filtering.**" The gate was open all morning and shut from 16:09 UTC
+onward, through the decision and the reversal. **Today's zero is a correct outcome, and it
+is not evidence about the filter stack.** The evidence about the filter stack is below.
+
+---
+
+### The chartered sweep — weekly #1, answered
+
+The 09-11 weekly's #1 (and only behaviour-licensed) ask was a **leave-one-out audit of the
+entry filter stack on the honest harness**: "does any filter earn its reduction in
+opportunity once friction is charged?" — a test none of them had faced, because every
+prior filter verdict was decided on a frictionless, `pnl > 0`-scored harness. IMP-050
+shipped the flags last night. **90 days, friction 10bps/side, doctrine scoring, one window,
+one symbol set:**
+
+| arm | trades | net | PF | avg/tr | true WR | F+S | **WIN** |
+|---|---|---|---|---|---|---|---|
+| **control (as shipped)** | 58 | **+$461.87** | **1.87** | +$7.96 | **14%** | 86% | **8** |
+| `ENTRY_START 09:30` | 87 | +$202.61 | 1.19 | +$2.33 | 10% | 90% | 9 |
+| market gate OFF | 109 | +$249.27 | 1.20 | +$2.29 | 11% | 89% | 12 |
+| `ENTRY_THRESHOLD 55` | 61 | +$469.09 | 1.75 | +$7.69 | 13% | 87% | 8 |
+| `MIN_CROSSOVER 0` | 59 | +$461.55 | 1.87 | +$7.82 | 14% | 86% | 8 |
+| `MIN_VOLATILITY 0` | 74 | +$331.25 | 1.47 | +$4.48 | 11% | 89% | 8 |
+| **ALL FIVE OFF** | **320** | **−$1,162.07** | **0.67** | −$3.63 | 5% | 95% | 15 |
+
+Replicated on 45 days: control 24 tr/+$268.33/PF 2.62/WIN 3 · gate OFF 43/+$223.82/1.53/5 ·
+09:30 42/+$189.21/1.46/4 · **ALL OFF 165/−$656.63/0.63/7**.
+
+**Answer: yes — every filter that moves anything moves it in the right direction, and the
+"over-filtering" hypothesis that has led three consecutive weekly reviews is refuted.**
+
+1. **`ENTRY_START` and the market gate are load-bearing, not restrictive.** Removing the
+   opening blackout buys **1 extra WIN for 29 extra trades** and costs **56% of net**
+   (PF 1.87 → 1.19). Removing the gate buys **4 extra WINs for 51 extra trades** and costs
+   **46% of net** (PF → 1.20). Both replicate at 45d. The gate's release from the
+   do-not-relitigate list is hereby spent: **it survives the test it was released for.**
+2. **`ENTRY_THRESHOLD 60` and `MIN_CROSSOVER 0.25` are effectively no-ops** — ±3 trades,
+   ±$8, zero WIN change. This matches the live finding (60→45 admits nothing). The
+   escalated threshold renormalisation is confirmed **not worth shipping in either
+   direction**; it is not a lever, it is a rounding error.
+3. **IMP-049 is confirmed on a 3x longer window than it was validated on.** Floor off:
+   +16 trades, **−28% net**, PF 1.87 → 1.47, and **zero additional WINs**. Yesterday's
+   change was correct and the 09-15 QCOM counterexample does not generalise.
+4. **🔴 The load-bearing number is the WIN column: 8, 9, 12, 8, 8, 8.** Five of six
+   leave-one-out arms produce **exactly 8 WINs**. Nothing in the entry filter stack changes
+   how many trades reach +1R — the filters change *how much is lost on the rest*.
+
+### The exit side, closed on a second axis
+
+The doctrine's dominant FAIL mode is break-even-scratched trails (**30 of 32 FAILs** in
+control), i.e. profit capture, so the trail width was the natural suspect. IMP-048 already
+refuted the trail-*arming* gate; tonight tests the trail *width*, which it did not:
+
+| `TRAIL_PERCENT` | trades | net | PF | **WIN** | F+S | full stops | stop rate |
+|---|---|---|---|---|---|---|---|
+| 0.0100 | 58 | +$122.05 | 1.21 | **8** | 86% | 0 | 86% |
+| **0.0125 (live)** | 58 | +$461.87 | 1.87 | **8** | 86% | 2 | 79% |
+| 0.0150 | 56 | +$521.80 | 1.98 | **8** | 86% | 4 | 79% |
+| 0.0175 | 56 | +$585.42 | 2.19 | **8** | 86% | 5 | 75% |
+
+(0.005 / 0.0075 are unrunnable: `TRAIL_PERCENT_TIGHT must be <= TRAIL_PERCENT`.)
+
+**Net rises monotonically as the trail widens — and the WIN count and F+S are frozen at 8
+and 86% across every width.** Widening to 0.0175 would book **+27% net and PF 2.19**.
+**REJECTED, on three independent grounds:**
+- It is a **parameter tweak under active escalation**, which the doctrine forbids outright.
+- It **widens trail protection**, which the doctrine forbids by name: *"never remove or
+  weaken break-even / trail protection to make the numbers look better."* The clause is not
+  conditioned on expectancy.
+- It is **pure relabelling** — the exact IMP-048 pattern. Stop rate falls 79% → 75% while
+  full stops rise **2 → 5** and F+S does not move by one trade. A lower stop rate bought by
+  letting losers run further is the anti-gaming rule's central example.
+
+This is the second exit axis in two weeks to move zero WINs. **The exit structure is not
+what is capping this strategy.**
+
+### Verdict: no demonstrated edge in the signal
+
+With the entry filters vindicated and the exits closed on two axes, the +1R rate is a
+property of the **3-EMA ribbon crossover itself**. Three numbers say it has no edge to find:
+
+1. **Unfiltered, the signal's gross expectancy is zero.** ALL-FILTERS-OFF, *before*
+   friction: **90d +$72.02 over 320 trades = +$0.23/trade**; **45d +$1.68 over 165 trades
+   = +$0.01/trade.** One dollar sixty-eight cents across 165 round trips. The filter stack
+   is not suppressing an edge — **it is selecting the thin subset where gross happens to
+   exceed a $4–5/trade friction bill.**
+2. **The shipped config's own 90-day result is not statistically distinguishable from
+   zero.** n=58, mean **+$7.96**, sd $32.41, se $4.26 → **t = 1.87**, short of 1.96. Gross
+   is t=2.94 (mean +$12.59), so **whatever edge the ribbon has is smaller than the cost of
+   trading it.** And it is not distributed: **top 1 trade = 18% of net, top 3 = 51%,
+   top 5 = 80%.** Five trades out of 58 are the result.
+3. **It cannot be confirmed live in any useful time — weekly #3, answered.** 64 trades are
+   needed for 95% two-sided significance at this effect size. At the observed live fill
+   rate (~1 trade/week) that is **64 weeks ≈ 1.2 years**; at the current rate (1 trade in
+   9 sessions, ~0.5/week) **127 weeks ≈ 2.4 years**. The weekly expected "years" and the
+   answer is years. **Recorded in `todo.md` for the operator's retire-or-rebuild decision.**
+
+### What worked / what didn't
+- **Worked: capital protection and correctness.** A flat book into a surprise-free but
+  violently two-way FOMC hike session is the right outcome. Gate open all morning, shut
+  through the decision. Broker and DB reconciled exactly. No errors, no warnings in
+  journald, no restarts, no naked exposure.
+- **Worked: IMP-050 paid for itself in one evening.** The sweep the weekly had asked for
+  three weeks running took one shell loop. Building the capability first was correct.
+- **Worked: the discipline.** Two changes that would have shown up as "+27% net" and
+  "2.4x the trades" were measured and rejected on doctrine grounds, and the rejections are
+  the most informative results of the night.
+- **Didn't work: the diagnosis this bot has been operating under.** Three weekly reviews
+  and much of the last month targeted over-filtering. Measured jointly, the filter stack is
+  the only thing keeping the equity curve positive, and the signal underneath it is flat.
+- **Didn't work (unchanged): evidence generation.** One trade in nine sessions. The bot
+  still cannot say anything about itself from live fills; replay remains the only court.
+
+### Lessons & improvement candidates
+1. **🔴 No code change tonight, and this is the substantive outcome rather than a
+   stand-down.** Every candidate tonight's data surfaced is either forbidden (trail
+   widening, threshold tweak), refuted (filter loosening), or already shipped (IMP-049).
+   The doctrine's escalation clause asks for "the honest 'no demonstrated edge' finding …
+   with the numbers attached" in preference to a cosmetic change, and that is what this
+   entry is. Shipping something to look productive tonight would have been the error.
+2. **The next real question is entry *timing*, not entry *filtering* — weekly #2, now the
+   only live hypothesis.** The +1R rate is 14% and invariant to six filter arms and four
+   trail widths. IMP-040's finding (MU bought +2.7% off the open at the 58th percentile of
+   the session range) says the ribbon *confirms moves that have already run*. Frame it as
+   **"does a pullback-based or earlier trigger raise the +1R rate above 14%?"** and measure
+   on the +1R rate, never on net. This is the one axis with no refutation against it.
+3. **The friction bill should be a design input, not a post-hoc deduction.** $4–5/trade
+   against a gross edge of $12.59/trade means **37% of gross**. Any future signal on this
+   watchlist must clear ~0.20% round-trip before it clears anything else; a candidate
+   scoring system that does not price that is measuring the wrong thing.
+4. **Do not re-run the entry-filter sweep.** It is answered on two windows. Re-running it
+   is how the next three weeks get spent.
+
+### Notes for pre-market research
+- **Today was an FOMC hike day and tomorrow is the aftermath — expect the gate to stay
+  unreliable.** The Fed hiked 25bp to 3.75–4.00% with one more signalled this year, the
+  10-year is above 5% and the Dow lost 751 points after being green. **BoJ decides Friday
+  (hike expected) and BoE on 9/17.** A long-only trend bot has no business being confident
+  in this tape; a second flat day would be correct, not broken.
+- **AMD** — the day's only genuinely recoverable candidate (conf 64.32, gate open, 15:24),
+  refused on a 0.129% ATR. It is scoring well and travelling too little. Keep on the board.
+- **INTC** — the highest score of the session (64.63) plus 57.33 and 56.57, and the only
+  name to print `atr_pct` above 0.20% all day (0.213–0.260%). **It is the one name on this
+  watchlist currently supplying the range this exit geometry needs.** Keep.
+- **TSM — 8 refusals, the most of any name today, every one between 38.1 and 49.1.**
+  Constant triggering, nothing near the bar, `atr_pct` 0.031–0.116%. Chronic near-miss
+  noise. (Today only — yesterday's leaderboard was led by SPOT with six, so this is a
+  one-session observation, not a trend.) **Park candidate, on one session's evidence.**
+- **NVDA ×7 (42.1–52.7), META ×6 (47.5–55.0), QQQ ×4 (40.6–42.5), AAPL ×4 (37.2–47.3)** —
+  all well below the bar on every appearance. QQQ is the gate symbol; it scoring 40 on its
+  own ribbon is informative about the tape, not a watchlist problem.
+- **ABNB — 4 refusals at 42.4–51.7, `atr_pct` 0.041–0.096%, fourth consecutive session in
+  this band.** Previously flagged "park would be premature"; it is no longer premature.
+- **Names that produced no scored candidate at all — exactly 6 of the 19 enabled:** DASH,
+  HOOD, LLY, MSFT, NFLX, SPOT. (The 13 that did score: AAPL, ABNB, AMD, INTC, META, MU,
+  NVDA, PLTR, QCOM, QQQ, TSLA, TSM, UBER.) Note **SPOT led yesterday's refusal count with
+  six and produced nothing at all today** — triggering is erratic session to session, which
+  is itself an argument against reading any single day's refusal leaderboard as a park
+  signal. Prefer a multi-session count from `dbo.entry_refusals` before parking anything.
