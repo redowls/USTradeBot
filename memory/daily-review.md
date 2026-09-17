@@ -8378,3 +8378,192 @@ property of the **3-EMA ribbon crossover itself**. Three numbers say it has no e
   six and produced nothing at all today** — triggering is erratic session to session, which
   is itself an argument against reading any single day's refusal leaderboard as a park
   signal. Prefer a multi-session count from `dbo.entry_refusals` before parking anything.
+
+---
+
+## 2026-09-17 — Daily Review
+
+### Stats
+- **2 closed trades** — headline **1W / 1L → 50%**. Net realized **+$8.94**
+  (avg **+$4.47**/trade). Avg win **+$21.35**, avg loss **−$12.41**, **PF 1.72**.
+  **First trades in six sessions** (last fill 09-11).
+- Account **equity $9,185.06**, `last_equity` $9,176.12 → **+$8.94 mark-to-mark, which
+  reconciles to the DB net to the cent.** Broker: **0 positions**, both brackets fully
+  resolved, target legs cancelled. **Clean — no missed fill, no qty drift, no naked
+  overnight.**
+- Service **active** since 2026-09-15 20:11:44 UTC; no errors, no restarts. One benign
+  `data websocket error, restarting connection` at 10:04 UTC (pre-open, auto-recovered,
+  re-subscribed all 19 names).
+- Today ran on **IMP-050** code — replay-only CLI plumbing — so the behavioural config
+  live today was still **IMP-049's**.
+
+### Stop-exit accounting
+- **Today: stop rate 2/2 = 100%.** **WIN 0 · SCRATCH 1 · FAIL 1** (full-stop **0** /
+  break-even-or-scratched-trail **1**). **True win rate 0% vs headline 50%.**
+  Both exits were the ratcheted trail; **neither original 2% bracket stop was ever
+  touched, and no target was reached** (both target legs cancelled unfilled).
+- **Trailing 10 sessions with trades (2026-08-10 → today), 25 closed trades:**
+  **stop rate 19/25 = 76%** · **WIN 1 · SCRATCH 10 · FAIL 14** (full-stop **0** /
+  BE-or-scratched-trail **14**) · **true win rate 4.0% vs headline ~54%** ·
+  **FAIL+SCRATCH 24/25 = 96%.**
+- **Last 3 sessions with trades (09-04, 09-11, 09-17): 4 trades, WIN 0 · SCRATCH 2 ·
+  FAIL 2 → F+S 4/4 = 100%. Escalation remains ACTIVE** (trigger ≥60%). No parameter
+  tweak shipped tonight.
+- **The 2% bracket stop has not fired once in 25 trades.** Every FAIL in the window is a
+  scratched trail. The nominal 1R is a width the bot never actually risks — the operative
+  stop is the 1.25% trail (tightening to 1.00%), i.e. **~0.625R falling to ~0.5R**. This
+  is not an argument to change R: the doctrine's denominator is the recorded bracket stop
+  and it stays. It *is* the reason every give-back below is almost exactly one trail width.
+- **Dominant failure cause: profit capture — and tonight, for the first time, that is a
+  measurement rather than a suspicion.** See the ceiling section.
+
+### Trade-by-trade review
+Both Model A, both long, both entered inside the first 15 minutes of the 10:00 ET entry
+window, both exited on the ratcheted trail, both with `conf_volume = 0.00` — the volume
+sub-score contributed **nothing** to either entry, and both cleared 60 without it.
+
+**INTC — SCRATCH (+$21.35, +0.78%, +0.386R).** Signal 14:15 @ 108.77, filled **108.80**,
+conf **89.04** (xo 0.719 · trend 1.00 · rsi 1.00 · **vol 0.00** · vlt 1.00), stop 106.59
+(1R = 2.21), target 119.65, ATR 0.435%, ribbon spread 0.144%, RSI 59.6. **12 trail moves**
+106.59 → 109.65 over an hour; filled **109.654** at 15:15:58 (+0.004 *positive* slippage).
+**MFE +1.80% (0.887R), MAE −0.04%** — the entry was right within seconds and never
+threatened its stop.
+- **Root cause: entry timing, then profit capture.** INTC had the day's one real catalyst
+  (SK Hynix US memory-fab reporting) and ran **104.70 → 111.37, a 6.4% range**. The bot
+  bought at **108.80 — the 61st percentile of that range**, after **+3.9% had already
+  happened**. It then captured **44% of its own MFE**.
+- **The exit is not the villain here.** INTC closed the day at **108.80 — exactly our
+  entry** — so the trail beat holding to the flatten by 0.78pp. The trail did its job;
+  the entry bought the last third of a move on the one name that actually moved.
+- **It could never have been a WIN.** Peak 0.887R against a +1R line. No trail width, no
+  target, no arming rule reaches +1R on a peak that never got there.
+
+**PLTR — FAIL, scratched trail (−$12.41, −0.54%, −0.263R).** Signal 14:02 @ 176.215,
+filled **176.315**, conf **73.40** (xo 0.318 · trend 1.00 · rsi 1.00 · **vol 0.00** ·
+vlt 1.00), stop 172.69 (1R = 3.63), target 193.84, ATR 0.314%, ribbon spread 0.090%,
+RSI 54.9. **11 trail moves** 172.69 → 175.49; filled **175.3608** at 16:37:20, **0.07%
+through the stop** (−$1.68 of slippage on the exit).
+- **Root cause: entry quality.** Entered at the **70th percentile** of PLTR's 172.61–177.88
+  day range on the weakest crossover of the two (xo 0.318). Peak **+0.79% (0.385R)** —
+  **below the 1.25% trail width**, which makes a green trail exit arithmetically
+  impossible from the moment it was placed. The trail then gave back its one width and
+  the trade closed red. PLTR's day was a round trip (close 176.18 vs open 175.95, +0.13%).
+- Holding to the flatten would have been **−0.08%** against our **−0.54%** — so here the
+  trail *did* cost ~0.46pp. That is the cost of the give-back, not a case for widening it.
+
+### Market context
+- **A dead, rangebound tape that futures had promised would trend.** Overnight S&P
+  futures were **+1.2%**, recouping the post-Fed drop. The cash session did not follow:
+  **QQQ traded 713.32–718.04, a 0.66% range, and closed 716.92 — just +0.14% off its
+  open.** Triple-witching expiry week. This is the environment a long-only momentum
+  ribbon is least able to pay in, and 17 of 19 names produced no trade.
+- Yesterday the Fed hiked **25bp to 3.75–4.00%** (first hike in three years, unanimous,
+  one more signalled); the Dow closed **−631.21 (−1.21%)**, S&P −0.45%, Nasdaq −0.01%,
+  10-year back above 5%. Today was the digestion day and it digested sideways.
+- **INTC was the single exception and the day's only genuine trend**, on the SK Hynix US
+  memory-fab story — the same item this morning's research log flagged as "non-binary".
+  It was binary enough to move the stock 6.4%. **PLTR had no catalyst**: analyst-target
+  and flow noise only, and it round-tripped accordingly.
+- **⚠️ Perplexity `sonar` failed again — `PPLX_EMPTY`, the sixth consecutive failure**
+  (billing exhausted, per this morning's research log: HTTP 401 `insufficient_quota`).
+  WebSearch answered in two calls. **The routine prompt still says to call Perplexity
+  first; that instruction has now been wrong six times running. Top up the plan or make
+  WebSearch the written default** — this is a standing cost, not a transient.
+
+### The ceiling — IMP-051, and a correction to yesterday's verdict
+Yesterday's entry concluded from the filter-stack sweep that **"the exit structure is not
+what is capping this strategy"**, inferred from the WIN count sitting at exactly 8 across
+six leave-one-out filter arms and four trail widths. **That inference was untested, and
+tonight it is measured and partly wrong.**
+
+The doctrine's WIN line is **+1R**, so the share of entries whose peak ever *prints* +1R
+is a hard ceiling on the true win rate — a trade that never gets there cannot be rescued
+by any exit rule. `bot/excursion.py` has computed that ladder for the live book since
+IMP-042, but the live book supplies six usable rows. **IMP-051 wires the same ladder to
+the replay harness.** Baseline, friction on, shipped config, both windows:
+
+| window | trades | true WR | **ceiling (+1R reached)** | **exit-recoverable** | entry-limited |
+|---|---|---|---|---|---|
+| **90d** | 60 | 13.3% | **23.3% (14/60)** | **10.0pp** | 76.7% |
+| **45d** | 24 | 12.5% | **20.8% (5/24)** | **8.3pp** | 79.2% |
+
+**Both windows agree, and the reading cuts both ways:**
+1. **The entry signal is still the dominant cap, and yesterday was right about that.**
+   **77–79% of entries never print +1R at all.** No exit change touches them. The ribbon
+   buys moves with nowhere left to go — today's INTC (0.887R peak) and PLTR (0.385R peak)
+   are both in that majority.
+2. **🔴 But the exits are NOT innocent: 6 of the 14 entries that reached +1R on 90d were
+   given back** (2 of 5 on 45d). **~40% of the achievable WINs are lost after the trade
+   is already right.** That is a real, replicated, previously invisible loss, and
+   "the exit structure is not what is capping this strategy" overstated the case.
+3. **The instrument that would bank a +1R print does not exist on this bot.** `TAKE_PROFIT`
+   is **10%** — unreachable intraday, and the exit-reason table proves it: **zero target
+   fills in 60 trades** across three buckets (`trailing stop` n=22 **−$99.52**,
+   `end-of-day flatten (trailing stop)` n=26 +$169.58, `end-of-day flatten` n=12 +$393.11).
+   The bot has a stop and a clock. **The pure trailing-stop bucket is the only losing one.**
+
+**This is a candidate, not a change, and it is explicitly NOT shipped tonight** — the
+escalation clause forbids parameter tweaks and this needs its own validation run. It is
+handed to the weekly with a warning attached: **a target at ~+1R would be scored WIN by
+the doctrine's first clause, so it would inflate the WIN count partly by relabelling.**
+It is not *pure* relabelling — the ladder proves those trades genuinely reached +1R in
+price, so banking them captures measured travel rather than redefining the line — but the
+honest test is **expectancy and payoff**, and the WIN count must be read beside the
+ceiling, never alone. Third exit axis; the first two (trail arming, trail width) are
+closed.
+
+### What worked / what didn't
+- **Worked: capital protection, reconciliation, and the machinery.** Two trades, both
+  fully bracketed, both exits reconciled broker-side, DB and Alpaca agree to the cent,
+  flat into the close, no errors. The trail ratcheted 23 times across the two positions
+  without a single 422 or orphaned leg.
+- **Worked: the trail on INTC.** It banked +0.78% on a name that closed exactly at our
+  entry. Measured against the realistic alternative, that exit was correct.
+- **Worked: IMP-051 answered in one evening a question two nights of sweeps could only
+  infer** — and it corrected a conclusion written yesterday rather than confirming it.
+- **Didn't work: entry timing, again, and now on the best possible test case.** INTC was
+  a 6.4% trending day with a real catalyst — the exact tape this strategy is supposed to
+  exist for — and the bot bought the 61st percentile and kept 0.78%. PLTR: 70th
+  percentile, kept nothing. **Two more points on the IMP-040 line; this is now the
+  hypothesis with the most evidence behind it and no refutation against it.**
+- **Didn't work: the volume sub-score.** `conf_volume = 0.00` on both entries. Both
+  cleared the threshold anyway. A term that scores zero on 100% of the day's fills is
+  either miscalibrated or not doing work — worth a look, not tonight.
+
+### Lessons & improvement candidates
+1. **🔴 A reachable profit target is now the best-evidenced exit candidate on this bot** —
+   ~40% of achievable WINs are handed back and `TAKE_PROFIT=10%` has never once filled in
+   60 trades. Must be validated on **expectancy and payoff**, reported beside the ceiling,
+   on ≥3 windows. **Weekly's call, not a daily tweak.**
+2. **Entry timing stays the #1 structural hypothesis** and today added two clean
+   confirmations at the 61st and 70th percentile of the session range. **IMP-051 now makes
+   it measurable on the correct axis**: any earlier/pullback trigger must be judged on
+   whether it **raises the ceiling**, not on net. If the ceiling does not move, the trigger
+   does not work, whatever the P&L says.
+3. **Do not widen the trail.** Tonight's numbers will tempt it again (the pure trailing-stop
+   bucket is −$99.52). Yesterday measured widening as pure relabelling — stop rate 79%→75%
+   bought with full stops 2→5 and F+S unmoved. Refuted; leave it.
+4. **The volume sub-score scored 0.00 on both of today's fills.** Cheap to audit against
+   `dbo.entry_refusals`; may be a dead 15 points.
+
+### Notes for pre-market research
+- **INTC — keep, and it is now the strongest name on the board by a distance.** It
+  supplied the day's only real trend (104.70 → 111.37, **6.4% range**, ATR 0.435% — the
+  highest of the two traded names), traded a real catalyst, and was the only name to give
+  the bot a near-1R excursion. Flagged "the one name supplying the range this exit geometry
+  needs" on 09-16 and it delivered exactly that. **Note the catalyst is live and
+  developing** (SK Hynix US memory-fab talks) — expect follow-through or a fade, not quiet.
+- **PLTR — keep, but it round-tripped** (172.61 → 177.88 → close 176.18, **+0.13% on the
+  day**) and the bot bought its 70th percentile on the weaker crossover of the two. No
+  catalyst; analyst-target and flow noise only (UBS PT to $250, Burry put disclosure).
+  Chop risk, not a park candidate.
+- **The tape itself is the warning: QQQ ranged 0.66% and closed +0.14% off its open**, the
+  day after a Fed hike and into triple-witching expiry. **17 of 19 enabled names produced
+  no trade, and that was correct.** A second quiet day tomorrow would not be a fault.
+- **AMD** — carried from 09-16 as the best scoring-but-not-travelling name; no trade again
+  today. Still on the board, still worth watching for the session it finally supplies range.
+- **Refusals ran below 60 all day** (MSFT 49.9, QQQ 46.0/43.6/42.2, TSM 53.0, AMD 53.8/55.9,
+  NVDA 49.1, LLY 40.0, QCOM 50.9, META 43.6/40.3, HOOD 54.4, INTC 56.5). **Nothing came
+  near the bar after 15:00 UTC** — consistent with a tape that stopped moving by mid-session.
+- **Do not read today's 50% headline win rate as a good day.** True win rate was **0%**,
+  both trades were stop-driven, and the book is 1 WIN in 25 trades over ten sessions.
