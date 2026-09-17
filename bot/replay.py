@@ -41,6 +41,18 @@ book was scored honestly (IMP-039) and the backtest was not, so a config could l
 like a 62% winner here and a 12% winner there on identical trade quality. Reading
 both numbers off one summary is what stops that happening again.
 
+Ceiling (IMP-051): the summary also reports the **MFE ladder in R** — the share of
+entries that ever printed +1R while they were held. The doctrine's WIN line is +1R, so
+a trade whose peak never reaches it cannot be scored a WIN by *any* exit rule; that
+share is therefore a hard ceiling on the true win rate, and the gap between it and the
+realized true win rate is the only part an exit change could recover. The 09-16
+filter-stack sweep found the WIN count frozen at 8 across six leave-one-out arms and
+four trail widths without ever measuring whether the *ceiling* was frozen too — so
+"the entry signal is the cap" was an inference, not a measurement. The arithmetic and
+the table are :mod:`bot.excursion`'s, already used by ``bot.report --mfe`` on the live
+book; this wires the same ladder to the 90-day window, because six live trades carry
+no MFE distribution worth reading.
+
 Usage::
 
     python -m bot.replay --days 30 [--symbols AAPL,MSFT,...] [--entry-start 09:30]
@@ -54,14 +66,16 @@ from __future__ import annotations
 import argparse
 import logging
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from bot.candles import Candle
 from bot.config import Config
-from bot.doctrine import format_stop_exits
+from bot.doctrine import format_stop_exits, risk_per_share
 from bot.doctrine import summarize as summarize_stop_exits
 from bot.doctrine import verdicts_for
+from bot.excursion import ceiling_table, compute_excursion, format_ceiling
 from bot.executor import ExecutionResult, StopOrderGone
 from bot.risk import RiskManager
 from bot.sizing import plan_model_a, plan_model_b
@@ -104,6 +118,30 @@ class SimTrade:
     # so `gross_pnl` can invert it exactly instead of the broker keeping a parallel
     # ledger of pre-slippage prices that a mis-ordered exit path could desynchronise.
     slippage: float = 0.0
+    # Running high/low of the bars seen while this position was held (IMP-051), i.e.
+    # its favourable and adverse excursion in price. `None` until a bar is observed;
+    # rows that never see one are dropped from the ladder rather than scored as flat,
+    # exactly as `bot.excursion` drops a trade whose holding window returned no bars.
+    mfe_price: float | None = None
+    mae_price: float | None = None
+
+    def observe(self, high: float, low: float) -> None:
+        """Fold one held bar's range into the excursion high-water marks."""
+        self.mfe_price = high if self.mfe_price is None else max(self.mfe_price, high)
+        self.mae_price = low if self.mae_price is None else min(self.mae_price, low)
+
+    @property
+    def excursion_bar(self) -> tuple[float, float] | None:
+        """The holding window reduced to one ``(high, low)`` pair, or ``None``.
+
+        :func:`bot.excursion.compute_excursion` takes a sequence of bar extremes and
+        reduces it to max-high/min-low; handing it the already-reduced pair reuses that
+        module's clamping and R arithmetic verbatim instead of restating it here, so
+        the replay ladder and the live one cannot drift apart.
+        """
+        if self.mfe_price is None or self.mae_price is None:
+            return None
+        return (self.mfe_price, self.mae_price)
 
     @property
     def pnl(self) -> float:
@@ -303,6 +341,14 @@ class SimBroker:
         live = self._live.get(candle.symbol)
         if live is None or candle.start <= live.entry_time:
             return  # a position cannot be stopped on its own entry bar
+        # Excursion is measured over the same bars the position could actually have been
+        # exited on — from the bar after entry through the bar that fills a leg. The
+        # entry bar is excluded deliberately: the trade is filled at that bar's close, so
+        # crediting its high would count travel that happened before we owned the shares.
+        # That is the IMP-046 lookahead, and the ceiling is precisely the number it would
+        # inflate. The live ladder, which fetches [entry_time, exit_time], includes it —
+        # so replay's ceiling is the conservative one of the two.
+        live.observe(candle.high, candle.low)
         stop_oid = next(
             (k for k, s in self._stop_owner.items() if s == candle.symbol and k in self._stop_price),
             None,
@@ -537,10 +583,49 @@ def summarize(broker: SimBroker, equity0: float, *, stop_loss: float | None = No
         f"⚠️ FAIL+SCRATCH: {stops.fails + stops.scratches}/{stops.trades} "
         f"({stops.fail_scratch_rate * 100:.0f}%)"
     )
+    # The ceiling (IMP-051). F+S says how many trades failed; the ladder says how many
+    # could ever have succeeded. Printed directly under F+S because the pair is the
+    # whole diagnosis: a low ceiling means the entry never travels far enough and no
+    # exit tuning can help, while a ceiling well above the realized true win rate means
+    # the travel was there and the exits gave it back.
+    lines.append(_format_ceiling_block(T, stop_loss, stops.true_win_rate))
     lines.append("exit reasons:")
     lines += [f"  {k:<52} n={c:>3} net={p:>+9.2f}"
               for k, (c, p) in sorted(by.items(), key=lambda kv: kv[1][1])]
     return "\n".join(lines)
+
+
+def _format_ceiling_block(
+    trades: Sequence[SimTrade], stop_loss: float, true_win_rate: float
+) -> str:
+    """Render the MFE-in-R ladder for a replayed book. Pure apart from its inputs.
+
+    Trades with no observed bar are skipped rather than defaulted: a same-bar round
+    trip has no measurable excursion, and scoring it as a 0R peak would drag the
+    ceiling down with rows that were never measured.
+    """
+    excursions = []
+    for t in trades:
+        bar = t.excursion_bar
+        if bar is None or t.exit_price is None:
+            continue
+        e = compute_excursion(
+            t.symbol,
+            t.entry_price,
+            t.exit_price,
+            t.pnl,
+            [bar],
+            risk_per_share(t.entry_price, t.stop_price, stop_loss),
+        )
+        if e is not None:
+            excursions.append(e)
+    if not excursions:
+        return "  MFE ladder in R — unavailable (no bar observed while a position was open)."
+    skipped = len(trades) - len(excursions)
+    block = format_ceiling(ceiling_table(excursions), true_win_rate)
+    if skipped:
+        block += f"\n  ({skipped} trade(s) skipped — closed without an observed bar)"
+    return block
 
 
 def resolve_symbols(cfg: Config, explicit: str = "") -> tuple[list[str], str]:

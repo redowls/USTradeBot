@@ -4187,3 +4187,96 @@ tweaks and asks for structural work and evidence instead.
   08-27, **64.5% were refused into a closed gate**, and lowering `ENTRY_THRESHOLD` from 60 to
   45 admits **zero** additional trades while the floors are on. **The escalated threshold
   renormalisation is close to a no-op; the gate is the first axis that matters.**
+
+---
+
+## IMP-051 — 2026-09-17 (daily) — the replay harness reports the +1R ceiling
+
+**`bot/replay.py`, `tests/test_replay.py`.** **Measurement change only** — no trading-path
+file touched, no config key added, no constant fitted. `bot/replay.py` is a CLI module that
+nothing in the service imports (verified), so the running bot's behaviour is byte-identical
+before and after.
+
+### The problem
+The doctrine's WIN line is **+1R**. A trade whose peak never prints +1R **cannot be scored
+a WIN by any exit rule** — so the share of entries that reach it is a hard ceiling on the
+true win rate, and the gap between that ceiling and the realized true win rate is the only
+part an exit change could ever recover. `bot/excursion.py` has computed exactly that ladder
+since IMP-042, but only for the **live book**, which currently supplies **six** rows with a
+usable MFE. Six trades carry no distribution worth reading.
+
+So every exit verdict this bot has reached was decided without it. The **09-16** filter-stack
+sweep observed the WIN count frozen at **8** across six leave-one-out filter arms and four
+trail widths, and concluded *"the exit structure is not what is capping this strategy"* and
+*"the +1R rate is a property of the 3-EMA ribbon crossover itself."* Both were **inferences
+from a frozen count, not measurements of the ceiling** — the sweep never asked how many
+entries reached +1R and were then given back, because the harness could not answer.
+
+Today's INTC is the live case that forced the issue: entry 108.80, stop 106.59, **peak
+110.76 (+1.80%, 0.887R)**, trailed out at 109.654 for **+0.386R**. The doctrine scores it
+**SCRATCH**, which reads like an exit that gave a winner back. It was not: the peak never
+reached +1R, and **no trail width, arming rule or target could have made it a WIN.** Without
+the ladder beside it, that trade is misdiagnosed as a profit-capture failure and would have
+pointed the next change at the exits.
+
+### The change
+1. **`SimTrade` records its excursion.** New `mfe_price` / `mae_price`, folded by
+   `observe(high, low)`; `excursion_bar` reduces the holding window to the one `(high, low)`
+   pair `bot.excursion.compute_excursion` already takes. The arithmetic is **reused, not
+   restated**, so the replay ladder and the live ladder cannot drift apart.
+2. **`SimBroker.on_bar` folds every held bar** — from the bar after entry through the bar
+   that fills a leg. **The entry bar is deliberately excluded**: the fill is that bar's
+   close, so crediting its high counts travel we did not own. That is the IMP-046 lookahead,
+   and the ceiling is precisely the number it would inflate. The live ladder fetches
+   `[entry_time, exit_time]` and *includes* the entry bar, so **replay's ceiling is the
+   conservative of the two** — noted so the two are never read as identical measurements.
+3. **`summarize()` prints the ladder** directly under the F+S line, via the existing
+   `ceiling_table` / `format_ceiling`. Trades with no observed bar (same-bar round trips)
+   are **dropped and counted**, never scored as a 0R peak — a fabricated zero would drag
+   the ceiling down with rows that were never measured.
+
+### Validation — 566 tests pass (561 before; 5 added)
+Five new tests in `tests/test_replay.py`: excursion folds every held bar; the entry bar is
+excluded; an unobserved trade is dropped from the ladder rather than defaulted; a +1R print
+is counted; and **`test_todays_intc_is_a_ceiling_failure_not_an_exit_failure`** — today's
+real trade, seeded from the **signal** price 108.77 so the harness derives the live
+bracket's 106.59 stop to the cent, asserting the doctrine says SCRATCH **and** the ladder
+says `CEILING: 0.0%` on the same summary. The failure that motivated the change is now a
+regression test.
+
+### The finding — and a correction to the 09-16 verdict
+Baseline, friction on, shipped config, **two windows**:
+
+| window | trades | true WR | **ceiling (+1R reached)** | **exit-recoverable** | entry-limited |
+|---|---|---|---|---|---|
+| **90d** | 60 | 13.3% | **23.3% (14/60)** | **10.0pp** | 76.7% |
+| **45d** | 24 | 12.5% | **20.8% (5/24)** | **8.3pp** | 79.2% |
+
+1. **09-16 was right that the entry is the dominant cap** — **77–79% of entries never print
+   +1R at all**, and nothing done to the exits touches them.
+2. **🔴 09-16 overstated it.** *"The exit structure is not what is capping this strategy"*
+   is **refuted as written**: **6 of the 14 entries that reached +1R on 90d were given
+   back** (2 of 5 on 45d). **~40% of the achievable WINs are lost after the trade is
+   already right.** Replicated on both windows.
+3. **The instrument that would bank a +1R print does not exist here.** `TAKE_PROFIT` is
+   **10%**, and the exit-reason table confirms **zero target fills in 60 trades**:
+   `trailing stop` n=22 **−$99.52** (the only losing bucket), `end-of-day flatten
+   (trailing stop)` n=26 +$169.58, `end-of-day flatten` n=12 +$393.11. The bot has a stop
+   and a clock.
+
+### What this does NOT license
+- **No config shipped tonight.** The escalation clause (F+S 4/4 = 100% over the last three
+  sessions with trades) forbids parameter tweaks, and a reachable target needs its own
+  multi-window validation. **Handed to the weekly as a proposal with numbers attached.**
+- **A target near +1R would be scored WIN by the doctrine's first clause**, so it would
+  raise the WIN count **partly by relabelling**. It is not *pure* relabelling — the ladder
+  proves the travel was real — but the honest test is **expectancy and payoff**, with the
+  WIN count read beside the ceiling and never alone. Recorded here so the next run cannot
+  mistake a relabel for an edge.
+- **Still not a reason to widen the trail.** 09-16 measured that as relabelling (stop rate
+  79%→75% bought with full stops 2→5, F+S unmoved). Unchanged.
+
+### The rule this establishes
+**Any future entry-trigger change is judged on whether it raises the ceiling, not on net.**
+If an earlier or pullback-based trigger does not move the +1R share, it does not work,
+whatever its P&L says on one window.

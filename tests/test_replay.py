@@ -440,6 +440,98 @@ def test_summary_money_figures_are_untouched_by_the_doctrine(broker):
     assert "exit reasons:" in out  # the per-reason table still follows the block
 
 
+# --- the ceiling: how far the entry ran, in R (IMP-051) --------------------
+#
+# The doctrine's WIN line is +1R, so the share of entries whose peak ever reaches it
+# bounds the true win rate from above no matter what the exits do. The 09-16 sweep
+# read a frozen WIN count across ten arms as "the entry signal is the cap" without
+# ever measuring the ceiling itself. These pin the measurement: excursion is folded
+# from held bars only, the entry bar is excluded, and unobserved rows are dropped
+# rather than scored as flat.
+
+
+def _held(broker, symbol, entry, bars, exit_px, reason, *, conf=75.0):
+    """Open a trade, walk it through `bars` of (high, low), then close it."""
+    broker.now = _T0
+    broker.execute(symbol=symbol, entry_price=entry, confidence=conf)
+    for i, (high, low) in enumerate(bars, start=1):
+        ts = _T0 + timedelta(minutes=i)
+        broker.now = ts
+        broker.on_bar(_bar((high + low) / 2, high=high, low=low, ts=ts, symbol=symbol))
+    broker.now = _T0 + timedelta(minutes=len(bars) + 1)
+    broker.book_exit(symbol, exit_px, reason)
+
+
+def test_excursion_folds_the_high_and_low_of_every_held_bar(broker):
+    _held(broker, "NFLX", 100.0, [(101.0, 99.5), (103.0, 100.5), (102.0, 98.0)],
+          102.0, "trailing stop")
+
+    t = broker.trades[0]
+    assert t.mfe_price == pytest.approx(103.0)
+    assert t.mae_price == pytest.approx(98.0)
+    assert t.excursion_bar == (pytest.approx(103.0), pytest.approx(98.0))
+
+
+def test_excursion_excludes_the_entry_bar(broker):
+    """The fill is the entry bar's close, so its high is travel we did not own.
+
+    Counting it is the IMP-046 lookahead, and the ceiling is the exact number it
+    would inflate — a trade whose only spike was on its own entry bar would be
+    credited with reaching +1R it never had a chance to capture.
+    """
+    broker.now = _T0
+    broker.execute(symbol="NFLX", entry_price=100.0, confidence=75.0)
+    broker.on_bar(_bar(100.0, high=109.0, low=100.0, ts=_T0))  # the entry bar itself
+
+    assert broker._live["NFLX"].excursion_bar is None
+
+
+def test_a_trade_with_no_observed_bar_is_dropped_from_the_ladder(broker):
+    """A same-bar round trip has no measurable excursion; 0R would be a fabrication."""
+    _closed(broker, "NFLX", 100.0, 101.4, "trailing stop")
+
+    out = summarize(broker, 10_000.0, stop_loss=0.02)
+
+    assert "MFE ladder in R — unavailable" in out
+    assert "true win rate: 0%" in out  # the doctrine block is unaffected by the drop
+
+
+def test_ceiling_counts_an_entry_that_printed_1r(broker):
+    _held(broker, "NFLX", 100.0, [(102.5, 99.9)], 101.0, "trailing stop")
+
+    out = summarize(broker, 10_000.0, stop_loss=0.02)
+
+    assert "1/1" in out and "100.0%" in out
+    assert "CEILING: 100.0% of entries ever print +1R" in out
+
+
+def test_todays_intc_is_a_ceiling_failure_not_an_exit_failure(broker):
+    """Regression on the live 2026-09-17 INTC trade — the reason IMP-051 exists.
+
+    Signalled at 108.77 and filled 108.80 on a 106.59 bracket stop, peak 110.76
+    (+1.80%), trailed out at 109.654. The doctrine scores it SCRATCH at +0.39R, which
+    reads like the exits gave a winner back. The ladder says its peak reached only
+    ~0.89R: it was never a WIN under any exit rule, and no trail width could have made
+    it one. The two numbers must appear together or the trade is misdiagnosed.
+
+    Seeded from the *signal* price, which is what the live bracket priced its stop off
+    — that reproduces the real 106.59 stop, and with it the real R, to the cent.
+    """
+    _held(broker, "INTC", 108.77, [(110.76, 108.76)], 109.654, "trailing stop")
+
+    t = broker.trades[0]
+    assert t.stop_price == pytest.approx(106.59, abs=0.01)  # the live bracket's stop
+    mfe_r = (t.mfe_price - t.entry_price) / (t.entry_price - t.stop_price)
+    assert 0.8 < mfe_r < 1.0  # ran a long way, never reached the WIN line
+
+    out = summarize(broker, 10_000.0, stop_loss=0.02)
+
+    assert "SCRATCH 1" in out          # the doctrine's verdict on the exit
+    assert "WIN 0" in out
+    assert "CEILING: 0.0% of entries ever print +1R" in out   # ...and on the entry
+    assert "0.0pp is exit-recoverable" in out
+
+
 # --- friction: the harness pays a spread (IMP-044) -------------------------
 #
 # Pre-registered by the 2026-09-04 weekly as its #2, with a falsifiable prediction
