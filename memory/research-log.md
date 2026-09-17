@@ -7806,3 +7806,327 @@ deploy with ZERO warnings and ZERO errors**. Account **ACTIVE** ($9,176.12), **0
    park clocks (DASH 09-23, LLY/UBER 09-21). **META is the notable exception — best trend on the board
    (+12.59 / +10.98, +17.11% over 10d) and one of only two names ever to post a non-zero `conf_volatility`** —
    so "never traded" is not, by itself, a park argument. Worth a policy sentence in the weekly.
+
+---
+
+## 2026-09-17 — Pre-market Research
+
+**The daily review handed up one park candidate (TSM) and prescribed the test that would confirm it. I ran the
+test and it REFUTES the candidate.** No membership change; two note-only metadata updates. Book is CLEAN &
+FLAT (broker-confirmed **0 positions / 0 open orders**, equity **$9,176.12**, `last_equity` == `equity` → no
+overnight marks) → **nothing locked**. **19 enabled, unchanged.** Service NOT restarted (enabled set
+byte-identical; reason verified in source, below).
+
+### Market context
+**Risk-on recovery the day after the first Fed hike in three years.** Futures higher into the open: **Nasdaq 100
++0.5% → +1.05%, S&P 500 +0.3% → +0.82%, Dow +0.2%** (the later reads are the stronger ones). Yesterday the Fed
+hiked **25bp to 3.75–4.00%** unanimously and signalled one more this year; stocks were green until Warsh's
+presser repeatedly flagged that inflation risk "wasn't improving", and reversed — **Dow −631.21 (−1.21%) to
+51,461.90, S&P −0.45% to 7,551.81, Nasdaq Composite −0.01% to 25,978.42**, with the **10-year back above 5%**.
+August retail sales came in hot (**+1.2% vs +0.8% consensus**, ex-autos +1.4%), which is part of why the long
+end is unhappy.
+
+- **Today's releases, all pre-open or low-impact:** Philly Fed Manufacturing (7:30 ET, **forecast 31.3 vs 47.4
+  prior** — a large expected deceleration), initial jobless claims (206k prior), building permits (1.400M f/c),
+  Atlanta Fed GDPNow 9:00 ET, **10-year TIPS auction 12:00 ET** (the one item inside the entry window, and a
+  rates event rather than an equity one). **Bank of England decides today, expected on hold; BoJ 17–18 Sep,
+  hike expected.**
+- **🟢 No earnings on any enabled name today — double-sourced.** Kiplinger and EarningsWhispers both show
+  **no noteworthy reports before OR after the close** today (IPHA pre-open is the only print, not ours).
+  Cross-checked against the Alpaca news feed for all 19 names over the last 26h: **no earnings, no guidance
+  changes, no halts, no downgrades, no M&A on any enabled symbol.**
+- **⚠️ Sentiment is washed out, which cuts both ways for a long-only trend bot:** AAII bull-bear spread
+  **−24.6% vs −1.3%** the prior week (bulls 38% → 28.8%, bears 39.3% → 53.3%). Historically supportive at
+  extremes; near-term it means the tape is jumpy. Detrick's note that stocks are higher 72.7% of the time
+  during 5+-hike cycles is context, not a signal.
+- **Name-level items, all non-binary:** **INTC** — SK Hynix/Ohio memory-fab talks re-reported and updated
+  overnight, plus an analyst PT raise on the "Terafab" AI turnaround (Goldman had initiated Neutral, PT $150);
+  **MU** — **+1.7% pre-market on market beta, explicitly no company catalyst**, plus an India assembly/test
+  expansion story (Sanand, Gujarat, "hundreds of billions" of chips next year); **TSLA** — SpaceX-merger
+  chatter and a trademark suit over the "Terafab" name; **NVDA/META/AMD** — AI-policy noise (Sanders on AI
+  PAC spending, White House split on AI regulation); **NFLX** — content-chief remarks on YouTube; **LLY** —
+  Twist Bioscience joins the TuneLab ecosystem. **None of these is tradeable information for this strategy.**
+
+### ⚠️ Perplexity: FIFTH consecutive failure, same cause — unchanged and now purely a cost
+`sonar` returned **HTTP 401 `insufficient_quota`** again (09-14 pre-market, 09-14 daily, 09-15 pre-market,
+09-16 pre-market, today). Key present and well-formed; **billing exhausted**. Fell back to WebSearch per the
+routine's own rule and did not block the run — WebSearch answered the whole briefing in three calls. **I have
+nothing to add to yesterday's framing beyond the increment: the routine prompt still instructs "do this FIRST",
+and that instruction has now been wrong five times running.** Top up the plan or make WebSearch-first the
+written default.
+
+### Carried from daily review (09-16) — every item discharged
+- **"TSM — 8 refusals, the most of any name today… Chronic near-miss noise. Park candidate, on one session's
+  evidence,"** qualified by **"Prefer a multi-session count from `dbo.entry_refusals` before parking
+  anything."** → **RAN THE PRESCRIBED TEST. The candidate is REFUTED. See Decision 1.**
+- **"AMD — the day's only genuinely recoverable candidate… Keep on the board."** → **Kept, and the case is now
+  much stronger than "recoverable".** AMD is one of only **two names on the board that have ever posted
+  `conf_volatility = 1.000`** (see the cohort table). Technically repaired further: **+6.26 / +3.53** vs its
+  MAs, ATR 3.93%, **100%** of 20 sessions ≥2%, $7.96B/day.
+- **"INTC — the one name on this watchlist currently supplying the range this exit geometry needs. Keep."** →
+  **Kept, and yesterday's pre-market call paid off exactly as written.** The log predicted "at +5.33% from
+  $97.14 (~$102.3) INTC would re-take its 50-day on the open". It closed **101.05, +4.03% on the day**, and is
+  now **+7.22% vs 20MA and +3.96% vs 50MA** — the leg that was in question is retired on merit, not on a
+  technicality. It is also the **best-scoring name on the board over 14 days** (below).
+- **"ABNB — fourth consecutive session in this band… it is no longer premature [to park]."** → **Logged and
+  note-updated, deliberately NOT acted on — its dated test is 09-23, four sessions away.** See Decision 2.
+- **"NVDA ×7, META ×6, QQQ ×4, AAPL ×4 — all well below the bar."** → Confirmed in-band over 14 days and
+  **partially corrected**: META's 14-day max confidence is **81.1**, the second-highest on the board, so its
+  09-16 appearances were not representative. QQQ scoring 40 on its own ribbon remains informative about the
+  tape, not a watchlist problem.
+- **"Names that produced no scored candidate at all — DASH, HOOD, LLY, MSFT, NFLX, SPOT… triggering is erratic
+  session to session, which is itself an argument against reading any single day's refusal leaderboard as a
+  park signal."** → **Endorsed, and this is the sentence that governed today's decisions.** Over 14 days
+  **every one of the 19 enabled names has generated at least one scored refusal** — the zero-contribution set
+  is a per-session artefact and does not survive aggregation. Recorded as a standing caution.
+- **Daily ask #2 — the stale `WATCHLIST` fallback — is STILL OPEN.** Verified by hand again: `.env` still reads
+  **`WATCHLIST=NFLX,BIRD,WPM`** and **BIRD is a ~$2.44 microcap**. **Fourth consecutive flag.** `.env` verified
+  untouched — **`ustradebot:ustradebot`, mode 600**. Not fixable from this routine.
+
+### Watchlist review
+All 19 re-verified on Alpaca this morning: **`tradable: true`, `status: active` — 19/19.** No halts, no sub-$5
+names. **IREN pre-verified too (tradable + active) so tomorrow's dated re-screen is a decision, not a lookup.**
+Technicals from **09-16 SIP daily bars** (note: `/v2/stocks/{sym}/bars` silently returns **zero bars without an
+explicit `start=` param** — it does not error; worth remembering, it cost a cycle this morning):
+
+| | close | 20MA | 50MA | ATR% | medRng | ≥2% | $vol/d | 10d | 1d |
+|---|---|---|---|---|---|---|---|---|---|
+| **META** | 673.31 | **+11.88** | **+11.27** | 3.17 | 2.85 | 70% | $9.85B | **+16.38** | +0.46 |
+| **QCOM** | 184.84 | **+8.68** | **+9.54** | 4.29 | 3.20 | 95% | $1.76B | **+10.94** | −1.58 |
+| **INTC** | 101.05 | **+7.22** | **+3.96** | **5.18** | 4.11 | 100% | $8.36B | **+13.58** | **+4.03** |
+| **AMD** | 512.50 | **+6.26** | +3.53 | 3.93 | 3.34 | 100% | $7.96B | **+11.51** | +1.65 |
+| **AAPL** | 332.41 | +3.75 | +4.12 | 2.31 | 2.08 | 55% | **$12.58B** | +2.24 | +0.32 |
+| **SPOT** | 547.43 | +1.13 | +7.03 | 3.57 | 3.11 | 95% | **$0.78B** | +0.60 | −1.94 |
+| **TSLA** | 358.08 | +0.05 | +1.83 | 3.92 | 2.99 | 95% | $11.91B | +0.56 | +0.42 |
+| **TSM** | 417.72 | −0.70 | +0.04 | 2.42 | 2.14 | 60% | $3.74B | +0.90 | +0.96 |
+| **PLTR** | 174.34 | −0.75 | **+11.47** | 4.17 | 4.08 | 90% | $4.86B | −3.10 | +1.03 |
+| **QQQ** | 704.72 | −1.12 | −0.73 | **1.17** | **0.91** | **0%** | $22.83B | −0.41 | +0.03 |
+| **MSFT** | 490.30 | −1.19 | +6.54 | 2.17 | **1.79** | **40%** | $9.65B | −2.14 | −1.37 |
+| **NVDA** | 213.90 | −2.11 | +0.15 | 3.53 | 2.20 | 60% | **$26.98B** | −1.63 | +0.82 |
+| **MU** | 926.55 | −3.03 | +0.04 | 4.65 | 3.66 | 100% | **$23.86B** | −0.74 | −0.11 |
+| **LLY** | 1137.82 | −3.11 | −3.57 | 2.22 | 2.31 | 60% | $2.79B | −1.91 | +0.15 |
+| **NFLX** | 76.41 | **−3.98** | +0.81 | 2.96 | 2.35 | 55% | $2.08B | −5.44 | −1.91 |
+| **HOOD** | 104.42 | **−4.51** | +1.23 | **6.50** | 5.63 | 100% | $2.32B | +0.88 | **−5.46** |
+| **UBER** | 70.97 | **−6.11** | −3.84 | 3.22 | 2.72 | 80% | $1.14B | −5.68 | −0.64 |
+| **ABNB** | 167.51 | **−7.09** | +0.81 | 2.97 | 2.38 | 60% | **$0.81B** | −8.24 | −0.48 |
+| **DASH** | 196.76 | **−9.55** | −4.14 | 3.80 | 3.05 | 95% | **$0.80B** | **−12.81** | −0.76 |
+
+**Reference: SPY 754.05 (−1.39 / −0.68) · SMH 545.56 (−2.11 / −3.63) · IWM 283.92 (−3.42 / −3.94) ·
+DIA 515.22 (−2.68 / −2.55) · IREN 42.62 (+2.46 / +5.83).**
+
+- **🟢 The chip complex keeps repairing, and it is now the only leadership on the tape.** INTC **+7.22/+3.96**,
+  AMD **+6.26/+3.53**, QCOM **+8.68/+9.54**, META **+11.88/+11.27**. Against that, **breadth is poor**: SPY
+  −1.39/−0.68, **IWM −3.42/−3.94**, DIA −2.68/−2.55 — small caps and the Dow are both below both MAs while four
+  of our names are 6–12% above theirs. **SMH is still −2.11/−3.63**, so this is name-level, not sector-level.
+  A long-only ribbon bot on a narrow tape is exactly the condition where the QQQ gate earns its keep.
+- **🔴 HOOD took a −5.46% session on a genuine legal headline.** The US Attorney's Office brought **criminal
+  fraud charges against two Robinhood engineers** for front-running the platform's own crypto-futures listings,
+  and the **Clarity Act failed its Senate cloture vote on 09-15**. **Judged NOT a park trigger:** the charges
+  are against **two individuals, not the company**; there is no halt, no guidance change, and no regulatory
+  action against HOOD itself; and the sell-side went the other way into it (**Deutsche Bank $136 → $138 Buy,
+  Piper Sandler $135 → $145 Overweight**). HOOD is **still +1.23% above its 50MA** with the **highest ATR on
+  the board (6.50%)**. Its dated tests are 10-12/10-13 and I am not pulling them forward on a one-day drop
+  with an intact structure. **Recorded as an open overhang, on the clock it already has.**
+- **🔴 NFLX's 20-day break has deepened** (−2.19 → **−3.98**) and it is now only **+0.81%** above its 50MA.
+  **Its 10-15 dead-signal test needs below BOTH MAs; one leg is firing and the second is ~1% away.** Second
+  consecutive day of recording this. It is the worst all-time P&L on the enabled board (**−$82.34 / 14 trades**)
+  and has not traded since 07-29. **Watch the 50-day — this is the most likely test to fire early.**
+- **🟡 DASH is unchanged as the worst name on the board** (−9.55 / −4.14, −12.81% over 10d, **$0.80B/day**,
+  never traded). Its 09-23 test has had both legs satisfied for over a week. **Still EXPECTED to fire.**
+- **🟡 UBER −6.11/−3.84 and LLY −3.11/−3.57 — both below both MAs, both never-traded, both dated 09-21.**
+  On track to fire; no reason to pre-empt a test four sessions out.
+- **🟡 SPOT's liquidity leg has re-broken: $0.78B, now 8% under the $0.85B floor** (it was "exactly at the
+  floor" yesterday), and it fell −1.94% on an up-day for its peers. **Its dated test is TOMORROW (09-18)** —
+  see Dates below, because this materially changes the expected outcome.
+- **🔒 QQQ — structurally exempt, restated.** Worst name on merit (**ATR 1.17%**, **0%** of 20 sessions ≥2%)
+  and it **is** `MARKET_FILTER_SYMBOL`. Parking it would make the market gate **fail open**. Verified enabled.
+
+### 🎯 Decision 1 — the TSM park flag is REFUTED by the multi-session test the daily review prescribed
+Yesterday's daily flagged TSM off a single session (8 refusals, all 38.1–49.1) and explicitly asked that a
+**multi-session count from `dbo.entry_refusals`** be run before anyone parked anything. Here is that count —
+**all 19 enabled names, 14 days, 9 sessions, 287 scored refusals** (`atr_pct` is the stored percent; `maxVlt`
+is the max `conf_volatility` sub-score, the term IMP-049's floor made mandatory):
+
+| | n | sess | avgC | maxC | **≥55** | maxVlt | max atr% | gate-open |
+|---|---|---|---|---|---|---|---|---|
+| **INTC** | 19 | 6 | **59.2** | **82.9** | **11** | **1.000** | **0.362** | 7 |
+| **AMD** | 22 | 7 | 53.4 | 68.8 | **7** | **1.000** | 0.311 | 9 |
+| **PLTR** | 16 | 5 | 51.4 | 67.8 | **6** | 0.000 | 0.183 | 6 |
+| **MU** | 13 | 4 | 49.0 | 62.6 | **5** | 0.399 | 0.240 | 3 |
+| **META** | 22 | 5 | 52.7 | **81.1** | 3 | 0.576 | 0.258 | 7 |
+| **QCOM** | 10 | 4 | 52.3 | 59.3 | 3 | 0.089 | 0.209 | 4 |
+| **NVDA** | 16 | 4 | 50.3 | 59.3 | 2 | 0.143 | 0.214 | 14 |
+| **TSLA** | 12 | 3 | 53.2 | 64.8 | 2 | 0.000 | 0.189 | 7 |
+| **MSFT** | 11 | 4 | 46.8 | 58.4 | 2 | 0.000 | 0.144 | 4 |
+| **AAPL** | 20 | 5 | 47.6 | 56.7 | 1 | 0.000 | 0.150 | 8 |
+| **TSM** | **20** | **5** | **45.5** | **56.9** | **1** | **0.000** | **0.167** | **13** |
+| **HOOD** | 7 | 1 | 50.3 | 57.6 | 1 | 0.000 | 0.195 | 1 |
+| **NFLX** | 18 | 3 | 47.5 | 51.8 | 0 | 0.000 | 0.133 | 6 |
+| **SPOT** | 16 | 4 | 46.0 | 52.4 | 0 | 0.000 | 0.101 | 4 |
+| **ABNB** | 11 | 4 | 45.5 | 53.8 | 0 | 0.000 | 0.156 | 7 |
+| **UBER** | 8 | 4 | 47.4 | 54.5 | 0 | 0.000 | 0.107 | 1 |
+| **LLY** | 8 | 4 | 43.9 | 51.2 | 0 | 0.000 | 0.165 | 1 |
+| **DASH** | 7 | 3 | 49.0 | 54.4 | 0 | 0.000 | 0.149 | 4 |
+| **QQQ** | 14 | 5 | 40.7 | 47.5 | 0 | 0.000 | 0.042 | 14 |
+
+**The park flag does not survive.** TSM at **avg 45.5 / max 56.9 / 1 near-miss in 20** is statistically
+indistinguishable from **AAPL (47.6 / 56.7 / 1 in 20)**, and *better* than NFLX, SPOT, ABNB, UBER, LLY and
+DASH, none of which the daily flagged. **TSM was the leaderboard on 09-16 and SPOT was the leaderboard on
+09-15 — the leaderboard is a per-session artefact, exactly as the daily itself suspected.** Parking on it would
+have removed a **$3.74B/day** name from a bot that takes one trade a week. **KEEP.**
+
+**Three further findings fall out of the same table, and they are the day's real content:**
+
+1. **🔴 The board splits cleanly into two cohorts, and the split is not the one we have been managing.**
+   Nine names can reach the bar (**INTC, AMD, PLTR, MU, META, QCOM, NVDA, TSLA, MSFT** — 39 near-misses
+   between them); ten never come near it (**AAPL, TSM, HOOD, NFLX, SPOT, ABNB, UBER, LLY, DASH, QQQ** — 2
+   near-misses between them, one of which is QQQ's exempt gate symbol). **This is a far better park-priority
+   signal than any single session, and it is not what the current dated tests are sorted on** — AAPL and TSM
+   are in the weak cohort with late/absent clocks, while META and MU sit in the strong cohort.
+2. **🟢 CORRECTION to the 09-16 log, and it is good news.** Yesterday recorded, off three sessions, that "only
+   MU (0.312) and META (0.576) have posted a non-zero `conf_volatility` at all — **two names out of
+   nineteen**". Over **14 days it is six**: **INTC 1.000, AMD 1.000, META 0.576, MU 0.399, NVDA 0.143,
+   QCOM 0.089.** **INTC and AMD both reach the maximum sub-score.** The constraint IMP-049 introduced is
+   materially less universal than the 3-session snapshot implied — it is a real constraint on ten names and
+   **not a constraint at all on INTC and AMD.** Whoever re-opens the `MIN_VOLATILITY` question should start
+   from this number, not from yesterday's.
+3. **⚠️ Gate-open opportunity is wildly unequal and mostly wasted.** NVDA (14) and TSM (13) get the most
+   gate-open chances of any non-QQQ name and convert 2 and 1 near-misses respectively; INTC converts 11 near
+   misses off only 7. **Gate-open count is not the scarce resource; setup quality is.** Pairs with the 09-16
+   daily's finding that the filter stack is load-bearing.
+
+**Action taken:** TSM **kept**, note updated to record the refutation, **and a dead-signal clock armed.** TSM
+was classified "actively trading" in the 09-16 roll-call, but its **last trade was 08-27 (21 days ago)** — that
+classification is stale, and the "every enabled name carries a clock" invariant should not have a hole in it.
+**➕ NEW — TSM 2026-09-26 dead-signal test:** *park TSM if it has still not traded by the close of 09-26 **and**
+is below both its 20MA and 50MA* (30 days from its last fill, the same window used for the GOOG/JPM/BABA parks).
+This is a pre-registration, not a park.
+
+### 🎯 Decision 2 — no adds, no parks; the dated tests are honoured and the reason is now evidential, not just procedural
+The board is at **19/30**. **Declining to change membership on five grounds:**
+1. **No dated test is due today.** SPOT and the IREN re-screen are **tomorrow**; LLY/UBER 09-21; ABNB/DASH
+   09-23; AAPL/MSFT 09-24; MU 09-30; HOOD 10-12/13; AMD 10-13; NFLX 10-15; INTC 10-16; TSM 09-26 (new).
+   Every name the daily flagged **already has a clock**, and ABNB's is four sessions out.
+2. **🔴 Subtraction is the failure mode this bot is already in.** The 09-11 weekly (grade D) found four
+   independently-justified filters had **jointly removed 97% of the trading**, and the 09-16 daily then measured
+   the consequence: the signal has **no demonstrated edge**, the shipped config's 90-day result is **t = 1.87**
+   (short of 1.96), and confirming anything live would take **1.2–2.4 years** at the current fill rate.
+   **In that state, removing a liquid name from the sample has a real cost and close to zero benefit.** ABNB
+   at $0.81B/day and above its 50MA is not harming anything by being carried four more sessions; the same is
+   true of TSM at $3.74B/day. **Parking on noise is how a bot that cannot generate evidence generates even less.**
+3. **The IREN re-screen was deliberately dated 09-18 to fall *after* the FOMC, and honouring that is the whole
+   point of dating it.** ⚠️ **Flagging in advance that the screen has flipped in IREN's favour overnight**, so
+   tomorrow's decision is not ambushed: it is now **+2.46% vs 20MA and +5.83% vs 50MA** (yesterday leg (d)
+   "above both MAs" was failing at +0.04%, i.e. *at* the line), **ATR 6.76%, medRng 5.69%, 100% of 20 sessions
+   ≥2%, $1.56B/day, +15.75% over 10 sessions**, and it rallied again yesterday on the Nvidia/neocloud bid.
+   **Tradability pre-verified today: `tradable: true`, `status: active`.** It is the only screened candidate
+   with the intraday range this exit geometry actually needs. **Decided tomorrow on tomorrow's data, as
+   pre-registered — but the four thresholds now look likely to pass, which is a change worth recording.**
+4. **The binding constraint is still not watchlist composition.** Yesterday's sweep answered the weekly's #1
+   ask and found every entry filter earns its keep, with the **WIN column frozen at 8 across five of six
+   leave-one-out arms**. Nothing in the entry stack changes how many trades reach +1R. **A twentieth symbol
+   cannot move a number that six filter configurations could not move.**
+5. **Nothing on the board has a binary event today** — no earnings (double-sourced), no halts, no downgrades,
+   no M&A. There is no *event-risk* park to make, and a *performance* park needs a tradeable session to
+   generate evidence.
+
+### Changes applied to dbo.watchlist
+**Two note-only metadata UPDATEs; the enabled set is unchanged.** No INSERTs, no DELETEs, no enable/disable.
+Both parameterized `UPDATE dbo.watchlist SET note = ? WHERE symbol = ? AND enabled = 1`, 1 row each.
+- **TSM** — `note` → *"09-17: 1-session park flag REFUTED on 5-sess refusals (avg 45.5, 1/20 >=55, mid-pack);
+  dead-signal test 09-26"*
+- **ABNB** — `note` → *"09-17: $vol 0.81B 5th sess under 0.85B floor, -7.1 vs 20MA, 0/11 refusals >=55;
+  09-23 park test EXPECTED"* (its liquidity series is now **$0.84 → $0.81 → $0.83 → $0.82 → $0.81B** — the two
+  lowest prints are the two most recent, so I am **withdrawing yesterday's "noise around the floor" reading**
+  in favour of a mild downward drift. It still does not change the decision, which is dated 09-23.)
+
+Assertions re-run against the live table: **enabled = 19 ≤ 30 ✅** · **membership byte-identical to the running
+process ✅** · **QQQ still enabled ✅** (guards `MARKET_FILTER_SYMBOL` against a silent gate disable) ·
+**35 rows total, unchanged ✅ (no DELETEs)** · **19/19 tradable + active on Alpaca ✅**. **No source-code
+changes, `.env` untouched.**
+
+### Final watchlist
+**19 enabled** (≤30 ✅), membership unchanged: AAPL, ABNB, AMD, DASH, HOOD, INTC, LLY, META, MSFT, MU, NFLX,
+NVDA, PLTR, QCOM, QQQ, SPOT, TSLA, TSM, UBER. **Parked (16):** AMGN, AMZN, AVGO, BABA, BIRD, C, COST, ENPH,
+GOOG, JPM, SE, SPY, UNH, WMT, WPM, XOM.
+
+**Service restarted: NO — reason re-verified in source rather than assumed.** `bot/persistence.py:603` reads
+`SELECT symbol FROM dbo.watchlist WHERE enabled = 1 ORDER BY symbol` — the `note` column is metadata the bot
+never consumes. The enabled *set* is byte-identical to what the running process loaded, so a restart would only
+discard a warm 19/19 ribbon set ~4h before the entry window. Health verified instead: `is-active` **active**,
+**NRestarts=0**, MainPID **3478608**, **active since 2026-09-15 20:11:44 UTC**, startup logged the **DB path**
+(`Watchlist (dbo.watchlist): …19 names`) not the env fallback, **warmup primed 19/19**, all 19 subscribed on IEX.
+Account **ACTIVE** ($9,176.12), **0 positions / 0 open orders**. `.env` **`ustradebot:ustradebot` mode 600**.
+
+⚠️ **One WARNING in journald since the deploy, and it is benign — recording it so it is not mistaken for a
+regression later.** `2026-09-17 10:04:15 UTC WARNING alpaca.data.live.websocket | data websocket error,
+restarting connection: no close frame received or sent` → reconnected at 10:04:16.255 and **re-subscribed all
+19 symbols at 10:04:16.371 — a 781ms gap**, overnight, ~4h before the 14:00 UTC entry window, with a flat book.
+This is the `_BackoffStockDataStream` supervisor doing exactly its job. **No feed-loss alert was warranted and
+none fired.**
+
+### Dates carried forward
+- **➕ NEW — TSM 09-26 dead-signal test** (Decision 1): *park TSM if no trade by the close of 09-26 **and**
+  below both its 20MA and 50MA.* Closes the "every enabled name carries a clock" hole; TSM's last fill was
+  08-27, not recent, and the 09-16 roll-call's "actively trading" label for it was stale.
+- **⚠️ SPOT 09-18 — TOMORROW, and the expected outcome has CHANGED to PARK.** Yesterday's log called it "on
+  current data: KEEP" because the liquidity leg had stopped firing at exactly $0.85B. **It has re-broken:
+  $0.78B, 8% under the floor**, on a −1.94% session while its peers rose. Trend legs still pass (+1.13 /
+  +7.03) but **+1.13% vs the 20MA is now marginal, not comfortable**. Attach the scorer evidence: **16
+  refusals over 4 sessions, avg 46.0, max 52.4, ZERO near-misses, `conf_volatility` 0.000 on every one, max
+  `atr_pct` 0.101% — the second-worst range profile on the board after QQQ.** Decide tomorrow on tomorrow's
+  data, but this is now a genuine two-way call rather than a formality.
+- **⚠️ IREN 09-18 add re-screen — TOMORROW, and the screen has flipped to PASSING.** +2.46/+5.83 vs MAs
+  (leg (d) was failing at +0.04% yesterday), ATR 6.76%, $1.56B/day, 100% of 20d ≥2%, +15.75% over 10d;
+  **tradable + active pre-verified today.** The four pre-registered thresholds stand unchanged. If it passes
+  tomorrow it would be **the only name on the board besides INTC and AMD with a plausible claim to clearing
+  the live volatility floor** — which is the one structural gap this watchlist has.
+- **🔴 NFLX 10-15 — second consecutive day of one leg firing, and the second leg is ~1% away.** −3.98% vs 20MA
+  (was −2.19%), **+0.81% vs 50MA** (was +2.78%). −$82.34 / 14 trades, no fill since 07-29, and **0 near-misses
+  in 18 refusals**. If the 50-day goes, the test fires on its own terms — no need to pull it forward.
+- **DASH 09-23 — EXPECTED** (both legs satisfied >1 week, −9.55/−4.14, −12.81% 10d, never traded, $0.80B).
+  **ABNB 09-23 — EXPECTED**, upgraded from "decide on the series": the series is **drifting down**, not
+  oscillating ($0.84 → $0.81 → $0.83 → $0.82 → $0.81B), and it has **0 near-misses in 11 refusals**.
+  ⚠️ Note it is still **+0.81% above its 50MA**, so a below-both-MAs leg would not fire today.
+- **LLY 09-21 / UBER 09-21 — both on track to fire**: below both MAs (−3.11/−3.57 and −6.11/−3.84), never
+  traded, and **0 near-misses between them in 16 refusals**.
+- **HOOD 10-12/10-13 — kept, with a new open overhang recorded** (criminal front-running charges against two
+  employees; Clarity Act cloture failed). Not a company-level binary; still +1.23% above its 50MA with the
+  board's highest ATR. **Not pulled forward.**
+- **AAPL 09-24** (trend legs comfortable at +3.75/+4.12, but note it sits in the **weak scoring cohort** —
+  1 near-miss in 20, `conf_volatility` 0.000 throughout) · **MSFT 09-24** (medRng **1.79%**, still fractionally
+  under the 1.8% bar; leg 1 standing) · **AMD 10-13** (strong — keep) · **INTC 10-16** · **NFLX 10-15** ·
+  **TSM 09-26 (new)** · **MU 09-30 earnings park** (**armed, 13 days out** — Micron reports fiscal Q4
+  **Wed 09-30 after the close**; park on the 09-30 pre-market run, re-enable 10-01. MU is the **#1 all-time
+  earner (+$211.76, 26 trades)** and the **#2 $vol name ($23.86B/d)** — this one must not be missed).
+- **Every enabled name now carries a clock or is exempt, with the hole closed:** AAPL 09-24 · ABNB 09-23 ·
+  AMD 10-13 · DASH 09-23 · HOOD 10-13 · INTC 10-16 · LLY 09-21 · MSFT 09-24 · MU 09-30 · NFLX 10-15 ·
+  SPOT 09-18 · **TSM 09-26 (new)** · UBER 09-21; META/QCOM recent adds; NVDA/PLTR/TSLA actively trading;
+  QQQ exempt.
+
+### For tonight's daily review
+1. **🔴 Score today as the FOMC *aftermath*, and the pre-commitment from the last three days still holds.**
+   Futures are up (Nasdaq +0.5–1.05%) but the 10-year is above 5%, breadth is bad (**IWM −3.42/−3.94**), and
+   the AAII bull-bear spread is **−24.6%**. **A shut QQQ gate today is still NOT evidence of over-filtering,
+   and a flat session is still NOT evidence about any symbol.** The one in-window event is a **10-year TIPS
+   auction at 12:00 ET**, which is a rates event.
+2. **🔴 Hand the two-cohort refusal table to the weekly — it is a better park-priority signal than the dated
+   tests are currently sorted on.** Nine names hold 39 of the board's 41 near-misses; ten hold 2. **AAPL and
+   TSM sit in the weak cohort with late clocks; META and MU sit in the strong cohort while being flagged for
+   "never traded".** If the weekly wants one policy sentence on watchlist composition, this is the input.
+3. **🟢 The `MIN_VOLATILITY` picture is better than yesterday recorded — please propagate the correction.**
+   Over 14 days **six** names have posted a non-zero `conf_volatility` (INTC **1.000**, AMD **1.000**, META
+   0.576, MU 0.399, NVDA 0.143, QCOM 0.089), not the two the 3-session window showed. **INTC and AMD max the
+   sub-score.** Any re-opening of the `_ATR_DEAD` / `MIN_VOLATILITY` question should start here.
+4. **🔴 The stale `WATCHLIST` fallback is STILL `NFLX,BIRD,WPM` — fourth consecutive flag.** BIRD is a ~$2.44
+   microcap. Options unchanged: (a) update the `.env` line (root edit → **`chown ustradebot:ustradebot`,
+   mode 600** afterwards, without fail), (b) the right fix — make the fallback **loud** (WARNING + Telegram
+   when `load_watchlist()` returns empty), (c) refuse to start on a fallback list containing a sub-$5 symbol.
+   **This is the oldest unfixed item in this log and it is a silent-wrong-behaviour bug, not a cosmetic one.**
+5. **🟠 Perplexity: FIFTH consecutive `insufficient_quota`.** Nothing new to diagnose. Top up, or make
+   WebSearch-first the written default in all four routine prompts.
+6. **🟠 Tooling note for whoever writes the next bars query:** `/v2/stocks/{sym}/bars` returns **HTTP 200 with
+   an empty `bars` array** when `start=` is omitted — it does not error. Always pass an explicit `start`.
+   Also: the **multi-symbol `/v2/stocks/snapshots` endpoint 403s on SIP** for this account (single-symbol
+   bars on SIP are fine), and the IEX snapshot `latestTrade` at 11:30 UTC is **yesterday's close, not a
+   pre-market print** — this account has no usable pre-market tape, so gap risk must come from news, not bars.
