@@ -2032,3 +2032,274 @@ i.e. the truth getting worse when measured properly. That is the right thing to 
   both agents noticing by hand is not a control. **Second ask: make the weekly's
   market-research step WebSearch-first** — `sonar-deep-research` has now burned ~10 minutes
   of a 60-minute budget on two consecutive Fridays and returned nothing usable either time.
+
+---
+
+## Week ending 2026-09-18 — Grade: C
+
+### Stats
+- **DB (closed, Mon 09-14 → Fri 09-18): 2 trades**, both on **Thursday 09-17**, both
+  trailing-stop exits. Headline win rate **50%** (1 of 2 green). Net **+$8.94**,
+  PF **1.72** (gross +$21.35 / −$12.41), avg/trade +$4.47.
+  - Best **INTC +$21.35** (entry 108.80 → 109.65, conf 89.04, 12 trail moves).
+  - Worst **PLTR −$12.41** (entry 176.32 → 175.36, conf 73.40, 11 trail moves).
+- **Three of five sessions took zero trades** (09-14 Mon, 09-16 Wed, 09-18 Fri;
+  09-15 also flat). Only Thursday traded.
+- **Equity $9,176.12 (09-12 close) → $9,185.06 (09-18)**, **+$8.94 — reconciling to the DB
+  net to the cent.** Flat line all week except Thursday's two fills; **no intra-week
+  drawdown**, 0 positions carried at any point, 0 naked overnight.
+  Lifetime **−$814.94 from $10,000 (−8.15%)**.
+- Confidence vs outcome (all-time, `vw_confidence_outcome`): 70–79 remains the only
+  durably positive band (91 tr, +$314.23); **90–100 still negative on 3 trades
+  (−$144.42)** and **60–69 negative on 152 (−$110.86)**. Unchanged; the inversion above
+  conf 80 is still unresolved and still under-sampled.
+- **Service: clean.** `NRestarts=0`, `ActiveState=active`, **zero journald warnings or
+  errors across the whole week** (`-p warning` empty for 7 days). The only restart was the
+  daily's own 20:15:55 UTC deploy of IMP-052 tonight. `.env` untouched, ownership intact.
+
+### Stop-exit accounting (week)
+
+| week | n | net | PF | headline WR | **true WR** | **stop rate** | **F+S** | W/S/F |
+|---|---|---|---|---|---|---|---|---|
+| W33 (08-14) | 12 | +$44.24 | 1.54 | 50.0% | 8.3% | 75.0% | 91.7% | 1/4/7 |
+| W34 (08-21) | 2 | −$34.66 | 0.00 | 0.0% | **0.0%** | 100.0% | **100%** | 0/0/2 |
+| W35 (08-28) | 6 | +$44.85 | 4.79 | 83.3% | **0.0%** | 66.7% | **100%** | 0/3/3 |
+| W36 (09-04) | 2 | +$59.20 | ∞ | 100.0% | **0.0%** | 50.0% | **100%** | 0/2/0 |
+| W37 (09-11) | 1 | −$16.52 | 0.00 | 0.0% | **0.0%** | 100.0% | **100%** | 0/0/1 |
+| **W38 (09-18)** | **2** | **+$8.94** | **1.72** | **50.0%** | **0.0%** | **100.0%** | **100%** | **0/1/1** |
+
+- **This week: stop rate 2/2 = 100%. WIN 0 · SCRATCH 1 · FAIL 1** (full-stop **0** /
+  break-even-or-scratched-trail **1**). **True win rate 0% vs headline 50%.**
+- **🔴 YES, the win column is padded, and it is padded to the last cent.** The single
+  "win" is **INTC +$21.35 = +0.386R** — a trailing-stop exit on a trade that peaked at
+  **+1.80% (0.887R)** and handed back **56% of its own peak**. By the doctrine that is a
+  **SCRATCH, not a win**: capital preserved, thesis unpaid. The headline 50% describes one
+  trade that ran green and died.
+- **🔴 FAIL+SCRATCH = 100% for the FIFTH consecutive week.** The escalation clause fires at
+  ≥60% for **two** consecutive weeks. We are at 100% for five, and ≥88% for **twelve**
+  consecutive weeks. **The last doctrine WIN this bot recorded was in W33, five weeks ago.**
+- **Neither trade this week ever printed +1R** — INTC peaked 0.887R, PLTR 0.383R. This is
+  not an exit failure on either. No trail width, arming rule or target could have scored
+  either one a WIN (IMP-051's ladder, applied live).
+- **Did this week's IMPs move F+S? No — and only one of the four could have.** IMP-050/051/052
+  are measurement-only and F+S-neutral by construction. **IMP-049 is the week's sole
+  behaviour change and it did not move the failure share either**, because it *removes*
+  unwinnable trades rather than converting them: 90d replay shows the floor buying +28% net
+  and +0.40 PF for **zero forgone WINs** — better expectancy per trade, **smaller sample, F+S
+  flat**. Recorded as such in each IMP's Observed effect line.
+- **Sample honesty:** n=2 is not a measurement of anything. The weekly figures above are
+  reported because the doctrine requires them, **but the 90-day replay is the only surface
+  on this bot with enough rows to carry a verdict**, and it says true WR 13.3% / F+S 86%.
+
+### Grade rationale
+
+**C — up from last week's D, and capped hard by the results.**
+
+**Results are null, and the doctrine sets the ceiling.** +$8.94 on two trades is noise, not
+performance; the rubric's "profitable but rules broken" is not what happened here, but the
+doctrine's own rule is explicit — *a net-positive week whose win column is padded by
+break-even stops is a **C at best***. This week's win column is exactly one 0.386R scratched
+trail. **Zero WINs, 100% stop rate, fifth consecutive week at F+S 100%.** Against the tape
+(S&P −0.1%, Nasdaq +0.7%, Dow −1.7% — its third straight losing week — with the Fed's first
+hike in three years on Wednesday and the 10-year back above 5% on Friday), three flat
+sessions and a scratch are **defensible behaviour** for a long-only intraday trend bot, and
+the 09-18 refusal counterfactual **proves the flat days cost nothing: 0 of 31 declined
+candidates reached +1R.** Capital was protected. But defensible inactivity is not evidence
+of an edge, and I will not grade it as though it were.
+
+**Process is the best it has been in two months, and that is what lifts it off D.** Last
+week's D rested on three counts; **two are fixed and the third is partly fixed.** The
+uncommitted-review durability failure is resolved. The dailies stopped under-reporting the
+pattern — every session this week named the escalation clause explicitly and refused to
+tweak under it. And the #1 ask was not just delivered but **delivered as a refutation of the
+review that asked for it**: the 09-16 leave-one-out sweep killed the over-filtering
+hypothesis that had led three consecutive weeklies, including mine. **ALL FIVE FILTERS OFF =
+320 trades, −$1,162.07, PF 0.67**, replicated at 45d. I was wrong, the sweep says so in
+numbers, and the daily wrote it up straight instead of softening it. That is the single
+most valuable thing that happened this week.
+
+**Three process facts I am grading hard, in the bot's favour.** (1) **A measured +27% net
+improvement was turned down.** The 09-16 trail-width sweep showed `TRAIL_PERCENT 0.0175`
+booking **+$585.42 / PF 2.19** against the live 0.0125's **+$461.87 / PF 1.87** — and it was
+**REJECTED** on the doctrine's anti-gaming clause (widening trail protection) with the WIN
+count frozen at 8 across every width. Declining a real, replicated +27% because the rule
+forbids it is exactly the discipline this doctrine exists to produce. (2) **Two honest
+in-week self-corrections:** 09-16 corrected 09-15's hand-counted stop rate (16/26 → 20/26,
+module declared canonical), and IMP-051 corrected 09-16's own "the exit structure is not
+what is capping this strategy". (3) **IMP-051 corrected *my* verdict** — last week I wrote
+that IMP-048 "closes the exit side as an explanation." Measured, that is wrong: ~10pp of
+exit-recoverable headroom exists. I have withdrawn the claim in IMP-048's entry.
+
+**Why not B.** Five weeks at F+S 100%, zero WINs, **two trades**, and the fourth consecutive
+week in which the bot's *trading behaviour* changed only defensively. Last week's **#3 ask —
+put a number on the unfalsifiability — was simply not done**, by any session, and it is the
+one ask that feeds the retire-or-rebuild decision rather than another instrument. Three
+instruments shipped; the decision-grade number did not. **B requires the bot to be getting
+better, and on the only axis that counts it is getting quieter, not better.**
+
+**Why not D.** Because the asks were answered on the honest harness, the escalation held
+under temptation, and the week converged two independent lines of inquiry onto a single
+correct conclusion. That is compounding, not thrash.
+
+### What worked / what didn't
+
+- **✅ THE WEEK'S FINDING — the over-filtering hypothesis is dead, and the diagnosis is now
+  triangulated onto the signal.** Three explanations for a 13% true win rate were on the
+  table. **Filters: refuted** (09-16 — every filter earns its keep; all-off loses $1,162 at
+  PF 0.67; the WIN column frozen at **8/9/12/8/8/8** across six arms, so no filter change
+  alters how many trades reach +1R). **Exits: mostly refuted, with one gap** (IMP-051 — 77%
+  of entries never print +1R at all; trail arming and trail width both measured as pure
+  relabelling). **What is left is the entry signal itself.** The 3-EMA ribbon crossover
+  produces entries that reach +1R **23.3% of the time**, and that number is the strategy.
+- **✅ The gate decision is resolved, and resolved against opening it.** IMP-052 landed the
+  missing number one hour before this review: the market gate declines +1R candidates
+  **16.3%** of the time (30d) — real, not free — but that is **below the taken book's own
+  23.3% ceiling**, so opening it buys sample at a *worse* quality than the bot already
+  trades. That mechanism explains IMP-050's measured PF collapse (2.93 → 1.41 with the gate
+  off). **Recommendation against, operator item closed rather than deferred.**
+- **✅ `ENTRY_THRESHOLD` is closed permanently** — three independent refutations in four days
+  (live 60→45 admits zero trades; replay gives zero additional WINs; the refusal cohort
+  reaches +1R 1.5% of the time). **The `MARKET_FILTER_SYMBOL` and `ENTRY_THRESHOLD` releases
+  from the do-not-relitigate list are spent: both survived, both return to the frozen list.**
+- **✅ Risk discipline unbroken.** Nothing widened, nothing loosened, no step toward live, no
+  naked overnight, zero warnings in 7 days of journald, `.env` untouched, NRestarts=0.
+- **❌ THE UNRESOLVED PROBLEM — two trades a week, and week five of zero WINs.** Trades per
+  ISO week: **45 → 21 → 26 → 22 → 13 → 12 → 2 → 6 → 2 → 1 → 2.** IMP-049, correct as it is,
+  **tightens** entry further. The bot is now defensibly, measurably, and correctly declining
+  almost everything — and a strategy that correctly declines everything is indistinguishable
+  from one that has nothing to offer. **At this fill rate the live book cannot settle any
+  question about this bot, ever.**
+- **❌ The #3 ask went undone and it is the one that mattered most for the decision.** Nobody
+  computed how many weeks of live trading would separate this expectancy from zero. It is
+  re-asked below as the top item, because the operator cannot make a retire-or-rebuild call
+  without it and nine weekly reviews have now implied the answer instead of stating it.
+- **❌ The untested gap I created by overstating last week.** `TAKE_PROFIT` is **10%** and
+  there were **zero target fills in 60 trades**. Exit reasons: `trailing stop` n=22
+  **−$99.52** — the only losing bucket — `end-of-day flatten (trailing stop)` n=26 +$169.58,
+  `end-of-day flatten` n=12 +$393.11. **The bot has a stop and a clock and no instrument that
+  can bank a +1R print**, while 6 of 14 entries that reached +1R gave it back. Declaring the
+  exit side "closed" last week hid this. It is next week's #1.
+- **❌ Perplexity: `sonar-deep-research` returned `PPLX_EMPTY` again — SIXTH consecutive
+  weekly failure, EIGHTH across all routines** (09-18 pre-market diagnosed the cause: the key
+  is present but billing is exhausted). **WebSearch again produced a complete, specific,
+  sourced recap in a single call.** I recommended demoting it last week; the prompt still
+  says Perplexity-first. It cost ~1 minute tonight only because it failed fast.
+- **⚠️ Scheduling defect, FIFTH consecutive week, unfixed.** The prompt describes the weekly
+  as running before the daily; it runs after (daily 20:00, weekly 21:00 UTC). The daily
+  shipped **IMP-052 at 20:15:55 tonight**, so the stand-down clause runs backwards and **this
+  weekly yields again** — on discipline, not on a control. Five weeks of correctness resting
+  on both agents noticing by hand.
+- **⚠️ Minor, queued since 09-16 and recurred 09-18:** the `%.2f` refusal-log defect prints
+  `crossover 0.25 < 0.25` for a true value of 0.2454. Cosmetic but self-contradictory to
+  anyone reading journald. Fix with the next change that touches `bot/strategy.py`.
+
+### Improvements shipped this week
+
+Four IMPs — **049, 050, 051, 052**. **As a set they compounded, and this is the first week in
+three where I can say that without qualification**: IMP-050 built the sweep, the sweep
+refuted the filter hypothesis and pointed at the signal, IMP-051 measured the ceiling that
+claim needed and **caught 09-16 overstating it**, and IMP-052 put the same +1R line on the
+refusal cohort one hour before the decision that needed it. Each one is the previous one's
+missing instrument. **But three of the four are instruments, not behaviour** — the fourth
+consecutive week of that — and **none moved F+S, which stayed at 100%.** Full per-IMP
+Observed effect lines are in `memory/improvement-log.md`.
+
+- **IMP-049 (09-14, entry path)** — `MIN_VOLATILITY` becomes a hard precondition. ✅
+  **VALIDATED on a 6× longer window than it shipped on**; the week's only behaviour change.
+  Defensive gain, F+S unmoved, sample shrunk.
+- **IMP-050 (09-15, replay CLI)** — the filter stack becomes sweepable. ✅ **VALIDATED — most
+  valuable IMP of the week**, because the sweep it enabled refuted this review's own
+  three-week-old hypothesis.
+- **IMP-051 (09-17, replay reporting)** — the +1R ceiling ladder. ✅ **VALIDATED, and it
+  corrected my "exit side is closed" verdict** and pre-empted a live misdiagnosis of the
+  same day's INTC trade.
+- **IMP-052 (09-18, refusal reporting, shipped 20:15 UTC by the daily)** — the refusal cohort
+  scored on the +1R line. ✅ **VALIDATED on its own terms**; changed the gate decision's
+  evidence base by 5–8× and resolved it.
+
+### Strategy verdict
+
+**NO DEMONSTRATED EDGE — and as of this week the cause is localised rather than suspected.**
+
+This is the fifth consecutive week above the escalation threshold and the twelfth at ≥88%
+F+S. What is new is that the week **eliminated the alternatives**: the entry filters are
+load-bearing and removing them loses money at PF 0.67; the exit structure accounts for ~10pp
+of a 23.3% ceiling and no trail parameter moves the WIN count at all. **The residual is the
+entry trigger.** A 3-EMA ribbon crossover, confirmed on a 1-minute chart and gated on a
+5-minute QQQ ribbon, admits trades that reach +1R roughly **one time in four**, and the
+realized true win rate of **13.3%** is most of the way to that ceiling already. **This
+strategy is not being strangled by its filters or leaked away by its exits. Its signal
+identifies moves that have mostly already happened** — IMP-040's finding that MU was bought
+**+2.7% off the open at the 58th percentile of the session range** is the mechanism in one
+sentence.
+
+Per the escalation clause, **only structural changes are worth making**: the entry trigger,
+the exit *instrument* (a reachable target, which genuinely has never been tested), or
+stopping the strategy. **No parameter tweak should be shipped, and none was.**
+
+### Focus for next week
+
+- **🔴 #1 — Build and test a reachable profit target. This is the one licensed change, and
+  it is licensed because it is a missing instrument, not a tuned constant.** `TAKE_PROFIT` is
+  **10%** and has filled **zero times in 60 trades**, while **6 of 14 entries that reached
+  +1R gave it back**. Test targets at roughly **1.0R / 1.25R / 1.5R** (i.e. 2.0% / 2.5% /
+  3.0% on the flat 2% stop) on the honest harness — **friction on, doctrine scoring, ≥3
+  windows (30/45/90d)**. ⚠️ **Judge on expectancy and payoff FIRST, WIN count second**, and
+  report the ceiling beside the WIN count every time: a target at +1R is scored a WIN by the
+  doctrine's first clause, so **part of any WIN improvement is relabelling** — the ladder
+  proves the travel was real, but a rise in WINs alone is not evidence. **Reject it if
+  expectancy or payoff falls**, however good the true win rate looks. This does **not**
+  license touching the trail, which is measured as relabelling on both arming and width.
+- **🔴 #2 — Then the entry trigger, on the ceiling and nothing else.** IMP-051's standing
+  rule governs: **an entry change is judged on whether it raises the 23.3% +1R share**, not
+  on net, not on one window. Frame it as *"does a pullback-based or earlier trigger raise the
+  ceiling?"* This is a build, not a tweak, and it is the only work that can change the
+  verdict above. Do not ship it off live fills — **there are ~2 live fills a week and they
+  can settle nothing.**
+- **🟠 #3 — RE-ASKED, having been dropped last week: put a number on the unfalsifiability.**
+  At ~2 trades/week and a ~13% true win rate, how many weeks of live trading are needed to
+  distinguish this expectancy from zero at any reasonable confidence? Compute it once, write
+  it in **`todo.md` in front of the operator**. I expect "years". **If it is years, that
+  single number should govern the retire-or-rebuild decision**, and it has now been implied
+  across ten weekly reviews instead of stated. It is a half-hour of arithmetic and it
+  outranks any further instrument.
+- **✅ CLOSED this week, do not reopen:** the market-gate question (resolved against opening
+  — 16.3% < the book's own 23.3% ceiling) and `ENTRY_THRESHOLD` (three refutations in four
+  days). Both return to the frozen list.
+- **📋 Do-not-relitigate list (back to nine, both releases spent):** `MIN_CROSSOVER` ·
+  `STOP_LOSS` · `MARKET_FILTER_SYMBOL` removal · **the market gate, reconfirmed** ·
+  `conf_volume` · lowering `ENTRY_THRESHOLD`, **reconfirmed ×3** · a `ribbon_spread_pct`
+  floor · recalibrating the `conf_crossover` saturation anchors · **`TRAIL_PERCENT` width
+  (measured as relabelling at four widths; widening is forbidden by the doctrine
+  irrespective of its +27% net)**.
+- **📋 Standing measurement constraints.** Every net/PF figure predating IMP-044 is **gross**
+  and must be re-read or re-run. Windows over 45 days remain contaminated by pre-IMP-021
+  configs. 268 pre-v3 refusal rows have no scorer stamp and must be excluded from sub-score
+  studies. Replay's ceiling excludes the entry bar and the live ladder includes it, so
+  replay's is the **conservative** of the two — never quote them as the same measurement.
+- **Next week's tape.** The Fed hiked **25bp to 3.75–4.00%** on 09-16 — its first in three
+  years, unanimous, with the SEP pointing to **one or two more this year** and upward
+  revisions to inflation and GDP. The BoJ hiked and the ECB raised three rates; the BoE held.
+  **The 10-year closed the week back above 5% (5.004%) and that, not the Fed, is now the
+  driver** — Friday saw 350+ S&P names retreat on yield pressure while the dollar had its
+  best week since May. For a long-only intraday trend bot this is a **two-way, yield-reactive
+  tape**: expect the QQQ gate to spend a lot of time shut, and — as with the 09-16
+  pre-registration, which was correct — **that is the gate working, not evidence of
+  over-filtering. That question is now closed by measurement anyway.** Thursday's tech-led
+  rally (XLK +2.25%) is the shape worth trading if it repeats. Verify every index/price claim
+  against broker bars; **SIP daily bars still return 403** on this subscription, so use IEX.
+- **Risk posture unchanged and non-negotiable.** Position size, loss limits, the
+  stand-down/kill switch and paper-only stay exactly as they are. **"No demonstrated edge" is
+  an argument for changing or stopping the signal — never for sizing up to chase it, and
+  never for any step toward live capital.**
+- **🔴 For the operator, outside this repo — three asks, two of them repeats.**
+  1. **Fifth consecutive week:** fix `/root/claude-routines` so the weekly runs *before* the
+     daily, or so the weekly checks for a same-evening daily IMP and stands down on a control
+     rather than on discipline.
+  2. **Second week:** make the weekly's market-research step **WebSearch-first**.
+     `sonar-deep-research` has now failed six consecutive weeklies; the 09-18 pre-market
+     diagnosed the cause as **exhausted Perplexity billing**, so either top up the plan or
+     rewrite the prompt — but the prompt as written has been wrong for eight runs.
+  3. **Sixth-plus consecutive flag:** the stale `WATCHLIST` fallback in `.env` still reads
+     `NFLX,BIRD,WPM` with **BIRD a ~$2.44 microcap**. Harmless while the DB watchlist loads,
+     live if it ever fails. Not fixable from this routine.

@@ -4002,6 +4002,19 @@ provenance, now trail provenance.
   not degrade on the longest one.
 
 - **Observed effect (weekly 09-11):** ✅ **VALIDATED — and the rejected experiment is worth more than the shipped code.** The trail-arming gate was implemented, A/B'd on three windows and **reverted**: net signs disagreed, PF degraded on both longer windows, and the 13–16pp stop-rate drop was pure relabelling with **F+S unchanged to the trade in all three windows** — a textbook anti-gaming rejection, correctly called. **The decisive number is that the WIN count moved by ZERO trades in every window.** Together with the 09-04 weekly's 18.8% +1R ceiling, this **closes the exit side as an explanation** for the 93pp shortfall and moves the whole burden to entry quality. What shipped instead removed a real blind spot (`stop_price` never moves, so "trail or stop?" lived only in rotating journald). F+S unmoved by design.
+- ⚠️ **CORRECTION (weekly 09-18) — "closes the exit side as an explanation" was overstated and
+  is hereby withdrawn as written.** It was an inference from a frozen WIN count, not a
+  measurement. IMP-051 built the measurement: on 90d the ceiling is **23.3%** against a
+  realized true WR of **13.3%**, so **6 of the 14 entries that reached +1R were given back —
+  ~40% of the achievable WINs are lost after the trade is already right** (2 of 5 on 45d).
+  **~10pp of exit-recoverable headroom exists.** What survives of the original claim, and it
+  is still the larger half: **77% of entries never print +1R at all**, so the entry is the
+  dominant cap and no exit change can touch that majority. What does *not* survive is the
+  word "closes". The specific sub-claims remain correct — the trail-*arming* gate is
+  relabelling (this IMP) and the trail *width* is relabelling (09-16, WIN frozen at 8 across
+  four widths) — but a **reachable target** was never tested by either, and IMP-051 found
+  **zero target fills in 60 trades** against a 10% `TAKE_PROFIT`. That is the untested gap the
+  overstatement hid, and it is next week's #1.
 
 ---
 
@@ -4115,6 +4128,21 @@ trade the baseline refused.
 verified `active (running)` with a clean startup and warmup. Preflight all-PASS (the one
 WARN is "market closed", expected post-close). `.env` untouched.
 
+- **Observed effect (weekly 09-18):** ✅ **VALIDATED, and re-confirmed on a 6× longer window
+  than it shipped on.** The 09-16 leave-one-out sweep ran `MIN_VOLATILITY 0` over **90 days,
+  friction on, doctrine scoring**: floor off = **74 trades / +$331.25 / PF 1.47 / 8 WINs**
+  against a control of **58 / +$461.87 / PF 1.87 / 8 WINs**. The floor therefore buys **+28%
+  net and +0.40 PF for 16 fewer trades and ZERO forgone WINs** — it removes only trades that
+  were never going to reach +1R, which is exactly the claim it shipped on. Replicated at 30d
+  (control +$133.00/2.93 vs floor-off +$75.75/1.60). The 09-15 QCOM counterexample does not
+  generalise.
+- **F+S share: UNMOVED — 100% this week, as for the prior four.** Stated plainly rather than
+  spun. IMP-049 is the week's only behaviour-changing IMP and it did **not** move the failure
+  share, because it *removes* unwinnable trades rather than converting them into WINs. It
+  raises expectancy per trade while shrinking an already-critical sample: a real but strictly
+  defensive gain, and one that deepens the sample problem this review has flagged for three
+  weeks. Both halves of that are true and neither cancels the other.
+
 ---
 
 ## IMP-050 — the entry-filter stack becomes sweepable in the replay harness
@@ -4187,6 +4215,25 @@ tweaks and asks for structural work and evidence instead.
   08-27, **64.5% were refused into a closed gate**, and lowering `ENTRY_THRESHOLD` from 60 to
   45 admits **zero** additional trades while the floors are on. **The escalated threshold
   renormalisation is close to a no-op; the gate is the first axis that matters.**
+
+- **Observed effect (weekly 09-18):** ✅ **VALIDATED — and it is the most valuable IMP of the
+  week, because the sweep it enabled REFUTED the hypothesis this review had been leading with
+  for three consecutive weeks.** The 09-11 weekly's #1 ask was built on the premise that four
+  independently-justified filters had "jointly removed 97% of the trading" and that the stack
+  had drifted the bot somewhere worse. IMP-050 made that testable for the first time; the
+  09-16 sweep (90d, friction on, doctrine scoring) answered it: **every filter that moves
+  anything moves it in the right direction**, and **ALL FIVE OFF = 320 trades, −$1,162.07,
+  PF 0.67, true WR 5%**, replicated at 45d (165 trades, −$656.63, PF 0.63). **The
+  over-filtering hypothesis is dead, and it was my own.** Recording that here rather than in a
+  footnote is the point of the exercise.
+- **The load-bearing number is the one nobody asked for: the WIN column is frozen at
+  8 / 9 / 12 / 8 / 8 / 8 across all six leave-one-out arms.** Nothing in the entry *filter*
+  stack changes how many trades reach +1R — the filters only change how much is lost on the
+  rest. That is what moved the burden onto the signal itself and set up IMP-051.
+- **F+S share: unmoved by design** (replay-only CLI plumbing; a bare run reproduces the
+  shipped config exactly, pinned by test). The `MARKET_FILTER_SYMBOL` and `ENTRY_THRESHOLD`
+  releases from the do-not-relitigate list are now **spent**: both survived the test they were
+  released for and return to the frozen list.
 
 ---
 
@@ -4281,6 +4328,30 @@ Baseline, friction on, shipped config, **two windows**:
 If an earlier or pullback-based trigger does not move the +1R share, it does not work,
 whatever its P&L says on one window.
 
+- **Observed effect (weekly 09-18):** ✅ **VALIDATED — and it corrected a verdict I had
+  written into last week's review as settled.** The 09-11 weekly declared, off IMP-048, that
+  *"the exit side is now closed as an explanation."* IMP-051 measured the thing that claim was
+  inferred from and the claim is **wrong as written**: on 90d the ceiling is **23.3% (14/60)**
+  against a realized true WR of **13.3%**, so **6 of the 14 entries that DID reach +1R were
+  given back — ~40% of the achievable WINs are lost after the trade is already right**
+  (2 of 5 on 45d; replicated). **10.0pp of exit-recoverable headroom exists and I had
+  declared it closed.** The entry remains the dominant cap (**77% of entries never print +1R
+  at all**) — 09-16 was right about the direction and overstated the magnitude.
+- **It also pre-empted a live misdiagnosis on the day it shipped.** 09-17's INTC peaked at
+  **0.887R** and trailed out at +0.386R; scored SCRATCH, it reads like an exit that gave a
+  winner back. The ladder shows the peak never reached +1R, so **no trail width, arming rule
+  or target could have made it a WIN.** Without the ceiling beside it that trade points the
+  next change at the exits, which is where three of the last five IMPs already went.
+- 🔴 **The finding with the most headroom attached: `TAKE_PROFIT` is 10% and there were ZERO
+  target fills in 60 trades.** Exit reasons: `trailing stop` n=22 **−$99.52** (the only losing
+  bucket), `end-of-day flatten (trailing stop)` n=26 +$169.58, `end-of-day flatten` n=12
+  +$393.11. **The bot has a stop and a clock, and no instrument capable of banking a +1R
+  print.** Handed to next week as the #1 candidate — see the weekly's Focus, including why it
+  must be judged on expectancy and payoff rather than on the WIN count it would partly
+  relabel.
+- **F+S share: unmoved by design** (measurement-only; `bot/replay.py` is imported by nothing
+  in the service).
+
 ---
 
 ## IMP-052 — 2026-09-18 (daily) — the refusal cohort is scored on the +1R WIN line
@@ -4373,4 +4444,23 @@ and gives the weekly a ceiling-based answer on the gate one hour after this run.
 
 ### Commit
 - **Commit:** 9c937f8
-- **Observed effect:** (to be filled by a later review)
+- **Observed effect (weekly 09-18, written ~45 min after it shipped):** ✅ **VALIDATED on its
+  own terms; too new for live evidence, and it does not need any.** It is a reporting change
+  to a module the service does not import, and its claim is arithmetic: on a flat 2% stop
+  `hitTrail` is **0.625R**, i.e. **below the WIN line**, so the column could never have
+  counted WINs. **It landed one hour before the decision it existed to inform** — whether to
+  open the market gate — and it changed that decision's evidence base by **5–8×**: recoverable
+  population 13.0% → **1.5%** on 10d and 11.9% → **2.5%** on 30d.
+- **The gate decision it enabled, resolved by this weekly: DO NOT OPEN THE GATE.** The gate is
+  the only cohort that declines real +1R candidates (**16.3% on 30d**, >10× the confidence
+  cohort's 1.5%) so it is genuinely not free — but 16.3% sits **below the taken book's own
+  23.3% ceiling** (IMP-051). Opening it therefore buys sample at a **worse** +1R rate than
+  what the bot already trades, which is a coherent mechanism for IMP-050's measured result
+  (gate off → 2.4× trades, PF **2.93 → 1.41**). Per IMP-051's standing rule — entry changes
+  are judged on whether they raise the ceiling — **it does not clear the bar.** The daily's
+  recommendation is endorsed and **this operator item is now closed, not deferred.**
+- **Also closed by it: lowering `ENTRY_THRESHOLD`.** Third independent refutation in four days
+  (09-15 live: 60→45 admits 0 trades; 09-16 replay: 0 additional WINs; 09-18: the cohort
+  reaches +1R **1.5%** of the time). Returns to the do-not-relitigate list permanently.
+- **F+S share: unmoved by design.** Measurement-only, verified byte-identical service
+  behaviour.
