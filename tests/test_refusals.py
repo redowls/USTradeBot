@@ -16,6 +16,7 @@ from bot.refusals import (
     classify_reason,
     format_refusals,
     outcomes_for,
+    peak_r,
     session_flatten_utc,
     summarize_by_reason,
 )
@@ -216,3 +217,84 @@ def test_report_names_the_best_declined_candidate_and_flags_the_upper_bound():
 
 def test_report_degrades_to_a_sentence_when_nothing_was_refused():
     assert "nothing scored" in format_refusals([], [], 0.0125, 0.02)
+
+
+# --- the +1R ceiling (IMP-052) ---------------------------------------------
+
+
+# 2026-09-18 refusal, verbatim: the gate declined HOOD at 15:13 on conf 69.4 and the
+# session then ran to 120.56 before closing back at 118.85. The case that motivated
+# IMP-052 — it clears the 1.25% trail give-back and is still short of +1R.
+HOOD_0918 = RefusedCandidate(
+    symbol="HOOD", candle_start_utc=datetime(2026, 9, 18, 15, 13),
+    reason="market gate closed (QQQ 5m ribbon not bullish)", close_price=118.33,
+    confidence=69.4, market_gate_open=False,
+)
+
+
+def test_peak_r_is_exact_arithmetic_on_a_flat_stop():
+    """MFE/stop_loss, so the doctrine's line is derived once, not eyeballed."""
+    assert peak_r(2.0, 0.02) == pytest.approx(1.0)
+    assert peak_r(1.88, 0.02) == pytest.approx(0.94)
+    assert peak_r(1.25, 0.02) == pytest.approx(0.625)  # the trail give-back, in R
+
+
+def test_peak_r_does_not_divide_by_a_missing_stop():
+    assert peak_r(1.88, 0.0) == 0.0
+
+
+def test_todays_hood_gate_refusal_hit_the_trail_and_still_missed_the_win_line():
+    """The IMP-052 regression: `hitTrail` said recoverable, the doctrine says no WIN.
+
+    MFE +1.88% reads like a missed trade against a 1.25% trail. Against the 2% stop it
+    is 0.94R, so no exit rule could have scored it a WIN — the distinction the refusal
+    table could not previously draw.
+    """
+    rows, _ = outcomes_for(
+        [HOOD_0918], _fetch({"HOOD": [(120.56, 117.975, 118.85)]}), 15
+    )
+    assert rows[0].mfe_pct == pytest.approx(1.88, abs=0.01)
+    assert peak_r(rows[0].mfe_pct, 0.02) == pytest.approx(0.94, abs=0.01)
+
+    gate = [s for s in summarize_by_reason(rows, 0.0125, 0.02) if s.label == "gate"][0]
+    assert gate.reached_trail == 1  # the old, permissive read
+    assert gate.reached_1r == 0  # the doctrine's read
+
+
+def test_reached_1r_counts_the_win_line_not_the_trail():
+    """A candidate exactly at 1R counts; one just short of it does not."""
+    at_1r = RefusedCandidate(
+        "A", datetime(2026, 9, 18, 15, 0), "confidence 51.0 < 60", 100.0
+    )
+    just_under = RefusedCandidate(
+        "B", datetime(2026, 9, 18, 15, 0), "confidence 51.0 < 60", 100.0
+    )
+    rows, _ = outcomes_for(
+        [at_1r, just_under],
+        _fetch({"A": [(102.0, 100.0, 101.0)], "B": [(101.99, 100.0, 101.0)]}),
+        15,
+    )
+    allrow = [s for s in summarize_by_reason(rows, 0.0125, 0.02) if s.label == "ALL"][0]
+    assert allrow.reached_trail == 2  # both cleared 1.25%
+    assert allrow.reached_1r == 1  # only A reached +1R
+
+
+def test_report_states_the_ceiling_and_that_hitTrail_sits_below_the_win_line():
+    rows, _ = outcomes_for(
+        [HOOD_0918], _fetch({"HOOD": [(120.56, 117.975, 118.85)]}), 15
+    )
+    text = format_refusals(rows, summarize_by_reason(rows, 0.0125, 0.02), 0.0125, 0.02)
+    assert "CEILING: 0/1" in text
+    assert "sample" in text and "not edge" in text
+    assert "0.94R" in text  # the best declined, in R
+    assert "0.62R" in text  # hitTrail's own threshold, in R, flagged as below the line
+
+
+def test_report_reports_a_nonzero_ceiling_as_a_recoverable_share():
+    winner = RefusedCandidate(
+        "A", datetime(2026, 9, 18, 15, 0), "market gate closed (QQQ)", 100.0
+    )
+    rows, _ = outcomes_for([winner], _fetch({"A": [(103.0, 100.0, 102.0)]}), 15)
+    text = format_refusals(rows, summarize_by_reason(rows, 0.0125, 0.02), 0.0125, 0.02)
+    assert "CEILING: 1/1" in text
+    assert "could add in WINs" in text

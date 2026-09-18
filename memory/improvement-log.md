@@ -4280,3 +4280,97 @@ Baseline, friction on, shipped config, **two windows**:
 **Any future entry-trigger change is judged on whether it raises the ceiling, not on net.**
 If an earlier or pullback-based trigger does not move the +1R share, it does not work,
 whatever its P&L says on one window.
+
+---
+
+## IMP-052 — 2026-09-18 (daily) — the refusal cohort is scored on the +1R WIN line
+
+**`bot/refusals.py`, `tests/test_refusals.py`.** **Measurement change only.** No trading-path
+file touched, no config key added, no constant fitted, no default changed. `bot.refusals` is
+imported by **`bot/report.py` and the tests only** — verified at runtime that neither
+`bot.main` nor `bot.strategy` loads it — so the running service's behaviour is byte-identical
+before and after.
+
+### The problem
+The doctrine's WIN line is **+1R**. The refusal study (IMP-033) measures the population an
+entry-filter change would admit, and reported it entirely in **percent**: `<0.5%MFE`,
+`hitTrail` (MFE ≥ the 1.25% trail give-back), `stopped`. On a flat 2% stop, **`hitTrail` is
+0.625R** — it counts candidates that could have banked *something*, never candidates that
+would have been WINs, and nothing printed beside it said so.
+
+That mattered tonight specifically. **This table is the evidence base for the one decision
+still open on this bot** — whether to loosen the market gate — and the weekly review that
+owns that decision runs **one hour after this routine**.
+
+**2026-09-18 is the case that forced it.** Zero trades; the gate refused **5** candidates that
+had already cleared `ENTRY_THRESHOLD`. The table read `hitTrail 3/5` for the gate cohort and
+`9/31` overall, and named HOOD (15:13, conf 69.4) as the best declined at **MFE +1.88%**. That
+reads like three trades the gate cost us. In R it is **0.94R**, and **0 of 31** refusals that
+session reached +1R at all — so **no exit rule could have scored a single one a WIN.** The
+filters cost **zero WINs**, and the report as written would have been quoted to argue the
+opposite.
+
+### The change
+1. **`peak_r(mfe_pct, stop_loss)`** — one function, so the doctrine's line is derived in a
+   single place. Exact arithmetic, not an approximation: the bracket stop is a flat fraction
+   of entry, so 1R *is* `stop_loss` percent of it. Guards `stop_loss <= 0`.
+   **Documented assumption:** if an ATR-scaled stop ever ships (open in `todo.md`), R stops
+   being a constant fraction of price and this must take the per-candidate stop width — the
+   refusal rows would then need to carry it. Every count below inherits that.
+2. **`ReasonStats.reached_1r`** — MFE ≥ 1R per cohort, beside the existing columns rather than
+   replacing them. The percent columns are still true and still useful; they were just never
+   the WIN line.
+3. **`format_refusals`** gains a `>=1R` column, renders **best declined in R** ("+1.88%
+   (0.94R)"), prints a **`CEILING:`** line stating the share that reached +1R — and when that
+   share is zero says so in words: *"the filters cost ZERO doctrine WINs. Loosening any of
+   them buys sample, not edge."* A closing **`NOTE`** states that `hitTrail` is 0.62R and
+   **below** the WIN line, so the old column can no longer be misread in isolation.
+
+Deliberately **not** bundled: the refusal counterfactual includes the refusal candle's own bar
+(the IMP-046 lookahead IMP-051 excluded for replay). I measured it on today's rows — the
+session MFE fell well after the refusal bar in **every** case, `incl == excl` to the cent — so
+it is immaterial here and fixing it tonight would be a second, unjustified change.
+
+### Validation — 572 tests pass (566 before; 6 added), preflight all-PASS
+`tests/test_refusals.py`: `peak_r` exactness (2.0%→1.0R, 1.88%→0.94R, 1.25%→0.625R) and its
+zero-stop guard; `reached_1r` counts the WIN line not the trail (a candidate at exactly 1R
+counts, one at 1.99% does not, both clear `hitTrail`); both `CEILING:` renderings; and
+**`test_todays_hood_gate_refusal_hit_the_trail_and_still_missed_the_win_line`** — today's real
+refusal (118.33 → 120.56 → 118.85) asserting `reached_trail == 1` **and** `reached_1r == 0` on
+the same cohort. The misreading that motivated the change is now a regression test.
+
+### The finding — two windows, and it does not all point one way
+| window | cohort | n | hitTrail (0.625R) | **>= +1R** | max R |
+|---|---|---|---|---|---|
+| 10d | gate | 10 | 4/10 (40.0%) | **0/10 (0.0%)** | 0.94R |
+| 10d | ALL | 269 | 35/269 (13.0%) | **4/269 (1.5%)** | 1.50R |
+| **30d** | **gate** | 43 | 15/43 (34.9%) | **7/43 (16.3%)** | **2.32R** |
+| 30d | confidence | 526 | 55/526 (10.5%) | **8/526 (1.5%)** | 1.50R |
+| 30d | ALL | 645 | 77/645 (11.9%) | **16/645 (2.5%)** | 2.32R |
+
+1. **The old proxy overstated the doctrine-recoverable population by ~5–8×.**
+2. **The confidence floor is exonerated on both windows (1.5%).** Third independent
+   refutation (09-15 live, 09-16 replay, tonight). **That question is closed.**
+3. ⚠️ **The gate is the only cohort declining real +1R candidates (16.3% on 30d, >10× the
+   confidence cohort) — but it is regime-unstable (0/10 on 10d), and 16.3% is BELOW the taken
+   book's own 23.3% (90d) ceiling from IMP-051.** So opening the gate would add WIN-capable
+   candidates *at a worse rate than the book already achieves* — a coherent mechanism for
+   IMP-050's PF collapse (2.93 → 1.41). Under IMP-051's standing rule (an entry change is
+   judged on whether it raises the ceiling), **opening the gate does not clear the bar.**
+
+### Expected impact
+No P&L effect by construction. It removes a **5–8× overstatement** from the one table the
+open gate decision rests on, closes the `ENTRY_THRESHOLD` question with a third measurement,
+and gives the weekly a ceiling-based answer on the gate one hour after this run.
+
+### What this does NOT license
+- **No config shipped.** Escalation is active (F+S 96% / 10 sessions, 100% / last 3) and
+  forbids parameter tweaks. This is structural measurement, the same lane as IMP-050/051.
+- **Not a reason to open the gate** — the measurement argues *against* it (point 3).
+- **Not a reason to tighten the gate either.** 16.3% > 0 means the gate does decline some real
+  +1R travel; it is not free. Tightening it further on this evidence would be overfitting to
+  one quiet triple-witching session.
+
+### Commit
+- **Commit:** (filled below)
+- **Observed effect:** (to be filled by a later review)

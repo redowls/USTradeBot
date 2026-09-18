@@ -28,6 +28,22 @@ have finished green no matter how the entry filter was set.
 
 Read-only, offline-testable (the bar fetcher is injected), and touches nothing in the
 trading path.
+
+**IMP-052 — the cohort is now scored on the doctrine's WIN line (+1R), not just in
+percent.** Every column above was a percentage, and the most permissive of them,
+``reached_trail`` (MFE >= the 1.25% trail give-back), sits at **0.625R** — well short of
+the +1R a trade must print to be a WIN. So the refusal table's headline "recoverable"
+number was, on its own terms, a count of *sub-WIN* moves, and it was the evidence base
+for the one decision still open on this bot: whether to loosen the market gate.
+
+2026-09-18 is the case that forced it. The gate refused **5** candidates; ``hitTrail``
+read **3/5** and the best declined printed **MFE +1.88%** with a **+0.44%** forward
+close, which reads like three missed trades. In R it is **0.94R** — and **0 of 31**
+refusals that session reached +1R at all. The filters cost **zero WINs**, yet nothing
+printed said so, and the same table would have been quoted in favour of opening the
+gate. IMP-051 established the rule that *an entry change is judged on whether it raises
+the +1R ceiling, not on net*; this makes the refusal population answer that question
+instead of a 0.625R proxy for it.
 """
 
 from __future__ import annotations
@@ -104,6 +120,24 @@ class RefusalOutcome:
         return bucket_of(self.mfe_pct)
 
 
+def peak_r(mfe_pct: float, stop_loss: float) -> float:
+    """The refusal's peak excursion expressed in R (IMP-052).
+
+    The bracket stop is a flat fraction of the entry price, so 1R *is* ``stop_loss``
+    percent of it and the conversion is exact arithmetic rather than an approximation:
+    ``MFE 1.88%`` against a 2.0% stop is ``0.94R``. Kept as one function so the
+    doctrine's WIN line is derived in a single place.
+
+    ⚠️ **This identity is what the flat stop buys.** If an ATR-scaled stop ever ships
+    (an open item in ``todo.md``), R stops being a constant fraction of price and this
+    must take the per-candidate stop width instead — the refusal rows would then need
+    to carry it. Every count below inherits that assumption.
+    """
+    if stop_loss <= 0:
+        return 0.0
+    return mfe_pct / (stop_loss * 100.0)
+
+
 @dataclass(frozen=True)
 class ReasonStats:
     """One refusal cohort, aggregated."""
@@ -116,6 +150,7 @@ class ReasonStats:
     never_green: int  # MFE < 0.5% — the cohort the 08-14 weekly named the last real leak
     reached_trail: int  # MFE >= the trail give-back: could plausibly have banked something
     stopped_out: int  # MAE <= -stop: the stop would have cut it regardless of entry filter
+    reached_1r: int  # MFE >= 1R — the doctrine's WIN line, the only ceiling that counts
 
 
 def outcomes_for(
@@ -195,6 +230,7 @@ def summarize_by_reason(
             never_green=sum(1 for r in rows if r.mfe_pct < 0.5),
             reached_trail=sum(1 for r in rows if r.mfe_pct >= trail_pct),
             stopped_out=sum(1 for r in rows if r.mae_pct <= -stop_pct),
+            reached_1r=sum(1 for r in rows if r.mfe_pct >= stop_pct),
         )
 
     out: list[ReasonStats] = []
@@ -226,23 +262,48 @@ def format_refusals(
         "— refused candidates: what the filters declined —",
         f"  counterfactual: enter at the refusal candle's close, flatten with the session.",
         f"  {'cohort':<11} {'n':>3} {'avgMFE':>8} {'avgMAE':>8} {'avgFwd':>8} "
-        f"{'<0.5%MFE':>9} {'hitTrail':>9} {'stopped':>8}",
+        f"{'<0.5%MFE':>9} {'hitTrail':>9} {'stopped':>8} {'>=1R':>9}",
     ]
     for s in stats:
         lines.append(
             f"  {s.label:<11} {s.n:>3} {_pct(s.avg_mfe):>8} {_pct(s.avg_mae):>8} "
             f"{_pct(s.avg_forward):>8} "
-            f"{s.never_green:>4}/{s.n:<4} {s.reached_trail:>4}/{s.n:<4} {s.stopped_out:>3}/{s.n:<4}"
+            f"{s.never_green:>4}/{s.n:<4} {s.reached_trail:>4}/{s.n:<4} "
+            f"{s.stopped_out:>3}/{s.n:<4} {s.reached_1r:>4}/{s.n:<4}"
         )
     best = max(outcomes, key=lambda r: r.mfe_pct)
     lines.append(
         f"  best declined: {best.symbol} MFE {best.mfe_pct:+.2f}% "
+        f"({peak_r(best.mfe_pct, stop_loss):.2f}R) "
         f"(fwd {best.forward_pct:+.2f}%, conf {best.confidence}, {best.reason})"
     )
+    # The doctrine's WIN line is +1R, so a cohort with no >=1R row could not have
+    # produced a WIN under ANY exit rule — the point IMP-051 established for replay and
+    # this now states for the population an entry-filter change would actually admit.
+    total = next((s for s in stats if s.label == "ALL"), None)
+    if total is not None:
+        if total.reached_1r:
+            lines.append(
+                f"  CEILING: {total.reached_1r}/{total.n} declined candidates reached +1R "
+                f"({100.0 * total.reached_1r / total.n:.1f}%) — the most a filter change "
+                f"could add in WINs."
+            )
+        else:
+            lines.append(
+                f"  CEILING: 0/{total.n} declined candidates reached +1R — on this window "
+                f"the filters cost ZERO doctrine WINs. Loosening any of them buys sample, "
+                f"not edge."
+            )
     lines.append(
         f"  UPPER BOUND — passing one filter only advances a candidate to the next; the "
         f"trail ({trail_pct:.2f}%) / stop ({stop_loss * 100:.1f}%) would have exited many "
         f"before the flatten; capital is finite."
+    )
+    lines.append(
+        f"  NOTE — 'hitTrail' is MFE >= {trail_pct:.2f}% = "
+        f"{peak_r(trail_pct, stop_loss):.2f}R, BELOW the doctrine's +1R WIN line. It counts "
+        f"candidates that could have banked something, never candidates that were WINs; "
+        f"read '>=1R' for that."
     )
     if skipped:
         lines.append(f"  ({skipped} refusal(s) skipped — no forward window on the tape)")

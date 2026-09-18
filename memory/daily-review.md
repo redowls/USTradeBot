@@ -8567,3 +8567,150 @@ closed.
   near the bar after 15:00 UTC** — consistent with a tape that stopped moving by mid-session.
 - **Do not read today's 50% headline win rate as a good day.** True win rate was **0%**,
   both trades were stop-driven, and the book is 1 WIN in 25 trades over ten sessions.
+
+---
+
+## 2026-09-18 — Daily Review
+
+### Stats
+- **No trades today.** 0 entries, 0 exits, 0 closed trades. Net realized P&L **+$0.00**.
+- **Broker reconciliation — clean, three ways.** Alpaca (`PA34DFFLTHRT`): **0 positions,
+  0 orders of any status since 00:00Z**, equity **$9,185.06**, `cash` == `equity` ==
+  `last_equity` == **$9,185.06** → no overnight marks, nothing carried, no fill the DB
+  missed. DB agrees exactly: 0 rows with today's `entry_time_utc` or `exit_time_utc`,
+  0 rows with a null `exit_time_utc`. **No mismatch, no qty drift.** Lifetime: −$814.94
+  from the $10,000 start (**−8.15%**).
+- Service **active** and healthy all session: started 11:36:46 UTC, **warmup primed 18/18
+  symbols**, data stream connected, **zero warnings and zero errors in journald all day**
+  (8,713 lines, `-p warning` empty). No restarts, no reconnects.
+- **31 scored refusals**, the bot's normal decision volume — this was not a dead feed or a
+  silent bot. It looked at the tape all day and declined it.
+
+### Stop-exit accounting
+- **Today: 0 closed trades → stop rate 0/0, no WIN/SCRATCH/FAIL to split.** Nothing was
+  risked, so nothing was failed. Today contributes no evidence to the doctrine's counters
+  and must not be read as a clean session.
+- **Trailing 10 sessions with trades (2026-08-10 → 09-17), 25 closed trades** — computed
+  with `bot.doctrine`, catch-all rows attributed by price:
+  - **Stop rate 19/25 = 76.0%.**
+  - **WIN 1 · SCRATCH 10 · FAIL 14** — FAIL is **full-stop 0 / BE-or-scratched-trail 14**.
+  - **True win rate 4.0% vs headline 56.0%** — a **52-point** divergence. Net +$106.05.
+  - **F+S = 96.0%.** Last 3 sessions with trades: **F+S 100% (4/4), true WR 0%**.
+- 🔴 **The escalation clause is active and has been for weeks** (F+S ≥60% over the last 3
+  trading sessions). Parameter tweaks remain **forbidden**; tonight's change is deliberately
+  a measurement, not a tuning pass — see IMP-052.
+- **Dominant failure cause: entry quality.** Not stop geometry (**0 of 14 FAILs was a full
+  stop** — the stop is never being run over; every FAIL is a trade that went green enough to
+  ratchet and then died) and, on today's evidence, not profit capture either (below).
+
+### Trade-by-trade review
+No trades to review. Per the routine, the **absence** is the reviewable evidence, and it has
+a precise, benign explanation rather than a fault.
+
+**What the 31 refusals were:**
+
+| cohort | n | cleared conf ≥60 | avgMFE | **>= +1R** | max R |
+|---|---|---|---|---|---|
+| **gate** (QQQ 5m ribbon not bullish) | **5** | 5 | +1.19% | **0/5** | **0.94R** |
+| **crossover** floor | 1 | 1 | +1.74% | **0/1** | 0.87R |
+| **confidence** < 60 | 25 | 0 | +0.58% | **0/25** | 0.83R |
+| **ALL** | **31** | 6 | +0.72% | **0/31** | **0.94R** |
+
+- **Six candidates cleared `ENTRY_THRESHOLD`; five died at the market gate** (MU ×3 at
+  conf 69.9 / 62.9, AMD 61.0, HOOD ×2 at 69.4 / 67.3), the sixth at the crossover floor
+  (MU, conf 63.4). So the gate, not the threshold, decided today — exactly the ordering
+  IMP-050 measured on replay ("the gate is the binding constraint").
+- 🟢 **The gate was RIGHT, and this is the day's main finding.** The tape: S&P 500 **+0.16%**
+  to 7,650.12, Nasdaq **+0.39%** to 26,522.55, but **Dow −0.19%** and **Russell 2000
+  −0.58%**, VIX **14.89**. With ~two hours left the S&P was **−0.12%** and the Nasdaq
+  **flat** — the green close was a **late-session turnaround**, after the gate refusals
+  (14:06–16:45 UTC) and into the flatten window. Add **triple witching** (pre-market
+  research flagged it as "the single most important fact about today") and the Fed's first
+  hike in three years with the 10-year at **4.99%**: a pinned, flow-driven, directionless
+  tape. A long-only 1-minute trend bot **should** decline that.
+- 🔴 **And the counterfactual proves it cost nothing: 0 of 31 declined candidates reached
+  +1R.** The best refusal all day — HOOD at 15:13, conf 69.4, gate-blocked — ran **MFE
+  +1.88%** and closed the session **+0.44%**. Against the flat 2% stop that peak is
+  **0.94R**: by the doctrine, **no exit rule could have made it a WIN.** Same for the MU
+  crossover refusal (+1.74% = 0.87R, fwd +1.63%). **The filters cost zero WINs today.**
+- **Assigned cause: none of the three.** Not entry quality, not stop geometry, not profit
+  capture — a correct no-trade day in a tape that never offered +1R to a long. The right
+  verdict on today in isolation is *"reviewed, nothing was wrong"*.
+
+### What worked / what didn't
+- **Worked:** the market gate (IMP-022) did its job and is now measured to have done it.
+  Warmup 18/18, a clean 8,713-line journal with no warnings, and an exact three-way
+  broker/DB/equity reconciliation.
+- **Didn't work — the measurement, which is why tonight's change is a measurement.** The
+  refusal study's most permissive column, `hitTrail` (MFE ≥ 1.25%), reported **9/31** today
+  and **3/5** for the gate cohort. That reads like nine missed trades and three blocked by
+  the gate. **1.25% on a 2% stop is 0.625R** — the column was counting *sub-WIN* moves, and
+  nothing printed beside it said so. This is the table that would have been quoted into the
+  pending "should we open the gate" decision **tonight**, one hour before the weekly runs.
+- **The 10-session divergence is unchanged and is still the real story:** 4% true vs 56%
+  headline, and **0 of 14 FAILs was a full stop**. The bot's trades keep going green, arming
+  the ratchet, and dying at break-even. One quiet correct session does not touch that.
+
+### Lessons & improvement candidates
+1. **✅ SHIPPED — IMP-052: score the refusal cohort on the doctrine's +1R line.** Highest
+   impact available tonight, and measurement-only (permitted under escalation). Full detail
+   in `memory/improvement-log.md`.
+2. **Handed to the weekly (runs 21:00 UTC tonight) — the gate decision, now with the number
+   it was missing.** Multi-window, friction-free counterfactual, `hitTrail` vs the +1R line:
+
+   | window | cohort | n | hitTrail (0.625R) | **>= +1R** | max R |
+   |---|---|---|---|---|---|
+   | **10d** | gate | 10 | 4/10 (40.0%) | **0/10 (0.0%)** | 0.94R |
+   | **10d** | confidence | 254 | 29/254 (11.4%) | **4/254 (1.6%)** | 1.50R |
+   | **10d** | ALL | 269 | 35/269 (13.0%) | **4/269 (1.5%)** | 1.50R |
+   | **30d** | **gate** | 43 | 15/43 (34.9%) | **7/43 (16.3%)** | **2.32R** |
+   | **30d** | crossover | 75 | 7/75 (9.3%) | **1/75 (1.3%)** | 2.02R |
+   | **30d** | confidence | 526 | 55/526 (10.5%) | **8/526 (1.5%)** | 1.50R |
+   | **30d** | ALL | 645 | 77/645 (11.9%) | **16/645 (2.5%)** | 2.32R |
+
+   Three things follow, and they do **not** all point the same way:
+   - **The old proxy overstated the recoverable population by ~5–8×** (13.0% → 1.5% on 10d,
+     11.9% → 2.5% on 30d). Any argument for loosening a filter built on `hitTrail` was built
+     on a number that was never the WIN line.
+   - **The confidence floor is exonerated on both windows** — it declines candidates that
+     reach +1R **1.5%** of the time. Lowering `ENTRY_THRESHOLD` cannot buy WINs. This is now
+     the *third* independent refutation (09-15 live study: 60→45 admits 0 trades; 09-16
+     replay: 0 additional WINs; tonight: 1.5% ceiling). **Treat that question as closed.**
+   - ⚠️ **The gate is the one cohort that declines real +1R candidates — 16.3% on 30d, more
+     than 10× the confidence cohort — but it is regime-unstable (0/10 on 10d).** Read against
+     the taken book's own **23.3% (90d) ceiling** from IMP-051, the gate cohort is *lower
+     quality than what the bot already trades*. That is a coherent mechanism for IMP-050's
+     result (gate off → 2.4× trades, PF **2.93 → 1.41**): **opening the gate buys sample at
+     a worse +1R rate than the current book.** Per IMP-051's standing rule — an entry change
+     is judged on whether it raises the ceiling — **opening the gate does not clear the bar,
+     and I recommend against it.** It remains an operator-authorisation item either way.
+3. **Not shipped, still queued: the `%.2f` refusal-log defect recurred today** — MU refused
+   at 14:06 printed the self-contradictory `crossover 0.25 < 0.25` (true value ~0.2454).
+   Logged in `todo.md` since 09-16 as "fix with the next change that touches
+   `bot/strategy.py`"; tonight's change does not touch it, so it stays queued. Cosmetic, but
+   it misleads anyone reading journald.
+4. **Perplexity: EIGHTH consecutive failure** (`sonar` → empty; the key is present but
+   billing is exhausted per 09-18 pre-market). Fell back to WebSearch per the routine's rule
+   and did not block. **The prompt's "query Perplexity first" instruction has now been wrong
+   eight runs running — make WebSearch the written default or top up the plan.**
+
+### Notes for pre-market research
+- **The board is not the problem and needs no surgery.** 18/18 warmed, 10 distinct names
+  scored, refusal volume normal. **Do not park anything on the strength of today** — a
+  correct stand-down in a triple-witching tape is not a symptom.
+- **HOOD supplied the most intraday travel on the board** — 7 refusals, session MFE **+1.88%**
+  off the 15:13 candle, and it held up (fwd +0.44%). The best-behaved name today and the one
+  that came closest to a WIN. **Keep, and watch it first tomorrow.**
+- **MU remains the most active scorer** — 8 refusals, three of them ≥60 conf, MFE +1.74%
+  with a **+1.63%** forward close (it trended and held). **Keep.**
+- **AMD scored 61.0 and was gate-blocked.** Note for the standing AMD question ("the best
+  scoring-but-not-travelling name"): it scored again, and again supplied no measured travel.
+  Two sessions of this now.
+- **INTC did not signal once today** despite being the strongest trend on the board
+  (+14.47% vs 20MA, ATR 5.18%). Worth a look at *why* the strongest name generated zero
+  scored candidates — that is a trigger question, not a watchlist question.
+- **LLY, AAPL, PLTR, NVDA, MSFT, ABNB:** scored only sub-60 (max 58.5). Quiet, not dead.
+- **Carried ask, fifth+ consecutive flag — the stale `WATCHLIST` fallback in `.env`** still
+  reads `NFLX,BIRD,WPM` with **BIRD a ~$2.44 microcap**. Harmless while the DB watchlist
+  loads, live if it ever fails. `.env` verified untouched (`ustradebot:ustradebot`, 600).
+  **Not fixable from this routine — needs the operator.**
