@@ -72,7 +72,7 @@ from datetime import UTC, datetime, timedelta
 
 from bot.candles import Candle
 from bot.config import Config
-from bot.doctrine import format_stop_exits, risk_per_share
+from bot.doctrine import format_stop_exits, resolve_reason, risk_per_share
 from bot.doctrine import summarize as summarize_stop_exits
 from bot.doctrine import verdicts_for
 from bot.excursion import ceiling_table, compute_excursion, format_ceiling
@@ -595,6 +595,52 @@ def summarize(broker: SimBroker, equity0: float, *, stop_loss: float | None = No
     return "\n".join(lines)
 
 
+def censoring_note(trades: Sequence[SimTrade], stop_loss: float) -> str:
+    """Warn that a reachable target has **censored** the MFE ladder above it.
+
+    The ceiling measures how far an entry travelled, and it measures it from the bars
+    seen *while the position was held*. A target ends the holding window, so under a
+    reachable target the ladder stops observing exactly where the target sits: the
+    excursion is truncated by the very exit rule the ladder is being used to judge.
+
+    This is not hypothetical and the error is not small. On the 2026-09-21 30d sweep,
+    the identical entry cohort measured a **23.1%** +1R ceiling at the shipped 10%
+    target and **0.0%** at a 1R (2%) target — the three furthest-travelling entries
+    read 1.742R / 1.277R / 1.163R in the first run and 0.942R / 0.925R / 0.913R in the
+    second, every one censored to just under the WIN line by its own take-profit fill.
+    Read literally, the second run says the entry signal never travels and no exit can
+    help, which is the opposite of what those trades did. `format_ceiling` states its
+    conclusion in absolute terms ("no exit change can lift the true win rate above
+    that"), so a run that has censored itself must say so on the same screen.
+
+    Returns "" when nothing was censored, so an untargeted run is unchanged. The
+    binding level is the **minimum** target R across the filled targets — above it the
+    rungs are a lower bound on entry travel, never a measurement of it.
+
+    Target fills are identified through :func:`bot.doctrine.resolve_reason`, the same
+    resolution the doctrine block above uses, so the two cannot disagree about which
+    leg filled.
+    """
+    levels = []
+    for t in trades:
+        if t.exit_price is None or not t.target_price:
+            continue
+        if "take profit" not in resolve_reason(t.exit_reason, t.exit_price, t.target_price):
+            continue
+        r = risk_per_share(t.entry_price, t.stop_price, stop_loss)
+        if r > 0:
+            levels.append((t.target_price - t.entry_price) / r)
+    if not levels:
+        return ""
+    lo = min(levels)
+    return (
+        f"  ⚠️ CENSORED: {len(levels)} trade(s) exited at a reachable target, capping "
+        f"their measured MFE at ~{lo:.2f}R. Rungs at or above {lo:.2f}R are a LOWER "
+        f"BOUND on entry travel, not a measurement of it — this ceiling is NOT "
+        f"comparable with a run whose target was never reached."
+    )
+
+
 def _format_ceiling_block(
     trades: Sequence[SimTrade], stop_loss: float, true_win_rate: float
 ) -> str:
@@ -625,6 +671,9 @@ def _format_ceiling_block(
     block = format_ceiling(ceiling_table(excursions), true_win_rate)
     if skipped:
         block += f"\n  ({skipped} trade(s) skipped — closed without an observed bar)"
+    censored = censoring_note(trades, stop_loss)
+    if censored:
+        block += f"\n{censored}"
     return block
 
 

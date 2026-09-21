@@ -13,7 +13,15 @@ import pytest
 from bot.candles import Candle
 from bot.config import Config
 from bot.executor import StopOrderGone
-from bot.replay import LONG, SHORT, SimBroker, build_stream, resolve_symbols, summarize
+from bot.replay import (
+    LONG,
+    SHORT,
+    SimBroker,
+    build_stream,
+    censoring_note,
+    resolve_symbols,
+    summarize,
+)
 
 _T0 = datetime(2026, 6, 2, 14, 0, tzinfo=UTC)
 _T1 = datetime(2026, 6, 2, 14, 1, tzinfo=UTC)
@@ -530,6 +538,90 @@ def test_todays_intc_is_a_ceiling_failure_not_an_exit_failure(broker):
     assert "WIN 0" in out
     assert "CEILING: 0.0% of entries ever print +1R" in out   # ...and on the entry
     assert "0.0pp is exit-recoverable" in out
+
+
+# --- the ceiling censors itself under a reachable target (IMP-053) ---------
+#
+# The ladder observes bars only while the position is held, so a target that fills
+# ends the measurement at the target. Judging a candidate target on the ceiling it
+# reports is therefore circular: the exit truncates the travel the ceiling exists to
+# measure. The 2026-09-21 sweep is the case — the identical entry cohort read a 23.1%
+# ceiling at the shipped 10% target and 0.0% at a 1R (2%) target, and `format_ceiling`
+# states its conclusion absolutely ("no exit change can lift the true win rate above
+# that"). These pin the warning that has to travel with it.
+
+
+@pytest.fixture
+def target_1r_cfg(monkeypatch):
+    """The 1R (2%) target the 2026-09-21 sweep tested, on the shipped 2% stop."""
+    for k, v in _ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("TAKE_PROFIT", "0.02")
+    return Config.load(dotenv=False)
+
+
+@pytest.fixture
+def target_1r_broker(target_1r_cfg):
+    b = SimBroker(target_1r_cfg, equity=10_000.0)  # shipped 10 bps/side friction
+    b.now = _T0
+    return b
+
+
+def test_no_censoring_note_when_no_target_filled(broker):
+    """An untargeted run must render exactly as it did before — silence, not a caveat."""
+    _held(broker, "NFLX", 100.0, [(102.5, 99.9)], 101.0, "trailing stop")
+
+    assert censoring_note(broker.trades, 0.02) == ""
+    assert "CENSORED" not in summarize(broker, 10_000.0, stop_loss=0.02)
+
+
+def test_todays_intc_under_a_1r_target_reads_as_a_zero_ceiling(target_1r_broker):
+    """Regression on the 2026-09-21 INTC trade — the misreading IMP-053 prevents.
+
+    Live, INTC signalled at 121.31 on a 118.88 bracket stop and ran to 124.68 (+2.84%,
+    **1.27R** against the filled entry) before the trail took it at 123.48. Re-run with
+    a 1R target, the target fills on the way up at 123.74 — and because the ladder stops
+    observing the moment a leg fills, the bar that printed 124.68 is never seen. The
+    ceiling then reports **0.0% of entries ever print +1R** for a trade that printed
+    1.27R on the tape, and `format_ceiling` says in the next sentence that no exit
+    change can beat it.
+
+    Note the second trap the note exposes: friction puts a nominally-1R target at
+    ~0.90R of the *filled* entry, so it banks less than 1R while the doctrine's first
+    clause still scores the take-profit fill a WIN.
+    """
+    _held(target_1r_broker, "INTC", 121.31,
+          [(123.00, 121.00), (123.80, 122.90), (124.68, 123.50)],
+          123.6163, "stop/target filled broker-side")
+
+    t = target_1r_broker.trades[0]
+    assert t.target_price == pytest.approx(123.74, abs=0.01)
+    assert t.mfe_price == pytest.approx(123.80)  # the 124.68 bar was never observed
+    true_travel = (124.68 - t.entry_price) / (t.entry_price - t.stop_price)
+    assert true_travel > 1.25  # what the entry actually did
+
+    out = summarize(target_1r_broker, 10_000.0, stop_loss=0.02)
+
+    assert "CEILING: 0.0% of entries ever print +1R" in out  # ...what the ladder says
+    assert "WIN 1" in out  # scored a WIN off a target that banked ~0.90R
+    assert "⚠️ CENSORED: 1 trade(s) exited at a reachable target" in out
+    assert "LOWER BOUND on entry travel" in out
+    assert "NOT comparable" in out
+
+
+def test_censoring_counts_only_the_legs_that_actually_filled_a_target(target_1r_broker):
+    """A stop-driven exit censors nothing — it is resolved by price, not by config."""
+    _held(target_1r_broker, "INTC", 121.31,
+          [(123.00, 121.00), (123.80, 122.90)], 123.6163,
+          "stop/target filled broker-side")
+    target_1r_broker.now = _T0 + timedelta(hours=1)
+    _held(target_1r_broker, "AMD", 610.64, [(615.53, 605.00)], 607.75,
+          "stop/target filled broker-side")  # today's AMD: trailed out, never near target
+
+    note = censoring_note(target_1r_broker.trades, 0.02)
+
+    assert "1 trade(s) exited at a reachable target" in note
+    assert "~0.90R" in note  # the binding level, in R of the *filled* entry
 
 
 # --- friction: the harness pays a spread (IMP-044) -------------------------

@@ -4464,3 +4464,109 @@ and gives the weekly a ceiling-based answer on the gate one hour after this run.
   reaches +1R **1.5%** of the time). Returns to the do-not-relitigate list permanently.
 - **F+S share: unmoved by design.** Measurement-only, verified byte-identical service
   behaviour.
+
+---
+
+## IMP-053 — 2026-09-21 (daily) — the replay ceiling declares when a target has censored it
+
+**`bot/replay.py`, `tests/test_replay.py`.** **Measurement change only.** No trading-path
+file touched, no config key added, no constant fitted, no default changed. Re-verified at
+runtime tonight that importing `bot.main`, `bot.strategy`, `bot.risk` and `bot.report`
+does **not** load `bot.replay` — the running service's behaviour is byte-identical before
+and after. The only non-test importer of `bot.replay` is its own `__main__`.
+
+### The problem
+The IMP-051 ceiling ladder measures how far an entry travelled, from the bars observed
+**while the position was held**. A target ends the holding window. So under a reachable
+target the ladder stops observing exactly where the target sits: **the exit truncates the
+travel the ladder exists to measure**, and it truncates it at the level of the very
+parameter under test.
+
+This is circular in the worst possible place, because `format_ceiling` states its
+conclusion in absolute terms — *"no exit change can lift the true win rate above that"* —
+and IMP-051 established the standing rule that **entry changes are judged on whether they
+raise the ceiling**. A censored ceiling silently corrupts the one number that governs the
+only decision this bot has left.
+
+**Tonight's sweep is the case, and the error is not small.** Same 30d window, same entry
+stack, same cohort:
+
+| run | ceiling (+1R) | the three furthest-travelling entries, in R |
+|---|---|---|
+| shipped 10% target | **23.1%** | 1.742R / 1.277R / 1.163R |
+| 1R (2%) target | **0.0%** | 0.942R / 0.925R / 0.913R |
+
+Every one censored to just under the WIN line **by its own take-profit fill**. Read
+literally, the second run says the entry signal never travels and no exit can help — the
+exact opposite of what those trades did on the tape. The corrupted run even printed
+`realized true win rate 21.4% vs ceiling 0.0% -> -21.4pp is exit-recoverable`, a negative
+recoverable share, which is arithmetically impossible and was the tell.
+
+This is the same class of defect as IMP-052 (a proxy misread by 5–8×) and it would have
+been read by the next agent to repeat tonight's sweep.
+
+### The change
+1. **`censoring_note(trades, stop_loss)`** — one pure function. Returns `""` when no
+   target filled, so an untargeted run renders **exactly** as before. Otherwise it reports
+   how many trades exited at a target and the **minimum** target R across them (the
+   binding level), and states that rungs at or above it are a **lower bound on entry
+   travel, not a measurement**, and that the ceiling is **not comparable** with a run whose
+   target was never reached.
+2. Target fills are identified through **`bot.doctrine.resolve_reason`** — the same
+   resolution the doctrine block on the line above uses — so the two blocks cannot disagree
+   about which leg filled.
+3. The level is computed in **R of the filled entry**, which surfaced a second trap worth
+   its own line: at the shipped 10 bps/side friction a **nominally-1R target sits at
+   ~0.90R**, i.e. *below* the doctrine's WIN line, while the first clause ("a take profit
+   fill") still scores it a WIN. A 1.0R target manufactures WINs that are realized
+   SCRATCHes. The note prints that level, so it can no longer go unnoticed.
+
+### Validation — 575 tests pass (572 before; 3 added), preflight all-PASS
+`tests/test_replay.py`:
+- `test_no_censoring_note_when_no_target_filled` — the silence guarantee for every
+  existing run.
+- **`test_todays_intc_under_a_1r_target_reads_as_a_zero_ceiling`** — today's real INTC
+  trade (signal 121.31, bracket stop 118.88, ran to 124.68 = **1.27R** against the filled
+  entry, trailed out at 123.48) re-run with a 1R target. The target fills at 123.74 on the
+  way up, the 124.68 bar is **never observed**, and the ladder reports `CEILING: 0.0% of
+  entries ever print +1R` for a trade that printed 1.27R — while the doctrine scores it
+  `WIN 1` off a target that banked ~0.90R. Both halves of the trap, pinned on live data.
+- `test_censoring_counts_only_the_legs_that_actually_filled_a_target` — today's AMD
+  (trailed out at 607.75, never near its target) censors nothing; resolution is by price,
+  not by config.
+
+Verified live on a real `--days 30 --take-profit 0.02` run: the warning fires and names
+the 0.90R level.
+
+### Why this and not the target itself
+Tonight's licensed change was the weekly's #1, a reachable `TAKE_PROFIT`. **I tested it and
+it is refuted** — 3 windows × 4 target levels, friction on, doctrine scoring: true win rate
+rises monotonically as the target tightens (90d: 12.9 → 42.4%) while **expectancy, PF and
+payoff fall monotonically** (90d exp +8.06 → +5.48, PF 1.90 → 1.61, payoff 1.67 → 1.35).
+The best variant (1.25R) is expectancy-neutral at best and **loses PF on all three
+windows**. The weekly's own acceptance rule — *reject if expectancy or payoff falls* —
+rejects it. Full table in tonight's `memory/daily-review.md`.
+
+So the shipped change is the instrument that makes that refutation **safe to reproduce**.
+Without it, the next agent runs the same sweep, reads `ceiling 0.0%`, and concludes the
+entry signal collapsed under a target. The measurement lane is also the only lane the
+escalation clause leaves open (F+S 95.7% / 10 sessions, 100% / last 3) — same lane as
+IMP-050/051/052.
+
+### Expected impact
+No P&L effect by construction. It closes the weekly's #1 with a measurement instead of a
+deferral, removes a defect that inverts the ceiling's meaning under exactly the experiment
+the weekly ordered, and prices targets in R of the *filled* entry so friction can no longer
+hide below the WIN line.
+
+### What this does NOT license
+- **No config shipped**, and none may be: escalation is active and forbids parameter
+  tweaks. This is structural measurement.
+- **Not a reason to ship any target**, at any level — the sweep argues against all of them.
+- **Not a reason to touch the trail.** INTC gave back exactly the 1.00% tightened trail
+  width tonight, which is the trail working as designed; width is on the frozen list and
+  widening is forbidden by the doctrine irrespective of P&L.
+- **Not an exoneration of the exits in general** — only of this instrument.
+
+### Commit
+- **Commit:** (recorded below after push)

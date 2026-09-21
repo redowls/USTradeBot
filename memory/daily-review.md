@@ -8714,3 +8714,213 @@ a precise, benign explanation rather than a fault.
   reads `NFLX,BIRD,WPM` with **BIRD a ~$2.44 microcap**. Harmless while the DB watchlist
   loads, live if it ever fails. `.env` verified untouched (`ustradebot:ustradebot`, 600).
   **Not fixable from this routine — needs the operator.**
+
+---
+
+## 2026-09-21 — Daily Review
+
+### Stats
+- **2 closed trades** — headline **1W/1L = 50%**. Net realized P&L **+$42.49**
+  (avg **+$21.25**/trade). Avg win **+$51.52**, avg loss **−$9.03**, headline
+  **profit factor 5.71**. Both Model A, both exited on the **trailing stop**.
+- **Broker reconciliation — clean, to the cent.** Alpaca (`PA34DFFLTHRT`): equity
+  **$9,227.55**, `last_equity` $9,185.06 → **+$42.49**, which equals DB realized P&L
+  **exactly**. **0 positions, 0 open orders** at the close. Six orders today: 2 parent
+  buys filled, 2 stop legs filled, 2 take-profit legs **cancelled unfilled**. DB fills
+  match broker fills to the cent (INTC 121.24 → 123.48; AMD 610.763333 → 607.753333).
+  **No missed fill, no qty drift, nothing carried overnight.** Lifetime **−$772.45**
+  from the $10,000 start (−7.72%).
+- Service **active** and healthy: started 11:37:08 UTC (the pre-market watchlist
+  restart), warmup primed **16/16**, all 16 subscribed on IEX, **zero warnings and zero
+  errors in journald all session** (`-p warning` empty). No restarts, no reconnects.
+- **73 scored refusals** — 69 on confidence, 4 on the volatility floor. Normal decision
+  volume; the bot was awake and looking.
+
+### Stop-exit accounting
+- **Stop rate: 2/2 (100%).** Both exits were the trail being touched. **Zero target
+  fills** — the +10% legs (INTC 133.44, AMD 671.70) were cancelled unfilled, as they
+  have been for 60+ consecutive trades.
+- **WIN 0 · SCRATCH 1 · FAIL 1** (FAIL: full-stop **0**, break-even/scratched-trail **1**).
+- **True win rate 0% vs headline 50%.** The headline is carried entirely by INTC, which
+  the doctrine scores SCRATCH at **+0.949R** — it missed the WIN line by **0.051R**.
+- **Trailing 10 sessions with trades** (09-21, 09-17, 09-11, 09-04, 09-03, 08-28, 08-27,
+  08-26, 08-17, 08-13): **23 closed, stop rate 18/23 = 78%**, WIN 1 · SCRATCH 9 ·
+  FAIL 13, **true win rate 4.3%**, **F+S 95.7%**. Net +$138.83.
+  **Note: 0 of those 13 FAILs is a full stop — every one is a break-even or scratched
+  trail.** The −2% stop has not been touched in 23 trades. Stop geometry is not the
+  problem and tightening or widening it addresses nothing.
+- **Escalation remains ACTIVE** — F+S is 100% over the last three sessions with trades
+  (09-21 2/2, 09-17 2/2, 09-11 1/1) and 95.7% over ten. Sixth consecutive week above
+  the threshold.
+- **Dominant failure cause today: ENTRY QUALITY — specifically entry *timing*.** Not
+  stop geometry (no stop was reached), and — on tonight's measurement — not profit
+  capture either (see Step 4: the capture fix was tested and refuted). The quantified
+  version is in the trade-by-trade section and it is the sharpest evidence this log has
+  carried on the point.
+
+### Trade-by-trade review
+**Market context.** A strong risk-on trending day, not chop: **QQQ +1.84%** (open
+728.04 → close 741.41, closing at the high), oil and the 10-year both sliding, AI/semis
+leading, Nasdaq at/near a record close. **This was the tape this strategy is built for,
+and it is the correct backdrop against which to read a 0% true win rate.**
+
+**INTC — SCRATCH, +$51.52 (+1.85%), the near-miss.**
+Entry 14:44:02 UTC @ **121.24**, 23 shares, **confidence 90.06** (xo 0.79 · trend 1.00 ·
+rsi 1.00 · volume 1.00 · volatility 0.87) — the highest-scoring entry in weeks and every
+sub-score strong. Bracket stop 118.88 → **R = $2.36**. Trail ratcheted **31 times**
+(118.88 → 123.43), tightening to 1.00% once past +1%, and filled at **123.48** at
+16:03:28.
+- **Peak +2.84% = +1.459R** (124.68, which was the day's high — the bot held INTC
+  through the entire remaining move). Exit at **+0.949R**. **It gave back 0.510R**, and
+  0.510R is *exactly* the 1.00% tightened trail width. The give-back is not bad luck; it
+  is the trail's width, by construction.
+- **Root cause: profit capture — and it is the strongest single instance this log has of
+  the weekly's #1 hypothesis.** A 1.25R target (124.19) would have filled for +$67.85.
+  That observation is what motivated tonight's sweep — and the sweep refuted it as a
+  general rule. See "Lessons".
+
+**AMD — FAIL (BE-scratch), −$9.03 (−0.49%).**
+Entry 14:31:01 UTC @ **610.763333**, 3 shares, **confidence 63.91** (xo 0.37 ·
+trend 1.00 · rsi 1.00 · **volume 0.00** · volatility 0.23) — a marginal entry: bottom of
+the 60-69 band, the weakest crossover of the two, and **zero volume confirmation**.
+Bracket stop 598.43 → R = $12.33. Trail ratcheted 598.43 → **607.85** by 15:01, then
+**stopped ratcheting for 2h15m** and filled at 607.753333 at 17:16:25.
+- **Peak +0.78% = +0.386R.** It never came close to the WIN line, so no exit rule could
+  have made it a WIN. **Root cause: entry quality.**
+- ⚠️ **And the postscript is the real lesson: AMD closed at 615.53, its high, +5.15% on
+  the day.** The bot was *right about AMD's direction* and still lost money on it.
+
+**🔴 The finding of the night — both entries bought the last third of the move.**
+
+| | RTH open | day close | day move | entry | move BEFORE entry | travel LEFT after entry | %ile of day's range |
+|---|---|---|---|---|---|---|---|
+| **AMD** | 585.38 | 615.53 | **+5.15%** | 610.76 @ 10:31 ET | **+4.34%** | **+0.97%** | **83rd** |
+| **INTC** | 116.49 | 121.42 | **+4.23%** | 121.24 @ 10:44 ET | **+4.08%** | **+2.85%** | **65th** |
+
+On a day when both names moved 4–5% and closed at or near their highs, the trigger bought
+them at the **83rd and 65th percentile of the session range**, with **81% and 59% of the
+day's move already gone**. The bot then held both through their highs — it captured
+essentially all the travel that remained. **There was nothing left to capture.** This is
+IMP-040's MU finding (bought +2.7% off the open at the 58th percentile) reproduced on two
+names in one session, and it is the mechanism behind the 23% ceiling: a 1-minute EMA
+crossover confirmed by a 5-minute ribbon is, by construction, a *confirmation* signal, and
+confirmation arrives after the move.
+
+**Regime is not the excuse.** This was a clean trending risk-on tape. The strategy got the
+day it wants, picked two names that both rose 4–5%, and produced **zero doctrine WINs**.
+
+### What worked / what didn't
+- **Worked:** confidence ranked the day correctly — INTC at 90.06 travelled 1.46R, AMD at
+  63.91 travelled 0.39R. Risk discipline was perfect: no full stop, no naked overnight,
+  clean flat close, zero errors, broker and DB agreeing to the cent. The 31-step trail on
+  INTC did its capital-protection job exactly as designed.
+- **Didn't:** the entry timing (above). And the **+10% take-profit remains decorative** —
+  two more cancelled-unfilled legs tonight, extending the zero-fill streak.
+- **The 90-100 confidence band is now 5 trades / −$41.38 lifetime** (was 4 / −$92.90;
+  INTC's +$51.52 improved it). Too small to conclude from, but it is no longer the
+  outlier it looked like last week. Worth re-reading in a month, **not** acting on.
+
+### Lessons & improvement candidates
+**🔴 1. The reachable-target hypothesis — the weekly's #1 licensed change — is REFUTED.
+Tested tonight, not deferred.** Swept `TAKE_PROFIT` at 1.5R/1.25R/1.0R/0.75R against the
+shipped 10% baseline, three windows, friction on (10 bps/side), doctrine scoring:
+
+| window | variant | n | net | exp/trade | PF | payoff | true WR | F+S |
+|---|---|---|---|---|---|---|---|---|
+| **90d** | base 10% | 62 | +499.73 | **+8.06** | **1.90** | **1.67** | 12.9% | 87% |
+| 90d | 1.50R | 63 | +496.25 | +7.88 | 1.82 | 1.66 | 15.9% | 84% |
+| 90d | 1.25R | 63 | +491.58 | +7.80 | 1.84 | 1.67 | 22.2% | 78% |
+| 90d | 1.00R | 65 | +455.57 | +7.01 | 1.78 | 1.52 | 29.2% | 71% |
+| 90d | 0.75R | 66 | +361.69 | **+5.48** | **1.61** | **1.35** | **42.4%** | 58% |
+| **45d** | base 10% | 19 | +245.95 | +12.94 | **3.22** | 1.88 | 10.5% | 89% |
+| 45d | 1.25R | 20 | +260.51 | +13.03 | 2.84 | 1.90 | 20.0% | 80% |
+| 45d | 0.75R | 22 | +287.34 | +13.06 | 3.03 | 1.73 | 50.0% | 50% |
+| **30d** | base 10% | 13 | +163.52 | +12.58 | **2.80** | 1.75 | 7.7% | 92% |
+| 30d | 1.25R | 14 | +187.33 | **+13.38** | 2.56 | **1.92** | 21.4% | 79% |
+| 30d | 0.75R | 15 | +145.88 | +9.73 | 2.21 | 1.47 | 40.0% | 60% |
+
+**The result is the textbook shape of relabelling, and it is monotonic.** As the target
+tightens, true win rate rises every single step (90d: 12.9 → 15.9 → 22.2 → 29.2 →
+**42.4%**) while **expectancy, PF and payoff fall every single step** (90d exp +8.06 →
+**+5.48**, PF 1.90 → 1.61, payoff 1.67 → 1.35). On the largest window **no target beats
+the baseline on expectancy**. 1.25R is the least-bad — roughly expectancy-neutral
+(+6.4% / +0.7% / **−3.2%** across 30/45/90d) and payoff-neutral — but **PF falls on all
+three windows** and expectancy falls on the longest. The weekly's own acceptance rule was
+*"reject it if expectancy or payoff falls, however good the true win rate looks."*
+**It falls. Rejected. Nothing shipped to the trading path.**
+- ⚠️ **Second, independent reason to reject a 1R target: friction puts it below the WIN
+  line it is named after.** At 10 bps/side a nominally-1R target sits at **~0.90R of the
+  filled entry** — it banks less than 1R while the doctrine's first clause ("a take profit
+  fill") still scores it a WIN. A 1.0R target would manufacture WINs that are, in realized
+  terms, SCRATCHes. Any future target proposal must be quoted in R **of the filled entry**,
+  not of the signal price.
+- **What the sweep does NOT say:** it does not exonerate the exits in general, and it does
+  not license touching the trail (measured as relabelling at four widths; widening is
+  forbidden by the doctrine regardless). It says *this particular instrument*, at every
+  level worth testing, buys WIN count with expectancy. **The weekly's #1 is now closed by
+  measurement rather than deferred.** Three of the last five exit-side hypotheses have now
+  died this way; the exit side is genuinely close to exhausted.
+
+**🔴 2. The entry trigger is the residual, and today put a number on it.** 83rd and 65th
+percentile entries on a day both names ran 4–5%. The weekly's #2 (does a pullback-based or
+earlier trigger raise the 23% ceiling?) is the only work left that can change the verdict.
+**It is a build, not a tweak, and it must be judged on the ceiling** per IMP-051's standing
+rule. Today supplies two clean, fully-measured reference cases to test any candidate
+against.
+
+**🟠 3. Tension worth recording, NOT acting on: the opening-range blackout (IMP-017) cost
+the whole move today.** Both names did 80%/59% of their day's work before the 10:00 ET
+entry window opened. IMP-017 shipped on a real finding (pre-10:00 trades lost −$407 over
+41 trades, later corrected to −$142) and **it is not to be reverted on one day's tape** —
+but "the blackout excludes exactly the window where the travel is" is now a specific,
+testable hypothesis, and the replay harness can answer it with `--entry-start 09:30`
+across three windows. **Handed to the weekly. Do not ship it off today.**
+
+**4. Not candidates, explicitly:** raising `ENTRY_THRESHOLD` (would cut an already-fatal
+~2 trades/week and is a parameter tweak under active escalation); anything touching stop
+width (no stop was reached in 23 trades); re-opening the market gate or lowering
+`ENTRY_THRESHOLD` (both closed by the 09-18 weekly, on the frozen list).
+
+### Improvement shipped
+**IMP-053 — the replay ceiling declares when a target has censored it.** Measurement-only,
+`bot/replay.py` + `tests/test_replay.py`, service byte-identical (`bot.replay` is imported
+by nothing the service loads — re-verified at runtime tonight). Full write-up in
+`memory/improvement-log.md`. 575 tests pass (572 before), preflight all-PASS.
+
+### Notes for pre-market research
+- **🟢 INTC and AMD both behaved beautifully as instruments — keep both, watch both
+  first.** INTC: +4.23% RTH, 8.4% intraday range, scored **90.06** (the best entry in
+  weeks, every sub-score ≥0.79) and travelled 1.46R. AMD: +5.15% RTH, closed at its high.
+  **These are the two most tradeable names the board has produced in a month.** Note this
+  directly answers the 09-18 note "INTC did not signal once today despite being the
+  strongest trend on the board" — it signalled today, at 90 confidence, and it worked.
+  The AMD standing question ("the best scoring-but-not-travelling name") is **resolved the
+  other way**: AMD travelled 5.15% today; the entry arrived at the 83rd percentile of it.
+- **🔴 The volatility floor question is ANSWERED for these two, and it argues against
+  lowering the floor.** Both entries passed `MIN_VOLATILITY` comfortably on live tape
+  (AMD atr 0.223%, INTC atr 0.287% at the entry candle) — the two names that *did* clear
+  the floor are the two that moved 4–5%. The 09-21 pre-market screen's worry that "no
+  liquid symbol clears this floor" is real for the *screen*, but today shows the floor is
+  selecting correctly when a name does clear it. **Do not lower `_ATR_DEAD` /
+  `MIN_VOLATILITY` on the strength of the add screen alone** — bring the ceiling test to
+  it instead (IMP-051's rule), and note the escalation clause forbids the parameter tweak
+  anyway.
+- **QCOM refused 4× on the volatility floor** (`volatility 0.00 < 0.01`) while scoring
+  60.2 and 60.9 — i.e. it cleared confidence and was killed by the floor, twice. It is the
+  one name where the floor is actually binding on a scored candidate. Worth a look; the
+  09-21 note already has it "on notice" for a dead-signal clock (last fill 2026-06-22).
+- **Near-misses worth naming:** HOOD 59.0 and MU 59.2/58.1 both died within 1 point of the
+  threshold on a day the tape ran. Both remain the most active scorers. **Keep.**
+- **Dated tests land this week: ABNB + DASH on 09-23, AAPL + MSFT on 09-24.** The 09-21
+  log expects all four to fire, taking the board 16 → 13 with no adds available. That is a
+  lot of subtraction; today's session argues the board is *not* the problem (the two names
+  it did trade were excellent), so weigh the cadence deliberately.
+- **MU 09-30 earnings park — armed, 9 days out, date verified.** Still the #1 all-time
+  earner.
+- **Carried ask, seventh+ consecutive flag — the stale `WATCHLIST` fallback in `.env`**
+  still reads `NFLX,BIRD,WPM` with **BIRD a ~$2.44 microcap**. Harmless while the DB
+  watchlist loads, live if it ever fails. `.env` verified untouched tonight
+  (`ustradebot:ustradebot`, mode 600). **Needs the operator.**
+- **Perplexity: TENTH consecutive failure** (billing exhausted). WebSearch again returned a
+  complete, sourced recap in one call. The prompt is still Perplexity-first and has now
+  been wrong for ten runs.
