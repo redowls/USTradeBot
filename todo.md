@@ -657,6 +657,65 @@ changing or stopping the signal — never for sizing up to chase it.
 `crossover 0.25 < 0.25` (seen today, INTC 18:40). Cosmetic; misleads anyone reading
 journald. Fix with the next change that touches `bot/strategy.py`.
 
+### 📐 ANSWERED 2026-09-22 by the daily review (IMP-054) — **the unfalsifiability, as a number**
+
+The weekly asked for this three consecutive weeks and it was dropped every time: *at the
+current fill rate, how many weeks of live trading are needed to distinguish this
+expectancy from zero?* It is now computed, repeatable (`python -m bot.power`), and the
+sample-size arithmetic is simulation-validated. **Read the second table, not the first.**
+
+**Measured fill rate: 2.60 trades/week** (trailing five complete ISO weeks, W34–W38 =
+2, 6, 2, 1, 2). Cohorts, both with 95% intervals that **straddle zero**:
+
+| cohort | n | expectancy | sd | 95% CI | t | "if it were real" |
+|---|---|---|---|---|---|---|
+| current trail geometry (since IMP-021, 08-04) | 38 | **+$6.72** | $21.74 | [−$0.19, +$13.64] | +1.91 | 85 trades → **18 wk** |
+| all trades ever (since 06-09) | 282 | **+$0.37** | $26.16 | [−$2.68, +$3.43] | +0.24 | 38,345 trades → **281 years** |
+
+**Those two rows are the same book and cannot be told apart from each other, let alone
+from zero.** So "four months" and "281 years" are both live readings, and the post-hoc
+number must never be quoted alone — which is why the module leads with the inverse
+instead. **Minimum detectable expectancy: the smallest per-trade edge the live book
+could confirm at 80% power, α=0.05, from 38 trades at 2.60/week — no assumption about
+the true mean:**
+
+| horizon | trades | MDE ($) | MDE (R) |
+|---|---|---|---|
+| 3 months | 71 | $7.33 | 0.181R |
+| 6 months | 105 | $6.00 | 0.148R |
+| **1 year** | **173** | **$4.66** | **0.115R** |
+| 2 years | 308 | $3.48 | 0.086R |
+| 5 years | 714 | $2.28 | 0.056R |
+
+**The decision-grade fact: one year of live trading can only confirm an edge of
+$4.66/trade or larger. The bot's realized all-time expectancy is $0.37/trade — 13×
+below that floor, and still 6× below the five-year floor.** On the all-time number this
+strategy is unfalsifiable on any horizon an operator would wait for. The only reading
+that is confirmable inside a year is the 38-trade cohort's +$6.72, and that estimate
+does not exclude zero.
+
+**What this does and does not change.**
+- ✅ It **confirms the D-grade verdict's premise with arithmetic** rather than assertion,
+  and it closes weekly ask #3.
+- ✅ It **hardens the (2)-vs-(3) choice above**: option 2 must be judged on **replay**,
+  because live fills cannot adjudicate it. Any proposal to "run it live a while and see"
+  is now refuted by number — a year of watching resolves nothing below $4.66/trade.
+- 🔴 **The binding constraint is the fill rate, not the edge.** At the bot's 2026-W28
+  cadence (45 trades/week) the 173 trades that now take a year would take **4 weeks**.
+  The filters that reduced the cadence were each justified individually and the
+  leave-one-out sweep (09-16) confirms they earn their keep — **so this is not a case for
+  removing them.** It is the cost of the current design, stated plainly: the bot bought
+  precision with its own ability to be measured.
+- ⛔ It is **not** an argument for sizing up, loosening risk, or live capital. A larger
+  position multiplies mean and sd together, so **MDE in R is unchanged by position size**
+  — trading bigger cannot buy statistical power, it only raises the stakes on an
+  unconfirmed edge. Stated explicitly because it is the obvious wrong inference.
+
+**If (2) is authorised, pre-register with this in hand:** the stopping rule must be a
+**replay** +1R-rate threshold (~25% on two windows, per the recommendation above), and the
+budget must be fixed in advance. Live confirmation is not available at any price the
+operator would pay.
+
 ---
 
 ## ✅ CLOSED — `ENTRY_THRESHOLD` was never renormalised after IMP-036 changed the volatility scale

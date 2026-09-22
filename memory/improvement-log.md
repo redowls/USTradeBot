@@ -4570,3 +4570,129 @@ hide below the WIN line.
 
 ### Commit
 - **Commit:** d504ae1
+
+---
+
+## IMP-054 — 2026-09-22 (daily) — time-to-decision: the unfalsifiability, as a number
+
+**`bot/power.py` (new), `tests/test_power.py` (new), `todo.md`.** **Measurement change
+only.** No trading-path file touched, no config key added, no constant fitted, no default
+changed. Verified that nothing the service imports imports `bot.power` — the only
+importers are its own `__main__` and its test module — so the running service is
+byte-identical before and after. Read-only: the CLI opens the store, reads
+`closed_trades`, closes it.
+
+### The problem
+This was the weekly's ask **#3, asked three consecutive weeks and dropped three times**:
+
+> *"Compute, once: at the current fill rate and true win rate, how many weeks of live
+> trading are needed to distinguish this strategy's expectancy from zero at any reasonable
+> confidence? I expect the answer to be years. If it is, that is the fact that should
+> govern the retire-or-rebuild decision, and it belongs in `todo.md` in front of the
+> operator rather than implied across ten weekly reviews. It is a half-hour of arithmetic
+> and it outranks any further instrument."*
+
+It outranks the instruments because **every other explanation is closed by measurement**:
+the entry-filter stack (09-16, all-off loses $1,162 at PF 0.67), the market gate (09-18,
+16.3% < the book's own 23.3% ceiling), `ENTRY_THRESHOLD` (three refutations in four days),
+trail arming and trail width (09-11, WIN count moved by zero trades in all three windows),
+and a reachable `TAKE_PROFIT` (09-21, expectancy/PF/payoff all fall monotonically). What
+remains is the entry signal, and **whether the live book can ever judge a replacement is
+the question that governs whether the rebuild is worth starting.** Ten weekly reviews
+asserted "it cannot"; none had computed it.
+
+### The change
+`bot/power.py`, pure arithmetic, no new dependency (scipy is not installed; the two
+normal quantiles needed are tabulated in `_Z` and an unsupported level **raises** rather
+than silently approximating).
+
+1. **`required_trades(mean, sd)`** — the textbook one-sample form
+   `n = ((z_{1-α/2} + z_power)·sd/mean)² + T_CORRECTION`. `T_CORRECTION = 2` is the
+   standard Guenther/Snedecor adjustment for estimating the SD. **Validated by simulation
+   before shipping:** at the returned n, achieved power is **0.802–0.806** against the
+   0.800 target (**0.795–0.796** without the correction), across four mean/sd pairs drawn
+   from this bot's real cohorts. Returns `None` for a zero edge.
+2. **`minimum_detectable_expectancy(n, sd)`** — *the instrument that matters*, and the
+   reason this is not just a power calculation. `required_trades` is **post-hoc power**: it
+   assumes the observed mean is the true one, which is precisely the question. Run on this
+   bot it also answers almost anything, because the cohorts disagree by 18×. The inverse
+   assumes nothing about the true mean and states a floor: **the smallest per-trade edge a
+   given number of trades could confirm.** Both directions share one arithmetic core, and
+   a test round-trips them against each other.
+3. **`fills_per_week(exit_dates)`** — measured over the trailing **five complete ISO
+   weeks**, excluding the partial current week, and deliberately **not** a cohort's own
+   trades/span: this bot's cadence has collapsed from 45 trades/week (2026-W28) to single
+   digits, so a long-run average would credit the live book with resolving power it no
+   longer has.
+4. **`horizon_table` / `weeks_to_confirm` / `format_power`** and a
+   `python -m bot.power [--days N] [--fills-per-week X]` CLI reporting in **both $ and R**
+   (position size varies, so the two are not proportional and need different samples).
+   Every rendering of the post-hoc number carries a `[post-hoc, see docs]` tag so it
+   cannot be quoted bare.
+
+### The answer — written into `todo.md` under the OPERATOR DECISION section
+**Measured fill rate 2.60 trades/week** (W34–W38 = 2, 6, 2, 1, 2).
+
+| cohort | n | expectancy | sd | 95% CI | t | post-hoc |
+|---|---|---|---|---|---|---|
+| current geometry (post-IMP-021) | 38 | **+$6.72** | $21.74 | [−$0.19, +$13.64] | +1.91 | 85 tr → **18 wk** |
+| all trades ever | 282 | **+$0.37** | $26.16 | [−$2.68, +$3.43] | +0.24 | 38,345 tr → **281 yr** |
+
+**Both straddle zero, and the two cannot be distinguished from each other** — so "four
+months" and "281 years" are both live readings of the same book. The honest statement is
+the floor: from 38 trades at 2.60/week, **one year buys 173 trades and can only confirm an
+edge ≥ $4.66/trade (0.115R)**; five years buys 714 and reaches **$2.28 (0.056R)**.
+**The realized all-time expectancy is $0.37/trade — 13× below the one-year floor, 6× below
+the five-year floor.**
+
+Three consequences, all recorded in `todo.md`:
+- **Replay is the only court.** "Run it live a while and see" is now refuted by number.
+  Option (2) of the retire-or-rebuild decision must be judged on replay with a
+  pre-registered +1R gate.
+- **The binding constraint is the fill rate, not the edge.** At the W28 cadence the 173
+  trades that now take a year would take 4 weeks. **This is not an argument for removing
+  filters** — 09-16 showed they earn their keep — it is the measured cost of the design.
+- ⛔ **Not an argument for sizing up.** A larger position multiplies mean and sd together,
+  so **MDE in R is invariant to position size.** Bigger positions cannot buy statistical
+  power; they raise the stakes on an unconfirmed edge. Stated explicitly in `todo.md`
+  because it is the obvious wrong inference and the risk posture is non-negotiable.
+
+### Validation — 602 tests pass (575 before; 27 added), preflight all-PASS
+`tests/test_power.py`, fixtures are tonight's two real cohorts and the measured rate:
+- `test_required_trades_matches_the_textbook_formula` — hand-computed: mean 0.10, sd 1.0 →
+  `(2.8015852×10)² = 784.89 → 785 + 2 = 787`.
+- `test_minimum_detectable_inverts_required_trades` — the two directions agree.
+- `test_the_most_flattering_cohort_still_straddles_zero` — the 38-trade cohort's CI
+  [−$0.19, +$13.64] and t = +1.91, pinned.
+- `test_the_all_time_cohort_needs_centuries` — >38,000 trades, >250 years.
+- **`test_a_year_of_live_trading_cannot_see_the_edge_the_bot_has_produced`** — the
+  regression case for the whole finding: 52 weeks → 173 trades → MDE $4.66, which is >10×
+  the all-time observed expectancy; five years still >5×.
+- `test_fills_per_week_reproduces_the_measured_2026_09_22_rate` (2.60) and
+  `test_fills_per_week_ignores_the_partial_current_week` — today's own fill must not
+  inflate the rate.
+- `test_unsupported_confidence_level_raises_rather_than_approximating` — a wrong quantile
+  would be invisible in the output, so it raises.
+
+### Why this and not the day's other candidate
+Tonight also turned up a real reporting defect: **`doctrine.FULL_STOP_MAX_R = -0.75` is
+unreachable** behind a 0.625R binding trail, so **36 of 36 FAILs in the trail-1.25% era
+read `BE-scratch`** — a label that *names profit capture as the cause of every failure for
+two months* — while **5 of the 5 that have recorded MFE never went green at all** (today's
+INTC peaked at **+0.105R**). It is queued as the next run's change, with the fix specified
+(derive the split from whether the filled stop was above entry; counts, stop rate and true
+win rate must not move). It was deferred tonight **only** by the one-change-per-run rule
+and because ask #3 had already been dropped three times and explicitly outranks further
+instruments.
+
+### What this does NOT license
+- **No config shipped**, and none may be: escalation is active (F+S 100% over the last
+  three sessions with trades, seventh consecutive week) and forbids parameter tweaks.
+- **No step toward live capital, no sizing change, no loosening of any limit.** The module
+  documents why sizing up cannot help the measurement at all.
+- **Not a reason to remove filters** to buy fill rate — refuted 09-16 and declined here.
+- **Not a verdict on the signal.** It bounds what the live book can ever prove; it says
+  nothing about whether a different trigger would work. That remains replay's question.
+
+### Commit
+- **Commit:** (recorded below after push)
