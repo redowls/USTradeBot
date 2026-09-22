@@ -8771,3 +8771,318 @@ positions / 0 open orders**. **No warnings or errors since boot** (`-p warning` 
    `/v2/stocks/{sym}/bars?timeframe=1Day&feed=sip`. **Also note the `limit` parameter counts forward from
    `start`** — `limit=60` with an old `start` silently returns the *oldest* 60 bars, which would have put
    a 09-09 close in today's table had it not been caught. Use a wide `start` and slice the tail.
+
+---
+
+## 2026-09-22 — Pre-market Research
+
+**No dated test is due today, no enabled name carries a catalyst, and the board just posted its best
+session in a month — so nothing was parked and nothing was added. One note-only metadata write (QCOM's
+"on notice" flag is REFUTED, not escalated).** Book is **CLEAN & FLAT** — broker-confirmed **0 positions /
+0 open orders**, equity **$9,227.55**, `cash == equity == last_equity == portfolio_value` → **nothing
+locked.** **16 enabled, membership unchanged. No restart** (the enabled *set* is byte-identical to what the
+running process loaded).
+
+### Market context
+**Futures mixed and split by index, the morning after a record.** Dow and S&P 500 futures higher, **Nasdaq
+100 lower** — the first divergence in a week — with SPY/QQQ both mixed pre-market.
+
+- **Monday 09-21 was the tape this strategy is built for and the board caught it.** Nasdaq Composite
+  **+2.3% to a record close**, S&P 500 **+1.5%**, Dow **+0.8%**, led by communication services, info tech
+  and consumer discretionary; energy, utilities, staples and materials fell. On the board that printed
+  **INTC +12.14%, META +11.34%, AMD +9.95%, QCOM +9.29%** (close-to-close vs 09-18).
+- **The overnight driver is a reversal of Monday's helper: oil is back up.** Treasury sanctioned foreign
+  financial institutions in **Egypt, Turkey and Russia** for facilitating Iranian transactions; **Brent
+  +1.05% to $101.39**, back above $100 after Monday's sub-$100 print. **10-year 4.97%, 2-year 4.77%.**
+  **CME FedWatch now prices 57.6%** odds of a hike after the October meeting, **up from 53.1% yesterday** —
+  the rate path got *more* hawkish on an oil move, which is the same mechanism that produced the 09-15/16
+  risk-off. **This is a two-way tail; it is not forecastable here.**
+- **🟢 No earnings on any enabled name today, double-sourced.** Today's calendar is **AutoZone, Thor
+  Industries, KB Home, Worthington Enterprises, MillerKnoll** — **none ours**; independently, a **36-hour
+  Alpaca news sweep across all 16 enabled names (79 stories)** returned **no earnings print, no guidance
+  change, no analyst action, no halt and no M&A on any enabled symbol.** Late September is off-cycle; the
+  Q3 wave starts mid-October.
+- **⚠️ Two scheduled items to be aware of, neither today and neither actionable:** the **Trump–Xi meeting
+  Thursday** (Iran war, AI, trade) and **eight Fed speeches through Friday**. **COST reports Thursday AH**
+  (parked; DASH is tagged by association only). **MU fiscal Q4 remains Wed 09-30 AH** — verified 09-21
+  against Micron's own 08-26 release, unchanged, and **not to be pulled forward.**
+- **Name-level items, all non-binary:** **NFLX** — Paramount's **$110B WBD merger cleared a legal hurdle**
+  (a competitive-landscape story, not an NFLX event); **INTC/TSLA** — Morgan Stanley's SpaceX/Tesla
+  "shared mission" note floating a merger (chatter); **MU** — the strike threat at its largest production
+  base is **still live**; **NVDA** — VanEck flagging "a real risk" of an earnings miss (NVDA does not
+  report until November); **META/AMZN** — the Muse-AI blocking spat; **HOOD** — Monday's +5% on the bitcoin
+  rally plus the SEC rule change. **None is tradeable information for this strategy.**
+
+### ⚠️ Perplexity: ELEVENTH consecutive failure, same cause
+`sonar` returned **HTTP 401 `insufficient_quota`** — *"You exceeded your current quota, add credits."* Key
+present and well-formed (53 chars). Fell back to WebSearch per the routine's own rule and did not block the
+run; **WebSearch plus the Alpaca news API covered the whole briefing in two calls, as they have for eleven
+runs.** The prompt's "do this FIRST" instruction is now wrong for the eleventh consecutive routine.
+
+### Carried from daily review (09-21) — every item discharged
+- **"🟢 INTC and AMD both behaved beautifully as instruments — keep both, watch both first."** →
+  **Kept, and both are now the top two names on the board on trend.** INTC **+24.96 / +25.12**, AMD
+  **+23.63 / +23.85**, both **100% of 20 sessions ≥2%**, both ~**$9B/day**. On the 1-min instrument INTC is
+  **second-best (0.117% / 19.0% admissible)**. Nothing about either argues for action.
+- **"🔴 The volatility floor question is ANSWERED for these two, and it argues against lowering the
+  floor… do not lower `_ATR_DEAD` / `MIN_VOLATILITY` on the strength of the add screen alone."** →
+  **Accepted in full, and today's measurement independently supports it — see Finding below.** I am **not**
+  re-raising the floor as a config ask this morning; I am correcting my own instrument instead.
+- **"QCOM refused 4× on the volatility floor while scoring 60.2 and 60.9 — the one name where the floor is
+  actually binding on a scored candidate. Worth a look."** → **Looked at, and it is the one symbol-level
+  item of the run.** QCOM's 5-session 1-min median is **0.107%, third-best on the board**, and it closed
+  **+9.29%** Monday to **+11.66 / +15.19**. **Its "on notice" flag is refuted** — see Decision 3.
+- **"Near-misses worth naming: HOOD 59.0 and MU 59.2/58.1 both died within 1 point of the threshold."** →
+  **Both kept, no action.** HOOD remains the **best name on the 1-min instrument (0.136% / 26.3%)**; MU is
+  **+8.36 / +12.43** on **$23.86B/day**. Neither is a watchlist problem.
+- **"Dated tests land this week: ABNB + DASH 09-23, AAPL + MSFT 09-24… that is a lot of subtraction; weigh
+  the cadence deliberately."** → **Weighed, and the answer is in Decision 1 + Decision 2: the cadence is
+  kept, because I checked whether the subtraction is replaceable and it is not.** All four calls are
+  pre-registered and adjudicated below in advance, on today's data.
+- **⚠️ Carried ask — the stale `WATCHLIST` fallback — STILL OPEN, seventh consecutive flag.** Verified by
+  hand: `.env` still reads **`WATCHLIST=NFLX,BIRD,WPM`** and **BIRD is a ~$2.44 microcap**. `.env` verified
+  untouched — **`ustradebot:ustradebot`, mode 600**. **Not fixable from this routine.**
+
+### Watchlist review
+All 16 re-verified on Alpaca this morning: **`tradable: true`, `status: active` — 16/16.** No halts, no
+sub-$5 names. Technicals from **09-21 SIP daily bars** (wide `start`, tail-sliced per the 09-21 ops note):
+
+| | close | 20MA | 50MA | ATR% | medRng | ≥2% | $vol/d | 10d | 1d |
+|---|---|---|---|---|---|---|---|---|---|
+| **INTC** | 121.78 | **+24.96** | **+25.12** | **5.37** | 4.20 | 100% | $9.10B | **+27.12** | **+12.14** |
+| **AMD** | 615.52 | **+23.63** | **+23.85** | 4.15 | 3.55 | 100% | $8.89B | **+28.89** | **+9.95** |
+| **META** | 741.25 | **+18.76** | **+21.75** | 3.69 | 2.93 | 80% | **$11.30B** | **+20.18** | **+11.34** |
+| **QCOM** | 194.23 | **+11.66** | **+15.19** | 5.00 | 3.73 | 95% | $2.14B | **+15.11** | **+9.29** |
+| **HOOD** | 123.30 | **+10.04** | **+19.24** | **5.95** | **4.99** | 100% | $2.32B | +0.97 | +2.90 |
+| **MU** | 1043.96 | +8.36 | +12.43 | 4.25 | 3.30 | 100% | **$23.86B** | +2.69 | +2.77 |
+| **TSM** | 445.14 | +5.04 | +6.60 | 2.22 | 1.96 | 45% | $4.15B | +3.78 | +2.41 |
+| **AAPL** | 338.98 | +4.58 | +5.73 | 2.23 | 1.99 | 50% | **$12.35B** | +5.94 | +0.85 |
+| **TSLA** | 375.30 | +4.19 | +7.35 | 3.64 | 2.94 | 90% | $12.14B | +5.99 | +3.03 |
+| **PLTR** | 183.09 | +4.00 | **+14.87** | 3.98 | 3.70 | 90% | $4.76B | +5.02 | +3.07 |
+| **QQQ** | 741.47 | +3.75 | +4.39 | **1.29** | **0.90** | **5%** | $22.83B | +3.13 | +2.77 |
+| **NVDA** | 227.38 | +3.58 | +5.95 | 2.67 | 2.20 | 65% | **$27.85B** | −1.29 | +2.30 |
+| **MSFT** | 501.61 | **+0.64** | +7.41 | 2.01 | **1.79** | **40%** | $9.51B | +0.38 | +1.59 |
+| **ABNB** | 166.84 | **−5.91** | **−0.32** | 2.59 | 2.38 | 55% | **$0.72B** | **−8.30** | +0.37 |
+| **NFLX** | 73.36 | **−6.67** | **−3.11** | 3.39 | 2.37 | 65% | $2.15B | −6.25 | +2.19 |
+| **DASH** | 193.83 | **−9.13** | **−5.64** | 3.74 | 3.10 | 90% | **$0.79B** | **−8.45** | +0.46 |
+
+**Reference: SPY 773.50 (+1.15 / +1.76) · SMH 596.03 (+6.51 / +5.59) · QQQ (+3.75 / +4.39) ·
+IWM 285.58 (−2.12 / −3.17) · DIA 519.78 (−1.44 / −1.61) · IREN 47.23 (+12.19 / +16.61).**
+
+- **🟢 Breadth on the board is the best it has been in this log: 13 of 16 above their 20MA, 13 of 16 above
+  their 50MA**, and **SMH extended to +6.51 / +5.59**. The top three names are **+18% to +25% above both
+  MAs simultaneously** — a configuration this board has not shown since before the 09-14 chip break.
+- **🔴 The market-level caveat is unchanged and it is the reason today is not a green light: IWM
+  (−2.12 / −3.17) and DIA (−1.44 / −1.61) are still below both MAs.** The rally is large-cap tech and
+  nothing else. **The QQQ gate remains the right instrument for this tape**, and with Nasdaq futures
+  *lower* this morning after a record close, **expect the gate to be two-way today.**
+- **🟢 MSFT has regained its 20MA** (−0.75 on 09-18 → **+0.64**), which retires *one* leg of its 09-24
+  test — but **not** the test (see Dates; the registration is an **OR**).
+- **🔴 The weak tail is now exactly three names and all three are dated:** DASH, NFLX, ABNB. **ABNB's
+  liquidity deteriorated further to $0.72B** (from $0.79B), now **15% under** the $0.85B floor and an
+  **8th consecutive session below it**.
+- **🔒 QQQ — structurally exempt, restated.** Worst name on merit (ATR **1.29%**, **5%** of 20 sessions
+  ≥2%, 1-min median **0.021%** — the lowest number in this log) and it **is** `MARKET_FILTER_SYMBOL`.
+  Parking it would make the market gate **fail open.** Verified enabled after the write.
+
+### 🔬 The measurement of the run — a record Nasdaq day did NOT lift the board's 1-min ranges
+Re-ran the routine's binding instrument — **1-min ATR(14) over the 14:00–19:45 UTC entry window on the IEX
+feed**, five sessions **09-15 → 09-21**, so the window now *includes* Monday's +2.3% record:
+
+| | med 1-min ATR% | % bars > 0.20% | bars | (09-21 reading) |
+|---|---|---|---|---|
+| **HOOD** | **0.136** | **26.3%** | 1,640 | *(0.160 / 30.4%)* |
+| **INTC** | **0.117** | **19.0%** | 1,658 | *(0.104 / 18.7%)* |
+| **QCOM** | 0.107 | 2.9% | 1,549 | — |
+| PLTR / AMD | 0.084 / 0.083 | 1.0% / 3.3% | ~1,580 | *(AMD 0.085 / 2.1%)* |
+| META / TSLA / MU | 0.079 / 0.076 / 0.072 | 2.0% / 2.5% / 5.6% | ~1,650 | — |
+| **DASH** | 0.060 | **0.0%** | **1,242** | — |
+| NFLX / NVDA / MSFT / AAPL | 0.051 → 0.048 | 0.7% / 0.0% / 0.0% / 0.0% | ~1,655 | — |
+| **ABNB** | 0.044 | **0.0%** | **1,072** | — |
+| TSM | 0.040 | 0.0% | 1,579 | — |
+| **QQQ** | **0.021** | 0.0% | 1,633 | — |
+
+- **The headline: a record-setting index day with four board names up 9–12% moved the distribution
+  barely at all.** HOOD, the best name, **fell** 0.160 → 0.136 as the window rolled; INTC rose 0.104 →
+  0.117. **Still zero names clear a 0.18% median, and now zero clear 30% admissible bars either.** This is
+  the fourth consecutive measurement of the same shape and the strongest one yet, because the tape was
+  maximally favourable.
+- **⚠️ But I am correcting my own instrument, and it cuts AGAINST the escalation I filed yesterday.**
+  Last night's daily reported that **INTC and AMD's actual entry candles cleared `MIN_VOLATILITY`
+  comfortably (0.287% and 0.223%)** — on the very sessions whose *medians* are 0.117% and 0.083%. **The
+  floor does not select names, it selects moments.** A median-based screen therefore **systematically
+  understates tradability**: what matters is whether a fresh cross can coincide with an admissible bar,
+  which is leg **(b)** (% of bars above the floor), not leg **(a)** (the median). **INTC proves it — 19%
+  admissible bars, and it produced the best-scoring entry in weeks on Monday.**
+- **What I am NOT doing with that: I am not widening, weakening or re-writing leg (a) this morning.**
+  Doing so on the same day it would license an add is exactly the reverse-engineering the
+  pre-registration exists to prevent. **It is handed to tonight's daily and Friday's weekly as a
+  methodology question, to be settled before the 09-25 IREN re-screen — not by me, and not today.**
+- **A second, cleaner use of the same data: bar count is a liquidity tell.** **ABNB prints 1,072 and DASH
+  1,242 entry-window bars against ~1,650 for the rest of the board** — the same half-bar-count signature
+  that independently condemned **LLY (710 bars)** on 09-21. **Both are dated 09-23 and this is corroborating
+  evidence collected a day early, not a reason to pull the tests forward.**
+
+### 🎯 Decision 1 — no dated test is due today → nothing parked
+**Today is 09-22 and the register holds no test dated 09-22.** The next are **ABNB + DASH on 09-23** and
+**AAPL + MSFT on 09-24**. Every weak name on the board already carries a clock, and **pulling any of them
+forward by one day to manufacture an action would be a discretionary park wearing a mechanical costume** —
+the precise failure the dated-test convention was built to stop. All four are adjudicated in advance under
+Dates below so that tomorrow's and Thursday's calls cannot be reverse-engineered from their outcomes.
+
+### 🎯 Decision 2 — the add screen was run in full and NOTHING cleared → no adds
+Per the 09-18 standing method, any add must be measured on the 5-session 1-min entry-window instrument
+before it is bought. **30 liquid candidates screened on dailies → 10 survivors → all 10 measured on the
+1-min instrument.** Pre-registered thresholds, unchanged: **(a)** median ≥ **0.18%**, **(b)** ≥ **30%** of
+bars > 0.20%, **(c)** $vol/d ≥ **$1.0B**, **(d)** above both MAs.
+
+| candidate | med 1-min ATR | % bars >0.20% | $vol/d | MAs | verdict |
+|---|---|---|---|---|---|
+| **IREN** | **0.174** | **29.3%** | $1.56B | +12.19 / +16.61 | ❌ **(a) and now (b)** |
+| MSTR | 0.143 | 24.0% | $2.90B | +25.65 / +50.05 | ❌ (a) and (b) |
+| NBIS | 0.142 | 23.3% | $2.91B | +6.75 / +9.70 | ❌ (a) and (b) |
+| COIN | 0.126 | 20.2% | $1.78B | +10.66 / +20.03 | ❌ (a) and (b) |
+| SMCI | 0.122 | 18.6% | $1.35B | +8.20 / +21.84 | ❌ (a) and (b) |
+| COHR | 0.109 | 20.2% | $1.57B | +11.57 / +8.36 | ❌ (a) and (b) |
+| SNDK | 0.103 | 16.3% | **$14.91B** | +10.42 / +17.68 | ❌ (a) and (b) |
+| STX | 0.096 | 4.2% | $2.83B | +5.55 / +4.11 | ❌ (a) and (b) |
+| CRWD | 0.084 | 3.2% | $2.72B | +14.00 / +19.69 | ❌ (a) and (b) |
+| MRVL | 0.080 | 10.0% | $4.72B | +12.64 / +18.95 | ❌ (a) and (b) |
+
+Rejected on the daily screen first: **ALAB, ARM, NET, ANET** (each above both MAs and genuinely volatile,
+but **under $1.0B/day** — ALAB $0.93B, ARM $0.96B, NET $0.90B, ANET $0.93B), plus APP, CRWV, AVGO, ORCL,
+VRT, WDC, OKLO, SOFI, RBLX, DKNG, GEV, LRCX, AMAT, ON, VST, CEG (below one or both MAs).
+
+- **⚠️ IREN got WORSE, not better, and I am recording that against my own expectation.** The series is
+  **0.152 (09-15) → 0.174 (09-18) → 0.178 (09-21) → 0.174 today**, and **leg (b) fell from 36.0% to
+  29.3%**, so on today's data IREN fails **both** legs for the first time since it was pre-registered.
+  **This is an out-of-cycle read. The formal re-screen is 09-25, I did not pull it forward, and I am not
+  counting today's number as the re-screen** — exactly as on 09-18 and 09-21, and it is worth noting the
+  discipline now cuts the other way: today the out-of-cycle read would have made the *reject* easier, not
+  the add.
+- **🔴 The 09-18/09-21 Finding is reinforced by a fifth independent batch.** **SNDK at $14.9B/day** — the
+  second-most-liquid name measured anywhere in this log — delivers **0.103% / 16.3%**. **ARM ran +17.16%
+  on Monday** and is still under the liquidity floor. **Across ~38 distinct symbols now measured on this
+  instrument, not one clears leg (a), and today not one clears leg (b) either.**
+- **The honest consequence for board size:** if ABNB, DASH, AAPL and MSFT all fire as expected, the board
+  goes **16 → 12 or 13 by Thursday with no qualifying replacement available.** I am **not** softening a
+  threshold to prevent that. **The right response is the methodology question above (is leg (a) the wrong
+  test?), settled deliberately by the daily/weekly before 09-25 — not a discretionary add this morning.**
+
+### 🎯 Decision 3 — QCOM: the "on notice" flag is REFUTED, not escalated
+Registered 09-21: *"if it loses its 20MA the standard 30d dead-signal clock should be set."* The trigger
+was **losing the 20MA**. **It did the opposite** — **+9.29% on Monday to +11.66 / +15.19 vs its 20/50MA**,
+$2.14B/day, 95% of 20 sessions ≥2%, and the **third-best 1-min median on the board (0.107%)**.
+**The registered condition did not fire → no clock is armed, and I am not inventing one.**
+
+⚠️ **Stated plainly so it is not lost:** QCOM's **last fill was 2026-06-22 — three months, the longest
+dead-signal streak on the enabled board** — and last night it was **refused 4× on the volatility floor
+while scoring 60.2 and 60.9**, i.e. it cleared confidence and was killed by the floor. **That is a
+`MIN_VOLATILITY` observation, not a symbol observation**, and QCOM is the single best live example of it.
+Handed to the daily rather than converted into a park test on a name that is currently the 4th-strongest
+trend on the board.
+
+### Changes applied to dbo.watchlist
+**One note-only metadata UPDATE. The enabled set is unchanged. No INSERTs, no DELETEs, no enable/disable.**
+- **QCOM** — `note` → *"09-22: on-notice REFUTED +11.66/+15.19 after +9.29% 09-21; $2.14B/d; 1m ATR 0.107%
+  (3rd best); no clock armed"* (parameterized `UPDATE dbo.watchlist SET note = ? WHERE symbol = ? AND
+  enabled = 1`, **1 row**; `len(note) = 109 ≤ 128` asserted before the write, per the 09-21 truncation
+  ops note).
+
+Assertions re-run against the live table: **enabled = 16 ≤ 30 ✅** · **35 rows total, unchanged ✅ (no
+DELETEs)** · **QQQ still enabled ✅** (guards `MARKET_FILTER_SYMBOL` against a silent gate disable) ·
+**16/16 tradable + active on Alpaca ✅** · **no symbol with an open position was touched ✅** (broker
+re-confirmed **0 positions / 0 open orders** immediately before the write). **No source-code changes,
+`.env` untouched.**
+
+### Final watchlist
+**16 enabled** (≤30 ✅), membership unchanged: AAPL, ABNB, AMD, DASH, HOOD, INTC, META, MSFT, MU, NFLX,
+NVDA, PLTR, QCOM, QQQ, TSLA, TSM. **Parked (19):** AMGN, AMZN, AVGO, BABA, BIRD, C, COST, ENPH, GOOG,
+JPM, LLY, SE, SPOT, SPY, UBER, UNH, WMT, WPM, XOM.
+
+**Service restarted: NO — and the reason is the 09-15 precedent, not a shortcut.** `load_watchlist()` reads
+the **symbol** column; `note` is metadata the bot never consumes. The enabled *set* is byte-identical to
+what the running process loaded, so a restart would only discard a warm 16/16 ribbon set ~2h before the
+open. Health verified instead: `is-active` **active**, **NRestarts=0**, MainPID **4085167**, up since
+**2026-09-21 20:18:27 UTC**; startup logged the **DB path** (`Watchlist (dbo.watchlist): …16 names`) rather
+than the env fallback, **warmup primed 16/16**, all 16 subscribed on IEX, and **zero warnings and zero
+errors since boot** (`-p warning` empty). Account **ACTIVE** ($9,227.55), **0 positions / 0 open orders**.
+`.env` **`ustradebot:ustradebot` mode 600**, untouched.
+
+### Dates carried forward
+- **⚠️ ABNB 09-23 — TOMORROW, and it is called in advance to FIRE.** Registration: *park if it has not
+  traded by 09-23 **and** is below both its 20MA and 50MA **or** median $vol has fallen below $0.85B.*
+  **Both sub-conditions are satisfied today:** −5.91 / **−0.32** (below both, though the 50MA leg is thin)
+  and **$0.72B, an 8th consecutive session under the floor and the lowest reading yet.** Last fill
+  **2026-08-10**. Corroborated independently by the bar count (**1,072 vs ~1,650**) and **0.0% admissible
+  1-min bars.** The only way it resolves KEEP is a ≥0.4% up-session today that also lifts $vol.
+- **⚠️ DASH 09-23 — TOMORROW, called in advance to FIRE, and it is not close.** *Park if never traded by
+  09-23 and below both MAs (also park if median $vol < $0.85B).* **ZERO all-time trades** (added 08-24),
+  **−9.13 / −5.64**, **$0.79B**, **0.0% admissible 1-min bars in 1,242.** All three legs. ⚠️ **COST
+  reports Thursday AH** and DASH carries the Costco-partnership association — **irrelevant to a Wednesday
+  adjudication**, noted so it is not mistaken for a catalyst.
+- **⚠️ MSFT 09-24 — called in advance to FIRE, on the thinnest possible margin, and the trend leg is now
+  GONE.** Registration is an **OR**: *park if not traded by 09-24 **and** median 20d range is still <1.8%
+  **or** it is below both MAs.* **MSFT regained its 20MA (+0.64 / +7.41), so the MA leg no longer fires** —
+  but **medRng is 1.79% against a 1.8% bar**, i.e. **0.01pp inside**, and it has not traded since
+  **2026-08-04 (49 days)**. **On today's data the test fires on the range leg alone.** Flagging the margin
+  now so Thursday's call is made on the number, not the mood; one 2%+ session between now and then flips it.
+- **✅ AAPL 09-24 — called in advance to resolve KEEP.** *Park if not traded by 09-24 and below both MAs.*
+  AAPL is **+4.58 / +5.73 — above both**, so the trend leg cannot fire. The dead-signal leg does fire (last
+  fill 2026-07-27) but the test requires **both**. Per the NFLX 09-15 precedent it should be **re-armed**
+  on Thursday rather than simply retired — it is a marginal fit (ATR 2.23%, 50% of sessions ≥2%, **0.0%
+  admissible 1-min bars**) that has not traded in nearly two months.
+- **➕ IREN 09-25 add re-screen — STILL ARMED, thresholds UNCHANGED** (a ≥0.18%, b ≥30%, c ≥$1.0B, d above
+  both MAs). Today's out-of-cycle read: **0.174 / 29.3% / $1.56B / +12.19, +16.61 — now failing TWO legs.**
+  ⚠️ **The 09-18 escalation clause stands and is now near-certain to bind: if it fails again on 09-25, the
+  honest conclusion is that no liquid symbol clears this floor as currently measured, the finding belongs
+  to the config (or to leg (a)'s definition), and this routine should stop re-screening and say so.**
+- **MU 09-30 earnings park — armed, 8 days out, date verified 09-21** against Micron's own 08-26 release
+  (fiscal Q4, **Wed 09-30, 4:30pm ET, after the close**). Park on the 09-30 pre-market run, re-enable
+  10-01. MU is the **#1 all-time earner (+$211.76, 26 trades)** and the **#1 $vol name ($23.86B/d)** —
+  **this one must not be missed.** ⚠️ The strike threat at its largest production base is still live.
+- **TSM 09-26** dead-signal test — **does NOT currently fire**, TSM is **+5.04 / +6.60**, above both.
+- **HOOD 10-12/10-13 · AMD 10-13 · NFLX 10-15 · INTC 10-16.** ⚠️ **NFLX — both legs remain FIRED**
+  (no fill since 07-29, **−6.67 / −3.11**), though the case **weakened slightly** this week: it closed
+  **+2.19%** Monday and its 20MA gap improved from −9.03 to −6.67. **Not pulled forward; expected to fire
+  on 10-15.** **INTC and AMD are now the two strongest names on the board** and their October clocks are
+  nowhere near firing.
+- **QCOM — on notice REFUTED today; no clock armed** (see Decision 3). It is the one enabled name with
+  neither a clock nor an exemption, **deliberately**, because the registered trigger did not fire.
+- **Every enabled name carries a clock or is exempt:** AAPL 09-24 · ABNB 09-23 · AMD 10-13 · DASH 09-23 ·
+  HOOD 10-13 · INTC 10-16 · MSFT 09-24 · MU 09-30 · NFLX 10-15 · TSM 09-26; META recent add;
+  NVDA/PLTR/TSLA actively trading; **QCOM notice refuted**; QQQ exempt.
+
+### For tonight's daily review
+1. **🔴 The methodology question is the ask of the run, and it is new: is leg (a) — the MEDIAN 1-min ATR —
+   simply the wrong test?** Your own measurement last night says the floor selects *moments*, not names:
+   INTC and AMD cleared `MIN_VOLATILITY` on their entry candles (0.287% / 0.223%) on sessions whose
+   medians are **0.117% and 0.083%**. If that is right, then **leg (b) (% of admissible bars) is the
+   decision-relevant statistic and leg (a) should be retired or re-specified** — which changes the add
+   screen's verdict on IREN/MSTR/NBIS/COIN without touching `_ATR_DEAD` at all. **Please settle this
+   before the 09-25 IREN re-screen.** I deliberately did **not** adjudicate it myself this morning
+   because doing so would have licensed an add on the same day.
+2. **🔴 A record Nasdaq day did not move the 1-min distribution.** Five sessions now *including* Monday's
+   +2.3% record and four board names up 9–12%: **zero names clear 0.18% median; zero clear 30% admissible
+   bars** (HOOD actually fell 0.160 → 0.136). Thirty fresh candidates screened today, **SNDK at $14.9B/day
+   delivers 0.103%**. This is the fifth batch and ~38 symbols. **Combined with item 1, the conclusion may
+   be about the instrument rather than about the universe — that is the discriminating question.**
+3. **🟠 Board size: 16 today, expected 12–13 by Thursday** (ABNB + DASH fire tomorrow, MSFT fires Thursday
+   on a **0.01pp** range margin, AAPL resolves KEEP). **No qualifying replacement exists under the current
+   thresholds.** Worth a deliberate view tonight on whether that is acceptable at ~2 fills/week, **without**
+   softening a threshold to avoid it.
+4. **🟢 The board itself is in its best shape in this log: 13 of 16 above both MAs, top three +18% to +25%
+   above both.** If the bot scores well and takes nothing today, **the board is not the reason** — check
+   the 1-min ranges and the QQQ gate first. Note the tape divergence to read it against: **Nasdaq futures
+   are LOWER this morning after a record close, oil is back over $100, and FedWatch moved 53.1% → 57.6%
+   on hike odds** — expect a two-way gate.
+5. **🟠 QCOM is your best live `MIN_VOLATILITY` case study** — 4 refusals on the floor at scores of 60.2
+   and 60.9, on a name that is +11.66/+15.19 with the 3rd-best 1-min median on the board and **no fill
+   since 2026-06-22**. If the floor is mis-calibrated anywhere, it is visible here.
+6. **🔴 The stale `WATCHLIST` fallback is STILL `NFLX,BIRD,WPM` — seventh consecutive flag.** BIRD is a
+   ~$2.44 microcap. Options unchanged: (a) update the `.env` line (root edit → **`chown
+   ustradebot:ustradebot`, mode 600** afterwards, without fail), (b) the right fix — make the fallback
+   **loud** (WARNING + Telegram when `load_watchlist()` returns empty), (c) refuse to start on a fallback
+   list containing a sub-$5 symbol. **Oldest unfixed item in this log.**
+7. **🟠 Perplexity: ELEVENTH consecutive `insufficient_quota`.** Nothing left to diagnose. Top up, or make
+   WebSearch-first the written default in all four routine prompts.
