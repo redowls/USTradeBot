@@ -4696,3 +4696,113 @@ instruments.
 
 ### Commit
 - **Commit:** 40c1b91
+
+---
+
+## IMP-055 — 2026-09-24 (daily) — the FAIL split names the cause again
+
+**`bot/doctrine.py`, `tests/test_doctrine.py`.** **Measurement change only.** No trading-path
+file touched, no config key added or changed, no constant fitted. `bot.doctrine` is imported by
+`bot.report` (the digest) and nothing on the entry/exit/sizing path; behaviour of the running
+strategy is byte-identical before and after. **Pre-registered by IMP-054** as the next run's
+change, with the fix specified there; implemented as specified.
+
+### The problem
+The doctrine's job is not only to *count* failures but to **name their cause**. The FAIL
+sub-split is the instrument that does it, and the two labels point at opposite ends of the
+strategy:
+
+- **`full-stop`** → the entry never worked → attack **entry quality**.
+- **`BE-scratch`** → the trade DID work and the bot handed it back → attack **profit capture**.
+
+The split was drawn at `FULL_STOP_MAX_R = -0.75`, an **R threshold** — and the trail geometry
+makes that unreachable. The ratchet sets the stop to `price * (1 - trail_percent)` and never
+lowers it, so with `TRAIL_PERCENT` 1.25% against `STOP_LOSS` 2% the effective stop sits at
+**−0.625R from the first candle after entry**. −0.75R is *below the floor a stop fill can reach*.
+
+Measured on the live book tonight: deepest FAIL in the trail era **−0.640R**; rows clearing
+−0.75R: **zero**. So:
+
+> **36 of 36 FAILs since IMP-018 were labelled `BE-scratch`, 0 `full-stop`.**
+
+For two months the report asserted that **every failure was a profit-capture failure**. It is
+false, and it is the worst possible direction to be wrong in: it named the *exit* as the culprit
+on a book whose failures were overwhelmingly entries that never worked. Every exit-side
+improvement candidate on the queue was ranked under that attribution.
+
+### The change
+One line of logic, plus the constant it reads. The split now comes from **where the exit filled
+relative to entry** rather than how deep the loss was:
+
+```python
+RATCHET_MIN_R = 0.0   # replaces FULL_STOP_MAX_R = -0.75
+...
+fail_kind = BE_SCRATCH if profit_r > RATCHET_MIN_R else FULL_STOP
+```
+
+**Why the fill price is the exact discriminator, not a proxy.** A stop can only fill above entry
+if the ratchet had already lifted it above entry, and that requires a run of a full trail width
+(≈ +0.63R at the live geometry). So the fill answers *"did this trade ever run far enough for the
+ratchet to protect a gain?"* precisely, from data already in the row — no MFE fetch, no bars, no
+new dependency. Below the line the trade never locked a cent and the fault is the entry; above
+it, the gain was real and unbanked.
+
+### What it re-attributes — the finding
+| window | reported before | actual |
+|---|---|---|
+| last 10 sessions with trades | 0 full-stop / **9 BE-scratch** | **7 full-stop** / 2 BE-scratch |
+| trail-1.25% era (63 trades) | 0 full-stop / **36 BE-scratch** | **28 full-stop** / 8 BE-scratch |
+| all-time (282 trades) | 33 full-stop / 88 BE-scratch | **110 full-stop** / 11 BE-scratch |
+
+**78% of the trail era's failures never traded above their entry price.** Profit capture — named
+as the cause 100% of the time — is the true cause in **22%** of them. The improvement queue's
+dominant cause flips from profit capture to **entry quality**, which is also where the escalation
+rule (F+S = 100% for ten consecutive sessions with trades) has been pointing independently.
+
+### The invariant — verified, not asserted
+IMP-054 required that "counts, stop rate and true win rate must not move". They do not, **by
+construction**: the split is read only *within* the FAIL bucket. Confirmed before/after on all
+three windows — all-time WIN 20 / SCRATCH 141 / FAIL 121, stop rate 34.8%, true win 7.1%,
+headline 46.5%, identical either side of the change. `fail_scratch_rate` (the escalation metric)
+likewise untouched. `test_the_split_moves_no_bucket_and_no_headline_rate` pins this.
+
+### Validation — 607 tests pass (602 before; 5 added), preflight all-PASS
+- **`test_the_trail_floor_makes_the_old_R_threshold_unreachable`** — the regression for the whole
+  defect. Derives the −0.625R floor from the live `TRAIL_PERCENT`/`STOP_LOSS` pairing, asserts it
+  sits *above* the retired −0.75R threshold, and checks that a fill **at** the floor now reads
+  `full-stop` (it read `BE-scratch`). A future config change that re-opens the gap trips this.
+- **`test_the_live_book_reattribution_measured_on_2026_09_24`** — the nine FAILs of the last ten
+  sessions: 7 full-stop / 2 BE-scratch, against the 0 / 9 previously reported.
+- **`test_a_stop_that_never_traded_above_entry_is_an_entry_failure`** — red, deep red, and flat
+  on the nose all read `full-stop`.
+- **`test_a_stop_that_ratcheted_past_entry_is_still_a_capture_failure`** — the label keeps working
+  where it was always right.
+- **`test_the_split_moves_no_bucket_and_no_headline_rate`** — the invariant above.
+- **Updated, not deleted:** `test_losing_stop_below_entry_is_a_full_stop_not_a_BE_scratch`
+  (was `..._is_a_BE_scratch_FAIL`) — the real SPOT row, −0.35R, exit 546.05 vs entry 549.99. It
+  is the live example of the defect: the old rule blamed profit capture on a trade that never
+  traded above entry. Two pinned expectations in
+  `test_the_real_book_scores_zero_true_wins_against_an_83pc_headline` and the `format_stop_exits`
+  assertion moved 0/3 → 1/2 for the same reason.
+- `python -m bot.preflight`: Alpaca PASS, SQL Server PASS, Telegram PASS, 1 expected
+  market-closed warning.
+
+### Known limitation, recorded rather than corrected
+A stop that ratcheted a hair above entry and then **gapped** through it reads as `full-stop`.
+That biases toward entry quality on a knife-edge case. At this book's fill quality it is noise
+against a 28-vs-0 correction, and the alternative (fetching bars to recover MFE per trade) buys
+precision that no decision currently turns on. Documented in the module docstring.
+
+### What this does NOT license
+- **No config shipped, and none may be** — escalation is active (F+S 100% over the last three,
+  and in fact the last ten, sessions with trades) and forbids parameter tweaks.
+- **Not a verdict on the exit structure.** It says profit capture is the cause of 22% of failures
+  rather than 100%, not that the trail is fine. The break-even/trail protection is untouched.
+- **Not a reason to loosen the entry** to act on the new attribution. "Entry quality is the
+  dominant failure cause" is an argument for a *better* trigger, adjudicated in replay against a
+  pre-registered +1R gate — never for a lower `ENTRY_THRESHOLD` (refuted three times in four
+  days) or fewer filters (refuted 09-16).
+- **No step toward live capital, no sizing change, no loosening of any limit.**
+
+### Commit
+- **Commit:** (recorded below)

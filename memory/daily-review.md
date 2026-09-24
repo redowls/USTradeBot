@@ -9166,3 +9166,162 @@ refuted, and widening is forbidden by the doctrine); raising or lowering `ENTRY_
   prompt has now been Perplexity-first and wrong for twelve consecutive runs** — this is
   an operator fix, and it is the third standing operator ask alongside the `.env`
   fallback and the weekly/daily ordering.
+
+---
+
+## 2026-09-24 — Daily Review
+
+### Stats
+- **No trades today.** 0 entries, 0 exits, 0 open positions. Net realized P&L **$0.00**.
+- **Broker reconciliation: exact.** Alpaca `PA34DFFLTHRT` returns **0 orders since 00:00Z, 0
+  positions**, `equity == last_equity == $9,207.37`, cash $9,207.37, `long_market_value 0`. DB
+  agrees (0 rows with today's entry or exit date). **No drift, no missed fill, nothing carried
+  overnight.** Service `active`, `NRestarts=0`, 6,819 journal lines, **zero warnings or errors**
+  at `-p warning` for the whole session.
+- Equity is flat on the day because the bot did not trade, not because trades cancelled out.
+
+### Stop-exit accounting
+**No closed trades today → today's stop rate, true win rate and WIN/SCRATCH/FAIL split are
+`n/a`.** The trailing window is what carries information tonight:
+
+| window | n | stop rate | true win | headline | WIN | SCRATCH | FAIL |
+|---|---|---|---|---|---|---|---|
+| last 10 sessions **with trades** (08-17 → 09-22) | 16 | **81%** | **0%** | 56% | 0 | 7 | 9 |
+| trail-1.25% era (≥ 07-25) | 63 | 71% | 6% | 52% | 4 | 23 | 36 |
+| all-time | 282 | 35% | 7% | 46% | 20 | 141 | 121 |
+
+- **True win rate over the last ten trading sessions is 0% against a 56% headline.** Sixteen
+  trades, not one reached +1R.
+- **Escalation is ACTIVE and has been for ten consecutive sessions with trades: F+S = 100% in
+  every one of them** (08-17, 08-26, 08-27, 08-28, 09-03, 09-04, 09-11, 09-17, 09-21, 09-22 —
+  each individually 100%). Well past the doctrine's ">= 60% over 3 sessions" bar. **No parameter
+  tweak may ship**, and none did.
+- **Dominant failure cause — and tonight it changed, because the instrument that names it was
+  broken.** See below; the corrected reading is **entry quality**, not profit capture.
+
+#### The FAIL split was degenerate — IMP-055
+IMP-054 flagged this on 09-22 and pre-registered it as tonight's change. Confirmed against the
+live book tonight:
+
+- `doctrine.FULL_STOP_MAX_R` was **−0.75R**, but the ratchet sets the stop to
+  `price*(1−TRAIL_PERCENT)` from the first candle and never lowers it. At the live pairing
+  (`TRAIL_PERCENT` 1.25% / `STOP_LOSS` 2%) the effective stop sits at **−0.625R from entry**, so
+  **−0.75R is below the deepest a stop fill can reach.** Measured: the deepest FAIL in the trail
+  era is **−0.640R**; **zero** rows clear −0.75R.
+- Consequence: **36 of 36 FAILs since IMP-018 were labelled `BE-scratch`, 0 `full-stop`.** The
+  report has been stating, for two months, that *every single failure was a profit-capture
+  failure* — the bot had it and gave it back.
+- **That is false, and it pointed the improvement queue at the wrong end of the strategy.**
+  Corrected (split on whether the fill landed above entry, i.e. whether the ratchet ever lifted
+  the stop past entry at all):
+
+| window | reported before | actual |
+|---|---|---|
+| last 10 sessions | 0 full-stop / **9 BE-scratch** | **7 full-stop** / 2 BE-scratch |
+| trail era (63 tr) | 0 full-stop / **36 BE-scratch** | **28 full-stop** / 8 BE-scratch |
+| all-time (282 tr) | 33 full-stop / 88 BE-scratch | **110 full-stop** / 11 BE-scratch |
+
+- **78% of the trail era's failures never traded above their entry price.** They are
+  **entry-quality** failures. Profit capture — the cause named 100% of the time — is the true
+  cause in **8 of 36 cases (22%)**.
+- Buckets, stop rate, true win rate and the escalation metric are **unchanged** by the fix, by
+  construction: the split is read only *within* the FAIL bucket. Verified before/after on all
+  three windows.
+
+### Trade-by-trade review
+None to review. **Root-causing the absence instead**, which is the reviewable evidence tonight.
+
+**37 signals were evaluated and all 37 refused:**
+
+| refusal | count |
+|---|---|
+| `confidence < 60` | **33** |
+| `market gate closed (QQQ 5m ribbon not bullish)` | 2 |
+| `volatility 0.00 < 0.01` | 1 |
+| `crossover 0.24 < 0.25` | 1 |
+
+- **The binding constraint was confidence, by an order of magnitude** — and the same is true
+  across the last ten days (≈294 confidence refusals vs 9 market-gate, 7 volatility, 3
+  crossover). This is not a gate-stacking problem; it is one gate doing ~94% of the refusing.
+- **The refusals look correct for the tape.** Max confidence by symbol: AAPL 40.0, MSFT 38.0,
+  QQQ 41.3, TSM 41.0, NVDA 41.1, TSLA 44.8, NFLX 44.0, MU 50.4, PLTR 55.2, AMD 58.4. Nine of
+  twelve names never got within 15 points of the 60 threshold. A trend-follower reading a
+  directionless tape and declining to trade is the system **working**, not failing.
+- **Two exceptions worth registering.** At **14:01 UTC (10:01 ET — the first minute of the entry
+  window)** INTC printed **conf 99.9%** and was refused by the market gate (QQQ 5m ribbon not
+  bullish); at **14:20 UTC** META printed **conf 85.0%** and was refused the same way. Those are
+  the two highest-conviction signals of the day and the only two the market gate touched. The
+  gate was adjudicated on 09-18 (16.3% WIN rate vs the book's own 23.3% ceiling → it earns its
+  keep) so this is **not** a case for removing it — but "the gate's only two vetoes all day were
+  the day's two best signals" is a concrete, dated observation and it should be checked against
+  what INTC and META actually did after 10:01 ET. **Registered for the 09-25 pre-market.**
+  Note also the all-time confidence table still shows conf 90-100 as the *worst* bucket
+  (4 tr, 25% win, −$92.90), so a 99.9% print is not self-evidently a trade missed.
+
+### What worked / what didn't
+- **Worked:** capital protection, completely. Flat day, flat book, no overnight exposure, clean
+  reconciliation, no errors. On a tape that closed S&P −0.02% / Nasdaq −0.03% after Wednesday's
+  −0.75% / −1.13% risk-off, refusing 37 marginal signals cost nothing and risked nothing.
+- **Didn't:** the fill rate. IMP-054 measured **2.60 fills/week**; today contributes 0 and the
+  last 21 calendar days produced **7 trades across 5 sessions**. The statistical consequence is
+  already on the record and unchanged: from 38 trades at that rate, **one year of live trading
+  can only confirm an edge ≥ $4.66/trade (0.115R)** against a realized all-time expectancy of
+  **$0.37/trade**. The live book cannot adjudicate this strategy. Replay remains the only court.
+- **Didn't:** the doctrine's own cause-attribution, for two months — now fixed.
+
+### Market context (WebSearch; Perplexity unavailable)
+- **09-24 closed dead flat: S&P 500 ≈ 7,704 (−0.02%), Nasdaq ≈ 26,928 (−0.03%), Dow −0.30%** —
+  a pause after Wednesday's **−0.75% / −1.13%** risk-off. Crude **+3% to ≈$95**.
+- **The driver is still the long end, not equities**: 10-yr **5.135%** (highest since July 2007),
+  30-yr 5.44% (highest since 2004), on a hot flash PMI and a weak auction. **No-trend, mildly
+  risk-off chop** — structurally the worst regime for a ribbon trend-follower and a coherent
+  explanation for 33 sub-60 confidence prints.
+- ⚠️ **`PERPLEXITY_API_KEY` returned HTTP 401 `insufficient_quota` again — 14th consecutive
+  failure** (pre-market logged the 13th this morning). WebSearch fallback produced a complete
+  briefing. **Operator action: the key needs credits or removal from the routine prompts.**
+
+### Lessons & improvement candidates
+1. **[SHIPPED — IMP-055]** Fix the degenerate FAIL split. Highest impact available tonight: it
+   is a pre-registered defect, it is permitted under escalation (measurement, not a parameter),
+   and it was actively misdirecting every future improvement decision.
+2. **[NEXT]** Re-read the trail era's **28 full-stop** failures now that they are correctly
+   labelled. The queue's dominant cause has flipped from profit capture to **entry quality**, and
+   every exit-side candidate still on the list was ranked under the wrong attribution.
+3. **[REGISTERED 09-25]** Did the market gate's two vetoes (INTC 99.9% @10:01 ET, META 85.0%
+   @10:20 ET) forgo real moves? Evidence-gathering only — the gate is not to be touched on the
+   strength of one day, and 09-18 already adjudicated it.
+4. **[OPERATOR]** Perplexity quota (14 consecutive 401s). And the **09-23 routine gap** flagged
+   this morning — both Claude routines missed a full trading session; the cron/usage-limit path
+   needs a check.
+5. **NOT candidates:** lowering `ENTRY_THRESHOLD` to buy fill rate (refuted three times in four
+   days; the 60-69 confidence bucket is already net −$140 over 154 trades, and the sub-60 band
+   today topped out at 58.4 on names that went nowhere); removing filters (refuted 09-16, all-off
+   loses $1,162 at PF 0.67); widening stops or weakening the ratchet (forbidden).
+
+### Notes for pre-market research
+- **INTC — check first.** Printed **conf 99.9% at 14:01 UTC (10:01 ET)**, the single highest
+  confidence of the day, and the market gate vetoed it. INTC was ranked **#1 on the board** this
+  morning (+21.34 vs 20MA, ATR 5.46%, 100% of 20 sessions ≥2%, $9.36B/d). **Please pull what INTC
+  did from 10:01 ET to the close and record whether the veto saved or cost money.** One data
+  point, logged — not a case to change the gate.
+- **META — the chronic near-miss.** Signalled **9 times today, more than any other name**, and
+  cleared 60 **zero** times (85.0 killed by the gate at 14:20, then 64.1 blocked on crossover,
+  then a long tail: 58.1, 53.1, 52.3, 52.0, 51.8, 51.4, 50.5). A name that signals constantly and
+  never qualifies is either a threshold story or a symbol that no longer suits the strategy —
+  worth a dated park test rather than leaving it to generate noise.
+- **AAPL and MSFT resolved KEEP this morning and immediately produced the weakest prints on the
+  board** — AAPL max **40.0** across 3 signals, MSFT max **38.0** across 2. Both were re-armed
+  today, so no action now, but **re-test them early**; they are not contributing.
+- **QQQ is being scored as a tradeable symbol (3 signals, max conf 41.3) while simultaneously
+  serving as the market gate.** Flagging the double role — it is not obviously wrong, but a
+  symbol that gates itself deserves a deliberate decision rather than an inherited one.
+- **Never signalled at all today (of 14 enabled):** QCOM and the two remaining names produced no
+  entry evaluation. QCOM was the `MIN_VOLATILITY` case study on 09-21 (4 refusals) and produced
+  nothing today — worth a look.
+- **Volatility floor bit once** (INTC, `volatility 0.00 < 0.01` at 16:37 UTC) — the reading of
+  exactly 0.00 on a name with 5.46% daily ATR looks like a stale/degenerate indicator value
+  rather than a genuinely flat minute. Worth one look at how that field is computed.
+- Regime note for the morning: **rates, not equities, are driving this tape.** Until the long end
+  settles, expect more sub-60 sessions. That is the strategy declining to trade a bad regime, and
+  it is the correct behaviour — but it also means the fill rate stays at ~2.6/week and the live
+  book keeps failing to adjudicate anything.

@@ -30,6 +30,37 @@ trading path — it changes what we *count*, never what we *do*.
 
 Note the direction of the change: every figure this produces is **harsher** than the
 one it sits beside. It cannot flatter the strategy, which is the point.
+
+**The FAIL split, corrected (IMP-055).** The doctrine's job is not only to count
+failures but to *name their cause*, and the FAIL sub-split is the instrument that does
+it: a full stop says the entry never worked (entry quality); a break-even-or-scratched
+trail says the trade DID work and the bot handed it back (profit capture). Those point
+the improvement queue at opposite ends of the strategy.
+
+It pointed at the wrong end for two months. The split was drawn at
+``FULL_STOP_MAX_R = -0.75``, an R threshold — but the trail binds the instant a position
+opens. The ratchet sets the stop to ``price * (1 - trail_percent)`` and never lowers it,
+so with ``TRAIL_PERCENT`` 1.25% against a ``STOP_LOSS`` of 2% the effective stop sits at
+**-0.625R from the first candle**, and -0.75R is below the floor a stop fill can reach.
+The consequence, measured on the live book on 2026-09-24: **36 of the 36 FAILs since
+IMP-018 were labelled BE-scratch and 0 full-stop** — the report asserted that *every
+failure for two months was a profit-capture failure*. Of those 36, **28 never traded
+above their entry price at all**; over the last ten sessions with trades the ratio was
+9 BE-scratch reported against 7 full-stop / 2 BE-scratch actual.
+
+The fix takes the split from where the exit filled rather than how deep the loss was.
+A stop can only fill above entry if the ratchet had already lifted it past entry, which
+takes a run of a full trail width (~+0.63R at the live geometry) — so the fill price
+answers "did this trade ever run far enough for the ratchet to protect a gain?" exactly,
+with no extra data. Below that line the trade never locked a cent and the fault is the
+entry; above it, the gain was real and unbanked.
+
+This moves **no** bucket: WIN/SCRATCH/FAIL counts, stop rate, true win rate and the
+escalation metric are all untouched by construction, because the split is read only
+*within* the FAIL bucket. It changes which of two causes the review is told to attack.
+One caveat, recorded rather than corrected: a stop that ratcheted a hair above entry and
+then gapped through it reads as full-stop. That biases toward entry quality on a
+knife-edge case; at this book's fill quality it is noise against a 28-vs-0 correction.
 """
 
 from __future__ import annotations
@@ -50,9 +81,13 @@ FAIL_MAX_R = 0.25
 WIN_MIN_R = 1.0
 # A flatten/reversal below this is a FAIL; between it and WIN_MIN_R it is a SCRATCH.
 SCRATCH_MIN_R = -0.25
-# A FAIL at or below this took (close to) the original 1R stop — a "full stop".
-# Above it, the stop had already ratcheted up: a break-even or scratched trail.
-FULL_STOP_MAX_R = -0.75
+# The line that splits a FAIL into its two causes (IMP-055). A FAIL whose exit filled
+# ABOVE entry can only have come from a stop the ratchet had already lifted past entry:
+# the trade proved itself, locked a gain, and handed it back — a *profit-capture*
+# failure. At or below entry the ratchet never protected a cent, whatever the trade did
+# intraday — an *entry-quality* failure. Replaces an R threshold the trail geometry made
+# unreachable; see the module docstring.
+RATCHET_MIN_R = 0.0
 # Fraction of the target a fill must reach to be read as the take-profit leg rather
 # than the stop leg. Loose enough to absorb ordinary fill slippage.
 _TARGET_TOLERANCE = 0.995
@@ -188,7 +223,9 @@ def classify(
 
     fail_kind = ""
     if bucket == FAIL:
-        fail_kind = FULL_STOP if profit_r <= FULL_STOP_MAX_R else BE_SCRATCH
+        # Where the exit filled relative to entry, NOT how deep the loss was: the
+        # ratchet can only have lifted the stop past entry if the fill is above it.
+        fail_kind = BE_SCRATCH if profit_r > RATCHET_MIN_R else FULL_STOP
 
     return Verdict(
         symbol=symbol,
