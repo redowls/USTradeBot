@@ -9356,3 +9356,305 @@ Verified: `is-active` **active**, **NRestarts=0**, MainPID **85358**; startup lo
    since 09-11). **The routine prompt has now been Perplexity-first and wrong for thirteen
    consecutive runs.** Top up, or make **WebSearch-first the written default in all four routine
    prompts.** Operator fix; third standing operator ask alongside items 1 and 6.
+
+---
+
+## 2026-09-25 — Pre-market Research
+
+**The 09-25 IREN re-screen fired and IREN is ADDED — the first add since 09-11 — and the registered
+INTC/META gate-veto evidence came back the opposite way to the intuition that prompted it: both vetoes
+SAVED money.** Book is **CLEAN & FLAT** (broker-confirmed **0 positions / 0 open orders**, equity
+**$9,207.37**, `cash` == `equity` == `last_equity` → no overnight marks) → **nothing locked.**
+**TSM's 09-26 test adjudicated today** (09-26 is a Saturday; pulled back to the preceding trading day
+per this log's own convention) → **KEEP**. **META clock armed 10-09** instead of the park the daily
+review floated. **14 → 15 enabled.** Service restarted clean (warmup 15/15).
+
+### Market context
+- **Risk-ON into the open, and the driver is geopolitical de-escalation, not rates.** Futures are
+  **higher** — "Dow, S&P 500, Nasdaq Futures Rise Amid Optimism Following **Iran's Offer To Reopen the
+  Strait of Hormuz**" (09-25 10:41 UTC). This follows Thursday's late recovery: **"S&P 500 Erases
+  Losses as US, Iran Reportedly Discuss Hormuz Deal"** (09-24 17:32 UTC), though **8 of 11 sectors
+  still closed lower** on 09-24.
+- **The structural driver is unchanged and still hostile: the long end.** 10-yr ~**5.1%** (19-year
+  highs), 30-yr **5.44%** (22-year highs), after a hot flash PMI, a weak $70B 5-yr auction that put
+  5-yr yields above 5%, and **NY Fed's Williams saying the Fed will likely need to hike again this
+  year.** Breadth is thin — **only ~29% of S&P 500 names are above their own 50-DMA** while **14 of
+  our 15 are above both**, which is a watchlist-selection artefact worth naming, not an edge.
+- **⚠️ Macro lands INSIDE the session today, unlike yesterday.** **Advance Durable Goods 08:30 ET
+  (pre-open**, cons. −0.3% vs +1.1% prior), but **final Michigan Consumer Survey 10:00 ET — which is
+  exactly `ENTRY_START`** — plus **NY Fed Nowcast 12:45 ET** and **three Fed speakers (Williams,
+  Hammack, Schmid)** during hours. **The first minute of the entry window coincides with a data
+  release**; that is the one scheduled intraday hazard today. China closed (Mid-Autumn Festival).
+- **🟢 No enabled symbol reports earnings today — double-sourced.** A **40-hour Alpaca news sweep
+  across all 15 names (50 headlines)** returned **no earnings print, no guidance change, no halt, no
+  M&A** on any enabled name; independently the calendar shows late-September Fridays are off-cycle and
+  the week's only large report was **COST Thursday AH — COST is parked.**
+- **Name-level news, all non-binary and skewed positive:** **META** drew a wall of price-target raises
+  overnight — **JPMorgan → $920, Tigress → $995, Piper Sandler → $875, Raymond James → $860** — and
+  passed **$1.98T** market cap on "Muse mania"; **AMD** — "AI-fuelled breakout could carry the stock to
+  $750"; **MU** — AI-earnings previews ahead of its 09-30 print; **TSLA** — Semi deliveries begin, Roadster
+  reveal Oct 1; **HOOD** — Fed stablecoin-rules comment period, Kalshi/prediction-markets thread;
+  **MSFT** — Brad Smith comms reshuffle, H-1B politics. **None is tradeable at this timeframe.**
+
+### ⚠️ Perplexity: FIFTEENTH consecutive failure — and a correction to a claim in this log
+`sonar` returned **HTTP 401 `insufficient_quota`** again ("add credits"), key present and well-formed
+(53 chars). **Fifteen consecutive failures.** Fell back to WebSearch per the routine's own rule; the
+**Alpaca news API again did the name-level sweep better than either.** Operator ask unchanged and now
+15 runs old.
+
+**🔴 Correction to the 09-21 and 09-24 entries: "SIP now returns 200, the 403 constraint is stale" is
+WRONG, and I propagated it.** Verified this morning: a SIP bars request **without** a date range
+returns **HTTP 200 with `bars: []`** — an empty body that *looks* like success — while the same request
+**with** an explicit `start`/`end` returns **HTTP 403 Forbidden**. The subscription genuinely lacks SIP
+(consistent with the weekly review and obs 571). **Today's dailies are therefore IEX**, which is also
+the feed the bot actually trades, so the 1-min work is unaffected — but **the daily `$vol/d` column is
+not comparable to previous SIP-based entries** (see the calibration below).
+
+### Carried from daily review (09-24) — every item discharged
+- **"INTC — check first… pull what INTC did from 10:01 ET to the close and record whether the veto
+  saved or cost money."** → **DONE, and the answer is: the veto SAVED money. See Decision 1.**
+- **"META — the chronic near-miss… worth a dated park test rather than leaving it to generate noise."**
+  → **Dated test ARMED 10-09, park refused today. See Decision 3.**
+- **"AAPL and MSFT… re-test them early; they are not contributing."** → **Both re-read. MSFT has
+  materially deteriorated and I am flagging it loudly without pulling its 10-23 test forward. See
+  Decision 5.**
+- **"QQQ is being scored as a tradeable symbol while simultaneously serving as the market gate."** →
+  **Registered, not acted on. See Decision 6.**
+- **"QCOM produced nothing… worth a look."** → **Looked. QCOM's 1-min tape is the second-deadest on the
+  board (median 0.103%, only 6.0% admissible bars) on a name with a 4.21% *daily* ATR. That is the
+  whole explanation for 105 days without a fill, and it is a `MIN_VOLATILITY` story, not a news story.
+  Its registered trigger (losing the 20MA) has not fired — +8.37 — so I am not inventing one.**
+- **"Volatility floor bit once (INTC, `volatility 0.00`) — looks like a stale/degenerate value."** →
+  **Not a bug. `_ATR_DEAD = 0.0020`, so any bar whose 1-min ATR/close ≤ 0.20% scores exactly 0.00.
+  INTC's median 1-min ATR is 0.127% — i.e. the *typical* INTC minute scores zero on this term despite
+  a 4.97% daily ATR. The daily-vs-1-min gap is the finding; the field is computing what it says.**
+- **⚠️ The stale `WATCHLIST` fallback is STILL `NFLX,BIRD,WPM` — tenth+ consecutive flag.** Verified by
+  hand; **BIRD is a ~$2.44 microcap**. `.env` verified untouched — **`ustradebot:ustradebot`, mode 600,
+  mtime Sep 1**. Not fixable from this routine.
+
+### Watchlist review — daily technicals (IEX bars through the 2026-09-24 close)
+
+| sym | close | vs20MA | vs50MA | ATR% | medRng% | 5d% | ≥2% | 1-min med / adm% | verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| **INTC** | 127.34 | **+23.66** | **+29.24** | 4.97 | 4.18 | +17.09 | 100% | 0.127 / **19.0%** | **KEEP — best trend** |
+| **AMD** | 629.00 | **+20.87** | **+25.25** | 4.03 | 3.45 | +15.44 | 95% | 0.084 / 6.9% | KEEP (clock 10-13) |
+| **META** | 777.73 | **+19.31** | **+26.67** | 3.42 | 3.13 | +13.97 | 85% | 0.121 / 10.9% | **KEEP — clock 10-09** |
+| **MU** | 1080.11 | +9.51 | +15.30 | 4.49 | 3.59 | +10.56 | 100% | 0.087 / 8.8% | KEEP — **park 09-30** |
+| **QCOM** | 194.32 | +8.37 | +14.56 | 4.21 | 3.64 | +3.01 | 100% | 0.103 / 6.0% | KEEP (no clock) |
+| **PLTR** | 192.61 | +8.08 | +18.30 | 3.59 | 3.28 | +9.33 | 85% | — | KEEP |
+| **➕ IREN** | **46.14** | **+7.03** | **+12.47** | **6.33** | **5.48** | +6.06 | 100% | 0.168 / **30.5%** | **ADD — see Decision 2** |
+| **HOOD** | 120.82 | +5.78 | +16.21 | **5.17** | 4.38 | +10.04 | 100% | 0.113 / 13.5% | KEEP (clock 10-13) |
+| **TSM** | 451.05 | +5.13 | +7.55 | 2.37 | 1.95 | +4.87 | 45% | — | **KEEP — test resolved** |
+| **TSLA** | 377.99 | +3.61 | +8.43 | 3.19 | 2.82 | +3.27 | 85% | — | KEEP |
+| **QQQ** | 741.09 | +2.97 | +4.11 | 1.31 | 0.92 | +3.38 | 5% | — | exempt — gate symbol |
+| **AAPL** | 335.88 | +2.38 | +4.42 | 2.05 | 1.91 | −0.36 | 45% | — | KEEP (clock 10-23) |
+| **NVDA** | 224.58 | +1.20 | +4.15 | 2.67 | 2.13 | +2.36 | 55% | — | KEEP |
+| **MSFT** | 497.58 | **−0.37** | +5.08 | 2.17 | **1.75** | −0.02 | 45% | — | ⚠️ **KEEP — see Decision 5** |
+| **NFLX** | 71.70 | **−7.11** | **−5.16** | 3.05 | 2.33 | −4.78 | 65% | — | keep — clock **10-15** |
+
+**Liquidity, and why the `$vol/d` column is absent above.** IEX prints only its own ~2.8% of
+consolidated tape, so IEX dollar volume is **not** comparable to the SIP figures this log has been
+recording. Calibrated against the 14 SIP readings logged on 09-23: the IEX→consolidated ratio is
+**median 35.3×** (range 20.5× QQQ-excluded … 63.9×). Rather than print a column that invites a false
+comparison, liquidity was checked **per name** and **every enabled symbol clears the $0.85B floor with
+room** on that calibration. IREN is handled explicitly in Decision 2.
+
+### 🎯 Decision 1 — the registered gate-veto evidence: BOTH vetoes saved money (INTC & META, 09-24)
+The 09-24 daily registered this for today: *"pull what INTC did from 10:01 ET to the close and record
+whether the veto saved or cost money."* Measured on IEX 1-min bars, taking the vetoed minute's close as
+the hypothetical entry and applying **the bot's actual exit geometry** (1.25% ratchet trail from the
+first candle, 2% stop, EOD flatten):
+
+| name | veto | conf | entry | close | MFE | **MAE** | simulated exit | result |
+|---|---|---|---|---|---|---|---|---|
+| **INTC** | 10:01 ET | **99.9** | 124.79 | 127.34 (**+2.04%**) | +2.12% | **−2.10%** | trail stop **10:10 ET** | **−0.47% (−0.37R)** |
+| **META** | 10:20 ET | 85.0 | 765.23 | 777.73 (**+1.63%**) | +1.90% | −0.61% | trail stop **12:13 ET** | **−0.54% (−0.43R)** |
+
+- **The naive read — "the gate vetoed the day's two best signals and both names closed up ~2%" — is
+  exactly backwards once the exit geometry is applied.** INTC went **−2.10% first** and would have
+  stopped out nine minutes after entry; META bled sideways and would have trailed out at 12:13. **Both
+  would have been FAILs.** The gate saved roughly **0.4R × 2**.
+- **This is the mechanism the 09-24 daily itself identified (IMP-055): 78% of trail-era failures never
+  traded above their entry.** A high confidence print says the ribbon looks good *now*; it says nothing
+  about whether the next ten minutes go down first. **Both of these went down first.**
+- **n = 2, and it is confirmatory, not decisive** — but it points the same way as the 09-18
+  adjudication (gate WIN rate 16.3% vs the book's 23.3% ceiling). **The gate is not to be touched.**
+  Combined with the 09-23 META instance (conf 64.0 vetoed, stock closed +1.02%), the running tally of
+  gate-vetoed 60+ signals is now **3, of which at least 2 would have lost money.**
+
+### 🎯 Decision 2 — IREN: the 09-25 re-screen CLEARS on the settled methodology → **ADD**
+Registered thresholds, unchanged since 09-18: **(a)** 5-session median 1-min ATR **≥0.18%** · **(b)**
+**≥30%** of entry-window bars admissible · **(c)** **≥$1.0B/d** · **(d)** above both MAs. Measured on
+**IEX 1-min bars, 09-18 → 09-24, 10:00–16:00 ET, 1,766 bars**, floor = `_ATR_DEAD` (0.20%):
+
+| leg | threshold | measured | verdict |
+|---|---|---|---|
+| (a) median 1-min ATR | ≥0.18% | **0.168%** | ❌ FAIL (was 0.174% on 09-22) |
+| **(b) admissible bars** | **≥30%** | **30.5%** | ✅ **PASS** (was 29.3% on 09-22) |
+| (c) $vol/d | ≥$1.0B | **≈$1.4–1.6B** | ✅ PASS (two independent estimates) |
+| (d) trend | above both MAs | **+7.03 / +12.47** | ✅ PASS |
+
+- **The escalation clause did NOT trigger.** It was written to fire *"if it fails **both** (a) and
+  (b) again"*; it failed only (a). And **the 09-22 daily settled the methodology in favour of leg (b)**
+  — rank on admissible-bar fraction, **median demoted to a tiebreak.** Under the governance that was
+  deliberately settled before this screen, **the screen clears.**
+- **On the metric the log says is binding, IREN is not marginal — it is the best name on the board by
+  60%:** admissible bars **IREN 30.5%** vs **INTC 19.0%**, HOOD 13.5%, META 10.9%, QCOM 6.0%, AMD 6.9%,
+  MU 8.8%. The volatility sub-score is **0.00 for every bar under 0.20%**, so on the current board the
+  typical minute scores zero on that term — which is a large part of why 33 of 37 refusals on 09-24
+  were `confidence < 60`.
+- **Liquidity (leg c) cannot be measured directly on this data plan and was estimated two ways, which
+  agree:** IEX 20-day median **$43.8M/d** × the 35.3× calibration = **$1.55B**; independently, reported
+  turnover of **~20–40M shares/day** at **$46.14** = **$0.9–1.8B**, with a 09-02 datapoint of 35.4M
+  shares at $39.60 = **$1.40B**. **Stated as an estimate, because it is one.**
+- **Event risk: clean.** IREN last reported **08-27 AH**; the next print is estimated **~Nov 5–6 (or
+  later)** — no binary inside the review horizon. NASDAQ, **$46.14** (no sub-$5 issue), market cap
+  ~$15.6B, `tradable: true` / `status: active` verified on `/v2/assets` **before** the insert.
+- **⚠️ The fragility, stated plainly rather than buried — this is the weakest part of today's work:**
+  the (b) margin is **0.5pp**, and the pooled 30.5% is **carried by one session**. Per-session:
+  **09-18 32% · 09-21 25% · 09-22 26% · 09-23 25% · 09-24 45%.** **Three of five sessions are below the
+  bar.** A different five-day window plausibly fails this screen. It also has the **highest daily ATR
+  on the board (6.33%)** and a beta near 3 — the 2% stop bounds a single name, but this is the liveliest
+  thing here by some margin.
+- **Therefore: added *with* a fast, pre-registered review — 10-09** (two weeks): **park if IREN has not
+  traded by 10-09 AND its admissible-bar fraction has fallen below 30%.** If the (b) reading was a
+  one-session artefact, that test will find it quickly and cheaply.
+
+### 🎯 Decision 3 — META: park REFUSED, dated clock ARMED 10-09
+The 09-24 daily floated a dated park test ("signals constantly, never qualifies"). **The park is
+refused and the clock is armed instead**, because the evidence points at the trigger, not the symbol:
+- **META is the #3 trend on the board** — **+19.31 / +26.67**, **+13.97% over 5 sessions**, 85% of
+  sessions ≥2%, and it cleared **$1.98T** market cap overnight on **four price-target raises**
+  (JPM $920, Tigress $995, Piper $875, Raymond James $860). **Nothing about this symbol is broken.**
+- **Its two best signals were both killed by the market gate, not by the symbol's quality** — 85.0 on
+  09-24 and 64.0 on 09-23 — **and Decision 1 shows the 09-24 one would have lost −0.43R.** The gate
+  did its job. Parking META would be parking a name for a refusal that was correct.
+- **But it has never traded in 16 days enabled**, and "never trades" is exactly what the dead-signal
+  convention exists to adjudicate. **Registered: park if META has not traded by 10-09 AND it is below
+  both MAs** — the same AND-form as AAPL/TSM, so a strong trend cannot be parked on the clock alone.
+
+### 🎯 Decision 4 — TSM: 09-26 test adjudicated TODAY (Saturday → preceding trading day) → **KEEP**
+Registration: *park if it has not traded by **09-26** **and** it is below both its 20MA and 50MA.*
+**09-26 is a Saturday** (Alpaca calendar: 09-25 then 09-28), and this log's own convention — set when
+AAPL's +30 days landed on Sat 10-24 — is to **pull the date back to the preceding trading day.** That
+is today, so it is adjudicated today rather than allowed to drift to Monday.
+- **Dead-signal leg FIRES** — last fill **2026-08-27**, **29 days**.
+- **Trend leg CANNOT fire** — **+5.13 / +7.55, above both MAs.** → **AND-test does not fire → KEEP.**
+- **Re-armed 10-26** (+30 days; 10-26 is a Monday, no adjustment needed).
+- **Honest caveat:** TSM is a **marginal fit on range** — medRng 1.95%, only **45% of sessions ≥2%**,
+  ATR 2.37%. It survives on the letter of its test, like AAPL. Tailwind unchanged (TSMC price rises up
+  to 6%, foundry tight through 2030), and the 09-24 "TSMC may want a bigger cut of Nvidia's AI profits"
+  story is a margin narrative, not an event.
+
+### 🎯 Decision 5 — ⚠️ MSFT has deteriorated through both of its test's legs, and I am NOT pulling the test forward
+**This is the flag of the day.** Yesterday MSFT survived its 09-24 test on a **0.13pp** range margin and
+a **+0.24%** 20MA margin, and I recorded it as "the weakest KEEP on the board… one flat week flips it."
+**One day later, both legs have flipped:**
+- **20MA: +0.24 → −0.37.** MSFT has **lost its 20-day**. (Still +5.08 vs the 50MA, so "below **both**
+  MAs" does **not** fire.)
+- **medRng: 1.93% → 1.75%**, i.e. back **below** the 1.8% bar it cleared yesterday. ⚠️ **Partly a feed
+  artefact — yesterday's 1.93% was SIP, today's 1.75% is IEX** (see the SIP correction above), so the
+  two are not strictly comparable and I will not pretend the drop is fully real.
+- **Its test is dated 10-23 and the OR-leg alone cannot fire it — the AND requires the date to pass.**
+  **So it stays, and it stays for the same reason ABNB and DASH were parked on time and MSFT was kept
+  yesterday: the date is the discipline.** Pulling a test forward the day after it resolves in a name's
+  favour, on a feed change, would be exactly the discretion these tests exist to remove.
+- **Registered for 10-23 in advance:** 52 days without a fill, below its 20MA, range at the bar. **If
+  it is still dead on 10-23, the test should be allowed to fire without another reprieve.**
+
+### 🎯 Decision 6 — QQQ's double role: registered, deliberately not acted on
+The 09-24 daily flagged that **QQQ is scored as a tradeable symbol while simultaneously serving as
+`MARKET_FILTER_SYMBOL`** — a symbol that gates itself. Confirmed: QQQ is enabled, scored 3 signals on
+09-24 (max conf 41.3), and has **7 all-time trades, +$80.15, last 2026-07-14 (73 days)**.
+- **It is not obviously wrong** — the gate tests the 5-min ribbon, entries test the 1-min, and a
+  self-gated long is internally consistent.
+- **But QQQ is a poor fit on range anyway** — ATR **1.31%**, medRng **0.92%**, **5%** of sessions ≥2%,
+  the deadest tape on the board — so it will rarely qualify regardless.
+- **Not acted on because it is a config/design question, not a watchlist question**, and unenabling it
+  risks silently disabling the market gate. **Handed to the daily/weekly as a deliberate decision.**
+
+### Changes applied to dbo.watchlist
+Parameterized pyodbc only; `watchlist` table only; **no DELETEs**.
+- **IREN** — `INSERT INTO dbo.watchlist (symbol, enabled, note) VALUES (?, ?, ?)` → **1 row**
+  (row did not exist; checked first so a parked row would have been re-enabled, not re-inserted).
+  Note: *"added 2026-09-25: pre-reg 09-25 screen - adm bars 30.5% (best on board), $vol ~1.5B, +7.0/+12.5 MAs; review 10-09"* (113 chars).
+- **TSM** — note-only `UPDATE … WHERE symbol = ? AND enabled = 1` → **1 row**:
+  *"09-25 test KEEP (09-26=Sat, pulled back): +5.13/+7.55 above both MAs, AND-test cannot fire; dead since 08-27; re-armed 10-26"* (124 chars).
+- **META** — note-only `UPDATE` → **1 row**:
+  *"09-25: dead-signal clock ARMED 10-09 (0 trades since 09-09 add); +19.3/+26.7 vs MAs; trigger issue, not symbol"* (110 chars).
+
+Every note length asserted **≤128 before** the write (the assertion caught an over-length META note at
+132 chars and aborted the run **before any SQL executed** — re-written and re-run). Assertions re-run
+against the live table after commit: **enabled = 15 ≤ 30 ✅** · **36 rows total, grew by exactly 1 ✅
+(no DELETEs)** · **QQQ still enabled ✅** (guards `MARKET_FILTER_SYMBOL` against a silent gate disable)
+· **15/15 `tradable: true` + `status: active` on `/v2/assets` ✅** · **no symbol with an open position
+was touched** — the broker was re-queried **immediately before the write**, returned **0 positions / 0
+open orders**, and the touch-set {IREN, TSM, META} was asserted disjoint from the held set ✅.
+**No source-code changes; `.env` untouched** (`ustradebot:ustradebot`, mode 600, mtime unchanged Sep 1).
+
+### Final watchlist
+**15 enabled** (≤30 ✅): AAPL, AMD, HOOD, INTC, **IREN**, META, MSFT, MU, NFLX, NVDA, PLTR, QCOM, QQQ,
+TSLA, TSM.
+**Parked (21):** ABNB, AMGN, AMZN, AVGO, BABA, BIRD, C, COST, DASH, ENPH, GOOG, JPM, LLY, SE, SPOT,
+SPY, UBER, UNH, WMT, WPM, XOM.
+
+**Service restarted: YES — required, because the enabled set changed** (`load_watchlist()` reads the
+table once at startup). Restart **11:42:37 UTC**, ~1h45m before the open, market closed → safe.
+Verified: `is-active` **active**, **NRestarts=0**, MainPID **178307**; startup logged the **DB path**
+(`Watchlist (dbo.watchlist): AAPL, AMD, HOOD, INTC, IREN, …`) rather than the env fallback; **warmup
+primed 15/15**; all 15 subscribed on IEX; account **ACTIVE** ($9,207.37), **0 positions**;
+`journalctl -p warning` since the restart is **empty**.
+
+### Dates carried forward
+- **🔴 MU 09-30 earnings park — armed, 3 trading days out (Mon 09-28, Tue 09-29, park Wed 09-30).**
+  Micron's own release and Wall Street Horizon both confirm **Wed 09-30, 4:30pm ET, AFTER the close**;
+  options price a **~10.3%** move. **Park on the 09-30 pre-market run, re-enable 10-01.** MU is the
+  **#1 all-time earner (+$211.76, 26 trades)** and a top liquidity name — **this one must not be
+  missed.** Overnight AI-memory previews do not change the date.
+- **➕ IREN 10-09 review — NEW, armed today**: *park if IREN has not traded by 10-09 **and** its
+  admissible-bar fraction is below 30%.* The tightest clock on the board, deliberately.
+- **➕ META 10-09 — NEW, armed today**: *park if not traded by 10-09 **and** below both MAs.*
+- **TSM 10-26 — re-armed today** (09-26 test resolved KEEP; Saturday pulled back to 09-25).
+- **⚠️ MSFT 10-23 — the one to watch.** Both OR-legs now read against it (−0.37 vs 20MA, medRng 1.75%)
+  but the date has not passed. **No further reprieve on 10-23.**
+- **AAPL 10-23** — dead 60 days, but **+2.38 / +4.42**, AND-test cannot fire.
+- **NFLX 10-15** — ⚠️ **both legs still FIRED** (no fill since 07-29, **−7.11 / −5.16**). **Still the
+  only enabled name below both MAs**, though the 20MA gap *narrowed* from −8.12 yesterday. Expected to
+  fire on 10-15; not pulled forward.
+- **HOOD 10-12/10-13 · AMD 10-13 · INTC 10-16.** INTC and AMD are the two strongest trends on the
+  board (+23.66/+29.24 and +20.87/+25.25); their clocks are nowhere near firing.
+- **QCOM — no clock armed, deliberately**, and the 09-24 "why does it never signal" question is now
+  **answered**: its 1-min tape is near-dead (**6.0%** admissible bars) despite a 4.21% daily ATR. Its
+  registered trigger (losing the 20MA) has not fired — **+8.37** — and **I am not inventing one.**
+  Last fill **2026-06-12 — 105 days**, still the longest dead-signal streak on the board.
+- **Every enabled name carries a clock or is exempt:** AAPL 10-23 · AMD 10-13 · HOOD 10-13 ·
+  INTC 10-16 · IREN 10-09 · META 10-09 · MSFT 10-23 · MU 09-30 · NFLX 10-15 · TSM 10-26;
+  NVDA/PLTR/TSLA actively trading; **QCOM notice refuted**; QQQ exempt (gate symbol).
+
+### For tonight's daily review
+1. **🟢 The gate-veto question registered yesterday is ANSWERED and it went the other way: both 09-24
+   vetoes SAVED money** (INTC −0.37R avoided, META −0.43R avoided) once the ratchet geometry is applied
+   — even though **both names closed up ~2%**. **Worth folding into IMP-052's refusal-cohort
+   instrument**, which can now be checked against a worked example: **MFE is not the right yardstick
+   for a refusal; MAE-before-MFE is.** Running tally of gate-vetoed 60+ signals: **3, ≥2 would have lost.**
+2. **🟠 IREN is in, on a 0.5pp margin carried by one of five sessions — please stress it.** If the
+   replay harness can score a 5-session vs 20-session admissible-bar reading for IREN, that would
+   settle whether **30.5% is a real property or a window artefact** before the 10-09 review has to.
+   **This is the single most falsifiable thing I did today.**
+3. **🟠 The board's 1-min ranges are the story, and they are now measured for 7 names:** IREN 30.5% ·
+   INTC 19.0% · HOOD 13.5% · META 10.9% · MU 8.8% · AMD 6.9% · QCOM 6.0%. **Every one of these has a
+   daily ATR between 3.4% and 6.3%, yet six of seven spend most minutes scoring 0.00 on volatility.**
+   The **daily-ATR → 1-min-ATR gap** is where "94% of refusals are `confidence < 60`" actually comes
+   from. **Not a watchlist fix — a scorer/config question**, and the best-specified one available.
+4. **🔴 `MIN_VOLATILITY` / `_ATR_DEAD = 0.0020` deserves a replay sweep, not a tweak.** It is stated as
+   an *incumbent* constant (IMP-036), not a fitted one. **Escalation forbids shipping a parameter
+   change** — but measuring one in replay is not shipping one.
+5. **🟠 MSFT flipped through both legs of its own test one day after surviving it.** Recorded, not
+   acted on. **No further reprieve on 10-23.**
+6. **🔴 Operator asks, unchanged and ageing:** Perplexity quota (**15th** consecutive 401); the stale
+   `WATCHLIST=NFLX,BIRD,WPM` fallback (**10th+** flag, BIRD ~$2.44); and **please confirm the 09-23
+   routine gap was a one-off** — 09-24 and 09-25 both ran.
+7. **🟢 Correction propagated into this log and now fixed: SIP is NOT available.** A bare SIP request
+   returns **200 with an empty body**; with a date range it returns **403**. The 09-21/09-24 claim that
+   "the 403 constraint is stale" was wrong. **All dailies from today are IEX, and `$vol/d` figures are
+   not comparable across that boundary** — the 35.3× calibration is in this entry if a bridge is needed.
