@@ -4570,6 +4570,16 @@ hide below the WIN line.
 
 ### Commit
 - **Commit:** d504ae1
+- **Observed effect (weekly 09-25):** ✅ **VALIDATED, and it earned its keep within hours of
+  shipping.** Its whole purpose is to stop the ceiling being quoted as a free number once a
+  target truncates the travel that produced it — and the very next thing that happened was
+  the **09-21 `TAKE_PROFIT` sweep**, i.e. precisely the study an uncensored ceiling would have
+  corrupted. The sweep came back monotonic (true WR 12.9 → 42.4% while expectancy fell
+  +8.06 → +5.48) and **refuted this review's own #1 licensed change.** That refutation is only
+  trustworthy because this IMP existed to flag censoring. **Correctly scoped:**
+  measurement-only, `bot.replay` imported by nothing the service loads (re-verified at
+  runtime), service byte-identical.
+- **F+S share: unmoved by design** (100% this week). No expectancy claim made or implied.
 
 ---
 
@@ -4696,6 +4706,31 @@ instruments.
 
 ### Commit
 - **Commit:** 40c1b91
+- **Observed effect (weekly 09-25):** ✅ **VALIDATED — and it is the most consequential IMP
+  this bot has shipped, because it is the one that says what the other 53 could never have
+  established.** This was my ask #3, **asked three consecutive weeks and dropped three times**;
+  it is now answered by number and written in front of the operator. Measured **2.60
+  fills/week**; from the most flattering cohort (38 trades, +$6.72/trade, CI
+  [−$0.19, +$13.64], t = +1.91) **one year of live trading buys 173 trades and can only
+  confirm an edge ≥ $4.66/trade (0.115R)** against a realized all-time expectancy of
+  **$0.37/trade** — 13× below the floor. Five years reaches $2.28, still 6× above what the
+  book has produced.
+- **What it changes, permanently:** *"run it live a while and see"* is now **refuted by
+  arithmetic rather than by opinion.** Replay is the only court this strategy has. Every
+  subsequent verdict in this log — including this weekly's — rests on that.
+- **The anti-inference it pre-empted is worth as much as the finding.** It states explicitly
+  that **MDE in R is invariant to position size** (mean and sd scale together), so bigger
+  positions cannot buy statistical power — they only raise the stakes on an unconfirmed edge.
+  That is the obvious wrong conclusion to draw from "we need more data", and it was closed off
+  before anyone could draw it. ⛔ Risk posture untouched.
+- **Methodologically honest in a way worth repeating:** it validated `required_trades` **by
+  simulation before shipping** (achieved power 0.802–0.806 against a 0.800 target), tags every
+  post-hoc figure `[post-hoc, see docs]` so it cannot be quoted bare, **raises rather than
+  approximating** on an unsupported confidence level, and measured the fill rate over five
+  complete ISO weeks rather than a long-run average that would have credited the live book with
+  resolving power it has lost (45/wk in W28 → 2.6/wk now).
+- **F+S share: unmoved by design** (100% this week). Measurement-only; nothing the service
+  imports imports `bot.power`; service byte-identical.
 
 ---
 
@@ -4806,6 +4841,28 @@ precision that no decision currently turns on. Documented in the module docstrin
 
 ### Commit
 - **Commit:** 3df65cd
+- **Observed effect (weekly 09-25):** ✅ **VALIDATED — and it is the most important *correction*
+  in this log, because it found the improvement queue pointed at the wrong end of the
+  strategy.** `FULL_STOP_MAX_R = −0.75` was **arithmetically unreachable**: the ratchet sets the
+  stop to `price × (1 − 1.25%)` from the first managed candle, so the binding stop is
+  **−0.625R**, and −0.75R sits below the floor a stop fill can reach. Consequence: **36 of 36
+  FAILs since IMP-018 were labelled `BE-scratch`, 0 `full-stop`** — for two months the report
+  asserted that *every single failure was a profit-capture failure.*
+- **Corrected, the attribution inverts: 28 of 36 trail-era FAILs never traded above their entry
+  price at all.** ~78% of what was blamed on the exit was an entry that never worked. Every
+  exit-side candidate on the queue had been ranked under that false attribution — which is a
+  clean explanation for why two independent exit attacks (trail arming/width 09-11, reachable
+  target 09-21) both died: **they were answering a question the instrument had invented.**
+- **Wrong in the worst available direction, and caught by the bot's own measurement rather than
+  by a loss.** This is the class of defect that quietly wastes months, and it is the third
+  measurement bug found in six weeks (IMP-024, IMP-045, IMP-051 lineage) — the pattern is
+  systemic to how these diagnostics get written, not three coincidences.
+- **Correctly constrained:** WIN/SCRATCH/FAIL, stop rate and true win rate all stay
+  byte-identical — only the sub-split changed, exactly as IMP-054 pre-registered it. Splitting
+  on *where the fill landed relative to entry* is also geometry-independent, so it cannot go
+  stale the next time the trail width moves.
+- **F+S share: unmoved by design** (100% this week — the buckets are untouched). `bot.doctrine`
+  is imported by `bot.report` and nothing on the entry/exit/sizing path.
 
 ---
 
@@ -4913,3 +4970,33 @@ independently agreeing with IMP-034, which was adjudicated separately by replay.
 
 ### Commit
 - **Commit:** b5a556e
+- **Observed effect (weekly 09-25, written 44 min after it shipped):** ✅ **VALIDATED on its own
+  terms, and it supplies the mechanism behind this weekly's verdict.** It asks the question that
+  was logically prior to three years of weight-tuning and had never been asked: *is this term a
+  ranking term at all?* Answer, over 430 refused candidates carrying a full sub-score vector:
+  **`crossover` does the ranking** (sd 0.115, r(MFE) **+0.330**, and **monotone across all five
+  bands** — MFE +0.39 → +1.64%, ≥1R rate 0/193 → 1/4); **`trend` is informative but
+  under-resolved** (r +0.334, but 395 of 430 rows in two bands); **`rsi` is a constant**
+  (sd 0.043 — degenerate); **`volume` is noise**; **`rsi_raw` is noise and non-monotone.**
+- **It settled the question IMP-047 explicitly deferred to a later sweep, and settled it
+  against IMP-047's own hypothesis.** All 430 recorded `rsi_raw` values fall between 45 and 70,
+  so `score_rsi`'s `<45`, `<30` and `>=70` branches **have never fired once** — a fresh bullish
+  1-min ribbon cross mechanically implies mid-range RSI, i.e. **the trigger and the filter
+  measure the same thing.** There is no band edge to re-anchor to; re-anchoring would replace a
+  constant with noise. 20 of 100 points are a subsidy with no informative form available.
+- **It passed an independent sanity check:** it reads `volume` as noise, agreeing with IMP-034,
+  which was adjudicated separately by replay. It is not manufacturing findings. The trail-era
+  outcome split agrees too, from the other direction (WIN xo 0.553 / SCRATCH 0.540 / FAIL
+  full-stop 0.345), while trend, rsi and volatility are flat across every bucket.
+- **The dilemma it exposes is this weekly's central evidence, and it is structural, not
+  tunable:** ~42 of the 100 points are handed to essentially every candidate before any evidence
+  is weighed (rsi ≈19.8 + trend ≈22.4), so **a 60 threshold is not the bar it appears to be** —
+  while at the crossover strength that actually predicts travel (`conf_crossover` ≥ 0.35) the
+  bot would have taken **21 of 430 candidates, ~5 trades a quarter.** No setting of the existing
+  signal satisfies both ends. See the strategy verdict in `memory/weekly-review.md`.
+- **F+S share: unmoved by design** (100% this week). Measurement-only, opt-in stdout flag; the
+  Telegram digest is unchanged and the trading path is byte-identical.
+- ⚠️ **Caveat inherited and correctly printed by the tool itself:** the population is *declined*
+  candidates, so it measures power to rank the tape, not a P&L some other config would have
+  earned. That is the right trade for 430 rows against 6 closed trades, but it must be restated
+  every time the finding is used.
