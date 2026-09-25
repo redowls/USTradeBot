@@ -8,6 +8,7 @@ Queries SQL Server for recent trading performance and pushes a digest to Telegra
     python -m bot.report --days 7 --mfe    # + max favourable/adverse excursion
     python -m bot.report --days 7 --refusals  # + what the entry filters declined
     python -m bot.report --days 30 --timing   # + how much of the move was still on the table
+    python -m bot.report --days 30 --features # + which confidence sub-score predicts anything
 
 The headline figures (trades / win rate / P&L) cover the last ``--days``; the
 confidence-band breakdown is all-time, answering the question the whole confidence
@@ -28,6 +29,12 @@ same stdout-only rule.
 of the day's range existed at all, and how much of it was still unspent when we
 committed. It separates "the tape was dead" from "the tape moved and we were late",
 which have opposite fixes. Same opt-in, same stdout-only rule.
+
+``--features`` (IMP-056) asks the question all three of those assume an answer to:
+**which of the five confidence sub-scores actually predicts what the tape does?** It
+reuses the refusal population and reports each term's spread and its correlation with
+MFE and the forward close, so a weight decision is made against measured ranking power
+instead of a replayed net. Same opt-in, same stdout-only rule.
 
 Read-only. If persistence is disabled or unreachable, it logs and exits non-zero
 without touching the trading path.
@@ -50,6 +57,7 @@ from bot.excursion import (
     format_excursions,
     summarize,
 )
+from bot.features import format_terms, measure_terms
 from bot.notifier import open_notifier
 from bot.persistence import PerformanceSummary, open_store
 from bot.refusals import (
@@ -170,6 +178,24 @@ def refusal_report(store, cfg, days: int, fetch_ohlc=None) -> str:
         return f"— refused candidates — unavailable ({e.__class__.__name__}: {e})"
 
 
+def features_report(store, cfg, days: int, fetch_ohlc=None) -> str:
+    """Build the per-sub-score predictive-power table (IMP-056). Never raises.
+
+    Shares the refusal population and the injected fetcher with
+    :func:`refusal_report`, so ``--refusals --features`` costs one set of bar calls
+    conceptually and the two tables are always measured on identical rows.
+    """
+    try:
+        refusals = store.refusals(days)
+        if not refusals:
+            return "— sub-score power — no scored candidates in this window."
+        fetch = fetch_ohlc if fetch_ohlc is not None else alpaca_ohlc_fetcher(cfg)
+        rows, _skipped = outcomes_for(refusals, fetch, cfg.flatten_before_close_min)
+        return format_terms(measure_terms(rows, cfg.stop_loss), cfg.stop_loss)
+    except Exception as e:  # a reporting extra must never break the report
+        return f"— sub-score power — unavailable ({e.__class__.__name__}: {e})"
+
+
 def timing_report(store, cfg, days: int, fetch_session=None) -> str:
     """Build the entry-timing ladder (IMP-040). Never raises."""
     try:
@@ -191,6 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     want_mfe = "--mfe" in args
     want_refusals = "--refusals" in args
     want_timing = "--timing" in args
+    want_features = "--features" in args
     try:
         cfg = Config.load()
     except ConfigError as e:
@@ -205,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
     mfe_text = excursion_report(store, cfg, days) if want_mfe else None
     refusal_text = refusal_report(store, cfg, days) if want_refusals else None
     timing_text = timing_report(store, cfg, days) if want_timing else None
+    features_text = features_report(store, cfg, days) if want_features else None
     store.close()
     if summary is None:
         print("could not build the performance summary.")
@@ -217,6 +245,8 @@ def main(argv: list[str] | None = None) -> int:
         print(refusal_text)
     if timing_text:  # same rule again (IMP-040)
         print(timing_text)
+    if features_text:  # same rule again (IMP-056)
+        print(features_text)
     notifier = open_notifier(cfg)
     if notifier is not None:
         notifier.send(text)

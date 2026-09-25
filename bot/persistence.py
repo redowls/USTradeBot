@@ -97,6 +97,20 @@ def _sub(breakdown: ConfidenceBreakdown | None, field: str) -> float | None:
     return getattr(breakdown, field) if breakdown is not None else None
 
 
+def _opt_float(row, i: int) -> float | None:
+    """``float(row[i])``, or ``None`` when the column is NULL **or absent** (IMP-056).
+
+    A row narrower than the SELECT comes from a schema generation that predates the
+    column. That is the same fact a NULL records — "not measured" — so it reads the
+    same way here, rather than raising and losing every other row in the window.
+    """
+    try:
+        v = row[i]
+    except (IndexError, KeyError, TypeError):
+        return None
+    return None if v is None else float(v)
+
+
 @dataclass(frozen=True)
 class PerfBand:
     """One confidence-band row of ``dbo.vw_confidence_outcome`` (all-time)."""
@@ -176,6 +190,15 @@ class RefusedCandidate:
     ribbon_spread_pct: float | None = None
     rsi_raw: float | None = None
     scorer_version: int | None = None
+    # The sub-score vector (IMP-056). ``dbo.entry_refusals`` has stored these since
+    # IMP-030; only the blended total was ever read back, so no study could ask which
+    # *term* drove a decision. Optional like everything else here — older generations
+    # of the row wrote NULLs, and "not measured" must stay distinct from a score of 0.
+    conf_crossover: float | None = None
+    conf_trend: float | None = None
+    conf_rsi: float | None = None
+    conf_volume: float | None = None
+    conf_volatility: float | None = None
 
 
 @dataclass(frozen=True)
@@ -722,7 +745,8 @@ class TradeStore:
             cur = conn.cursor()
             cur.execute(
                 "SELECT symbol, candle_start_utc, reason, close_price, confidence, "
-                "market_gate_open, atr_pct, ribbon_spread_pct, rsi_raw, scorer_version "
+                "market_gate_open, atr_pct, ribbon_spread_pct, rsi_raw, scorer_version, "
+                "conf_crossover, conf_trend, conf_rsi, conf_volume, conf_volatility "
                 "FROM dbo.entry_refusals "
                 "WHERE candle_start_utc IS NOT NULL AND close_price IS NOT NULL "
                 f"AND candle_start_utc >= {_WINDOW_START_SQL} "
@@ -741,6 +765,15 @@ class TradeStore:
                     ribbon_spread_pct=None if r[7] is None else float(r[7]),
                     rsi_raw=None if r[8] is None else float(r[8]),
                     scorer_version=None if r[9] is None else int(r[9]),
+                    # Read positionally but tolerantly (IMP-056): a row shorter than
+                    # the SELECT means a database that predates these columns, which
+                    # is "not measured" — the same thing a NULL means — and must not
+                    # take the whole study down with an IndexError.
+                    conf_crossover=_opt_float(r, 10),
+                    conf_trend=_opt_float(r, 11),
+                    conf_rsi=_opt_float(r, 12),
+                    conf_volume=_opt_float(r, 13),
+                    conf_volatility=_opt_float(r, 14),
                 )
                 for r in (cur.fetchall() or [])
             ]

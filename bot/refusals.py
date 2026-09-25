@@ -114,6 +114,15 @@ class RefusalOutcome:
     mfe_pct: float
     mae_pct: float
     forward_pct: float  # close at the flatten, relative to the refusal candle's close
+    # The sub-score vector the decision was made on (IMP-056), so :mod:`bot.features`
+    # can ask which *term* ranks the tape rather than only which filter refused it.
+    # Optional throughout, and defaulted — older rows never stored it.
+    conf_crossover: float | None = None
+    conf_trend: float | None = None
+    conf_rsi: float | None = None
+    conf_volume: float | None = None
+    conf_volatility: float | None = None
+    rsi_raw: float | None = None
 
     @property
     def bucket(self) -> str:
@@ -201,6 +210,12 @@ def outcomes_for(
                 mfe_pct=exc.mfe_pct,
                 mae_pct=exc.mae_pct,
                 forward_pct=exc.realized_pct,
+                conf_crossover=getattr(r, "conf_crossover", None),
+                conf_trend=getattr(r, "conf_trend", None),
+                conf_rsi=getattr(r, "conf_rsi", None),
+                conf_volume=getattr(r, "conf_volume", None),
+                conf_volatility=getattr(r, "conf_volatility", None),
+                rsi_raw=getattr(r, "rsi_raw", None),
             )
         )
     return rows, skipped
