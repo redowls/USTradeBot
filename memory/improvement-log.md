@@ -4806,3 +4806,110 @@ precision that no decision currently turns on. Documented in the module docstrin
 
 ### Commit
 - **Commit:** 3df65cd
+
+---
+
+## IMP-056 — 2026-09-25 — Measure which entry sub-score actually predicts the tape
+
+### The gap
+Every entry decision this bot has ever made turns on a weighted blend of five 0–1
+sub-scores. The weights have been moved three times — IMP-034 dropped `volume` to zero,
+IMP-036 reversed `volatility`'s anchors, IMP-047 tried and rejected redistributing
+`rsi`'s 20 points — and **every one of those decisions was settled by replaying net
+P&L.** That answers "did this config make money on that window". It does not answer
+**"is this term a ranking term at all"**, which is cheaper, more stable, and logically
+prior: a term that does not correlate with what the tape subsequently does cannot help
+rank candidates at *any* weight, and no amount of replay tuning will make it.
+
+No instrument existed to ask that question. Tonight's review needed it: IMP-055 flipped
+the dominant failure cause to **entry quality**, and "fix the entry" is not actionable
+until you know which part of the entry score is load-bearing.
+
+### What shipped
+- **`bot/features.py`** — pure measurement over the refusal population. For each term,
+  pairs its value at decision time with the outcome `bot.refusals` already computes
+  (MFE and the forward close to the session flatten) and reports:
+  - **`sd`, read first.** A term pinned near one value is a constant subsidy, not a
+    ranking term, whatever its correlation says — and a correlation computed on a
+    near-constant column is noise over a small denominator. `DEGENERATE_SD = 0.10`.
+  - **`r(MFE)` / `r(fwd)`** — Pearson, returning **`None` rather than 0.0** on a constant
+    column, because "no variation to correlate" and "varies, predicts nothing" are
+    different findings and `conf_rsi` is genuinely the former.
+  - **banded cohort tables** — a term can be informative non-monotonically, which a
+    single correlation hides.
+- **`python -m bot.report --features`** — stdout-only, opt-in, same rule as
+  `--mfe`/`--refusals`/`--timing`; the Telegram digest stays the short headline.
+- **Plumbing:** `RefusedCandidate` and `RefusalOutcome` now carry the sub-score vector
+  (`dbo.entry_refusals` has stored it since IMP-030; only the blended total was ever
+  read back). `persistence.refusals` now also tolerates a row narrower than its SELECT —
+  that means a schema generation predating the column, which is the same "not measured"
+  a NULL records and must not take the whole window down with an `IndexError`.
+
+**Why the refusal population and not closed trades:** 430 rows with a full vector versus
+**6** closed trades since the same date, and unconfounded by sizing, capital limits and
+exit geometry. Its limitation is inherited and printed in the footer — these candidates
+were declined, so it measures power to rank the tape, not a P&L some other config earned.
+
+### What it found (2026-09-25, n=430, scorer v3)
+
+| term | sd | r(MFE) | r(fwd) | reading |
+|---|---|---|---|---|
+| **crossover** | 0.115 | **+0.330** | +0.077 | **informative** |
+| **trend** | 0.153 | **+0.334** | +0.130 | **informative**, under-resolved |
+| rsi | 0.043 | +0.047 | +0.042 | **DEGENERATE** — a constant |
+| volume | 0.394 | −0.067 | −0.066 | NOISE (already weight 0) |
+| volatility | 0.117 | +0.170 | +0.072 | weak on this population |
+| rsi_raw | 3.219 | −0.025 | −0.012 | **NOISE**, non-monotone |
+
+`crossover` is **monotone across all five bands** — MFE +0.39 → +0.72 → +0.81 → +1.17 →
++1.64%, ≥1R 0/193 → 4/134 → 3/82 → 2/17 → 1/4 — and the trail-era trade outcomes agree
+independently: WIN xo **0.553** / SCRATCH 0.540 / FAIL full-stop **0.345**, while trend,
+rsi and volatility are flat across every bucket.
+
+**This closes IMP-047.** IMP-047 recorded `rsi_raw` so a later run could "sweep the band
+edges on recorded history instead of re-fetching bars". This is that sweep, and **there is
+no band edge to sweep to**: all 430 values fall between **45 and 70** (0 below 45, 0 at or
+above 70), because a *fresh* bullish 1-min ribbon cross mechanically implies mid-range RSI
+— trigger and filter measure the same thing. `score_rsi`'s `<45`, `<30` and `>=70` branches
+have **never fired**, and the surface is flat across what remains. IMP-047's standing
+hypothesis ("the plateau is the thing to fix, not the weight") is **refuted**: re-anchoring
+would replace a constant with noise.
+
+**Sanity check that it is not manufacturing findings:** it reads `volume` as NOISE,
+independently agreeing with IMP-034, which was adjudicated separately by replay.
+
+### Validation — 624 tests pass (607 before; 17 added), preflight all-PASS
+- `test_pearson_is_none_on_a_constant_column_not_zero` — the distinction the module exists
+  to preserve, on the case that actually occurs (`conf_rsi` saturated on 97% of rows).
+- `test_rsi_raw_is_measured_as_noise_across_its_whole_observed_domain` and
+  `test_the_45_and_70_rsi_branches_never_fire_in_the_recorded_population` — the finding,
+  pinned. The second **fails loudly if new rows ever populate those branches**, which is
+  exactly when the term deserves a re-read.
+- `test_crossover_outranks_rsi_on_measured_power` — the ordering the improvement queue now
+  rests on.
+- `test_a_saturated_subscore_is_flagged_degenerate_before_any_correlation` and
+  `test_a_fully_constant_subscore_reports_no_correlation_rather_than_zero`.
+- `test_missing_terms_are_skipped_not_read_as_a_score_of_zero` — zero-filling a NULL would
+  manufacture the very variation the module tests for.
+- `test_reached_1r_uses_the_doctrine_win_line_not_the_trail` — 1R is 2.00%, not the 1.25%
+  trail give-back; the mistake IMP-052 was written to end.
+- Plus band mechanics, formatting, and both `RefusalOutcome` plumbing directions.
+- `python -m bot.preflight`: Alpaca PASS, SQL Server PASS, Telegram PASS, 1 expected
+  market-closed warning. Service restarted 20:16 UTC, active, warmup 15/15, clean.
+
+### What this does NOT license
+- **No config shipped, and none may be.** Escalation is active (FAIL+SCRATCH = 100% of
+  closed trades across the last ten sessions with trades) and forbids parameter changes.
+  This is measurement, which is why it was permissible tonight.
+- **Not a licence to raise `MIN_CROSSOVER` to 0.45** where the edge measures strongest.
+  Correct in direction, but it is a parameter change under escalation *and* it would cut
+  an already unadjudicatable 2.6 fills/week to near zero (21 of 430 candidates). That
+  tension is handed to the weekly, not resolved here.
+- **Not a licence to delete `rsi`'s weight.** IMP-047 tested that and it cost net dollars,
+  because with `conf_rsi` flat a redistribution is arithmetically a threshold tightening.
+  Tonight's finding explains *why* the term is uninformative; it does not re-open a
+  change that was already adjudicated against.
+- **No step toward live capital, no sizing change, no loosening of any limit.**
+
+### Commit
+- **Commit:** b5a556e

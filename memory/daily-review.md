@@ -9325,3 +9325,198 @@ None to review. **Root-causing the absence instead**, which is the reviewable ev
   settles, expect more sub-60 sessions. That is the strategy declining to trade a bad regime, and
   it is the correct behaviour — but it also means the fill rate stays at ~2.6/week and the live
   book keeps failing to adjudicate anything.
+
+---
+
+## 2026-09-25 — Daily Review
+
+### Stats
+- **No trades.** 0 entries, 0 exits, 0 open positions. Net P&L **$0.00**.
+- **Equity $9,207.37** — unchanged (`last_equity` identical). Cash $9,207.37, buying power $36,829.48.
+- **Broker reconciliation: exact.** Alpaca `PA34DFFLTHRT` reports **0 orders today, 0 positions**;
+  `dbo.trades` reports 0 rows. No qty drift, no missed fill, no overnight carry. (The
+  `alpaca-usbot` MCP server failed to connect this run — CONNECT_TIMEOUT — so this was
+  read via the REST fallback with the `.env` keys.)
+- Service **active**, clean 11:42 UTC start, warmup primed **15/15** symbols, **zero warnings
+  or errors** in the whole session journal.
+- **Third consecutive session without a fill** (09-23 was the routine-gap day, 09-24 flat,
+  09-25 flat). Last fill was **09-22**. 6 trades in the last 21 calendar days.
+
+### Stop-exit accounting
+No closed trades today, so nothing to bucket. The standing windows are unchanged:
+
+| window | trades | stops | stop rate | WIN | SCRATCH | FAIL (full / BE-scratch) | true win | headline |
+|---|---|---|---|---|---|---|---|---|
+| last 10 sessions w/ trades | 5 | 5 | **100%** | 0 | 2 | 3 (3 / 0) | **0.0%** | 40.0% |
+| last 21d | 6 | 6 | 100% | 0 | 2 | 4 (4 / 0) | 0.0% | 33.3% |
+| all-time (282) | 282 | 98 | 34.8% | 20 | 141 | 121 (110 / 11) | **7.1%** | 46.5% |
+
+- **ESCALATION REMAINS ACTIVE.** FAIL+SCRATCH = **5/5 = 100%** of closed trades over the last
+  ten sessions that had trades — far past the 60%-over-3-sessions trigger. Parameter tweaks
+  remain forbidden; **no config was shipped tonight and none may be.**
+- **Dominant failure cause: entry quality**, per IMP-055's re-attribution (28 of 36 trail-era
+  FAILs never traded above their entry price). Tonight's work attacks exactly that cause.
+
+### Trade-by-trade review
+None. **Root-causing the absence**, which is tonight's reviewable evidence.
+
+**23 signals evaluated, all 23 refused:**
+
+| refusal | count |
+|---|---|
+| `confidence < 60` | **22** |
+| `market gate closed (QQQ 5m ribbon not bullish)` | 1 |
+
+Max confidence by symbol: **AMD 65.8** (gate-vetoed), QCOM 57.7, MSFT 56.8, AAPL 45.3,
+TSM 43.0, QQQ 40.6. Only **6 of 15** watchlist names produced any signal at all.
+
+**The refusals were correct, and today proves it more cleanly than a down day would.**
+The tape **rose**: Nasdaq **+0.5%** to 27,068.72, S&P **+0.5%**, Dow +0.9%, VIX down to
+**14.80**, crude −2.5% to $92.24 as the bond selloff halted. The market gate was open
+essentially all day (it refused **one** candidate). So this was *not* a risk-off veto —
+the bot had permission to trade a rising tape and **still found nothing**, because the
+1-min crossovers were weak: today's **max `conf_crossover` was 0.30**, against **0.553
+on the trail era's WIN trades**. A slow grind higher on a falling VIX does not produce
+the intraday impulse this signal needs. Refusing was right.
+
+Counterfactual ceiling on today's 23 declines: **1/23 (4.3%) reached +1R.** The best
+declined was **QCOM, MFE +2.50% (1.25R), fwd +0.76%, conf 57.72**. No filter change
+available tonight could have bought more than one WIN.
+
+### The finding — which entry term predicts anything (IMP-056)
+Yesterday's `[NEXT]` item was to re-read the entry-quality failures under IMP-055's
+corrected attribution. Doing that raised a prior question that had never been asked:
+**the entry score is a weighted blend of five sub-scores, and no instrument existed to
+ask which of the five carries information.** Weights have been moved three times
+(IMP-034, IMP-036, IMP-047), each settled by replaying net P&L — which answers "did this
+config make money on that window", not "is this term a ranking term at all".
+
+Measured over the 430 refused candidates carrying a full sub-score vector, paired with
+the outcome `bot.refusals` already computes:
+
+| term | sd | r(MFE) | reading |
+|---|---|---|---|
+| **crossover** | 0.115 | **+0.330** | **informative** — and monotone across all five bands |
+| **trend** | 0.153 | **+0.334** | **informative** |
+| rsi | 0.043 | +0.047 | **DEGENERATE** — a constant, not a ranking term |
+| volume | 0.394 | −0.067 | NOISE (already at weight 0 since IMP-034) |
+| volatility | 0.117 | +0.170 | weak *on this population* |
+| rsi_raw | 3.219 | −0.025 | **NOISE**, non-monotone across its bands |
+
+**Crossover is monotone the whole way up** — MFE +0.39% → +0.72% → +0.81% → +1.17% →
++1.64%, with ≥1R going **0/193 → 4/134 → 3/82 → 2/17 → 1/4**. It is the real ranking term,
+and the trail-era outcome split agrees independently: **WIN xo 0.553 / SCRATCH 0.540 /
+FAIL full-stop 0.345 / FAIL BE-scratch 0.391**, while trend (0.91–0.99), rsi (0.97–1.00)
+and volatility (0.84–0.89) are flat across every bucket.
+
+**This settles the question IMP-047 left open.** IMP-047 recorded `rsi_raw` precisely so a
+later run could "sweep the band edges on recorded history instead of re-fetching bars".
+This is that sweep, and **there is no band edge to sweep to**: all **430** recorded values
+fall between **45 and 70** (0 below 45, 0 at/above 70; p10 53.9, median 57.4, p90 62.4),
+because *a fresh bullish 1-min ribbon cross mechanically implies mid-range RSI* — the
+trigger and the filter measure the same thing. `score_rsi`'s `<45`, `<30` and `>=70`
+branches **have never fired once**, and the outcome surface is flat across the band that
+remains. So the docstring's standing hypothesis — "the plateau is the thing to fix, not
+the weight" — is now **refuted**: re-anchoring the plateau would replace a constant with
+noise. The 20 points are a subsidy with no informative form available to them.
+
+**Instrument sanity check:** it reads `volume` as NOISE, independently agreeing with
+IMP-034, which was adjudicated separately by replay. It is not manufacturing findings.
+
+### What worked / what didn't
+- **Worked: capital protection and the refusal logic, on a day that could have tempted it.**
+  A rising tape with the gate open and nothing taken, because nothing met the bar. Zero
+  errors, zero drift, clean reconciliation.
+- **Worked: the compounding.** IMP-055 corrected the failure attribution → pointed at entry
+  quality → tonight built the instrument that says *which part* of the entry is at fault.
+  Each step used the last one's verified result.
+- **Didn't: the fill rate, still the binding constraint on everything.** 6 trades in 21 days
+  (~2.6/week, IMP-054). At that rate a year of live trading can only confirm an edge
+  ≥ **$4.66/trade (0.115R)** against a realized all-time expectancy of **$0.37/trade**. The
+  live book cannot adjudicate this strategy; replay remains the only court.
+- **Didn't: Perplexity.** HTTP 401 again — **15th consecutive failure**. WebSearch fallback
+  produced a complete briefing.
+
+### Market context (WebSearch; Perplexity 401)
+- **09-25 closed up: Nasdaq +0.5% → 27,068.72, S&P 500 +0.5%, Dow +0.9% → 51,828.62,
+  Russell 2000 +0.25%. VIX 14.80. Crude −2.51% → $92.24.** All three indexes notched
+  weekly wins. Relief rally as Brent fell toward $105 on Strait-of-Hormuz speculation,
+  halting the global bond selloff.
+- **Structural regime note, and it matters more than the day:** the S&P has made **no new
+  high since August** and is chopping in a **7,600–7,800 range**, with only **29% of S&P 500
+  members above their 50-day MA**. A range-bound tape with thin breadth is the textbook
+  worst regime for a 1-min EMA-ribbon trend-follower — and it is a coherent, external
+  explanation for 22 sub-60 prints on an up day.
+
+### Lessons & improvement candidates
+1. **[SHIPPED — IMP-056]** `bot/features.py` + `python -m bot.report --features`. Highest
+   impact available under escalation: it is measurement (permitted), it answers the
+   pre-registered IMP-047 question with the data IMP-047 said would be needed, and every
+   future entry decision — including the weekly's, an hour from now — is now made against
+   measured ranking power rather than intuition. 624 tests (17 added), preflight all-PASS.
+2. **[HANDED TO THE WEEKLY, 21:00 UTC tonight]** The structural verdict escalation requires.
+   See the section below — numbers attached, do not let this sit.
+3. **[NEXT]** Re-examine the **trend** term. It measured **r +0.334**, statistically equal to
+   crossover, but only **2 of 5 bands are populated** (395 of 430 rows sit in [0.6, 1.01))
+   so its power is concentrated and under-resolved. Needs finer bands before any weight
+   argument is built on it.
+4. **[OPERATOR]** Perplexity quota — 15 consecutive 401s; the key needs credits or removal
+   from the routine prompts. The `alpaca-usbot` **MCP server also failed to connect tonight**
+   (CONNECT_TIMEOUT) — REST fallback worked, but the MCP path should be checked.
+5. **NOT candidates:** lowering `ENTRY_THRESHOLD` (refuted 4x; today's ceiling is 1 WIN out
+   of 23 declines); removing filters (refuted 09-16); widening stops or weakening the
+   ratchet (forbidden); re-anchoring the RSI plateau (**refuted tonight** — no band edge
+   exists); raising `MIN_CROSSOVER` to 0.45 where the edge lives — correct in direction but
+   it is a **parameter change under active escalation**, and it would cut an already
+   unadjudicatable 2.6 fills/week to near zero. That tension is the weekly's to resolve.
+
+### The structural verdict handed to the weekly review
+Escalation has been active for ten straight sessions with trades. Tonight adds the
+mechanism behind it, and it should be read as one statement:
+
+> **Of the five terms the entry score blends, one (`crossover`) does the ranking, one
+> (`trend`) is informative but under-resolved, and the other three are a constant, noise,
+> and a term already zeroed. Meanwhile ~42 of the 100 points are handed to essentially
+> every candidate before any evidence is considered (rsi ≈19.8 + trend ≈22.4), so a
+> threshold of 60 is not the bar it appears to be.** And where the informative term
+> actually predicts travel — `conf_crossover` ≥ 0.35, avg MFE +1.17–1.64%, the only bands
+> with a meaningful ≥1R rate — the bot would have taken **21 trades out of 430 candidates**.
+>
+> That is the dilemma in one line: **at the crossover strength that predicts a move, this
+> strategy trades roughly five times a quarter; at the rate it currently trades, it selects
+> on a score that is ~42% constant.** No setting of the existing signal resolves both. The
+> honest reading is that this is not a tuning problem, and the weekly should decide between
+> a materially different trigger and the "no demonstrated edge" finding — not another
+> parameter.
+
+### Notes for pre-market research
+- **AMD — check first.** Printed **conf 65.8 at 14:06 UTC**, the only candidate all day to
+  clear the 60 threshold, and the **market gate vetoed it** (QQQ 5m ribbon not bullish).
+  Its sub-scores were the day's healthiest (xo 0.28, trend 1.00, rsi 1.00, vlty 0.60,
+  atr 0.26%). **Please record what AMD did from 14:06 UTC to the close** — this is the
+  second gate-veto-of-the-day's-best-signal in two sessions (INTC 99.9% on 09-24). Two in a
+  row is a pattern worth a dated file, though still **not** a case to touch the gate, which
+  09-18 adjudicated on its own merits.
+- **Yesterday's INTC item is still open** — the 09-24 note asked what INTC did after its
+  99.9% veto at 10:01 ET and I see no answer recorded. Please close it.
+- **Correction to yesterday's note:** I flagged INTC's `volatility 0.00` as "a stale or
+  degenerate indicator value". **It is not — it is the scorer working as designed.**
+  `score_volatility` maps 1-min ATR/price ≤ 0.20% to exactly 0.0, and `atr_pct` is stored to
+  2dp, so a quiet minute legitimately reads 0.00 even on a name with 5.46% *daily* ATR.
+  410 of 430 candidates sit in that bottom band. No bug; no action.
+- **QCOM is the day's near-miss and the one to watch.** conf 57.72 at 14:46 UTC, refused by
+  2.3 points — and it then ran **MFE +2.50% (1.25R)** with a **+0.76%** forward close, the
+  single best declined candidate. It also produced nothing at all on 09-24 and was the
+  `MIN_VOLATILITY` case study on 09-21. It is alive again; keep it enabled.
+- **Nine of fifteen names never signalled once today:** HOOD, INTC, IREN, META, MU, NFLX,
+  NVDA, PLTR, TSLA. META signalled **9 times** yesterday and **zero** today — that swing is
+  worth a glance. The 09-24 suggestion of a dated park test for META still stands.
+- **AAPL and MSFT continue to under-contribute** — third session running. AAPL max 45.3
+  across 7 signals, MSFT max 56.8 across 4. MSFT is at least getting close; AAPL is not.
+  Both resolved KEEP on 09-24; **re-test AAPL specifically.**
+- **QQQ again scored as a tradeable symbol (6 signals, max 40.6) while also being the market
+  gate.** Re-flagging: a symbol that gates itself deserves a deliberate decision.
+- Regime note for the morning: the index is **range-bound 7,600–7,800 with 29% breadth above
+  the 50-DMA** and made no new high since August. Expect more sub-60 sessions until that
+  breaks. The strategy declining a bad regime is correct behaviour — but it also means the
+  fill rate stays ~2.6/week and the live book keeps adjudicating nothing.
