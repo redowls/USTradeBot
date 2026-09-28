@@ -5000,3 +5000,118 @@ independently agreeing with IMP-034, which was adjudicated separately by replay.
   candidates, so it measures power to rank the tape, not a P&L some other config would have
   earned. That is the right trade for 430 rows against 6 closed trades, but it must be restated
   every time the finding is used.
+
+---
+
+## IMP-057
+**2026-09-28 (daily review) — the pullback entry trigger: built, measured, and REFUTED on its
+own pre-registered criteria. Attempt 1 of 2 before the retire recommendation.**
+
+### Why
+The 09-25 weekly's focus **#1** — *"Build a materially different entry trigger and judge it on the
+ceiling. This is the only work left that can change the verdict."* Escalation has been active for
+eight consecutive weeks (F+S **100%** over the last 16 closed trades, true win rate **0.0%**),
+which forbids parameter tweaks and licenses only structural change. Today produced **no trades**
+(the QQQ gate was shut 79 of 79 five-minute bars on a risk-off tape), so there was no new
+trade-level evidence to act on and the weekly's #1 was the binding work.
+
+The defect being attacked is **entry price**, measured four independent ways: fills at the
+**83rd / 65th / 87.7th** percentile of the range available at the time (09-21 AMD, 09-21 INTC,
+09-22 INTC) and a refused entry at the **99th** (09-25 AMD). A 3-EMA cross confirmed by a 5-min
+ribbon is structurally a *confirmation* signal, and confirmation arrives after the move — which
+is what produces the **16–20% +1R ceiling** that caps the true win rate no exit change can lift.
+
+**Focus #2 was discharged first, deliberately.** The retire trigger — including the baseline
+ceilings, the pass conditions and the two-attempt limit — was written into `todo.md` **before any
+of this was designed**, so the criterion could not be softened once the result was known.
+
+### What changed
+- **`bot/pullback.py` (new)** — the trigger as a pure, I/O-free state machine: `arm()` records a
+  qualifying cross; `advance()` takes one closed trigger candle and returns ENTER / WAIT / DISARM.
+  Checks run **structure → price → expiry**: the stack must still be bullish (otherwise a
+  "retracement" is really a breakdown), then `close <= mid` fills, then the window expires. Reads
+  only closed-candle values, so it cannot introduce the IMP-046 lookahead the ceiling depends on.
+- **`bot/config.py`** — `ENTRY_MODE` (`cross` | `pullback`, **default `cross`**) and
+  `PULLBACK_MAX_BARS` (default 10), both validated. The mode constants live in `config.py` rather
+  than `pullback.py` because `bot.pullback` imports `bot.signals`, which imports `bot.config` —
+  defining them at the dependency root keeps the graph acyclic; `bot.pullback` re-exports them.
+- **`bot/strategy.py`** — arms instead of filling in pullback mode; advances the arm *before*
+  `evaluate_entry` (on a retracement bar `fresh_cross` is false, so the old path would refuse it
+  as "no fresh cross" and drop the setup). The fill block was extracted into **`_enter()`** and is
+  now shared by both modes, so a pullback fill goes through byte-identical signal construction,
+  alerting, sizing and bracket placement.
+- **Three safety properties, each pinned by a test.** The **market gate is re-checked at the
+  fill**, not only at the arm (an armed cross must never become a back door into a regime the gate
+  has since closed — today's tape is exactly that risk); the **EOD flatten clears all arms**; and a
+  **date guard** kills an arm from a prior session even if the flatten never ran (the 2026-06-19
+  dead-feed failure mode).
+- **`bot/replay.py`** — `--entry-mode` / `--pullback-max-bars`, and the trigger shape echoed on its
+  own header line so a cross-vs-pullback pair of runs is attributable once it scrolls past.
+- **Deliberately carried forward: the cross-bar confidence.** On a retracement bar `fresh_cross`
+  is false, so re-scoring would feed `score_crossover` a non-cross bar. The setup was qualified at
+  the cross; the pullback is an execution refinement. Sizing therefore sees the same confidence it
+  would have seen in cross mode, which is what isolates the experiment to entry **price alone**.
+
+### The measurement, and the result
+`bot.replay`, friction on at 10bps/side, doctrine scoring, 15 symbols, all shipped filters on.
+**Control first: `cross` mode reproduced the baseline exactly** (30d: 16 trades, +$68.05, PF 1.50,
+ceiling 18.8%), so the `_enter()` refactor is behaviour-neutral.
+
+| window | ceiling base → pullback | expectancy | PF | trades |
+|---|---|---|---|---|
+| 30d | 18.8% → **18.2%** ❌ | +4.25 → **+3.27** ❌ | 1.50 → 1.27 | 16 → 11 |
+| 45d | 16.0% → **18.8%** ✅ | +3.44 → +5.64 ✅ | 1.35 → 1.57 | 25 → 16 |
+| 90d | 20.3% → **27.7%** ✅ | +4.14 → **+3.93** ❌ | 1.43 → 1.31 | 69 → 47 |
+
+**Fails criterion 1** (ceiling must rise on all three windows), **criterion 2** (expectancy must
+not fall on any), and **criterion 3** (trade count must stay adjudicable — it fell 32%).
+
+**Robust to tuning.** `PULLBACK_MAX_BARS` swept on 90d: **every** variant earns less than the
+cross baseline's +$285.68, and two lose money — `3` → −$99.66 (PF 0.66), `5` → +$121.76,
+`10` → +$184.48, `20` → −$38.61 (PF 0.95). The best-ceiling variant (`max_bars=5`, ceiling 29.0%)
+was checked on all three windows and is the closest call in this log: ceiling rises everywhere
+(18.8→22.2, 16.0→21.4, 20.3→29.0) and expectancy improves on 30d and 45d — but it **falls on 90d,
+the largest sample**, and cuts 90d trades **69 → 31 (−55%)**, ~1.2 fills/week. **Rejected on the
+rule as written, not on a re-read of it.**
+
+### 🔴 The finding that outranks the trigger result
+**The +1R ceiling and the money came apart.** IMP-051's standing rule judges an entry change on
+the ceiling; here the ceiling rose **+8.7pp** on 90d while net P&L fell **57%** — the same
+*monotonic relabelling* shape the 09-21 `TAKE_PROFIT` sweep was rejected for, now on the entry
+side. Two structural reasons, both new to this log:
+
+1. **The ceiling is denominator-sensitive.** `R = stop_loss × entry_price`, so a trigger that
+   fills *lower* mechanically shrinks its own R and inflates its own MFE-in-R. The magnitude is
+   small (fills differ well under 1%) but it is a **bias, not noise, and it always points the same
+   way**. A ceiling comparison between triggers with different average fill prices is not
+   apples-to-apples, and IMP-051's rule does not control for it.
+2. **The pullback bought ceiling with sample, not edge.** It kept **13 of the 14** baseline +1R
+   trades while dropping 22 entries that mostly never reached +1R — real selectivity — yet 90d
+   expectancy barely moved (+4.14 → +3.93). **Almost the whole net-P&L loss is simply 32% fewer
+   trades**, and sample is the one currency IMP-054 proved this bot cannot spend.
+
+**So this reproduces the bot's central dilemma instead of resolving it**, exactly as the 09-25
+weekly framed it for `conf_crossover ≥ 0.35`: quality is purchasable only with sample, and there
+is none to spend. **A second, independent trigger design has now hit the same wall.**
+
+### Guardrails
+- **Nothing was shipped to the live path.** `ENTRY_MODE` defaults to `cross`, `.env` sets neither
+  new key (verified), and `.env` was not touched — it remains `ustradebot:ustradebot` mode 600.
+  Position size, stop fraction, bracket, trail ratchet, break-even protection, the market gate,
+  the blackout, the stand-down and the EOD flatten are all unchanged.
+- **Kept in-tree rather than reverted** because it is the measurement instrument attempt 2 will be
+  compared against, and because it cannot turn on by accident — the default is validated and the
+  config rejects an unknown mode.
+- 647 tests pass (**23 added**, 624 → 647); `bot.preflight` all-PASS (single benign
+  market-closed warning).
+- **No step toward live capital, no sizing change, no loosening of any limit.**
+
+### Commit
+- **Commit:** 4bfffdc
+- **Attempt count:** **1 of 2** consumed against the retire trigger pre-registered in `todo.md`
+  tonight. Re-tuning `max_bars` does **not** consume an attempt and has not earned one.
+- **Pre-registered for the weekly (10-02):** IMP-051's ceiling rule needs a companion criterion
+  before attempt 2 is judged — recommend *"raises the ceiling **at constant trade count**, with
+  expectancy and payoff held"*, or quoting MFE in **percent** alongside R so the denominator bias
+  is visible. **Attempt 2 is the compression/expansion trigger, and its design brief is now
+  sharper: it must find entries without reducing the trade count.**

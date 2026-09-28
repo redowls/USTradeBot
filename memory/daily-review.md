@@ -9520,3 +9520,230 @@ mechanism behind it, and it should be read as one statement:
   the 50-DMA** and made no new high since August. Expect more sub-60 sessions until that
   breaks. The strategy declining a bad regime is correct behaviour — but it also means the
   fill rate stays ~2.6/week and the live book keeps adjudicating nothing.
+
+---
+
+## 2026-09-28 — Daily Review
+
+### Stats
+- **No trades.** 0 entries, 0 exits, 0 open positions. Net P&L **$0.00**.
+- **Equity $9,207.37** — unchanged (`cash` == `equity` == `last_equity`, buying power $36,829.48).
+  Lifetime **−$792.63 from $10,000 (−7.93%)**.
+- **Broker reconciliation: exact.** `alpaca-usbot` MCP (working again tonight after Friday's
+  CONNECT_TIMEOUT) reports account `PA34DFFLTHRT` with **0 orders today, 0 positions**;
+  `dbo.trades` reports **0 rows** and **0 open rows**. No qty drift, no missed fill, no carry.
+- Service **active**, no restarts, **zero `-p warning` entries** in the whole session journal.
+  7,363 journal lines, of which **7,355 are candle prints and 8 are refusals** — nothing else.
+- **Fourth consecutive session without a fill** (09-23 routine gap, 09-24, 09-25, 09-28 flat).
+  Last fill was **09-22**. **6 trades in the last 24 calendar days.**
+
+### Stop-exit accounting
+No closed trades today, so nothing to bucket. Recomputed windows (`bot.doctrine` over
+`dbo.trades`, sessions counted as *sessions that had trades*):
+
+| window | trades | stops | stop rate | WIN | SCRATCH | FAIL (full / BE-scratch) | true win | headline | F+S |
+|---|---|---|---|---|---|---|---|---|---|
+| last 10 sessions w/ trades | 16 | 13 | **81.2%** | 0 | 7 | 9 (7 / 2) | **0.0%** | 56.2% | **100%** |
+| last 3 sessions w/ trades | 5 | 5 | 100% | 0 | 2 | 3 (3 / 0) | 0.0% | 40.0% | 100% |
+| all-time (282) | 282 | 98 | 34.8% | 20 | 141 | 121 (110 / 11) | **7.1%** | 46.5% | 92.9% |
+
+- **ESCALATION REMAINS ACTIVE — eighth consecutive week.** F+S = **16/16 = 100%** over the last
+  ten sessions with trades, far past the 60%-over-3-sessions trigger. Parameter tweaks remain
+  **forbidden**; none was shipped tonight.
+- **The headline/true divergence is the whole story again:** 56.2% headline against **0.0% true**
+  over sixteen trades. **Not one of the last 16 closed trades printed +1R.**
+- **Dominant failure cause: entry quality** (IMP-055's corrected attribution — 28 of 36 trail-era
+  FAILs never traded above their entry price). Tonight's work attacks exactly that, structurally.
+
+### Trade-by-trade review
+None. **Root-causing the absence**, which is tonight's only reviewable evidence — and today it
+has a single, unambiguous cause that is *not* the one the refusal log appears to give.
+
+**The QQQ market gate was shut for every 5-minute bar of the session — 79 of 79.** Reconstructed
+the IMP-022 gate ribbon (21/34/55 on QQQ 5m, `stacked and fast_rising`) from IEX bars across
+13:30→20:00 UTC: **OPEN 0 bars, shut 79 bars.** QQQ opened 739.50, sagged to 732.13 by 14:50 and
+closed 736.88 — the fast EMA sat under the mid/slow the entire day.
+
+**Therefore today had ZERO recoverable candidates.** All 8 scored refusals carry
+`market_gate_open = False`. No threshold, no crossover floor and no volatility floor could have
+produced a trade, because the gate sits *after* scoring and would have vetoed every one.
+
+| sym | time UTC | close | conf | xo | trend | rsi | vol | vlty | recorded reason | gate |
+|---|---|---|---|---|---|---|---|---|---|---|
+| NVDA | 14:00 | 232.28 | **60.57** | 0.232 | 1.000 | 1.000 | 0.176 | 0.367 | `crossover 0.23 < 0.25` | **shut** |
+| AAPL | 14:13 | 342.64 | 47.88 | 0.176 | 0.808 | 1.000 | 0.527 | 0.000 | `confidence 47.9 < 60` | shut |
+| AAPL | 15:47 | 341.38 | 40.69 | 0.134 | 0.595 | 1.000 | 1.000 | 0.000 | `confidence 40.7 < 60` | shut |
+| NVDA | 16:37 | 231.65 | 55.59 | 0.246 | 1.000 | 1.000 | 0.275 | 0.000 | `confidence 55.6 < 60` | shut |
+| TSM | 17:24 | 453.19 | 46.84 | 0.086 | 0.903 | 1.000 | 0.614 | 0.000 | `confidence 46.8 < 60` | shut |
+| TSM | 17:28 | 453.13 | 45.81 | 0.052 | 0.915 | 1.000 | 0.898 | 0.000 | `confidence 45.8 < 60` | shut |
+| TSM | 17:30 | 453.13 | 45.82 | 0.048 | 0.922 | 1.000 | 0.000 | 0.000 | `confidence 45.8 < 60` | shut |
+| MSFT | 17:53 | 512.22 | 38.60 | 0.052 | 0.637 | 1.000 | 0.538 | 0.000 | `confidence 38.6 < 60` | shut |
+
+- **Only 4 of 15 names signalled at all** (NVDA ×2, TSM ×3, AAPL ×2, MSFT ×1). Eleven never
+  produced a scored candidate.
+- **NVDA 14:00 is the day's near-miss and it is instructive:** it **cleared** the 60 threshold at
+  60.57 and was refused by the **IMP-011 crossover floor** at 0.232 vs 0.25 — the second-tightest
+  possible miss — *and the gate was shut anyway*. Both filters agreed. This is the third session
+  running where the day's best signal was structurally unbuyable.
+- ⚠️ **Reporting caveat worth carrying forward: the recorded refusal reason systematically
+  under-reports gate closure.** `evaluate_entry` returns the first failing check and the market
+  gate is applied *after* scoring, so 7 of today's 8 rows say "confidence" when the honest answer
+  is "confidence **and** a shut gate". The `market_gate_open` column (IMP-031) is the field that
+  tells the truth, and **any refusal study must read it rather than the reason string.** Today
+  every row would be mis-attributed by the reason alone.
+
+**Regime, and it is a complete external explanation.** A broad risk-off session: **S&P 500
+−0.77% to 7,683.69, Nasdaq Composite −0.92% to 26,820.38, Dow −0.67%, Russell 2000 −0.67%,
+VIX +8.47% to 16.13.** The driver was rates, not equities: **10-year above 5.2%** and **30-year
+above 5.5%**, both multiyear highs (the 10-yr's highest since 2007). Crude +2.8% to ~$94.96 as
+Friday's Strait-of-Hormuz relief trade reversed on Trump rejecting Iran's ceasefire conditions;
+**gold −3.83% to $4,155.80** and Bitcoin −1.25%, so there was no haven bid either. Pre-market
+research called this correctly before the open (futures −0.5%/−1%, Brent +4%).
+**A 1-min EMA-ribbon trend-follower gated on QQQ should take nothing on that tape, and it took
+nothing. The refusals were right, the gate was right, and capital was protected.**
+
+### What worked / what didn't
+- **Worked: the gate, unambiguously, and this is its cleanest demonstration yet.** 09-25 was the
+  "rising tape, gate open, still found nothing" case; today is the mirror image — a falling tape
+  where the gate was shut *all day* and refused everything. Both readings are correct, which is
+  what a working regime filter looks like.
+- **Worked: operational discipline.** Zero errors, zero warnings, no restarts, exact broker/DB
+  reconciliation, `.env` untouched.
+- **Didn't: the fill rate, now worse.** 6 trades in 24 days. IMP-054's arithmetic is unchanged —
+  at ~2.6 fills/week a year of live trading can only confirm an edge ≥ **$4.66/trade (0.115R)**
+  against a realized all-time expectancy of **$0.37/trade**. The live book still adjudicates
+  nothing; replay remains the only court.
+- **Didn't: Perplexity.** `sonar` returned empty again — **17th consecutive failure** (401
+  `insufficient_quota`, diagnosed 09-18). WebSearch produced a complete briefing in one call.
+  **Operator ask now 17 runs old.**
+
+### The finding — the pullback trigger fails its own pre-registered gate (IMP-057)
+Tonight executed the 09-25 weekly's focus **#1** (a materially different entry trigger) after
+first discharging focus **#2** (writing the retire trigger into `todo.md` *before* starting, so
+the criterion could not be renegotiated afterwards). **It was renegotiated by nobody and it
+failed.**
+
+**Baseline vs `ENTRY_MODE=pullback`**, `bot.replay`, friction on at 10bps/side, doctrine scoring,
+15 symbols, all shipped filters on. `cross` mode reproduced the baseline **exactly** (16 trades,
++$68.05, PF 1.50, ceiling 18.8% on 30d), so the refactor is behaviour-neutral:
+
+| window | ceiling base → pullback | expectancy base → pullback | PF base → pullback | trades |
+|---|---|---|---|---|
+| 30d | 18.8% → **18.2%** ❌ | +4.25 → **+3.27** ❌ | 1.50 → 1.27 | 16 → 11 |
+| 45d | 16.0% → **18.8%** ✅ | +3.44 → +5.64 ✅ | 1.35 → 1.57 | 25 → 16 |
+| 90d | 20.3% → **27.7%** ✅ | +4.14 → **+3.93** ❌ | 1.43 → 1.31 | 69 → 47 |
+
+**Fails criterion 1** (ceiling must rise on all three — 30d fell), **criterion 2** (expectancy
+must not fall on any — 30d and 90d both fell), and **criterion 3** (trade count must stay
+adjudicable — it fell 32%). **Not shipped. `ENTRY_MODE` defaults to `cross` and `.env` sets
+nothing, so the live trading path is byte-identical to this morning's.**
+
+**The verdict is robust to tuning, which is the important part.** `PULLBACK_MAX_BARS` swept on
+90d — and *every* variant earns less than the cross baseline's +$285.68, two of them losing money
+outright:
+
+| max_bars | trades | net | PF | expectancy | ceiling |
+|---|---|---|---|---|---|
+| — (cross) | 69 | **+$285.68** | 1.43 | +4.14 | 20.3% |
+| 3 | 17 | **−$99.66** | 0.66 | −5.86 | 23.5% |
+| 5 | 31 | +$121.76 | 1.31 | +3.93 | **29.0%** |
+| 10 | 47 | +$184.48 | 1.31 | +3.93 | 27.7% |
+| 20 | 58 | **−$38.61** | 0.95 | −0.67 | 20.7% |
+
+The best-ceiling variant (`max_bars=5`) was then checked on the other two windows and is the
+closest call in the log: **ceiling rises on all three (18.8→22.2, 16.0→21.4, 20.3→29.0)** and
+expectancy *improves* on 30d (+6.24) and 45d (+7.94) — but it **falls on 90d**, the largest
+sample, and it cuts 90d trades **69 → 31 (−55%)**, i.e. ~1.2 fills/week. **Criteria 2 and 3
+fail. Rejected on the rule as written, not on a re-read of it.**
+
+**🔴 The methodological finding, and it outranks the trigger result: the +1R ceiling and the money
+came apart.** IMP-051's standing rule judges an entry change on the ceiling. Tonight the ceiling
+rose **+8.7pp** on 90d while net P&L fell **57%** — the same *monotonic relabelling* shape the
+09-21 `TAKE_PROFIT` sweep was rejected for, now appearing on the entry side. Two reasons, both
+structural and both new to this log:
+1. **The ceiling is denominator-sensitive.** `R = stop_loss × entry_price`, so any trigger that
+   fills at a *lower* price mechanically shrinks its own R and inflates its own MFE-in-R. The
+   effect is small (fills differ by well under 1%) but it is a bias, not noise, and it always
+   points the same way. **A ceiling comparison between triggers with different average fill
+   prices is not apples-to-apples, and IMP-051's rule does not control for it.**
+2. **The pullback bought ceiling with sample, not with edge.** It kept 13 of the 14 baseline
+   +1R trades while dropping 22 entries that mostly never reached +1R — genuine selectivity —
+   yet 90d expectancy barely moved (+4.14 → +3.93). **Almost the entire net-P&L loss is simply
+   32% fewer trades.** Sample is the one currency IMP-054 proved this bot cannot spend.
+3. **The variance across a single knob is itself a fragility signal:** −$99.66 to +$184.48 over
+   the same 90 days on `max_bars` alone. Even the profitable variants are not robust.
+
+**This reproduces the bot's central dilemma rather than resolving it** — exactly as the 09-25
+weekly framed it for `conf_crossover ≥ 0.35`: *quality is purchasable only with sample, and
+there is no sample to spend.* A second, independent trigger design has now hit the same wall.
+
+**Attempt 1 of the 2 the retire trigger allows is spent.** Per the pre-registration in `todo.md`,
+re-tuning `max_bars` does **not** consume an attempt and has not earned one.
+
+**📌 Correction found while pre-registering:** the 09-25 weekly requires a candidate trigger to
+"clear `scripts.entry_lab` validation first (standing rule, 09-18)". **`scripts/entry_lab.py`
+does not exist in this repo and never has** — `git log --all -- '*entry_lab*'` is empty, there is
+no `scripts/` directory. It lives in **`/root/USTradeWisBot`**, a *different bot*. The citation is
+cross-bot contamination and the gate as written is unsatisfiable here; this repo's court is
+`bot.replay` under IMP-051's ceiling rule, which is what tonight used. Recorded in `todo.md`.
+
+### Lessons & improvement candidates
+1. **[SHIPPED — IMP-057, default OFF]** `bot/pullback.py` + `ENTRY_MODE` / `PULLBACK_MAX_BARS` +
+   `--entry-mode` / `--pullback-max-bars`. The weekly's #1, executed and **refuted on its own
+   pre-registered criteria**. 647 tests (23 added), preflight all-PASS, `cross` control verified
+   byte-identical. Kept in-tree rather than reverted because it is the measurement instrument for
+   attempt 2 and because a future regime may re-open the question — but it cannot turn on by
+   accident (validated default, validated config).
+2. **[🔴 FOR THE WEEKLY, 10-02] IMP-051's ceiling rule needs a companion criterion.** Tonight is
+   the first direct evidence that the ceiling can rise while money falls. Recommend the rule
+   become *"raises the ceiling **at constant trade count**, with expectancy and payoff held"* —
+   or that the ceiling be quoted alongside MFE in **percent** as well as in R, so the
+   denominator bias is visible. Do not judge attempt 2 on the uncorrected rule.
+3. **[NEXT]** Attempt 2 of 2 is the 09-25 weekly's candidate **(b)**: an *earlier* trigger on
+   ribbon **compression/expansion** rather than the crossover print. Tonight's result sharpens the
+   design brief: it must find its entries **without reducing the trade count**, because the
+   pullback has now shown that trading less is not a route to an edge here.
+4. **[OPERATOR]** Perplexity quota — **17 consecutive failures**. Either fund the key or drop it
+   from the four routine prompts; WebSearch is doing the job unaided.
+5. **NOT candidates:** lowering `ENTRY_THRESHOLD` (refuted ×4, and today's ceiling on 8 declines
+   is **exactly 0** — the gate was shut for all of them); touching the market gate (adjudicated
+   09-18 and vindicated today); widening stops or weakening the ratchet (forbidden); re-anchoring
+   the RSI plateau (refuted by IMP-056); raising `MIN_CROSSOVER` (parameter change under
+   escalation).
+
+### Notes for pre-market research
+- **The gate was shut 79/79 five-minute bars today.** If tomorrow opens the same way, expect
+  another flat session and **do not read it as a watchlist problem** — no symbol-level change can
+  produce a trade while QQQ's 5m ribbon is inverted. Worth a one-line gate-state note each
+  morning so flat days are attributable at a glance.
+- **NVDA is the name to check first.** Two signals today, and the 14:00 print at **conf 60.57 /
+  xo 0.232** is the tightest crossover-floor miss on record (0.018 short) — over the threshold and
+  refused by the floor, with the gate shut behind it. **Please record what NVDA did from 14:00
+  UTC to the close.** Note NVDA announced a **$150B buyback increase** pre-market and still closed
+  in a −0.92% Nasdaq; its all-time book P&L is **−$12.87 / 14 trades**.
+- **TSM signalled 3× in 6 minutes (17:24–17:30) with a decaying crossover** (0.086 → 0.052 →
+  0.048) and `conf_volatility 0.000` on a 0.06–0.07% 1-min ATR. That is the dead-tape,
+  re-firing-on-the-same-setup cohort IMP-049 exists for, and the floors handled it. No action —
+  but TSM's `medRng% 1.93` / `ATR% 2.25` was already the thinnest enabled name after MSFT, so it
+  is a candidate for the next park review if it keeps producing only sub-50 prints.
+- **AAPL under-contributed for the fourth session running** — 2 signals, max **47.88**, and
+  `conf_volatility 0.000` on both. The 09-25 note asked for a specific AAPL re-test and the 09-28
+  research kept it (Decision 2). Its 1-min tape is simply too quiet for this trigger; it has not
+  cleared 60 once this week.
+- **Eleven of fifteen names never signalled once:** AMD, HOOD, INTC, IREN, META, MU, NFLX, PLTR,
+  QCOM, QQQ, TSLA. **QCOM produced nothing again** — it was Friday's best declined candidate
+  (conf 57.72, MFE +2.50%) and has now been silent for a session; keep it enabled, the 109-day
+  dead streak is the thing being tested.
+- **⚠️ MU reports Wednesday 09-30 after the close and its earnings park is armed.** Verify that
+  park is still in force tomorrow and Wednesday morning — MU is this book's **#1 all-time earner
+  (+$211.76 / 26)** and a position carried through that print is the single largest unmanaged risk
+  on the board.
+- **QQQ scored as a tradeable symbol again while also being the market gate** — fourth
+  consecutive flag. It belongs to the daily/weekly as a config question, not to the watchlist.
+  Tonight's gate reconstruction makes the case concrete: a symbol whose own ribbon decides
+  whether *it* may be bought is a design smell even if it has never mattered in P&L.
+- Regime note for the morning: **rates are the driver, not equities.** 10-yr >5.2%, 30-yr >5.5%,
+  both multiyear highs, with PCE/Personal Income Wed 08:30 ET (the 09-25 weekly and the 09-28
+  research disagree on whether August PCE is Wed or Thu — **both readings are pre-open, so neither
+  is an intraday hazard**; do not quote either as settled). Thu ISM Manufacturing + claims,
+  **Fri 10-02 September jobs report**. Earnings: Carnival Tue, **MU Wed**, Nike + McCormick Thu.
