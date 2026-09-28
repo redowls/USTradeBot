@@ -9658,3 +9658,374 @@ primed 15/15**; all 15 subscribed on IEX; account **ACTIVE** ($9,207.37), **0 po
    returns **200 with an empty body**; with a date range it returns **403**. The 09-21/09-24 claim that
    "the 403 constraint is stale" was wrong. **All dailies from today are IEX, and `$vol/d` figures are
    not comparable across that boundary** — the 35.3× calibration is in this entry if a bridge is needed.
+
+---
+
+## 2026-09-28 — Pre-market Research
+
+**The registered AMD study came back the same way as the other two, and it is now 3 of 3: every
+gate-vetoed 60+ signal this log has simulated with real exit geometry would have LOST money.** AMD's
+veto avoided **−0.62R**, the worst of the three, and its entry sat at the **99th percentile of the
+session's closes**. Book is **CLEAN & FLAT** (broker re-confirmed **0 positions / 0 open orders**
+immediately before the write, equity **$9,207.37**, `cash` == `equity` == `last_equity`) → **nothing
+locked.** **No dated test falls due today.** **No enabled name reports earnings today.** Enabled set
+**unchanged at 15**; the single change is a **note-only hardening of MU's row** so its 09-30 earnings
+park survives a routine gap. **Service not restarted — deliberately, see below.**
+
+### Market context
+- **Risk-OFF into the open, and Friday's rally driver has reversed by name.** Friday rose on *"Iran's
+  offer to reopen the Strait of Hormuz"*; this morning **Trump rejected the ceasefire conditions Iran
+  presented**, and the trade unwound: **Brent +4% to $108.68**, **WTI +4% to ~$96.30**.
+- **The structural driver got worse, not better.** **10-yr above 5.2%**, **30-yr above 5.5%** — both
+  multiyear highs, building on last week's selloff. Precious metals reversed hard (**gold −3.1% to
+  $4,188**, **silver −5.2%**) as the market weighs further Fed hikes.
+- **Futures lower and deepening through the morning:** Dow **−242 (−0.5%)**, S&P **−0.5%**, and
+  **Nasdaq-100 −1%** — earlier in the session all three were only −0.2%, so the selling accelerated.
+  Asia bled (**Kospi −2.7%**, **CSI 300 −2.22%**, Nikkei −0.73%); Europe higher (CAC +0.37%, FTSE
+  +0.46%). An **OpenAI training halt** headline is also in the mix.
+- **⚠️ Macro inside the session:** **Dallas Fed Manufacturing 10:30 ET** and **NY Fed SCE Public Policy
+  11:00 ET**. Fed speakers: **Bowman 08:15 ET (pre-open)** and **Governor Barr on the outlook + housing
+  at 10:05 ET** — **five minutes after `ENTRY_START`**, the same first-minute-of-the-window coincidence
+  Friday had with the Michigan survey. That is today's one scheduled intraday hazard.
+- **⚠️ A calendar conflict I am flagging rather than resolving.** The 09-25 weekly recorded **PCE for
+  Wed 09-30 08:30 ET**; this morning's sources say the **BEA releases August PCE before the open
+  Thursday**, while the NY Fed calendar lists **Personal Income / PCE Deflator on 09-30 08:30**. Sources
+  also warn schedules are still shifting after the federal funding lapse. **Both readings are pre-open,
+  so neither is an intraday hazard and nothing today turns on it** — but do not quote either as settled.
+  Thu **ISM Manufacturing + claims**; **Fri 10-02 September jobs report**.
+- **🟢 No enabled symbol reports earnings today — double-sourced.** A **43-headline Alpaca news sweep
+  across all 15 names since Friday's 20:00 UTC close** returned **no earnings print, no guidance change,
+  no halt, no M&A** on any enabled name; independently, Monday's calendar is small-cap (IDT the only
+  named report). The week's prints are **MU Wed AH**, **NKE + McCormick Thu**, Carnival/Accenture.
+- **Name-level news, all non-binary:** **NVDA** announced a **$150B buyback increase** pre-market
+  (remaining authorization to **$235B through FY2028**) and an AI-safety platform partnered with
+  Anthropic; **AAPL** was hit with a **$5.7B patent verdict** over iPhone/Watch haptics (09-27) — a
+  one-off legal item on a mega-cap, not an event this timeframe can trade; **META** fell **−3.40%**
+  Friday after **Goldman questioned the AI-spend payoff**, with the Muse permission/privacy thread
+  running alongside; **MU** drew pre-print previews (memory prices climbing, "cleared key resistance");
+  **INTC** is adjacent to the **SK Hynix/Solidigm IPO at up to $150B**; **TSLA** has the **Roadster
+  reveal Oct 1** and a Berlin pay raise. **Retail sold a record $300M of tech ETFs last week, chip
+  funds hit hardest** — consistent with the tape, not actionable per name.
+
+### ⚠️ Perplexity: SIXTEENTH consecutive failure
+`sonar` returned **HTTP 401 `insufficient_quota`** ("add credits"), key present and well-formed
+(53 chars). **Sixteen consecutive failures.** Fell back to WebSearch per the routine's own rule, and
+**the Alpaca news API again did the name-level sweep better than either.** Operator ask now 16 runs old.
+
+### ⚠️ Methodology trap found this morning: the routine's own bars URL returns an empty body
+**The daily-bars call this routine's prompt specifies — `?timeframe=1Day&limit=60` — returns HTTP 200
+with `bars: []` on this subscription.** Today's first technicals pass therefore reported **"0 bars" for
+all 15 names** and would have produced a table of blanks had it not been checked. Verified across five
+URL variants:
+
+| request | result |
+|---|---|
+| `1Day&limit=5&feed=iex&adjustment=raw` | **200, 0 bars** |
+| `1Day&limit=5&feed=iex` | **200, 0 bars** |
+| `1Day&limit=5` (no feed) | **200, 0 bars** |
+| `1Day&start=2026-09-01&end=2026-09-26&feed=iex` | 200, **18 bars** ✅ |
+| `1Day&start=2026-09-01&feed=iex` | 200, **18 bars** ✅ |
+
+- **This is the same failure *shape* the 09-25 entry recorded for SIP — 200 with an empty body that
+  looks like success — but it is NOT SIP-specific.** It is the **missing `start`** that empties the
+  response; `limit` alone is not a sufficient query. The 09-25 finding should be restated that way.
+- **Standing rule, adopted: every bars request in this routine must carry an explicit `start`/`end`,
+  and any all-zero bar count must be treated as a query defect, never as "no data".** Today's table is
+  IEX with `start=2026-06-20&end=2026-09-26` → **68 daily bars per name, all as-of the 09-25 close.**
+- **Worth folding into the routine prompt**, which currently hands the broken form to every future run.
+
+### Carried from daily review (09-25) — every item discharged
+- **"AMD — check first… please record what AMD did from 14:06 UTC to the close."** → **DONE. The veto
+  SAVED 0.62R, the largest of the three. See Decision 1.**
+- **"Yesterday's INTC item is still open… I see no answer recorded. Please close it."** → **🔴 It was
+  already answered.** The **09-25 research entry, Decision 1** recorded INTC's post-veto path in a
+  table: entry 124.79 at 10:01 ET, MFE +2.12%, **MAE −2.10%**, trail stop **10:10 ET**, **−0.47%
+  (−0.37R)**. The daily review searched for it and missed it. **Nothing is open; the daily's claim is
+  corrected, not the finding.**
+- **"QCOM… It is alive again; keep it enabled."** → **Kept, and its headline figure corrected — the
+  streak is worse than recorded and the trade count is inflated. See Decision 3.**
+- **"The 09-24 suggestion of a dated park test for META still stands."** → **Already resolved on
+  09-25**: park refused, **clock ARMED 10-09**. Nothing due today.
+- **"AAPL and MSFT continue to under-contribute… re-test AAPL specifically."** → **Both re-read.
+  AAPL Decision 2; MSFT's 20MA leg has un-flipped, Decision 4.**
+- **"QQQ again scored as a tradeable symbol while also being the market gate."** → **Still registered,
+  still deliberately not acted on — it is a config/design question, not a watchlist one, and unenabling
+  it risks silently disabling the gate.** Third consecutive flag; it belongs to the daily/weekly.
+- **Regime note** → folded into Market context above; the range-bound/thin-breadth read is intact and
+  today's tape is its hostile case, not its benign one.
+
+### Watchlist review — daily technicals (IEX bars, 68 sessions through the 2026-09-25 close)
+
+| sym | close | vs20MA | vs50MA | ATR% | medRng% | 5d% | ≥2% | Fri move | all-time P&L / n | dead | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **AMD** | 630.47 | **+19.39** | **+24.90** | 4.13 | 3.45 | +12.65 | 95% | +0.23% | −$98.34 / 13 | 7d | KEEP (clock 10-13) |
+| **INTC** | 122.98 | **+17.65** | **+24.16** | **5.59** | 4.09 | +13.17 | 100% | **−3.41%** | **+$186.95 / 28** | 6d | **KEEP — best fit** |
+| **META** | 751.26 | **+13.68** | **+22.01** | 3.90 | 3.02 | +12.91 | 85% | **−3.40%** | never traded | — | KEEP — clock 10-09 |
+| **QCOM** | 202.03 | **+11.51** | **+18.67** | 4.98 | 3.91 | **+13.49** | 100% | **+3.97%** | +$25.08 / **1** | **109d** | KEEP — Decision 3 |
+| **MU** | 1082.01 | +8.85 | +14.94 | 4.09 | 3.33 | +6.55 | 100% | +0.16% | **+$211.76 / 26** | 24d | KEEP — **PARK 09-30** |
+| **PLTR** | 189.63 | +6.30 | +15.68 | 2.99 | 3.26 | +6.84 | 85% | −1.55% | +$18.80 / 3 | 11d | KEEP |
+| **TSM** | 450.56 | +4.73 | +7.23 | 2.25 | 1.93 | +3.93 | 40% | −0.11% | +$25.55 / 15 | 32d | KEEP (clock 10-26) |
+| **HOOD** | 119.39 | +4.09 | +14.54 | **5.11** | 4.38 | −0.36 | 100% | −1.18% | never traded | — | KEEP (clock 10-13) |
+| **AAPL** | 341.02 | +3.53 | +5.97 | 1.97 | 1.97 | +1.58 | 50% | +1.53% | +$57.45 / 10 | 63d | KEEP — Decision 2 |
+| **QQQ** | 744.44 | +3.27 | +4.46 | 1.27 | 0.89 | +3.20 | 5% | +0.53% | +$80.15 / 7 | 76d | exempt — gate symbol |
+| **MSFT** | 516.15 | +3.23 | +8.48 | 2.08 | **1.75** | +4.68 | 45% | **+3.73%** | +$7.69 / 10 | 55d | KEEP — Decision 4 |
+| **IREN** | 44.13 | +1.95 | +7.08 | **6.06** | **5.61** | **−5.51** | 100% | **−4.36%** | never traded | — | KEEP — Decision 5 |
+| **TSLA** | 372.09 | +1.75 | +6.85 | 2.96 | 2.82 | +2.14 | 85% | −1.56% | +$80.27 / 18 | 25d | KEEP |
+| **NVDA** | 225.04 | +1.48 | +4.19 | 2.31 | 2.04 | +1.35 | 50% | +0.21% | −$12.87 / 14 | 32d | KEEP |
+| **NFLX** | 71.14 | **−7.31** | **−5.82** | 2.82 | 2.31 | −0.91 | 60% | −0.78% | −$82.34 / 14 | 61d | keep — clock **10-15** |
+
+- **NFLX is still the only enabled name below both MAs**, and both legs of its test still read against
+  it. **Its date is 10-15 and I am not pulling it forward** — the date is the discipline.
+- **Liquidity:** IEX prints only its own slice of the tape, so the raw IEX `$vol/d` column is **not**
+  comparable to this log's earlier SIP figures (09-25 calibration: **median 35.3×**). Checked per name
+  on that calibration: **every enabled symbol clears the $0.85B floor with room.** Thinnest on IEX are
+  **IREN ~$44M/d** and **HOOD ~$65M/d** (≈$1.6B and ≈$2.3B consolidated) — both still clear.
+- **Trade window, last 10 sessions that had fills (08-17 → 09-22): 16 trades, net +$84.12.** TSLA
+  +$53.59 (2) · PLTR +$18.80 (3) · INTC +$13.84 (5) · MU +$9.88 (2) · TSM +$5.08 · NVDA +$3.78 ·
+  AMD −$9.03 · **SPOT −$11.82 (already parked)**. **No enabled name is a loss-driver in the window.**
+- **Zero entries since 09-22** — `dbo.trades` confirms 0 entries on 09-23/24/25 and 0 open rows.
+
+### 🎯 Decision 1 — the registered AMD study: the veto SAVED money, and it is now **3 of 3**
+The 09-25 daily registered this for today. AMD's refusal is in `dbo.entry_refusals`: **2026-09-25
+14:06:00 UTC, close $636.68, conf 65.78, `market gate closed (QQQ 5m ribbon not bullish)`** — the only
+candidate all day to clear 60. Simulated on **IEX 1-min bars, 332 bars from the vetoed minute to the
+close**, applying **the bot's actual live geometry** (`STOP_LOSS` 2%, `TRAIL_PERCENT` 1.25% ratcheting
+from the first candle, tightening to `trail_percent_tight` 1.00% once the gain clears 1.00%, EOD flatten):
+
+| name | veto | conf | entry | close | MFE | **MAE** | simulated exit | result |
+|---|---|---|---|---|---|---|---|---|
+| INTC (09-24) | 10:01 ET | 99.9 | 124.79 | +2.04% | +2.12% | **−2.10%** | trail **10:10 ET** | **−0.47% (−0.37R)** |
+| META (09-24) | 10:20 ET | 85.0 | 765.23 | +1.63% | +1.90% | −0.61% | trail **12:13 ET** | **−0.54% (−0.43R)** |
+| **AMD (09-25)** | **10:06 ET** | **65.8** | **636.68** | **−0.98%** | **+0.05%** | **−1.36%** | **trail 11:34 ET** | **−1.25% (−0.62R)** |
+
+- **AMD never traded up at all: MFE +0.05%.** It ratcheted the trail exactly **once**, then stopped out
+  at **628.72 at 11:34 ET**, **−1.25% (−0.62R)** — a **FAIL**, and the worst of the three.
+- **The entry sat at the 99th percentile of the session's closes.** AMD's 09-25 session: open 635.06,
+  high 638.79, low 625.80, **close 630.47 (−0.72%)**. The signal fired within a whisker of the day's
+  high and the name went down from there. **This is the third independent measurement of the same
+  mechanism** the weekly named three ways (83rd / 65th / 87.7th percentile): **the trigger identifies
+  moves that have mostly already happened.**
+- **🔴 And the decomposition is the most useful thing in today's run.** AMD's 65.78 reproduces exactly
+  off the live `ScoreWeights(crossover=39, trend=26, rsi=20, volume=0, volatility=15)`:
+  **crossover 0.2764 → 10.78 of 39** (barely above the `MIN_CROSSOVER` 0.25 floor), **trend 1.0000 →
+  26.00**, **rsi 1.0000 → 20.00**, volatility 0.6003 → 9.00. **46 of its 65.78 points came from `trend`
+  and `rsi` at maximum** — the term IMP-056 measured as under-resolved and the term it measured as a
+  **degenerate constant** — while the one term that actually ranks contributed **10.78 of a possible
+  39**. **The single signal that cleared the threshold all week cleared it on the two terms that carry
+  no information, and it would have lost 0.62R.** That is the weekly's structural verdict appearing in
+  a live worked example, not an inference from a refusal cohort.
+- **Running tally of gate-vetoed 60+ signals: 4 recorded, 3 simulated with real exit geometry, and
+  3 of 3 would have LOST — average −0.47R.** (The 4th, META 09-23 conf 64.0, closed +1.02% but was
+  never exit-simulated; on this evidence its close is not informative about its outcome.)
+- **This closes the weekly's focus item #4 on evidence rather than memory, and it closes it against the
+  intuition that prompted it.** The gate is not silently costing this book trades it wanted — **it is
+  the most reliably profitable component measured to date.** ⛔ **The gate remains do-not-relitigate**;
+  this strengthens 09-18's adjudication, it does not reopen it.
+
+### 🎯 Decision 2 — AAPL re-test (the daily asked for it specifically) → **KEEP**, AND-test cannot fire
+- **Trend leg CANNOT fire: +3.53 / +5.97, above both MAs**, and it **improved** on the week (+2.38/+4.42
+  on 09-24) on a **+1.53%** Friday.
+- **Dead-signal leg WOULD fire: 63 days** since its last fill (2026-07-27).
+- **→ AND-test does not fire → KEEP.** Its date is **10-23**; unchanged.
+- **The honest caveat, restated because it has not improved:** AAPL is a **marginal fit on range** —
+  medRng **1.97%**, ATR **1.97%**, only **50%** of sessions ≥2%. It survives on the letter of its test,
+  like TSM. All-time it is a **+$57.45 / 10-trade / 7-green** name, so history does not argue for a park
+  either. **Re-tested as asked; verdict unchanged, and I am not inventing a trigger to force it.**
+
+### 🎯 Decision 3 — 🔴 QCOM: the streak is **109 days**, not 105, and it has **one** real trade, not two
+Reading `dbo.trades` for QCOM row-by-row rather than by aggregate changes two figures this log has been
+repeating:
+
+| entry | exit | pnl | exit_reason |
+|---|---|---|---|
+| 2026-06-11 17:58 | 2026-06-11 19:56 | **+$25.08** | end-of-day flatten |
+| 2026-06-12 14:31 | **2026-06-22 21:18** | **+$0.00** | **`reconciled: not held at broker`** |
+
+- **The second row is not a trade.** It is a stale entry that was never held at the broker, closed out
+  ten days later by reconciliation at **$0.00**. So QCOM's real record is **1 round trip, +$25.08**, not
+  "2 trades / +$25.08".
+- **Its last genuine fill is 2026-06-11 → 109 days**, not the 105 this log has carried (which counted
+  the 06-12 phantom *entry*). **A `MAX(exit_time_utc)` aggregate reports 06-22 → 98 days, which is
+  wronger still** — it dates the streak from the reconciliation. **All three numbers were in
+  circulation; 109 is the right one.**
+- **Standing caution, general:** `dbo.trades` contains reconciliation rows with `pnl = 0.00` and
+  `exit_reason LIKE 'reconciled%'`. **Per-symbol trade counts and last-fill dates must exclude them**,
+  or every phantom inflates `n` and resets the dead-signal clock. This affects the *watchlist* reading
+  directly and should be checked against any `n` quoted from an aggregate.
+- **It is still a KEEP, and the reason is unchanged.** QCOM is the **strongest 5-day mover on the board
+  (+13.49%)**, **+11.51 / +18.67** above both MAs, 100% of sessions ≥2%, and it was **Friday's best
+  declined candidate** (conf 57.72, refused by 2.3 points, then ran **MFE +2.50% / 1.25R**). Its problem
+  is measured and it is not the symbol: its **1-min tape is near-dead (6.0% admissible bars** vs a
+  4.98% *daily* ATR). **Its registered trigger — losing the 20MA — has not fired, and I am still not
+  inventing one.** ⚠️ But **109 days is now by a wide margin the longest streak on the board**, and it
+  is the only enabled name carrying **no clock at all**. **Registered for the daily/weekly: decide
+  whether "no clock, deliberately" is still the right posture on a 109-day name, or whether QCOM needs
+  a dated test like everything else.** I am not arming one unilaterally against three days of evidence
+  that it is the most alive name here.
+
+### 🎯 Decision 4 — MSFT's 20MA leg has un-flipped, on a real move
+09-25's Decision 5 was the flag of the day: MSFT had **lost its 20MA (+0.24 → −0.37)** and dropped back
+below the 1.8% range bar, and I refused to pull its 10-23 test forward. **Friday resolved it upward and
+the move is real, not a feed artefact** — verified bar-by-bar: **o 498.86 → c 516.15, +3.73%, on
+1.48M IEX shares against a ~600–800K daily norm** (roughly 2× volume).
+- **20MA: −0.37 → +3.23.** Recovered, and **+8.48** vs the 50MA.
+- **medRng: still 1.75%**, below the 1.8% bar — **the range leg did not improve.**
+- **So the test's trend leg can no longer fire and the range concern stands.** Its date remains
+  **10-23** and the prior registration holds: **if it is still dead on 10-23, no further reprieve.**
+  Noting for the record that yesterday's loud flag was **half-retracted by the tape within one
+  session** — which is an argument for the date discipline, not against it.
+
+### 🎯 Decision 5 — IREN, three days in, is already testing its own fragility note → **KEEP, clock intact**
+Added 09-25 on a **0.5pp margin carried by one of five sessions**, with the fragility recorded in
+advance. Since then: **−4.36% Friday, −5.51% over 5 sessions, 44.13 vs 46.14 at the add.**
+- **Its registered test is NOT a trend test** — *park if IREN has not traded by **10-09** and its
+  admissible-bar fraction is below 30%* — so **none of this fires it**, and it is still **above both
+  MAs (+1.95 / +7.08)**.
+- **It remains the highest-range name on the board by a wide margin** (ATR **6.06%**, medRng **5.61%**,
+  100% of sessions ≥2%), which is exactly why it was added.
+- **⚠️ Recorded honestly: it is now the weakest trend on the board apart from NFLX, and its 20MA cushion
+  is down to +1.95.** If Friday's direction continues it will fail a trend leg it does not currently
+  have. **Not acted on — the 10-09 test is 11 days out and was deliberately written as the tightest
+  clock here.** The daily's 09-25 request to stress the 5-vs-20-session admissible-bar reading in replay
+  is **still the single most falsifiable open item on this watchlist.**
+
+### 🎯 Decision 6 — 🔴 MU: the 09-30 park re-verified, and **hardened into the table**
+The weekly's explicit Monday instruction was to **verify the park is still in force**, calling a MU
+position through this print *"the single largest unmanaged risk on the board."*
+- **Date re-verified a third time, and it is triple-sourced:** Micron's own **08-26 press release**
+  (fiscal Q4 call **Wed 2026-09-30, 2:30pm Mountain = 4:30pm ET / 20:30 UTC**), **Wall Street Horizon
+  (CONFIRMED, After Market)** and **TipRanks (Sep 30, After Close, confirmed)** all agree. Guidance
+  base: revenue **$50B ±$1B**, non-GAAP EPS **$31 ±$1**; options price a **~10.3%** move. **Overnight
+  AI-memory previews do not change the date.** **The park is for Wednesday, not today.**
+- **🔴 The gap I found and closed: the park lived only in this log, nowhere in the data.** MU's `note`
+  read *"re-enabled 2026-06-25: blowout Q3 earnings digested…"* with **no mention of the 09-30 park**.
+  **09-23 was a total routine gap ten days ago** — if Wednesday's run is skipped the same way, nothing
+  in `dbo.watchlist` would say "park me". **Hardened with a note-only UPDATE** (below). Defense in
+  depth, zero runtime effect.
+- **MU stays enabled today and tomorrow** (Mon 09-28, Tue 09-29) per the registration. It is the
+  **#1 all-time earner (+$211.76 / 26 trades)** and a top-liquidity name; parking it two sessions early
+  would cost real expectancy for no risk reduction, since the print is Wednesday **after** the close and
+  the bot flattens at the close.
+
+### 🎯 Decision 7 — no adds and no parks, deliberately
+- **No dated test falls due on 09-28.** Every clock is 11+ days out (IREN/META 10-09, HOOD/AMD 10-13,
+  NFLX 10-15, INTC 10-16, AAPL/MSFT 10-23, TSM 10-26) except **MU 09-30**, which is Wednesday.
+- **No news park is warranted.** No enabled name reports today, none is halted, none took a guidance
+  cut or a material downgrade. The closest item is **Goldman's question on META's AI spend**, which is
+  already in Friday's −3.40% and is a thesis note, not an event.
+- **⛔ Today's risk-off tape is NOT a reason to park anything, and acting on it would be a category
+  error.** Oil +4% and a 30-yr above 5.5% is precisely the regime the **QQQ 5-min gate exists to
+  handle**, and Decision 1 is fresh evidence it handles it well. Parking good symbols because the
+  *market* looks bad would be duplicating the gate in the watchlist, at the cost of being unable to
+  trade the recovery. **The gate is the right instrument for a bad tape; the watchlist is the wrong one.**
+- **No adds.** At 15 of a permitted 30 there is room, but room is not a reason:
+  - **The binding constraint is not symbol count.** IMP-054 measured **2.60 fills/week** and the
+    09-25 work located the cause in the **1-min range floor** (6 of 7 measured names spend most minutes
+    scoring **0.00** on volatility despite 3.4–6.3% *daily* ATRs). An added name that does not clear
+    the **≥30% admissible-bar** screen adds refusals, not fills.
+  - **The one add made on that screen is three days old and already marginal** (IREN, Decision 5).
+    Adding a second high-ATR name today, into a risk-off tape, before IREN's own 10-09 test has
+    reported, would be churn against this log's own recorded caution.
+  - **And the strategy is under an active escalation with a seventh-week "no demonstrated edge"
+    verdict.** The weekly is explicit that the remaining work is **a different trigger, in replay** —
+    not a broader board. **Watchlist churn cannot fix a trigger, and it would contaminate the very
+    window the trigger rebuild has to be judged on.**
+- **The list is good and it is doing its job.** 14 of 15 above both MAs, no loss-driver in the last
+  10 trading sessions, every name clearing the liquidity floor, every name carrying a clock or exempt.
+  **"No changes to the enabled set" is the correct decision today.**
+
+### Changes applied to dbo.watchlist
+Parameterized pyodbc only; `watchlist` table only; **no DELETEs**; **enabled set untouched**.
+- **MU** — note-only `UPDATE dbo.watchlist SET note = ? WHERE symbol = ? AND enabled = 1` → **1 row**.
+  New note (**108 chars**): *"re-enabled 2026-06-25: top-2 earner, liquid. PARK WED 09-30 pre-mkt
+  (ern AH ~10.3% implied), re-enable 10-01"*. **The `enabled` flag was deliberately not in the SET
+  clause** — this run does not park MU.
+
+Assertions, all run against the live table **after** commit: **enabled = 15 ≤ 30 ✅** · **36 rows total,
+unchanged — no DELETEs ✅** · **`enabled` count unchanged before/after ✅** · **QQQ still enabled ✅**
+(guards `MARKET_FILTER_SYMBOL` against a silent gate disable) · **15/15 `tradable: true` +
+`status: active` on `/v2/assets` ✅** (NASDAQ ×14, TSM NYSE) · **note length asserted ≤128 before the
+write ✅** · **no symbol with an open position was touched** — the broker was re-queried **immediately
+before the write**, returned **0 positions / 0 open orders**, and the touch-set {MU} was asserted
+disjoint from the held set ✅. **No source-code changes; `.env` untouched** (`ustradebot:ustradebot`,
+mode 600, mtime unchanged Sep 1).
+
+### Final watchlist
+**15 enabled** (≤30 ✅), unchanged from 09-25: AAPL, AMD, HOOD, INTC, IREN, META, MSFT, MU, NFLX,
+NVDA, PLTR, QCOM, QQQ, TSLA, TSM.
+**Parked (21):** ABNB, AMGN, AMZN, AVGO, BABA, BIRD, C, COST, DASH, ENPH, GOOG, JPM, LLY, SE, SPOT,
+SPY, UBER, UNH, WMT, WPM, XOM.
+
+**Service restarted: NO — and this is a deliberate departure from the routine's default, stated so it
+can be overruled.** The restart rule exists because `load_watchlist()` reads the **enabled set** once at
+startup. **Today's only change is a `note`, which the bot never reads** — the runtime watchlist is
+byte-identical either way, so a restart would buy nothing and would discard a healthy **NRestarts=0 /
+4-day** uptime and re-prime warmup 1h50m before the open for no functional reason. Verified instead that
+the **running** process already holds the correct set: `is-active` **active**, **NRestarts=0**, MainPID
+**235900**, up since **Fri 2026-09-25 20:16:49 UTC**; its startup line logs the **DB path** —
+`Watchlist (dbo.watchlist): AAPL, AMD, HOOD, INTC, IREN, META, MSFT, MU, NFLX, NVDA, PLTR, QCOM, QQQ,
+TSLA, TSM` — **warmup primed 15/15**, and `journalctl -p warning` since that start is **empty**.
+**If the enabled set had changed, the restart would have been mandatory and I would have done it.**
+
+### Dates carried forward
+- **🔴 MU 09-30 — the one that must not be missed, now 2 trading days out (Tue 09-29, then PARK Wed
+  09-30).** Earnings **Wed 09-30 AH**, triple-verified today; **park on the 09-30 pre-market run,
+  re-enable 10-01.** **Now also encoded in MU's `note` in the table** so a routine gap cannot lose it.
+- **IREN 10-09** — *park if not traded by 10-09 **and** admissible-bar fraction below 30%.* ⚠️ Weakest
+  trend on the board after NFLX (+1.95 vs 20MA, −5.51% 5d); the test is range-based, so this does not
+  fire it. Tightest clock here, deliberately.
+- **META 10-09** — *park if not traded by 10-09 **and** below both MAs.* Still **+13.68 / +22.01** after
+  a −3.40% Friday; trend leg nowhere near firing. Never traded in 19 days enabled.
+- **HOOD 10-13 · AMD 10-13 · INTC 10-16.** AMD and INTC remain the two strongest trends on the board;
+  clocks nowhere near firing. **HOOD has never traded** and is the name to watch on this cohort.
+- **NFLX 10-15** — ⚠️ **both legs still FIRED** (no fill since 07-29 = 61d; **−7.31 / −5.82**). **Still
+  the only enabled name below both MAs.** Expected to fire on 10-15; **not pulled forward.**
+- **AAPL 10-23** — re-tested today as asked, **KEEP** (63d dead but **+3.53 / +5.97**; AND cannot fire).
+- **MSFT 10-23** — trend leg **un-flipped** on Friday's real +3.73%; range leg still at 1.75%.
+  **No further reprieve on 10-23.**
+- **TSM 10-26** — resolved KEEP on 09-25; marginal on range (medRng 1.93%, 40% of sessions ≥2%).
+- **QCOM — still no clock, and that posture is now explicitly referred upward** (Decision 3). Corrected
+  streak: **109 days on a real fill** (1 genuine round trip, +$25.08).
+- **NVDA / PLTR / TSLA** — actively trading, no clock needed. **QQQ exempt** (gate symbol).
+
+### For tonight's daily review
+1. **🟢 The registered AMD study is DONE and it is now 3 of 3 gate vetoes that would have lost money**
+   (INTC −0.37R, META −0.43R, **AMD −0.62R**, average **−0.47R**). **This closes the weekly's focus #4
+   against the intuition that raised it.** The corollary the 09-25 daily already reached should now be
+   treated as established: **MFE is the wrong yardstick for a refusal; MAE-before-MFE is** — AMD's MFE
+   was **+0.05%** and it still produced a −0.62R FAIL.
+2. **🔴 The highest-value thing in today's run is AMD's score decomposition, and it belongs in the
+   trigger rebuild, not the watchlist.** The **only** signal to clear 60 in a week took **46 of its
+   65.78 points from `trend` + `rsi` at maximum** and just **10.78 of 39** from `crossover` at 0.2764 —
+   a hair above the 0.25 floor — **and it would have lost 0.62R.** IMP-056 measured this on 430 declined
+   candidates; this is the same finding on the one candidate that passed. **A threshold of 60 is not the
+   bar it appears to be, demonstrated on a live print.**
+3. **🟠 A data-integrity item that affects every per-symbol number this routine quotes:** `dbo.trades`
+   carries reconciliation rows (`pnl = 0.00`, `exit_reason LIKE 'reconciled%'`) that inflate trade
+   counts and reset dead-signal clocks. QCOM reads **2 trades / 98d** by aggregate, **1 trade / 109d**
+   in truth (Decision 3). **Worth a helper or a view so the watchlist and the reports cannot diverge on
+   `n`** — and worth checking whether any other symbol's `n` or last-fill date is similarly inflated.
+4. **🟠 The routine's own bars URL is broken and silently so** — `?timeframe=1Day&limit=60` returns
+   **200 with `bars: []`**; `start` is mandatory. **Please fix the prompt**, and restate the 09-25 SIP
+   finding as "missing `start`" rather than "SIP-specific". An all-zero bar count must be read as a
+   query defect, never as "no data".
+5. **🟠 IREN's 5-vs-20-session admissible-bar reading in replay is still the most falsifiable open item
+   on this watchlist** (asked 09-25, not yet delivered). It is now more urgent, not less: IREN is
+   **−5.51% in 5 sessions** and its 20MA cushion is down to **+1.95**.
+6. **🟠 QCOM's "no clock, deliberately" posture needs a decision from you or the weekly.** 109 days is
+   the longest streak on the board and it is the only enabled name with no dated test. I refused to arm
+   one unilaterally against three days of evidence that it is the most alive name here — but the
+   asymmetry with AAPL (63d, clocked) and MSFT (55d, clocked) should be resolved on purpose.
+7. **🟠 QQQ's double role — third consecutive flag, still unresolved.** Enabled and scored as a tradeable
+   name (76 days dead, +$80.15/7 all-time) while serving as `MARKET_FILTER_SYMBOL`. **It is a config
+   decision and it keeps being handed back.** Please either decide it or record it as intentionally closed.
+8. **🔴 Operator asks, unchanged and ageing:** Perplexity quota (**16th** consecutive 401 — this is now
+   two months dead and it is still described as a research step in three prompts); the stale
+   **`WATCHLIST=NFLX,BIRD,WPM`** fallback (**11th+** flag, **BIRD a ~$2.44 microcap**, live only if the
+   DB read fails); and the **retire-or-rebuild decision in `todo.md`**, which the weekly escalated on
+   09-25 and which no watchlist decision can substitute for.
+9. **Regime, for tonight's attribution:** today opened **risk-off on two engines at once** — Brent
+   **+4% to $108.68** on Trump rejecting Iran's ceasefire terms, and the **30-yr above 5.5% / 10-yr above
+   5.2%** — with **NQ futures −1%** and deepening. **Expect the QQQ gate to spend real time shut, and
+   score that as the gate working, not as a flat day to explain away.** One scheduled intraday hazard:
+   **Barr at 10:05 ET, five minutes into the entry window.**
