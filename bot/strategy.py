@@ -40,6 +40,7 @@ from bot.candles import Candle
 from bot.config import EASTERN, Config
 from bot.executor import ExecutionResult, OrderExecutor
 from bot.indicators import RibbonEngine, RibbonSnapshot
+from bot.pullback import PULLBACK, ArmedCross, advance, arm
 from bot.risk import RiskManager, TrailResult
 from bot.signals import (
     SCORER_VERSION,
@@ -256,6 +257,11 @@ class StrategyEngine:
         self._state: dict[str, BotState] = {}
         self._gate_snap: dict[str, RibbonSnapshot] = {}
         self._positions: dict[str, ExecutionResult] = {}
+        # Qualifying crosses waiting for their retracement, keyed by symbol (IMP-057).
+        # Only ever populated when ``cfg.entry_mode == "pullback"``; in "cross" mode it
+        # stays empty and every read of it short-circuits, so the shipped trading path
+        # is untouched.
+        self._armed: dict[str, ArmedCross] = {}
         # Symbols already paged for a failed EOD flatten this session (dedup so a
         # naked-overnight position alerts once, not once per close-window candle).
         self._flatten_escalated: set[str] = set()
@@ -456,6 +462,69 @@ class StrategyEngine:
             self._set(symbol, BotState.WAITING)  # still warming up indicator history
             return None
 
+        # Pullback mode (IMP-057): a symbol armed by an earlier qualifying cross is
+        # looking for its retracement, and on a retracement bar ``fresh_cross`` is false
+        # by construction — so the arm must be advanced *before* ``evaluate_entry``,
+        # which would otherwise refuse the bar as "no fresh cross" and drop the setup.
+        armed = self._armed.get(symbol)
+        if armed is not None and (
+            armed.armed_at.astimezone(EASTERN).date()
+            != candle.start.astimezone(EASTERN).date()
+        ):
+            # Belt-and-braces against a stale arm: the EOD flatten already clears them,
+            # but if a session ended without the flatten ever running (dead feed, the
+            # 2026-06-19 failure mode) an arm could otherwise fill on the next day's
+            # tape using yesterday's cross as its justification.
+            log.info("pullback %s disarmed: arm is from a prior session", symbol)
+            self._armed.pop(symbol, None)
+            armed = None
+        if armed is not None:
+            pull = advance(armed, trigger, max_bars=self._cfg.pullback_max_bars)
+            if pull.enter:
+                # The market gate is re-checked at the fill, not just at the arm: the
+                # tape can turn over while we wait, and an armed cross must never be a
+                # way to enter a regime the gate has since closed.
+                if not self._market_gate_open():
+                    log.info(
+                        "pullback %s dropped: market gate closed while armed (%s 5m ribbon)",
+                        symbol,
+                        self._cfg.market_filter_symbol,
+                    )
+                    self._armed.pop(symbol, None)
+                    self._set(symbol, BotState.WAITING)
+                    return None
+                self._armed.pop(symbol, None)
+                log.info(
+                    "PULLBACK FILL %s: armed %s @ %.4f -> entry @ %.4f (%s)",
+                    symbol,
+                    armed.armed_at.strftime("%H:%M"),
+                    armed.armed_close,
+                    trigger.close,
+                    pull.reason,
+                )
+                # ``fresh_cross=False`` is the honest record: this bar is the
+                # retracement, and the cross that qualified the setup is ``armed_at``.
+                fill_decision = EntryDecision(
+                    symbol=symbol,
+                    candle_start=trigger.candle_start,
+                    gate_open=True,
+                    fresh_cross=False,
+                    candidate=True,
+                    confidence=armed.confidence,
+                    enter=True,
+                    reason=pull.reason,
+                )
+                return self._enter(
+                    symbol, candle, trigger, armed.confidence, fill_decision
+                )
+            if pull.disarmed:
+                self._armed.pop(symbol, None)
+                log.info("pullback %s disarmed: %s", symbol, pull.reason)
+            elif pull.armed is not None:
+                self._armed[symbol] = pull.armed
+            self._set(symbol, BotState.WAITING)
+            return None
+
         self._set(symbol, BotState.EVALUATING)
         decision = evaluate_entry(
             trigger,
@@ -507,11 +576,48 @@ class StrategyEngine:
             return None
 
         assert decision.confidence is not None  # enter implies a scored candidate
+
+        # Pullback mode (IMP-057): this qualifying cross is the *setup*, not the fill.
+        # Arm it and wait for the retracement; the arm is advanced on later candles by
+        # the block above. Candidacy has already been decided identically to cross mode,
+        # so the two modes differ in entry price and timing alone.
+        if self._cfg.entry_mode == PULLBACK:
+            self._armed[symbol] = arm(symbol, trigger, decision.confidence)
+            log.info(
+                "ARMED %s @ %.4f confidence=%.1f — waiting up to %d bars for a pullback"
+                " into the ribbon",
+                symbol,
+                trigger.close,
+                decision.confidence.total,
+                self._cfg.pullback_max_bars,
+            )
+            self._set(symbol, BotState.WAITING)
+            return None
+
+        return self._enter(symbol, candle, trigger, decision.confidence, decision)
+
+    def _enter(
+        self,
+        symbol: str,
+        candle: Candle,
+        trigger: RibbonSnapshot,
+        confidence: ConfidenceBreakdown,
+        decision: EntryDecision,
+    ) -> TradeSignal:
+        """Build, announce and execute the entry for an approved setup.
+
+        Shared by both entry modes (IMP-057) so that a ``pullback`` fill goes through
+        byte-identical signal construction, alerting, sizing and bracket placement as a
+        ``cross`` fill — the experiment is the entry price, and nothing downstream of
+        the fill may vary with it. ``confidence`` is passed in rather than read off
+        ``decision`` because in pullback mode it is the *cross bar's* score carried
+        forward, while ``trigger`` is the retracement bar that sets the price.
+        """
         signal = TradeSignal(
             symbol=symbol,
             candle_start=candle.start,
             close=trigger.close,
-            confidence=decision.confidence,
+            confidence=confidence,
             decision=decision,
             atr_pct=atr_pct_of(trigger),
             ribbon_spread_pct=ribbon_spread_pct_of(trigger),
@@ -523,12 +629,12 @@ class StrategyEngine:
             " tape(atr=%s spread=%s)",
             symbol,
             trigger.close,
-            decision.confidence.total,
-            decision.confidence.crossover,
-            decision.confidence.trend,
-            decision.confidence.rsi,
-            decision.confidence.volume,
-            decision.confidence.volatility,
+            confidence.total,
+            confidence.crossover,
+            confidence.trend,
+            confidence.rsi,
+            confidence.volume,
+            confidence.volatility,
             _fmt_pct(signal.atr_pct),
             _fmt_pct(signal.ribbon_spread_pct),
         )
@@ -730,6 +836,12 @@ class StrategyEngine:
         reach this method inside the close window.
         """
         with self._flatten_lock:
+            # Any pullback arm still waiting is dead with the session (IMP-057): its
+            # cross belongs to a tape that is about to close, and letting it survive
+            # would hand tomorrow's first candles a stale setup to fill on. Cleared
+            # here rather than on the session roll so the wall-clock watchdog path
+            # clears it too, on a day the feed dies before the close window.
+            self._armed.clear()
             for symbol in list(self._state):
                 if self.state(symbol) is not BotState.MANAGING:
                     continue

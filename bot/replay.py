@@ -71,7 +71,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from bot.candles import Candle
-from bot.config import Config
+from bot.config import ENTRY_MODES, PULLBACK, Config
 from bot.doctrine import format_stop_exits, resolve_reason, risk_per_share
 from bot.doctrine import summarize as summarize_stop_exits
 from bot.doctrine import verdicts_for
@@ -744,6 +744,12 @@ def main(argv=None) -> int:
                     help="override MIN_VOLATILITY, e.g. 0 to lift the IMP-049 range floor")
     ap.add_argument("--market-filter-symbol", default=None,
                     help='override MARKET_FILTER_SYMBOL; "" disables the IMP-022 market gate')
+    ap.add_argument("--entry-mode", default=None, choices=[*ENTRY_MODES],
+                    help="override ENTRY_MODE: 'cross' buys the qualifying cross bar, "
+                         "'pullback' arms on it and buys the retracement into the "
+                         "ribbon (IMP-057)")
+    ap.add_argument("--pullback-max-bars", default=None,
+                    help="override PULLBACK_MAX_BARS, e.g. 5 (only read in pullback mode)")
     ap.add_argument("--slippage-bps", type=float, default=DEFAULT_SLIPPAGE_BPS,
                     help="per-side spread/slippage on every fill (default 10 = 0.20%% "
                          "round trip); 0 reproduces the pre-IMP-044 frictionless runs")
@@ -761,6 +767,8 @@ def main(argv=None) -> int:
         (args.min_crossover, "MIN_CROSSOVER"),
         (args.min_volatility, "MIN_VOLATILITY"),
         (args.market_filter_symbol, "MARKET_FILTER_SYMBOL"),
+        (args.entry_mode, "ENTRY_MODE"),
+        (args.pullback_max_bars, "PULLBACK_MAX_BARS"),
     ):
         if flag is not None:
             os.environ[key] = flag
@@ -782,6 +790,12 @@ def main(argv=None) -> int:
     print(f"entry filters: threshold={cfg.entry_threshold:g} "
           f"min_crossover={cfg.min_crossover:g} min_volatility={cfg.min_volatility:g} "
           f"market_gate={cfg.market_filter_symbol or 'OFF'}")
+    # The trigger *shape* belongs on its own line (IMP-057): it is not a filter, and a
+    # cross-vs-pullback pair of runs differs in nothing else, so it must be legible.
+    mode_note = (
+        f" max_bars={cfg.pullback_max_bars}" if cfg.entry_mode == PULLBACK else ""
+    )
+    print(f"entry trigger: mode={cfg.entry_mode}{mode_note}")
     print(summarize(broker, args.equity, stop_loss=cfg.stop_loss))
     return 0
 

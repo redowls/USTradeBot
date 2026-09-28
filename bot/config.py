@@ -25,6 +25,14 @@ except ImportError:  # dotenv is optional at runtime (env may be set directly)
 
 EASTERN = ZoneInfo("America/New_York")
 
+#: Entry trigger shapes for ``Config.entry_mode`` (IMP-057). They live here rather than
+#: in ``bot.pullback`` because ``bot.pullback`` imports ``bot.signals``, which imports
+#: this module — defining them at the dependency root keeps that graph acyclic.
+#: ``bot.pullback`` re-exports both names, so callers can import from either.
+CROSS = "cross"
+PULLBACK = "pullback"
+ENTRY_MODES = (CROSS, PULLBACK)
+
 _INTERVAL_UNITS = {"s": 1, "m": 60, "h": 3600}
 
 
@@ -183,6 +191,31 @@ class Config:
     # fitting a fresh constant to this book. 0.0 disables the floor (pre-IMP-049
     # behavior). Tightens entry selectivity only; never widens risk.
     min_volatility: float
+    # Entry trigger shape (IMP-057): "cross" buys the qualifying fresh-cross bar — the
+    # behaviour shipped since Phase 3 — while "pullback" arms on that same qualifying
+    # bar and waits to fill until price retraces into the ribbon with the bullish stack
+    # still intact (see ``bot/pullback.py``).
+    #
+    # This is a trigger *shape*, not a filter: candidacy is decided by exactly the same
+    # gate, fresh cross, ``entry_threshold``, ``min_crossover`` and ``min_volatility``
+    # in both modes, and the cross-bar confidence is carried forward to the fill so
+    # sizing is unchanged. The motive is the measured entry percentile — fills have
+    # landed at the 83rd/65th/87.7th/99th percentile of the range available at the time
+    # (09-21, 09-22, 09-28) — and the +1R ceiling it produces: only 16–20% of entries
+    # ever print +1R across the 30/45/90d replay windows, which caps the true win rate
+    # no exit change can lift.
+    #
+    # Defaults to "cross" deliberately: the mode flips only on replay evidence that it
+    # raises the ceiling on all three windows without flattening expectancy or payoff
+    # (the criteria pre-registered in ``todo.md`` on 2026-09-28). Neither mode touches
+    # position size, the stop fraction, the bracket, the trail ratchet or the flatten.
+    entry_mode: str
+    # How many *closed* trigger candles a "pullback" arm stays live before it expires
+    # unfilled. Too short and no retracement is ever caught; too long and the arm buys
+    # a stale setup whose move is over. 10 one-minute bars is the initial value, chosen
+    # to sit inside the same session without spanning a regime change; it is only read
+    # when ``entry_mode == "pullback"``.
+    pullback_max_bars: int
     # Market-regime gate (IMP-022): ticker whose *own* 5-min gate ribbon must be open
     # before ANY new long is allowed. The per-symbol 5-min gate only asks whether that
     # one name is trending; it says nothing about the tape the name has to swim in, and
@@ -355,6 +388,8 @@ class Config:
             entry_threshold=_float("ENTRY_THRESHOLD", 60.0),
             min_crossover=_float("MIN_CROSSOVER", 0.25),
             min_volatility=_float("MIN_VOLATILITY", 0.01),
+            entry_mode=_str("ENTRY_MODE", "cross").strip().lower(),
+            pullback_max_bars=_int("PULLBACK_MAX_BARS", 10),
             market_filter_symbol=_str("MARKET_FILTER_SYMBOL", "QQQ").strip().upper(),
             warmup_lookback_days=_int("WARMUP_LOOKBACK_DAYS", 5),
             sizing_model=_str("SIZING_MODEL", "A").upper(),
@@ -416,6 +451,14 @@ class Config:
             raise ConfigError("MIN_CROSSOVER must be in [0, 1].")
         if not 0 <= self.min_volatility <= 1:
             raise ConfigError("MIN_VOLATILITY must be in [0, 1].")
+        if self.entry_mode not in ENTRY_MODES:
+            raise ConfigError(
+                f"ENTRY_MODE must be one of {', '.join(ENTRY_MODES)}, got {self.entry_mode!r}."
+            )
+        if self.pullback_max_bars < 1:
+            raise ConfigError(
+                f"PULLBACK_MAX_BARS must be at least 1, got {self.pullback_max_bars}."
+            )
         if self.market_filter_symbol and not self.market_filter_symbol.isalpha():
             raise ConfigError(
                 "MARKET_FILTER_SYMBOL must be a plain ticker (letters only) or empty to disable, "

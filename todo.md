@@ -804,3 +804,57 @@ daily travel; the current measure cannot distinguish that from a dead tape. IMP-
 (floor off: +$75.75/PF 1.60 vs on: +$133.00/PF 2.93). But the right long-run measure of
 "range availability" is plausibly *daily* range or a travel/noise ratio rather than 1-min ATR,
 and that is a signal-side question for option 2.
+
+---
+
+### 🔴 Pre-registration 2026-09-28 (daily review) — THE RETIRE TRIGGER, written before the work starts
+
+The 09-25 weekly's focus **#2** required this to be recorded in `todo.md` **before** any work on
+focus #1 (a materially different entry trigger) began, so the criterion cannot be renegotiated
+after the result is known. This is that record, written before a line of IMP-057 was designed.
+
+**Standing acceptance criterion for a replacement entry trigger (from IMP-051, reaffirmed by the
+09-25 weekly):** a trigger change is judged on whether it raises the **+1R ceiling** — the share
+of entries whose MFE ever reaches +1R. The ceiling is a hard cap on the true win rate, so a
+trigger that does not raise it cannot be rescued by any exit change.
+
+**Baseline ceilings measured tonight** (`bot.replay`, friction on at 10bps/side, doctrine
+scoring, watchlist of 15, `ENTRY_START=10:00`, all shipped filters on):
+
+| window | trades | +1R ceiling | true WR | net | PF |
+|---|---|---|---|---|---|
+| 30d (08-29 → 09-28) | 16 | **18.8%** | 6.2% | +$68.05 | 1.50 |
+| 45d (08-14 → 09-28) | 25 | **16.0%** | 4.0% | +$85.99 | 1.35 |
+| 90d (06-30 → 09-28) | 69 | **20.3%** | 5.8% | +$285.68 | 1.43 |
+
+**Pass conditions for a candidate trigger — ALL must hold:**
+1. **Ceiling rises on all three windows** (30/45/90d), friction on, doctrine scoring.
+2. **Expectancy and payoff do not fall** on any window (the 09-21 anti-relabelling rule — a
+   change that only re-labels outcomes while flattening expectancy is rejected).
+3. **Trade count stays adjudicable** — not below the current ~2.6 fills/week, since IMP-054
+   shows a lower rate cannot be confirmed in any useful horizon.
+4. Quoted in **R of the filled entry**, never the signal price (09-21 standing rule).
+
+**⛔ THE RETIRE TRIGGER.** Candidate triggers are counted. **If TWO genuinely different entry
+triggers each fail to raise the +1R ceiling on the three windows above, the recommendation
+becomes RETIRE** — i.e. the weekly must record "no demonstrated edge, retire the strategy"
+rather than open a third attempt. "Genuinely different" means a different *trigger event*, not a
+re-tuned parameter of the same event; re-tuning does not consume an attempt and does not earn one.
+
+- **Attempt 1 of 2: `ENTRY_MODE=pullback`** (IMP-057, tonight) — enter on a retracement into the
+  ribbon after a confirmed cross, instead of on the cross print itself. Result recorded in
+  `memory/improvement-log.md` under IMP-057.
+- **Attempt 2 of 2: unused.** The evidence's other candidate is an earlier trigger on ribbon
+  *compression/expansion* rather than the crossover print (09-25 weekly, focus #1(b)).
+
+**📌 Correction recorded while pre-registering this.** The 09-25 weekly requires a candidate to
+"clear `scripts.entry_lab` validation first (standing rule, 09-18)". **`scripts/entry_lab.py`
+does not exist in this repository and never has** — `git log --all -- '*entry_lab*'` is empty and
+there is no `scripts/` directory. It lives in **`/root/USTradeWisBot`**, a different bot. The
+citation is cross-bot contamination and the gate as written is unsatisfiable here. **This repo's
+actual court is `bot.replay` under IMP-051's ceiling rule**, which is what the criteria above
+use. Do not re-import the `entry_lab` requirement without building it here first.
+
+**⛔ None of this authorises sizing up, loosening a limit, disabling a filter, or any step toward
+live capital.** A replacement trigger is a change to *what is bought*, never to *how much* or to
+the risk envelope.
