@@ -9747,3 +9747,154 @@ cross-bot contamination and the gate as written is unsatisfiable here; this repo
   research disagree on whether August PCE is Wed or Thu — **both readings are pre-open, so neither
   is an intraday hazard**; do not quote either as settled). Thu ISM Manufacturing + claims,
   **Fri 10-02 September jobs report**. Earnings: Carnival Tue, **MU Wed**, Nike + McCormick Thu.
+
+---
+
+## 2026-09-29 — Daily Review
+
+### Stats
+- **1 closed trade** — NBIS, **0W / 1L** headline. Net realized **−$34.20** (−1.39%).
+  Account **equity $9,173.17** (broker), down from **$9,207.37** at yesterday's close —
+  **−$34.20, reconciling to the cent** with the DB. **0 open positions, 0 open orders**;
+  the book is flat and nothing carried overnight.
+- Avg win n/a, avg loss −$34.20, profit factor 0.00. All-time closed book: **283 trades**.
+- **Broker reconciliation: exact.** One bracket order (`44386cc3`), entry filled 10 @ 245.80,
+  target leg 270.17 canceled, stop leg filled 10 @ 242.38. DB and Alpaca agree on every field.
+  No missed fill, no qty drift, no orphaned leg.
+
+### Stop-exit accounting
+- **Today: stop rate 1/1 (100%).** WIN 0 · SCRATCH 0 · **FAIL 1** (full-stop 1 / BE-scratch 0).
+  **True win rate 0%, headline 0%** — they agree today only because the trade also lost money.
+- **Trailing 10 sessions that traded (2026-08-26 → 09-29, 15 trades): stop rate 10/15 (67%).**
+  **WIN 0 · SCRATCH 8 · FAIL 7.** **True win rate 0% against a headline of 60%** (9 of 15 closed
+  green). **FAIL+SCRATCH = 15/15 = 100%.**
+- **🔴 ESCALATION IS TRIGGERED AND HAS BEEN FOR SOME TIME.** The doctrine's clause fires at
+  FAIL+SCRATCH ≥ 60% over 3 sessions; the live reading is **100% over ten**. Not one trade in
+  the last fifteen has reached +1R. Per the doctrine this run ships **no strategy parameter
+  tweak** — the verdict and the numbers go to the weekly instead (see below).
+- **Dominant failure cause: entry quality**, and as of tonight that is measured rather than
+  asserted — see the ceiling finding.
+
+### Trade-by-trade review
+**NBIS** · Model A · entry **14:48:03 @ 245.80** (signalled 14:48:00 @ 245.61) · qty 10 ·
+stop 240.70 · target 270.17 · **conf 76.34** (xo 0.527, trend 1.000, rsi 1.000, **volume 0.000**,
+volatility 0.652) · tape at entry `atr=0.265% spread=0.117%` · exit **15:06:22 @ 242.38**
+(trailing stop) · **−$34.20 / −1.39%** · **MFE +0.00%, MAE −1.29%** · **profit_R −0.67R**
+(recorded 2% anchor) / **−1.11R against the operative stop**.
+
+- **Root cause: entry quality — the bot bought the top of a move that had already happened.**
+  NBIS ran **235.05 → 242.80 (+3.3%)** between 13:30 and 14:00 UTC. The signal fired at **14:48,
+  after the run**, and the position **never printed a single tick above its entry price**
+  (MFE +0.00% — the strongest possible statement that the thesis had no follow-through at all).
+  This is the same "confirms moves that have already run" defect `todo.md` names as the strategy's
+  core problem, in its purest observed form.
+- **The refusal at 14:12 was the better decision than the fill at 14:48.** NBIS was refused at
+  14:12 with **conf 79.9** — *higher* confidence than the trade actually taken — on `market gate
+  closed (QQQ 5m ribbon not bullish)`. By the time the gate opened, the move was spent. The gate
+  is not wrong here; it is **slow**, and it systematically converts the bot's best-scoring
+  candidates into late entries. Worth carrying to the weekly beside the trigger work.
+- **`conf_volume = 0.000` was the one sub-score that dissented, and it was right.** Four of five
+  sub-scores were near-maximal (trend 1.000, rsi 1.000) on a trade whose MFE was zero. See the
+  sub-score inversion finding — this is not an anecdote, it is the pattern on 283 trades.
+- **Stop geometry, recorded precisely (not a complaint — an arithmetic fact).** At **14:49:00,
+  58 seconds after the fill**, the ratchet replaced the 2% bracket stop with **242.44 = a 1.25%
+  stop**, and — price never making a new high — it never moved again. Broker order history
+  confirms exactly one replace. So the trade's real risk was **1.25%, not the 2.07% in
+  `stop_price`**, and the exit at 242.38 (6¢ of slippage through the trigger) is a **full stop**,
+  not the −0.67R partial the recorded anchor implies. IMP-055 already documents this geometry;
+  it is restated because it is why today's FAIL is a *full-stop* FAIL.
+- **Market regime: not an excuse.** The tape was mixed-to-firm, not risk-off. NBIS's own move was
+  a real morning trend that the bot missed and then chased. A trend day is the regime this
+  strategy is supposed to be *best* at; it entered anyway, at the wrong end of it.
+
+### What worked / what didn't
+- **Worked:** risk containment and plumbing. One position, correct size, bracket placed, ratchet
+  moved, stop filled, EOD flat, DB and broker in exact agreement, service healthy all session.
+  The loss was **−0.37% of equity** — the machinery is sound.
+- **Worked:** the entry filters did most of their job — ~20 candidates refused (NFLX ×6 at 49–56,
+  META ×3, TSM ×4, MSFT, QQQ ×2, AMD, INTC, MU) against one fill. The threshold is not the leak.
+- **Didn't:** the one candidate that passed was the worst one available, and it passed *after*
+  its move was over. **Selectivity without timing is not selectivity.**
+
+### 🔴 The finding: the +1R ceiling, now measured on the whole live book (IMP-058)
+The retire-or-rebuild decision pre-registered in `todo.md` is judged on **one** number — the
+**+1R ceiling** (IMP-051). Until tonight that number was readable on **10 of 283 closed trades**,
+because `mfe_pct` is only written by the live tracker (IMP-037), which started 2026-08-28. **The
+instrument carrying the retire decision had n=10.** IMP-058 reconstructs the excursion of every
+closed trade from 1-min bars over its recorded holding window. Validated against ground truth
+*before* writing: the 10 live-measured rows agreed on **10/10** (mean |ΔMFE| **0.015pp**, worst
+**0.033pp**). **273 reconstructed, 0 skipped.** On **n=283**:
+
+- **CEILING = 18.7%** of entries ever print +1R. **Realized true win rate 7.1%.**
+  → **11.7pp is exit-recoverable; the remaining 81.3pp is the entry signal.**
+- **193 of 283 (68%) peaked below the 1.25% trail give-back** — *structurally unable to finish
+  green on the trail* no matter how the exit is tuned.
+- **The loss side is entirely the no-follow-through trades:**
+
+  | MFE band | n | avg MFE | avg exit | capture | net |
+  |---|---|---|---|---|---|
+  | <0.5% | 93 | +0.20% | −0.90% | −438% | **−$1,455.87** |
+  | 0.5–1.0% | 79 | +0.72% | −0.41% | −57% | **−$596.63** |
+  | 1.0–2.0% | 56 | +1.41% | +0.48% | 34% | +$506.54 |
+  | >2.0% | 55 | +3.87% | +1.69% | 44% | **+$1,617.33** |
+
+  **MFE <1.0%: 172 trades, −$2,052.50. MFE >1.0%: 111 trades, +$2,123.87.** The book is two
+  populations, and the bot cannot tell them apart *at entry*.
+
+### 🔴 The second finding: three of the five confidence sub-scores are ANTI-predictive
+Same 283 trades, ceiling split at each sub-score's median (this is the 28×-larger rerun of what
+IMP-056 could only sample):
+
+| sub-score | low half | high half | spread |
+|---|---|---|---|
+| `conf_crossover` | 9.9% | 25.4% | **+15.4pp** ✅ |
+| `conf_trend` | 12.8% | 22.5% | **+9.8pp** ✅ |
+| `conf_volume` | 22.0% | 13.4% | **−8.6pp** ❌ |
+| `conf_rsi` | 22.7% | 12.7% | **−10.0pp** ❌ |
+| `conf_volatility` | 26.2% | 9.2% | **−17.1pp** ❌ |
+
+**The scorer averages two predictive sub-scores with three that point the wrong way** — and
+`conf_volatility`, the most strongly inverted of all, is *stronger* in magnitude than
+`conf_crossover` is in the right direction. That is why the weighted total barely separates
+anything: ceiling by confidence band reads **60-69 → 13.6%** (n=154, **−$140.06**),
+**70-79 → 22.8%** (n=92, +$280.02), **80-89 → 21.2%** (n=33), **90-100 → 25.0%** (n=4) —
+non-monotonic, and the band holding **54% of the book is the losing one**. This is a
+**signal-construction defect, not a tuning problem**, and it is the sharpest brief attempt 2
+has had.
+
+### Lessons & improvement candidates
+1. **(→ weekly, highest impact) Rebuild the score from the two sub-scores that work.** The
+   evidence now supports dropping or inverting `conf_volatility` / `conf_rsi` / `conf_volume`
+   rather than re-weighting five inputs. **This is a signal change and must not be shipped by a
+   nightly routine** — it is attempt-2 material, pre-registered, judged on the ceiling.
+2. **(→ weekly) The ceiling caps the prize: 18.7%.** Even a *perfect* exit leaves a ~19% true
+   win rate. Any proposal that promises more than that from exit work is arithmetically wrong.
+   Conversely the 11.7pp gap between 7.1% realized and 18.7% ceiling **is** real and unclaimed.
+3. **(→ weekly) The gate's latency deserves its own measurement.** Today the gate refused
+   conf 79.9 at 14:12 and admitted conf 76.3 at 14:48 — the same name, after the move. Quantify
+   how often a gate-refused candidate outperforms the fill the gate later allows.
+4. **Do NOT touch the stop or trail to chase these numbers.** 68% of trades peaking below the
+   give-back is an *entry* fact; widening the trail would convert visible scratches into larger
+   losses and is barred by the doctrine's anti-gaming rule.
+
+### Notes for pre-market research
+- **NBIS — the new add traded, and it traded badly, but do NOT park it on one session.** Entry
+  was late, not wrong-symbol: NBIS had a genuine +3.3% morning trend (235.05 → 242.80) and a
+  live tape of 0.265% ATR at entry, comfortably above IMP-036's 0.20% breakpoint. It is exactly
+  the kind of name the screen was meant to find. **One trade is not evidence about a symbol** —
+  it is evidence about entry timing. Keep enabled; revisit after ~5 fills.
+- **MU — the 09-30 earnings park falls due TOMORROW.** Micron reports **Wed 09-30 after the
+  close** (call 16:30 ET). The park was armed in MU's `note` and deliberately not pulled forward
+  yesterday. **Tomorrow is the day to apply it.**
+- **QQQ gate was shut through the morning and opened late** — it refused NBIS (conf 79.9) and MU
+  (conf 67.1) at ~14:12 and was open by 14:48. Yesterday it was shut 79/79 bars. The gate is
+  doing real work; the open question is its **lag**, not its existence.
+- **NFLX signalled six times and was refused every time** (49.5–56.1, never reaching 60) and is
+  the most deteriorated name on the board (**−9.03 / −8.33 vs its MAs**, clock fired on both
+  legs). It is now generating the most noise of any symbol while being structurally broken.
+  **Strong park candidate on the clock rule** — this is the second session it has behaved this way.
+- **TSM ×4 (41.7–49.8), META ×3 (49.3–59.4), MSFT, AMD, INTC** all signalled and were refused
+  well below threshold — normal filter behaviour, no action.
+- **AAPL, IREN, HOOD, QCOM, TSLA, PLTR, NVDA never signalled at all today.**
+- Calendar: **Q3 GDP, ADP and the PCE deflator all pre-open Wed 09-30**, then **MU after the
+  close**. Thu ISM + claims, **Fri 10-02 jobs**. Pre-open prints are not intraday hazards.

@@ -5115,3 +5115,84 @@ is none to spend. **A second, independent trigger design has now hit the same wa
   expectancy and payoff held"*, or quoting MFE in **percent** alongside R so the denominator bias
   is visible. **Attempt 2 is the compression/expansion trigger, and its design brief is now
   sharper: it must find entries without reducing the trade count.**
+
+---
+
+## IMP-058 — Backfill the live book's excursions: the +1R ceiling now reads on 283 trades, not 10
+**Date:** 2026-09-29 (daily review) · **Commit:** 9e0290c · **Status:** LIVE (measurement only)
+
+### Why this and not a strategy change
+**The doctrine's escalation clause is triggered and was not close.** Over the trailing ten
+sessions that traded, FAIL+SCRATCH = **15/15 = 100%** (threshold: ≥60% over 3), true win rate
+**0%** against a headline **60%**, stop rate **10/15 (67%)**. Under escalation the rule is
+explicit: **stop shipping parameter tweaks**, write the verdict, hand the numbers to the weekly.
+So this run ships **no entry, exit, sizing, stop, trail, gate or threshold change**.
+
+What it ships instead is the instrument the escalation is supposed to be adjudicated *with*.
+The retire-or-rebuild trigger pre-registered in `todo.md` (09-28) judges a replacement entry
+trigger on **one** number — the **+1R ceiling** (IMP-051). On the live book that number was
+readable on **10 of 283 closed trades**, because `mfe_pct` is written only by the live tracker
+(IMP-037), which started 2026-08-28. **The instrument carrying a decision about retiring the
+strategy had n=10**, while attempt 1 of 2 (IMP-057) has already been spent against it.
+
+### The change
+`bot/backfill.py` (+ `python -m bot.backfill`) reconstructs each closed trade's excursion from
+1-min IEX bars over its recorded `entry_time_utc → exit_time_utc` window and writes `mfe_pct` /
+`mae_pct`. Three design points, each forced by an existing invariant rather than chosen:
+
+1. **Measured on high/low-water CLOSES, not intrabar extremes** — because that is what
+   `RiskManager._track_excursion` records, and for its stated reason: the ratchet sets its stop
+   from `close`, so a close-based excursion is the move the exit structure could actually have
+   banked. Backfilled and live rows share one column and are aggregated together by
+   `bot.report`, so they must mean the same thing. It reuses `bot.excursion.compute_excursion`
+   rather than reimplementing it. This also makes the backfill **conservative about the
+   ceiling** — it can understate how far a trade ran, never overstate it.
+2. **Window = `floor_minute(entry) ≤ bar_start ≤ floor_minute(exit)`.** The entry-minute bar
+   closes *after* the fill, so including it is not look-back; the exit-minute bar is included
+   because live folds the candle whose close triggered the exit.
+3. **A window with no bars stays NULL, never 0.** Scoring an unmeasurable trade as `mfe = 0%`
+   would manufacture a fake entry at the bottom of the very ladder this exists to measure.
+
+### Validation
+- **`--verify` against ground truth, run BEFORE any write:** recomputed the 10 live-measured
+  rows and agreed on **10/10** — mean |ΔMFE| **0.015pp**, worst **0.033pp** (residuals are the
+  expected difference between activity-driven live candles and regular historical bars).
+  *Note the post-write `--verify` now covers all 283 and reads 283/283, but for the 273 it is
+  self-consistency, not independent validation — the 10-row check is the one that counts.*
+- **273 reconstructed, 0 skipped.**
+- **664 tests pass (+17, 647 → 664)**; `bot.preflight` all-PASS (single benign market-closed
+  warning). Service restarted, `active`, warmup primed 16/16.
+- Writing the tests **caught a real bug**: `_windows_from_rows` compared `exit_t < entry_t`
+  before normalising tzinfo, which raises on a mixed naive/aware pair. Fixed by normalising first.
+
+### 🔴 What it revealed (n=283, previously n=10)
+- **CEILING = 18.7%** of entries ever print +1R · **realized true win rate 7.1%**
+  → **11.7pp exit-recoverable, 81.3pp is the entry signal.**
+- **193/283 (68%) peaked below the 1.25% trail give-back** — structurally unable to finish green
+  on the trail at any exit tuning.
+- **MFE <1.0%: 172 trades, −$2,052.50 · MFE >1.0%: 111 trades, +$2,123.87.** The book is two
+  populations and the entry cannot separate them.
+- **Three of five sub-scores are ANTI-predictive of the ceiling:** `conf_volatility` **−17.1pp**
+  (high-half 9.2% vs low-half 26.2%), `conf_rsi` **−10.0pp**, `conf_volume` **−8.6pp**; only
+  `conf_crossover` **+15.4pp** and `conf_trend` **+9.8pp** point the right way. The most strongly
+  inverted sub-score is *stronger* than the best correct one. Confidence bands are accordingly
+  non-monotonic (13.6 / 22.8 / 21.2 / 25.0%) and the 60-69 band — **54% of the book** — is the
+  one that loses money (−$140.06).
+
+### Guardrails
+- **Nothing in the trading path was touched.** No entry, exit, sizing, stop, trail, break-even
+  protection, market gate, blackout, stand-down, EOD flatten, threshold or limit changed.
+  `.env` not touched — still `ustradebot:ustradebot` mode 600. No step toward live capital.
+- The write is `UPDATE ... WHERE id = ? AND mfe_pct IS NULL`, so a live-measured value — the
+  ground truth this module is validated against — **can never be overwritten**.
+- **No attempt consumed** against the `todo.md` retire trigger: this is not a candidate entry
+  trigger. **Attempt 2 of 2 remains unused.**
+
+### Handed to the weekly (10-02)
+1. **Attempt 2's brief is now specific:** rebuild the score from `conf_crossover` + `conf_trend`,
+   dropping or inverting the three anti-predictive sub-scores. A signal change, pre-registered,
+   judged on the ceiling — **not for a nightly routine to ship**.
+2. **The ceiling caps the prize at 18.7%.** Any exit-side proposal promising a higher true win
+   rate than that is arithmetically wrong. The 11.7pp gap to 7.1% realized is real and unclaimed.
+3. **Measure the market gate's latency.** Today it refused NBIS at conf **79.9** (14:12) and
+   admitted the same name at conf **76.3** (14:48), after its +3.3% move was over.
